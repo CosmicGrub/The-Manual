@@ -52,10 +52,10 @@ Track: Programming Language Mastery. A deliberate polyglot path from absolute-be
 
 **Modules** (~45h):
 
-- **Python Syntax & Core Semantics** — ~10h: variables & dynamic typing, control flow (if/for/while), functions & scope (local/global/closures), truthy/falsy & common gotchas
-- **Data Structures in Practice** — ~8h: lists/tuples/dicts/sets, slicing & string methods, list/dict comprehensions, mutability vs immutability
+- **Python Syntax & Core Semantics** — ~10h: (CS Foundations Tier 1 already teaches Python variables/control-flow/functions in depth via algorithmic problems — this module assumes that fluency and spends most of its time on the genuinely new angle: JS-parallel comparison woven throughout) variables & dynamic typing recap, functions & scope (local/global/closures) with explicit "here's the JS equivalent" notes, truthy/falsy & common gotchas
+- **Data Structures in Practice** — ~8h: (CS Foundations Tier 1 covers lists/dicts/sets basics — this module assumes that and goes idiom-deep: comprehensions, slicing, mutability gotchas, plus explicit JS array/object parallels) list/dict comprehensions as a Pythonic idiom, slicing & string methods, mutability vs immutability, "here's the JS equivalent" notes throughout
 - **Functions, Modules & Basic OOP** — ~8h: functions as first-class objects, writing your first classes (`__init__`, methods), modules, imports, and virtual environments (venv)
-- **Error Handling & Debugging Fundamentals** — ~6h: try/except/finally, reading a traceback top-to-bottom, using `pdb` / VS Code debugger to step through code
+- **Error Handling & Debugging Fundamentals** — ~6h: (CS Foundations Tier 1 covers basic try/except — this module goes deeper: finally, custom exceptions, and real debugger workflow) try/except/finally and custom exception classes, reading a traceback top-to-bottom, using `pdb` / VS Code debugger to step through code, JS's try/catch contrasted
 - **JavaScript Foundations in Parallel** — ~8h: var/let/const & hoisting, functions, arrow functions, arrays/objects, running JS outside the browser with Node, explicit compare/contrast notes vs the Python you just learned
 - **Bash Scripting Basics** — ~5h: variables, conditionals, loops in a .sh file, positional arguments ($1, $@), piping commands together into a first automation script
 
