@@ -1,6 +1,6 @@
 # The Manual — Masterfile
 
-> **Canonical document.** This file, `CHANGELOG.md`, and `docs/diagrams/*.mmd` are the single source of truth for this project. They are amended in place, not duplicated — every design decision lives here, in the repo, and is mirrored to Google Drive (`The Manual (Coding Curriculum)` folder) after every change. See `CHANGELOG.md` for the history of *why* things changed.
+> **Canonical document.** This file, `CHANGELOG.md`, and `docs/diagrams/*.mmd` are the single source of truth for this project. They are amended in place, not duplicated — every design decision lives here, in the repo, on the `claude/coding-curriculum-design-nfkmqz` branch. **The GitHub repo is the sole canonical location** (standing rule as of 2026-09-28 — see §6); nothing here is mirrored to Google Drive or anywhere else. See `CHANGELOG.md` for the history of *why* things changed.
 
 ## 0. Vision
 
@@ -277,8 +277,8 @@ _Independent reviewer pass across all 8 tracks. This is the running answer to "w
 
 | Location | Status |
 |---|---|
-| Repo (`claude/coding-curriculum-design-nfkmqz`) | Canonical — this is the file being edited. |
-| Google Drive (`The Manual (Coding Curriculum)/`) | Mirrored after every amendment to this file. |
-| Claude memory / Project knowledge | **Not available from this session** — this CLI session has no tool to write Claude's persistent memory or claude.ai Project knowledge. If you want this mirrored there too, do it from a claude.ai chat session, or ask and I'll flag exactly what's missing. |
+| Repo (`claude/coding-curriculum-design-nfkmqz`) | **Sole canonical location**, per standing rule set 2026-09-28. This is the file being edited. |
+| Google Drive | **Discontinued as of 2026-09-28.** An early checkpoint (`MASTERFILE.md`, `CHANGELOG.md`, both diagrams) was briefly mirrored to a `The Manual (Coding Curriculum)` Drive folder earlier in this project's first session; that mirror is now stale/unmaintained and should be disregarded — the repo is authoritative. |
+| Claude memory / Project knowledge | Not available from this session — no tool here can write either. Out of scope now that Drive sync is also discontinued for this project. |
 
 Decision log lives in `CHANGELOG.md`.

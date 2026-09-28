@@ -29,4 +29,6 @@ All notable changes to The Manual (curriculum + app) are logged here. This file 
 - Multi-user auth, AI-graded "explain it back," adaptive sequencing.
 - The reviewer's top structural fix — no cross-track sequencing/prerequisite map exists yet, so the 8 tracks currently read as 8 excellent but disconnected books. Recommended as the next design pass before writing lesson content at scale.
 
-**Not synced this round:** Claude persistent memory / claude.ai Project knowledge — no tool in this session can write either; only the repo and Google Drive were updated.
+**Not synced this round:** Claude persistent memory / claude.ai Project knowledge — no tool in this session can write either.
+
+**Policy change (same session):** per explicit user instruction, this project stops using Google Drive — **the GitHub repo is now the sole canonical location** for `MASTERFILE.md`, `CHANGELOG.md`, and everything else. The `The Manual (Coding Curriculum)` Drive folder created earlier this session (seeded with an early checkpoint of these files plus both diagrams) is not being cleaned up or further maintained; treat it as stale. No more Drive writes will happen for this project going forward.
