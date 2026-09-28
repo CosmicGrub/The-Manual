@@ -1,0 +1,98 @@
+[
+  {
+    "id": "ai-ml-prompting/tier-2/classical-ml-with-scikit-learn/q1",
+    "type": "multiple_choice",
+    "prompt": "A decision tree with no max_depth limit reached 100% training accuracy but only 91.2% test accuracy on the breast cancer dataset, while a max_depth=3 tree reached 97.6% train and 93.9% test accuracy. What does this pattern show?",
+    "choices": [
+      "The unrestricted tree is underfitting, since its test accuracy is lower than the shallow tree's train accuracy",
+      "The unrestricted tree is overfitting: it memorized noise in the training set, which hurt its ability to generalize",
+      "Both trees are equally good; the numbers show no meaningful difference",
+      "The shallow tree has data leakage because its train accuracy is lower than the deep tree's"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-2/classical-ml-with-scikit-learn/q2",
+    "type": "multiple_choice",
+    "prompt": "A random forest's confusion matrix on the breast-cancer test set (rows = actual, columns = predicted, order [malignant, benign]) was [[39, 3], [2, 70]]. Treating benign as the positive class, what is the recall?",
+    "choices": [
+      "70 / 73 = 0.959",
+      "70 / 72 = 0.972",
+      "39 / 41 = 0.951",
+      "39 / 42 = 0.929"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-2/classical-ml-with-scikit-learn/q3",
+    "type": "multiple_choice",
+    "prompt": "Using that same confusion matrix [[39, 3], [2, 70]] (rows = actual, columns = predicted, order [malignant, benign]), how many malignant tumors did the model incorrectly predict as benign?",
+    "choices": [
+      "2",
+      "3",
+      "39",
+      "70"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-2/classical-ml-with-scikit-learn/q4",
+    "type": "multiple_choice",
+    "prompt": "Running the same k-NN classifier (k=5) on the breast cancer dataset with and without StandardScaler produced test accuracies of 0.912 (raw) and 0.956 (scaled). Why does feature scaling matter for k-NN in a way it doesn't for the decision tree or random forest in this module?",
+    "choices": [
+      "k-NN uses Euclidean distance, so a feature measured in the thousands (like mean area) can dominate the distance calculation over a feature in single digits; trees split on individual feature thresholds and never compare magnitudes across features",
+      "Scaling only affects regression models, not classifiers like k-NN",
+      "Trees always require scaling and k-NN never does, the opposite of what happened here",
+      "The accuracy difference was random noise unrelated to scaling"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-2/classical-ml-with-scikit-learn/q5",
+    "type": "multiple_choice",
+    "prompt": "On a fraud-style dataset where only 3.5% of examples are the positive class, a DummyClassifier that always predicts \"not fraud\" scored 96.48% accuracy. What does this demonstrate?",
+    "choices": [
+      "Accuracy is always the most reliable metric to report",
+      "The dummy classifier is actually a good fraud detector",
+      "On severely imbalanced data, high accuracy can be achieved by a model that never correctly identifies the minority class, which makes accuracy misleading",
+      "The dataset must contain a labeling error, since accuracy is unusually high"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "ai-ml-prompting/tier-2/classical-ml-with-scikit-learn/q6",
+    "type": "multiple_choice",
+    "prompt": "A model's ROC-AUC on a test set is exactly 0.5. What does that tell you?",
+    "choices": [
+      "The model is perfectly calibrated",
+      "The model correctly classifies 50% of examples at every threshold",
+      "The model's ranking of positive vs. negative examples is no better than random guessing",
+      "The dataset must be perfectly balanced between classes"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "ai-ml-prompting/tier-2/classical-ml-with-scikit-learn/q7",
+    "type": "multiple_choice",
+    "prompt": "On the fraud-style dataset, a default logistic regression scored ROC-AUC = 0.747 but PR-AUC (average precision) = 0.225, and its recall on the fraud class was only 2.3%. Which metric best exposes that this model is nearly useless for actually catching fraud?",
+    "choices": [
+      "ROC-AUC, because it is always the most trustworthy summary metric regardless of class balance",
+      "Accuracy, because it was the highest of all the reported metrics",
+      "PR-AUC (and recall), because they are computed relative to the minority class and directly expose how few real fraud cases were caught",
+      "The intercept term of the fitted logistic regression"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "ai-ml-prompting/tier-2/classical-ml-with-scikit-learn/q8",
+    "type": "multiple_choice",
+    "prompt": "cross_val_score(rf, X_train, y_train, cv=StratifiedKFold(n_splits=5, shuffle=True, random_state=42)) returns 5 scores. What does each individual score measure?",
+    "choices": [
+      "Accuracy on the full held-out X_test set, recomputed 5 times with different random seeds",
+      "Accuracy on one held-out fold of the training data after fitting on the other 4 folds, repeated so every training example is used for validation exactly once",
+      "Training accuracy on the entire training set, unrelated to validation",
+      "The combined accuracy of an ensemble formed by averaging all 5 models' predictions together"
+    ],
+    "correctIndex": 1
+  }
+]

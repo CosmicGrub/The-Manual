@@ -1,0 +1,297 @@
+---
+trackId: ai-ml-prompting
+tier: 2
+title: "Prompt Engineering Craft II"
+order: 6
+estimatedHours: 8
+slug: prompt-engineering-craft-ii
+---
+
+# Prompt Engineering Craft II
+
+Tier 1 gave you the core moves — zero-shot vs. few-shot, system prompts, chain-of-thought, and a hand-rolled JSON validator. Those are all still single-call techniques: one prompt in, one response out, maybe a regex cleanup after. This module is where prompting turns into *software*. You'll wire multiple calls into a real pipeline, sample a model repeatedly and vote on the result instead of trusting one shot, validate structured output against a formal schema instead of ad hoc `if` checks, and — the part that actually separates engineering from vibes — build a harness that runs a prompt against a labeled test set and reports a number. Everything below assumes an initialized `client` (`anthropic.Anthropic()`) and reuses the zero-shot/few-shot/CoT/JSON instincts from Tier 1 as building blocks, not as things to relearn.
+
+## Prompt Chaining: Composing Multi-Step Pipelines
+
+A chain is a sequence of separate `messages.create` calls where the Python code — not the model — carries information from one call to the next. That's the whole mechanism: extract structured data in call one, feed that structured data into call two's prompt, feed call two's output into call three's prompt. Nothing about the model remembers call one during call three unless your code explicitly puts that information in call three's prompt; each call is stateless on its own.
+
+Here's a real three-step pipeline for a support ticket: extract structured fields, draft a reply from those fields, then gate the draft against policy before anything gets sent.
+
+```python
+import json
+
+raw_ticket = """
+Subject: URGENT - can't export invoices
+From: priya.raman@northfieldlogistics.com
+
+Hi, we've been trying to export our Q3 invoices since yesterday and the
+export button just spins forever, no error, no file. We have a board
+meeting in 2 hours and need these numbers. Please help ASAP.
+"""
+
+# --- Step 1: extract structured fields from raw text ---
+extract_prompt = f'''Extract fields from this support ticket. Respond with ONLY JSON.
+Schema: {{"customer": string, "product_area": "billing"|"auth"|"export"|"other",
+"severity": "low"|"medium"|"high"|"critical", "summary": string}}
+
+Ticket:
+"""{raw_ticket}"""'''
+
+extract_response = client.messages.create(
+    model="claude-sonnet-4-5", max_tokens=200,
+    messages=[{"role": "user", "content": extract_prompt}],
+)
+extracted = json.loads(extract_response.content[0].text)
+print(extracted)
+```
+
+Illustrative output:
+
+```
+{'customer': 'Priya Raman', 'product_area': 'export', 'severity': 'high',
+ 'summary': 'Invoice export hangs indefinitely with no error or file, time-sensitive due to board meeting.'}
+```
+
+Step two takes that dict — not the raw email — as its input:
+
+```python
+# --- Step 2: draft a reply from Step 1's output ---
+draft_prompt = f'''Draft a customer support reply using these ticket details:
+{json.dumps(extracted)}
+
+Rules: acknowledge the specific issue, do not promise a specific fix ETA,
+keep it under 120 words, tone matching a "{extracted['severity']}" severity issue.'''
+
+draft_response = client.messages.create(
+    model="claude-sonnet-4-5", max_tokens=250,
+    messages=[{"role": "user", "content": draft_prompt}],
+)
+draft_reply = draft_response.content[0].text
+print(draft_reply)
+```
+
+Illustrative output:
+
+```
+Hi Priya,
+
+Thanks for flagging this right away — I can see how disruptive a stuck
+export is with a board meeting coming up. I've escalated this to our
+export team as high priority.
+
+I don't want to promise a fix time I can't guarantee, but you'll hear
+back from us with either a resolution or a clear update well before end
+of day. If you need the raw Q3 numbers urgently in the meantime, I can
+have someone pull them manually — just say the word.
+
+— Support Team
+```
+
+Step three doesn't draft anything — it independently checks step two's output and decides what happens next:
+
+```python
+# --- Step 3: gate the draft against policy before sending ---
+critique_prompt = f'''Check this draft reply against policy. Respond with ONLY JSON:
+{{"pass": bool, "reasons": [string]}}
+
+Policy: must acknowledge the specific issue; must NOT promise a specific fix
+ETA (e.g. "within 2 hours"); must be under 120 words.
+
+Draft reply:
+"""{draft_reply}"""'''
+
+critique_response = client.messages.create(
+    model="claude-sonnet-4-5", max_tokens=150,
+    messages=[{"role": "user", "content": critique_prompt}],
+)
+verdict = json.loads(critique_response.content[0].text)
+print(verdict)
+
+if verdict["pass"]:
+    print("Sending reply.")
+else:
+    print(f"Flagged for human review: {verdict['reasons']}")
+```
+
+Illustrative output: `{'pass': True, 'reasons': []}` → `Sending reply.`
+
+Three things make this a *pipeline* and not just three prompts stapled together. First, each step has one job — extraction, drafting, gating — so a failure is localized: if step 1 returns malformed JSON, you catch that `json.JSONDecodeError` and stop before step 2 ever runs on garbage. Second, step 3 can branch the whole pipeline (`pass` → send, fail → human queue) based on structured output from a *different* call than the one that produced the thing being judged — a model critiquing its own single response in the same call is far weaker than a fresh call whose only job is judging. Third, notice this is different from a multi-turn conversation where you'd append the assistant's reply back into a growing `messages` list — that's *conversational* chaining, where context accumulates automatically. What we built here is *pipeline* chaining: each call is independent, and only what you explicitly serialize into the next prompt crosses the boundary.
+
+## Self-Consistency: Sample, Don't Guess Once
+
+Chain-of-thought exposes a model's reasoning steps, but at `temperature=0` a wrong assumption in step one still poisons the whole chain — every time, the same way, because greedy decoding is close to deterministic. **Self-consistency** fixes this differently: sample the same prompt several times at `temperature > 0` so the model explores *different* reasoning paths, then aggregate — usually a majority vote — instead of trusting any single sample.
+
+```python
+import re
+from collections import Counter
+
+problem = (
+    "A store marks up a product 40% from its $50 wholesale cost, then runs "
+    "a 25% off sale on the marked-up price. A loyalty member also gets an "
+    "extra flat $5 off at checkout. What is the final price?"
+)
+
+def sample_answer(problem, temperature):
+    response = client.messages.create(
+        model="claude-sonnet-4-5", max_tokens=300, temperature=temperature,
+        messages=[{"role": "user", "content": (
+            f"{problem} Think step by step, then end with exactly: "
+            "FINAL ANSWER: $<number>"
+        )}],
+    )
+    match = re.search(r"FINAL ANSWER:\s*\$?([\d.]+)", response.content[0].text)
+    return match.group(1) if match else None
+
+answers = [sample_answer(problem, temperature=0.8) for _ in range(7)]
+print(answers)
+```
+
+Illustrative output — 7 samples, same prompt, `temperature=0.8`:
+
+```
+['47.5', '47.5', '52.5', '47.5', '47.5', '48.75', '47.5']
+```
+
+The correct chain is $50 × 1.4 = $70 marked up, × 0.75 for the sale = $52.5, − $5 loyalty = **$47.5**. Two samples went wrong in different ways: one forgot the flat $5 entirely (landing on $52.5), one subtracted the $5 *before* applying the 25% off, giving $65 × 0.75 = $48.75 — a different mistake each time, because each sample took a different path through the reasoning. That's the mechanism self-consistency exploits: individual errors are noisy and don't agree with each other, while the correct path is the one multiple independent samples converge on.
+
+```python
+vote_counts = Counter(a for a in answers if a is not None)
+majority_answer, votes = vote_counts.most_common(1)[0]
+print(f"Self-consistency answer: ${majority_answer} ({votes}/{len(answers)} votes)")
+```
+
+Output: `Self-consistency answer: $47.5 (5/7 votes)`
+
+Two practical rules. First, this *requires* `temperature > 0` — at 0 you'd mostly get the same sample seven times over, paying for seven calls to learn nothing a single call didn't already tell you. Second, it costs N× the API calls, so reserve it for decisions where being wrong is expensive (a classification that triggers an irreversible action, a number that goes on an invoice), not for routine low-stakes calls. Pick an odd N to avoid ties, and decide up front what happens on a tie — fall back to a `temperature=0` sample, or flag for human review; don't leave it undefined.
+
+## Structured Output Schemas with Real Validation
+
+Tier 1's `parse_and_validate` hand-checked each field with `if` statements. That works for four fields; it doesn't scale, and its error messages are whatever you bothered to write. The `jsonschema` package replaces the hand-rolled checks with one declarative schema and a library that reports exactly which field and which rule failed.
+
+```python
+from jsonschema import validate, ValidationError
+
+TICKET_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "customer": {"type": "string", "minLength": 1},
+        "product_area": {"type": "string", "enum": ["billing", "auth", "export", "other"]},
+        "severity": {"type": "string", "enum": ["low", "medium", "high", "critical"]},
+        "summary": {"type": "string", "maxLength": 240},
+    },
+    "required": ["customer", "product_area", "severity", "summary"],
+    "additionalProperties": False,
+}
+
+def parse_and_validate(raw_output, schema):
+    cleaned = raw_output.strip()
+    if cleaned.startswith("```"):
+        cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", cleaned)
+    data = json.loads(cleaned)
+    validate(instance=data, schema=schema)
+    return data
+```
+
+Run it against a model output with a typo in the enum value:
+
+```python
+bad_output = '{"customer": "Priya Raman", "product_area": "exports", "severity": "high", "summary": "Export hangs."}'
+parse_and_validate(bad_output, TICKET_SCHEMA)
+```
+
+That raises:
+
+```
+jsonschema.exceptions.ValidationError: 'exports' is not one of ['billing', 'auth', 'export', 'other']
+
+Failed validating 'enum' in schema['properties']['product_area']:
+    {'enum': ['billing', 'auth', 'export', 'other'], 'type': 'string'}
+
+On instance['product_area']:
+    'exports'
+```
+
+One schema object now enforces types, enums, string-length bounds, which fields are required, and — via `additionalProperties: False` — rejects a field the model hallucinated that was never in the schema at all. Wrap the call in `try/except ValidationError as e:` and `e.message` gives you that exact "which field, which rule" string for free, instead of a generic `ValueError` you wrote yourself. The same schema dict also doubles as a tool's `input_schema` if you switch to Anthropic's tool-use for forced structured output later — the format you validate against and the format you can constrain generation with are the same JSON Schema object.
+
+## Building a Prompt-Evaluation Harness
+
+This is the actual "eval, not vibes" workflow: a fixed set of labeled examples, a function that runs your prompt against each one, and a number you can compare across prompt versions instead of a feeling that "it seems better now."
+
+```python
+test_set = [
+    {"ticket": "Export button just spins forever, no file, no error, need for board meeting today.", "expected": "high"},
+    {"ticket": "Logo looks slightly blurry on retina screens.", "expected": "low"},
+    {"ticket": "Password reset emails land in spam about half the time.", "expected": "medium"},
+    {"ticket": "All database writes are silently failing under load, no error logged, data loss.", "expected": "critical"},
+    {"ticket": "Dashboard chart colors are hard to read for colorblind users.", "expected": "low"},
+    {"ticket": "Invoices sent to customers show the wrong currency symbol.", "expected": "medium"},
+    {"ticket": "Entire app returns 500 errors for every user since this morning's deploy.", "expected": "critical"},
+    {"ticket": "Export works but takes 15 seconds longer than it used to.", "expected": "low"},
+    {"ticket": "Users can log in as another account by editing the URL.", "expected": "critical"},
+    {"ticket": "Search results are sometimes out of date by a day.", "expected": "medium"},
+]
+
+def classify_severity(ticket_text):
+    prompt = (f'Classify this support ticket\'s severity as exactly one word: '
+              f'low, medium, high, or critical.\n\nTicket: "{ticket_text}"\n\nSeverity:')
+    response = client.messages.create(
+        model="claude-sonnet-4-5", max_tokens=10, temperature=0,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return response.content[0].text.strip().lower()
+
+results = [
+    {**case, "predicted": classify_severity(case["ticket"])}
+    for case in test_set
+]
+for r in results:
+    r["correct"] = r["predicted"] == r["expected"]
+
+accuracy = sum(r["correct"] for r in results) / len(results)
+print(f"Accuracy: {accuracy:.0%} ({sum(r['correct'] for r in results)}/{len(results)})")
+for r in results:
+    if not r["correct"]:
+        print(f"MISS  expected={r['expected']!r}  predicted={r['predicted']!r}  ticket={r['ticket'][:55]!r}")
+```
+
+Illustrative output:
+
+```
+Accuracy: 80% (8/10)
+MISS  expected='critical'  predicted='high'      ticket='Users can log in as another account by editing the URL.'
+MISS  expected='medium'    predicted='low'       ticket='Invoices sent to customers show the wrong currency symb'
+```
+
+80% looks fine until you break it down by class — and you should always break it down, because a flat accuracy number hides *where* the errors cluster:
+
+```python
+from collections import defaultdict
+
+per_class = defaultdict(lambda: [0, 0])  # [correct, total]
+for r in results:
+    per_class[r["expected"]][1] += 1
+    per_class[r["expected"]][0] += r["correct"]
+
+for label, (correct, total) in sorted(per_class.items()):
+    print(f"{label:9s} {correct}/{total}")
+```
+
+```
+critical  2/3
+high      1/1
+low       3/3
+medium    2/3
+```
+
+Both misses under-rate severity — an account-takeover bug scored as merely "high," a billing display bug scored as merely "low" — and both land in the classes that matter most for triage priority. An 80% headline number doesn't tell you that; the per-class breakdown does. This is exactly the harness you re-run every time you touch the prompt: swap in a few-shot version, add a system prompt, switch models — same ten examples, same function, new accuracy number, and a specific list of which examples still fail so you're debugging misses, not re-reading the whole prompt from scratch. At real scale this is dozens to hundreds of labeled examples run in CI before a prompt change ships, treated exactly like a test suite, because that's what it is.
+
+## Exercise
+
+Build a two-step pipeline with an eval harness behind it:
+
+1. **Step 1** classifies a short piece of text you have real examples of (support tickets, product reviews, meeting notes — your choice) into a JSON object with at least two fields, one of them an enum. Validate every output with a `jsonschema` schema like the one above.
+2. **Step 2** takes Step 1's parsed JSON and does something conditional on one of the fields — draft a response only if severity isn't "low," for instance, or flag anything classified as a certain category for a second pass.
+3. Build a labeled test set of 8-10 real examples for Step 1's classification and write the harness: run each one, compare predicted vs. expected, print overall accuracy and a per-class breakdown.
+4. Take whichever 1-2 examples your harness got wrong and re-run just those through self-consistency — 5 samples at `temperature=0.7`, majority vote — and see whether voting flips them to correct.
+
+**Hint:** if step 4 doesn't flip a miss, that's a real, useful result, not a failure of the exercise — it tells you the error isn't noise from one bad sampling path, it's a *systematic* misunderstanding baked into the prompt itself (wrong instruction, missing context, ambiguous category boundary), which no amount of re-sampling at any temperature will vote its way out of. Self-consistency fixes noisy errors; it cannot fix a prompt that is confidently, consistently wrong.

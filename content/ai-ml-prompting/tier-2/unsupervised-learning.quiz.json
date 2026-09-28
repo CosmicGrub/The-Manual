@@ -1,0 +1,98 @@
+[
+  {
+    "id": "ai-ml-prompting/tier-2/unsupervised-learning/q1",
+    "type": "multiple_choice",
+    "prompt": "In scikit-learn's KMeans, what does the `inertia_` attribute measure after fitting?",
+    "choices": [
+      "The sum of squared distances from each point to its assigned cluster's centroid",
+      "The number of iterations the algorithm took to converge",
+      "The average distance between every pair of centroids",
+      "The proportion of total variance explained by the clustering"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-2/unsupervised-learning/q2",
+    "type": "multiple_choice",
+    "prompt": "You fit KMeans on the same scaled dataset for k=1 through 8 and record these inertia values in order: 600.0, 222.36, 139.82, 114.09, 90.93, 81.54, 72.63, 62.54. Using the elbow method, which k should you pick?",
+    "choices": [
+      "k=2",
+      "k=3",
+      "k=5",
+      "k=8"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-2/unsupervised-learning/q3",
+    "type": "multiple_choice",
+    "prompt": "Why is it essential to scale features with StandardScaler before running k-means, as this module does on the Iris data?",
+    "choices": [
+      "KMeans requires every input value to be strictly positive",
+      "Without scaling, a feature with a much larger numeric range would dominate the Euclidean distance calculation and skew every cluster assignment",
+      "Scaling is only required for PCA, not for k-means",
+      "KMeans will raise an error and fail to run at all on unscaled data"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-2/unsupervised-learning/q4",
+    "type": "multiple_choice",
+    "prompt": "In this module's Iris PCA, explained_variance_ratio_ for PC1 and PC2 was [0.7296, 0.2285]. Approximately what percentage of the original 4-dimensional variance is retained by keeping just those two components?",
+    "choices": [
+      "50%",
+      "73%",
+      "96%",
+      "100%"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "ai-ml-prompting/tier-2/unsupervised-learning/q5",
+    "type": "multiple_choice",
+    "prompt": "What is the fundamental difference in purpose between k-means and PCA?",
+    "choices": [
+      "k-means reduces the number of features; PCA groups similar rows together",
+      "k-means groups rows (examples) into clusters; PCA reduces the number of features (dimensions) while preserving variance",
+      "They solve the same problem with different algorithms and are interchangeable",
+      "k-means is a supervised algorithm; PCA is an unsupervised algorithm"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-2/unsupervised-learning/q6",
+    "type": "multiple_choice",
+    "prompt": "In the Iris PCA fit, the PC1 loading (in pca.components_) for sepal width was -0.269, much smaller in magnitude than petal length's 0.580 and petal width's 0.565. What does this tell you?",
+    "choices": [
+      "Sepal width was dropped from the dataset before PCA ran",
+      "Sepal width contributes relatively little to the direction of maximum variance (PC1) compared to the petal measurements",
+      "Sepal width is the feature most strongly correlated with the target species",
+      "PCA discards any feature whose loading comes out negative"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-2/unsupervised-learning/q7",
+    "type": "multiple_choice",
+    "prompt": "Mathematically, what does scikit-learn's PCA.fit_transform() do internally?",
+    "choices": [
+      "Trains a small neural network to compress the input data",
+      "Centers the data, computes its covariance matrix, and finds that matrix's eigenvectors and eigenvalues -- the same operation performed by hand with np.linalg.eigh in the Linear Algebra module",
+      "Runs k-means clustering and reports each point's distance to its centroid",
+      "Randomly samples a subset of the original features to keep"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-2/unsupervised-learning/q8",
+    "type": "multiple_choice",
+    "prompt": "After fitting KMeans(n_clusters=3) on the scaled Iris features and comparing cluster assignments to the true species labels (which the model never saw), all 50 setosa examples landed in one cluster with zero other species mixed in, while versicolor and virginica were split across the other two clusters with some overlap between them. What does this most directly demonstrate?",
+    "choices": [
+      "k-means always achieves perfect classification when k matches the true number of classes",
+      "Setosa is well-separated from the other two species in feature space, while versicolor and virginica genuinely overlap and are harder to tell apart",
+      "The Iris dataset's labels are incorrect for versicolor and virginica",
+      "k=3 was the wrong choice and a different k would have separated all three species perfectly"
+    ],
+    "correctIndex": 1
+  }
+]

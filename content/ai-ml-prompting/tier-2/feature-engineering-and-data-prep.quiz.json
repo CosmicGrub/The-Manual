@@ -1,0 +1,98 @@
+[
+  {
+    "id": "ai-ml-prompting/tier-2/feature-engineering-and-data-prep/q1",
+    "type": "multiple_choice",
+    "prompt": "Which scenario is the safest use of dropping rows (rather than imputing) for missing data?",
+    "choices": [
+      "Missing values are concentrated in a tiny fraction of rows in a large dataset, and dropping them costs little information",
+      "20% of every column is missing, but the missing rows differ from column to column",
+      "You only have 50 rows total and can't afford to lose any",
+      "The missing values are systematically correlated with the target variable"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-2/feature-engineering-and-data-prep/q2",
+    "type": "multiple_choice",
+    "prompt": "In a 10-row dataset, three different columns are each missing 20% of their values (2 rows each), but the missing rows are different for each column. If you call df.dropna() to remove any row with at least one missing value, how many of the original 10 rows remain?",
+    "choices": [
+      "8",
+      "6",
+      "4",
+      "2"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "ai-ml-prompting/tier-2/feature-engineering-and-data-prep/q3",
+    "type": "multiple_choice",
+    "prompt": "Which encoding is correct for a categorical feature like 'shirt size' with values Small, Medium, Large, where the categories have a natural ranking?",
+    "choices": [
+      "One-hot encoding, to avoid implying any order",
+      "Ordinal encoding, since the category values have a genuine natural order the model should learn",
+      "Leave it as raw text strings and fit the model directly",
+      "Drop the column since it's categorical"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-2/feature-engineering-and-data-prep/q4",
+    "type": "multiple_choice",
+    "prompt": "You ordinal-encode a 'neighborhood' feature with no natural order as Downtown=0, Suburbs=1, Rural=2. What problem does this introduce for a linear model?",
+    "choices": [
+      "It hands the model a false numeric order (Rural > Suburbs > Downtown) that it can spuriously learn from",
+      "It uses far more memory than one-hot encoding would",
+      "scikit-learn cannot fit a model on ordinal-encoded data at all",
+      "It requires the category values to already be numeric"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-2/feature-engineering-and-data-prep/q5",
+    "type": "multiple_choice",
+    "prompt": "A StandardScaler is fit only on the training set, where a column has mean=50 and std=10. What does a test-set value of x=70 map to after applying that same fitted scaler?",
+    "choices": [
+      "0.2",
+      "2.0",
+      "20.0",
+      "7.0"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-2/feature-engineering-and-data-prep/q6",
+    "type": "multiple_choice",
+    "prompt": "Why does fitting a StandardScaler on the full dataset (train + test combined) before splitting count as data leakage?",
+    "choices": [
+      "Because scaling is unnecessary for any model besides KNN",
+      "Because the scaler's mean and standard deviation are computed using information from the test rows, so the 'unseen' test set has already influenced preprocessing before evaluation",
+      "Because StandardScaler always produces negative accuracy scores",
+      "Because scikit-learn raises an error if you scale before calling train_test_split"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-2/feature-engineering-and-data-prep/q7",
+    "type": "multiple_choice",
+    "prompt": "In the lesson's leakage demo, a KNN model was evaluated two ways on the same data and split: once with the scaler fit on the full dataset before splitting, and once with the scaler fit only on the training rows. What did the results show?",
+    "choices": [
+      "The leaky version scored about 8 points higher (90% vs. 82%)",
+      "The leaky version scored about 8 points lower (82% vs. 90%)",
+      "There was no difference between the two at all",
+      "The correctly-scaled version failed to run"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-2/feature-engineering-and-data-prep/q8",
+    "type": "multiple_choice",
+    "prompt": "On the same 40-feature dataset, a Lasso (L1) model zeroes out 18 of the 40 coefficients entirely, while a Ridge (L2) model keeps all 40 coefficients nonzero but shrinks their magnitudes. What does this illustrate about the difference between L1 and L2 regularization?",
+    "choices": [
+      "L1 performs implicit feature selection by driving irrelevant coefficients to exactly zero, while L2 shrinks coefficients smoothly without eliminating any",
+      "L2 always produces a sparser model than L1",
+      "L1 and L2 always produce identical coefficient patterns on any dataset",
+      "Ridge regression cannot be applied to regression tasks, only classification"
+    ],
+    "correctIndex": 0
+  }
+]

@@ -1,0 +1,98 @@
+[
+  {
+    "id": "ai-ml-prompting/tier-2/building-with-llm-apis/q1",
+    "type": "multiple_choice",
+    "prompt": "Which Python package do you install to call the Anthropic API directly from code?",
+    "choices": [
+      "requests",
+      "openai",
+      "anthropic",
+      "boto3"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "ai-ml-prompting/tier-2/building-with-llm-apis/q2",
+    "type": "multiple_choice",
+    "prompt": "By default, where does `anthropic.Anthropic()` look for your API key?",
+    "choices": [
+      "A config.json file in the working directory",
+      "The ANTHROPIC_API_KEY environment variable",
+      "It must always be passed explicitly as an argument",
+      "The system keychain"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-2/building-with-llm-apis/q3",
+    "type": "multiple_choice",
+    "prompt": "You call client.messages.stream(...) as a context manager and iterate stream.text_stream, printing each chunk. What do you need to call afterward to get the final usage (token counts) for that request?",
+    "choices": [
+      "client.messages.usage()",
+      "stream.get_final_message()",
+      "The usage is printed automatically after streaming ends",
+      "You cannot get usage data from a streamed request"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-2/building-with-llm-apis/q4",
+    "type": "multiple_choice",
+    "prompt": "After receiving `response` from a multi-turn call, what should you append to your conversation history list to correctly continue the conversation?",
+    "choices": [
+      "{'role': 'assistant', 'content': response.content[0].text}",
+      "Nothing -- the API remembers previous turns automatically",
+      "{'role': 'assistant', 'content': response.content}",
+      "{'role': 'system', 'content': str(response)}"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "ai-ml-prompting/tier-2/building-with-llm-apis/q5",
+    "type": "multiple_choice",
+    "prompt": "When Claude decides it needs to call one of the tools you defined, what value does response.stop_reason have?",
+    "choices": [
+      "'end_turn'",
+      "'max_tokens'",
+      "'function_call'",
+      "'tool_use'"
+    ],
+    "correctIndex": 3
+  },
+  {
+    "id": "ai-ml-prompting/tier-2/building-with-llm-apis/q6",
+    "type": "multiple_choice",
+    "prompt": "After you run the requested tool locally and have its result, how do you send that result back to Claude?",
+    "choices": [
+      "Call client.messages.create() again with just the raw return value as a string",
+      "Append a user message whose content is a list containing a tool_result block with the matching tool_use_id",
+      "Append an assistant message containing the result",
+      "You don't need to send it back -- Claude already knows the result"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-2/building-with-llm-apis/q7",
+    "type": "multiple_choice",
+    "prompt": "A call to claude-sonnet-5 ($2.00 / 1M input tokens, $10.00 / 1M output tokens) uses 2,000 input tokens and 500 output tokens. What did that single call cost?",
+    "choices": [
+      "$0.025",
+      "$0.0045",
+      "$0.009",
+      "$0.014"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "ai-ml-prompting/tier-2/building-with-llm-apis/q8",
+    "type": "multiple_choice",
+    "prompt": "Your script gets a 429 response from the Messages API mid-run. What's the correct way to handle it?",
+    "choices": [
+      "Immediately retry in a tight loop until it succeeds",
+      "Treat it as a fatal error and stop the whole conversation history",
+      "Switch your API key and keep going",
+      "Catch anthropic.RateLimitError and retry with exponential backoff (optionally honoring a Retry-After header)"
+    ],
+    "correctIndex": 3
+  }
+]

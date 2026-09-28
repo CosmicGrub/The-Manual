@@ -1,0 +1,218 @@
+---
+trackId: ai-ml-prompting
+tier: 2
+title: "Feature Engineering & Data Prep"
+order: 2
+estimatedHours: 10
+slug: feature-engineering-and-data-prep
+---
+
+## Why Feature Engineering Decides Whether Your Model Works
+
+You already know how to fit a model. This module is about the part that actually determines whether that model is any good: what you feed it. Real datasets have holes, text categories, columns on wildly different scales, and more features than you have rows to support them. Get any of those wrong and you'll ship a model with a metric that lies to you — often in the optimistic direction, which is worse than a model that's honestly bad.
+
+Four concrete problems, four concrete fixes: missing values, categorical columns, scale mismatches (and the leakage bug that scaling invites), and overfitting from too many features. Every example below runs on real data with real printed output — reproduce it and check your numbers against these.
+
+## Missing Data: Drop vs. Impute
+
+Start with a small listings dataset that has realistic holes in it:
+
+```python
+import pandas as pd
+import numpy as np
+
+data = {
+    "sqft":       [1200, 1450, 980, np.nan, 2100, 1600, 1340, np.nan, 1800, 1100],
+    "bedrooms":   [2, 3, 2, 3, 4, 3, 2, 3, 4, 2],
+    "year_built": [1998, 2005, 1987, 2010, np.nan, 1999, 2015, 2001, np.nan, 1975],
+    "neighborhood_rating": [7.2, 8.1, np.nan, 6.9, 9.0, 7.8, np.nan, 8.4, 7.1, 6.5],
+    "price":      [310000, 410000, 265000, 375000, 620000, 430000, 355000, 480000, 510000, 240000],
+}
+df = pd.DataFrame(data)
+print(df.isnull().sum())
+```
+
+```
+sqft                   2
+bedrooms               0
+year_built             2
+neighborhood_rating    2
+price                  0
+```
+
+Each of the three affected columns is only 20% missing. That sounds tolerable. Now watch what happens when you drop every row with *any* missing value:
+
+```python
+dropped = df.dropna()
+print(dropped.shape)   # (4, 5)
+```
+
+You lose 6 of your 10 rows — 60% of the dataset — even though no single column was more than 20% empty. That's the real danger of row-wise `dropna()`: missingness that's scattered across *different* rows in *different* columns compounds. This is the case where dropping is a bad idea.
+
+**Drop when:** the missing fraction is genuinely tiny (a handful of rows out of thousands) and you can afford to lose them, or when a whole *column* is mostly empty (say, over 50–60% missing) and imputing it would mostly be inventing data — drop the column instead of the rows.
+
+**Impute when:** missingness is scattered like it is here, or the dataset is too small to spare rows. Median is the standard default for numeric columns because it's robust to outliers (mean gets dragged by a single huge house):
+
+```python
+from sklearn.impute import SimpleImputer
+
+imputer = SimpleImputer(strategy="median")
+numeric_cols = ["sqft", "bedrooms", "year_built", "neighborhood_rating"]
+df_imputed = df.copy()
+df_imputed[numeric_cols] = imputer.fit_transform(df[numeric_cols])
+print(imputer.statistics_)
+# [1395.  3. 2000.  7.5]  -- median sqft, bedrooms, year_built, rating
+```
+
+Row 3's missing `sqft` and row 7's missing `sqft` both become `1395.0` — the training median. For more structure than a flat median, `KNNImputer` fills a missing value using the average of the *k* most similar rows (by the other columns) instead of a single global number — worth reaching for when a feature correlates strongly with others in the dataset.
+
+## Categorical Encoding: One-Hot vs. Ordinal
+
+Two categorical columns, two different treatments, because they mean different things:
+
+```python
+df2 = pd.DataFrame({
+    "neighborhood": ["Downtown", "Suburbs", "Downtown", "Rural", "Suburbs", "Rural"],
+    "condition":    ["Poor", "Good", "Excellent", "Good", "Poor", "Excellent"],
+})
+```
+
+`neighborhood` has no natural order — Downtown isn't "more" than Suburbs. Encoding it as 0/1/2 would hand a linear model a fake numeric relationship it will happily learn from. Use one-hot encoding: one binary column per category.
+
+```python
+from sklearn.preprocessing import OneHotEncoder
+
+ohe = OneHotEncoder(sparse_output=False)
+print(ohe.fit_transform(df2[["neighborhood"]]))
+print(ohe.get_feature_names_out())
+```
+
+```
+[[1. 0. 0.]
+ [0. 0. 1.]
+ [1. 0. 0.]
+ [0. 1. 0.]
+ [0. 0. 1.]
+ [0. 1. 0.]]
+['neighborhood_Downtown' 'neighborhood_Rural' 'neighborhood_Suburbs']
+```
+
+(`pd.get_dummies(df2["neighborhood"])` gets you the same thing in one line if you're not building a scikit-learn pipeline.)
+
+`condition`, on the other hand, genuinely *is* ordered: Poor < Good < Excellent. One-hot would throw that ranking away. Use `OrdinalEncoder` with the order specified explicitly:
+
+```python
+from sklearn.preprocessing import OrdinalEncoder
+
+oe = OrdinalEncoder(categories=[["Poor", "Good", "Excellent"]])
+print(oe.fit_transform(df2[["condition"]]).ravel())
+# [0. 1. 2. 1. 0. 2.]
+```
+
+The rule of thumb: if you can't say which category is objectively "more" than another (colors, cities, payment methods), one-hot it. If there's a real ranking (sizes, ratings, education levels), ordinal-encode it and let the model use that order.
+
+## Scaling and Normalization — and Why Split Order Matters
+
+**Why scale at all.** `StandardScaler` maps each column to `(x - mean) / std` (zero mean, unit variance). `MinMaxScaler` maps to `(x - min) / (max - min)` (fits everything into [0, 1]). Distance-based and gradient-based models both care about this a lot. Take a feature pair — `income` (roughly 10,922 to 135,157) and `years_experience` (0 to 39.9) — where `years_experience` is actually the informative one:
+
+```python
+knn_unscaled = KNeighborsClassifier(5).fit(X_train, y_train)
+acc_unscaled = accuracy_score(y_test, knn_unscaled.predict(X_test))
+
+scaler = StandardScaler().fit(X_train)
+knn_scaled = KNeighborsClassifier(5).fit(scaler.transform(X_train), y_train)
+acc_scaled = accuracy_score(y_test, knn_scaled.predict(scaler.transform(X_test)))
+
+print(f"KNN accuracy, unscaled features: {acc_unscaled:.3f}")
+print(f"KNN accuracy, scaled features:   {acc_scaled:.3f}")
+```
+
+```
+KNN accuracy, unscaled features: 0.900
+KNN accuracy, scaled features:   0.992
+```
+
+Roughly a nine-point accuracy swing from scaling alone, because unscaled Euclidean distance is almost entirely driven by whichever column happens to have the largest numbers, regardless of which one actually predicts the label.
+
+**The leak.** Here's the bug: fitting the scaler on the *entire* dataset before splitting means the "mean" and "std" it learns are computed partly from rows that are supposed to be unseen test data. Watch it happen with real numbers:
+
+```python
+from sklearn.datasets import make_classification
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.metrics import accuracy_score
+
+X, y = make_classification(n_samples=200, n_features=15, n_informative=6,
+                            n_redundant=2, n_clusters_per_class=2,
+                            flip_y=0.03, random_state=8)
+
+# WRONG: fit the scaler on ALL of X, then split
+scaler_leaky = StandardScaler().fit(X)              # already "sees" the test rows
+X_scaled_leaky = scaler_leaky.transform(X)
+X_train_l, X_test_l, y_train_l, y_test_l = train_test_split(
+    X_scaled_leaky, y, test_size=0.25, random_state=13)
+model_leaky = KNeighborsClassifier(5).fit(X_train_l, y_train_l)
+acc_leaky = accuracy_score(y_test_l, model_leaky.predict(X_test_l))
+
+# RIGHT: split first, fit the scaler on the training rows only
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=13)
+scaler_correct = StandardScaler().fit(X_train)       # never touches X_test
+model_correct = KNeighborsClassifier(5).fit(scaler_correct.transform(X_train), y_train)
+acc_correct = accuracy_score(y_test, model_correct.predict(scaler_correct.transform(X_test)))
+
+print(f"Leaky accuracy   (scaled BEFORE split): {acc_leaky:.2%}")
+print(f"Correct accuracy (scaled AFTER split):  {acc_correct:.2%}")
+```
+
+```
+Leaky accuracy   (scaled BEFORE split): 90.00%
+Correct accuracy (scaled AFTER split):  82.00%
+```
+
+An 8-point inflation from one misplaced line of code. The exact size of the gap depends on the dataset and split — sometimes it's a fraction of a point, sometimes it's this large — but the *direction* of the bug is always the same problem: your "unseen" test set contaminated your preprocessing, so the reported number no longer tells you how the model performs on genuinely new data. This is precisely the bug you'll be asked to spot and explain in this tier's code-review kata. The fix is always the same: `fit` only on training data, `transform` (never `fit_transform`) on test data. This exact bug is far more dangerous when the leaking step is feature selection or PCA instead of scaling — select the "best" features using the full dataset (labels included) before splitting on data that is pure random noise with zero true signal, and you can walk away with 60%+ apparent accuracy instead of the honest ~50%.
+
+## L1/L2 Regularization as an Overfitting Fix
+
+Here's overfitting, unmistakably, on 42 training rows with 40 features — more knobs than the data can reliably pin down:
+
+```python
+from sklearn.datasets import make_regression
+from sklearn.linear_model import LinearRegression, Ridge, Lasso
+from sklearn.metrics import r2_score
+
+X, y = make_regression(n_samples=60, n_features=40, n_informative=8, noise=15.0, random_state=7)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=0)
+scaler = StandardScaler().fit(X_train)                  # fit on train only, per the rule above
+X_train_s, X_test_s = scaler.transform(X_train), scaler.transform(X_test)
+
+lr = LinearRegression().fit(X_train_s, y_train)
+print(f"train R2 = {r2_score(y_train, lr.predict(X_train_s)):.3f}   test R2 = {r2_score(y_test, lr.predict(X_test_s)):.3f}")
+# train R2 = 1.000   test R2 = 0.525
+```
+
+Perfect on training data, mediocre on unseen data — the model memorized noise instead of learning the underlying pattern. Now add an L2 penalty (Ridge), which shrinks all coefficients toward zero without eliminating any:
+
+```python
+ridge = Ridge(alpha=1.0).fit(X_train_s, y_train)
+print(f"train R2 = {r2_score(y_train, ridge.predict(X_train_s)):.3f}   test R2 = {r2_score(y_test, ridge.predict(X_test_s)):.3f}")
+# train R2 = 0.997   test R2 = 0.955
+```
+
+Test R² jumps from 0.525 to 0.955 while train R² barely moves — the sum of squared coefficients drops from 36,734 to 24,388. The model gave up a hair of training fit in exchange for a model that generalizes. Now L1 (Lasso), which shrinks *and* can zero coefficients out entirely:
+
+```python
+lasso = Lasso(alpha=1.0, max_iter=20000).fit(X_train_s, y_train)
+print(f"train R2 = {r2_score(y_train, lasso.predict(X_train_s)):.3f}   test R2 = {r2_score(y_test, lasso.predict(X_test_s)):.3f}")
+print(f"nonzero coefficients: {(lasso.coef_ != 0).sum()} / 40")
+# train R2 = 0.997   test R2 = 0.989
+# nonzero coefficients: 22 / 40   (18 of 40 set to exactly zero)
+```
+
+Lasso does even better here *and* tells you which 18 of the 40 features it decided were irrelevant — genuinely useful when you suspect most of your features are noise. The rule of thumb: reach for Ridge (L2) when you believe most features matter a little; reach for Lasso (L1) when you suspect only a handful of features actually matter and want the model to tell you which ones by zeroing out the rest.
+
+## Exercise
+
+You're given a churn dataset with: `tenure_months` (numeric, ~15% missing), `contract_type` (`"Month-to-month"`, `"One year"`, `"Two year"` — genuinely ordered by commitment length), `payment_method` (4 nominal categories, no order), and a binary `churned` label. Build a leak-free pipeline that: (1) splits the data first, (2) imputes `tenure_months` using the training median only, (3) ordinal-encodes `contract_type` and one-hot-encodes `payment_method`, (4) scales the numeric columns using training-set statistics only, then (5) fits an L1-regularized (`LogisticRegression(penalty="l1", solver="liblinear")`) model and reports which features survived with nonzero coefficients.
+
+**Hint:** doing all five steps by hand in the right order is exactly how leakage bugs happen — one forgotten `fit` on the wrong subset and you're back to inflated numbers. Look at scikit-learn's `Pipeline` and `ColumnTransformer`: they let you declare the whole sequence once, and calling `.fit()` only ever on the training split (with `.transform()` on test) becomes automatic instead of something you have to remember every time.

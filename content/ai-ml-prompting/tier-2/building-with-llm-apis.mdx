@@ -1,0 +1,312 @@
+---
+trackId: ai-ml-prompting
+tier: 2
+title: "Building with LLM APIs"
+order: 5
+estimatedHours: 12
+slug: building-with-llm-apis
+---
+
+Every model you've been chatting with through a UI is really just one HTTP endpoint: `POST /v1/messages`. This module moves you from prompting Claude by hand to writing Python programs that call it — with real control over streaming, conversation state, tool use, and what each call costs. By the end you'll have built a small command-line assistant that keeps its own conversation history, calls a real tool, and tracks its own spend, call by call.
+
+All of the examples below use `claude-sonnet-5` — Anthropic's current balanced model, at $2.00 per million input tokens and $10.00 per million output tokens. It's the right default while you're learning to reason about cost, because you can run these examples dozens of times without worrying about the bill. Swap in a more capable model later for harder reasoning tasks; the code doesn't change, only the `model` string does.
+
+## Talking to Claude from code, not a chat window
+
+Install the SDK and set your key once as an environment variable:
+
+```bash
+pip install anthropic
+export ANTHROPIC_API_KEY="sk-ant-..."
+```
+
+A single call looks like this:
+
+```python
+import anthropic
+
+client = anthropic.Anthropic()  # reads ANTHROPIC_API_KEY from the environment
+
+response = client.messages.create(
+    model="claude-sonnet-5",
+    max_tokens=1024,
+    messages=[
+        {"role": "user", "content": "In one sentence, what is gradient descent?"}
+    ],
+)
+
+print(response.content[0].text)
+print(response.stop_reason)
+print(response.usage)
+```
+
+```
+Gradient descent is an optimization algorithm that iteratively nudges a model's
+parameters in the direction that most reduces a loss function.
+end_turn
+Usage(input_tokens=15, output_tokens=27, cache_creation_input_tokens=0, cache_read_input_tokens=0)
+```
+
+Three things to internalize immediately, because everything else in this module builds on them: `response.content` is a **list** of content blocks (usually one text block, but tool calls add more block types later), `response.stop_reason` tells you *why* the model stopped generating (`end_turn`, `max_tokens`, `tool_use`, ...), and `response.usage` is where every cost calculation in this module starts.
+
+## Streaming responses
+
+For anything long — a generated report, a multi-paragraph explanation, code — you don't want to wait for the whole response before showing the user anything. Stream it:
+
+```python
+with client.messages.stream(
+    model="claude-sonnet-5",
+    max_tokens=1024,
+    messages=[{"role": "user", "content": "List 3 differences between Python lists and tuples."}],
+) as stream:
+    for chunk in stream.text_stream:
+        print(chunk, end="", flush=True)
+    final_message = stream.get_final_message()
+
+print()
+print(f"tokens: {final_message.usage.input_tokens} in / {final_message.usage.output_tokens} out")
+```
+
+```
+1. Lists are mutable; tuples are immutable once created.
+2. Lists use square brackets [1, 2, 3]; tuples use parentheses (1, 2, 3).
+3. Tuples are slightly faster to iterate and can be used as dict keys; lists cannot.
+tokens: 19 in / 61 out
+```
+
+`stream.text_stream` gives you plain text chunks as they arrive — that's what you want 95% of the time. If you need finer control (e.g. reacting differently to a tool call starting mid-stream vs. text), iterate the raw stream instead and branch on `event.type` (`message_start`, `content_block_delta`, `message_delta`, ...). Either way, always call `stream.get_final_message()` at the end — it's the only place you get the final `usage` and `stop_reason` for a streamed request; the individual text chunks don't carry that.
+
+## Managing conversation state across calls
+
+The API is stateless. Every call sees only what's in the `messages` list you send — nothing is remembered server-side between requests. "Multi-turn conversation" is just you maintaining a growing list and resending it:
+
+```python
+conversation = []
+
+def ask(user_text):
+    conversation.append({"role": "user", "content": user_text})
+    response = client.messages.create(
+        model="claude-sonnet-5",
+        max_tokens=1024,
+        messages=conversation,
+    )
+    conversation.append({"role": "assistant", "content": response.content})
+    return response.content[0].text
+
+print(ask("My favorite number is 42. Remember that."))
+print(ask("What's my favorite number, doubled?"))
+print(len(conversation))
+```
+
+```
+Got it — I'll remember that your favorite number is 42.
+Doubled, your favorite number is 84.
+4
+```
+
+Notice the assistant turn is appended as `response.content` — the full list of content blocks — not `response.content[0].text`. Right now those are equivalent, since there's only a text block. They stop being equivalent the moment tool calls enter the picture (next section), where `response.content` might contain a `tool_use` block that Claude needs to see again to know it already asked for that tool. Get in the habit now of round-tripping the whole block list, not just the text you print.
+
+One consequence worth noticing: because you resend the entire history on every call, a 20-turn conversation costs more per turn than a 2-turn one, even if the new message is identical — turn 20 pays for re-sending turns 1 through 19 as input tokens. Keep that in mind; it matters a lot once you start counting cost below.
+
+## Tool calling: giving Claude the ability to act
+
+A tool is a JSON schema describing a function you own. You send the schema; Claude decides *if* and *when* to call it, based on the conversation; your code actually runs it; you send the result back. Claude never executes anything itself — it just tells you what it wants called, with what arguments.
+
+```python
+orders_db = {
+    "A1001": {"status": "shipped", "eta": "2026-10-02"},
+    "A1002": {"status": "processing", "eta": None},
+}
+
+def check_order_status(order_id):
+    order = orders_db.get(order_id)
+    if not order:
+        return {"error": f"No order found with id {order_id}"}
+    return order
+
+tools = [
+    {
+        "name": "check_order_status",
+        "description": "Look up the shipping status and ETA for a customer order by its order ID.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "order_id": {"type": "string", "description": "The order ID, e.g. A1001"}
+            },
+            "required": ["order_id"],
+        },
+    }
+]
+
+messages = [{"role": "user", "content": "Where's my order A1001?"}]
+
+response = client.messages.create(
+    model="claude-sonnet-5",
+    max_tokens=1024,
+    tools=tools,
+    messages=messages,
+)
+
+print(response.stop_reason)
+tool_use_block = next(b for b in response.content if b.type == "tool_use")
+print(tool_use_block.name, tool_use_block.input)
+```
+
+```
+tool_use
+check_order_status {'order_id': 'A1001'}
+```
+
+`stop_reason` is `tool_use` — Claude stopped generating specifically to hand you a function call. Now run it for real, and send the result back as a `tool_result` block in a **user** message (this trips people up — the result goes in a user turn, not an assistant turn):
+
+```python
+result = check_order_status(**tool_use_block.input)
+
+messages.append({"role": "assistant", "content": response.content})
+messages.append({
+    "role": "user",
+    "content": [
+        {
+            "type": "tool_result",
+            "tool_use_id": tool_use_block.id,
+            "content": str(result),
+        }
+    ],
+})
+
+final_response = client.messages.create(
+    model="claude-sonnet-5",
+    max_tokens=1024,
+    tools=tools,
+    messages=messages,
+)
+
+print(final_response.content[0].text)
+```
+
+```
+Your order A1001 has shipped and is expected to arrive on 2026-10-02.
+```
+
+That's the whole loop: request, `tool_use`, execute, `tool_result`, final answer — two API calls total for one user question. That two-call shape is easy to forget when you're estimating cost later, so flag it now.
+
+**Structured outputs** solve a narrower, related problem: you just want reliable JSON back, with no real function to call. Constrain the response format directly instead of round-tripping a fake tool:
+
+```python
+response = client.messages.create(
+    model="claude-sonnet-5",
+    max_tokens=256,
+    messages=[{"role": "user", "content": "Extract the name and age: 'Maria is 34 years old.'"}],
+    output_config={
+        "format": {
+            "type": "json_schema",
+            "schema": {
+                "type": "object",
+                "properties": {"name": {"type": "string"}, "age": {"type": "integer"}},
+                "required": ["name", "age"],
+            },
+        }
+    },
+)
+print(response.content[0].text)
+```
+
+```
+{"name": "Maria", "age": 34}
+```
+
+## Managing cost and rate limits
+
+You now have everything you need to build something that calls the API repeatedly and automatically. That means you also need to not get surprised by the bill or by a 429.
+
+**Count tokens before you spend money.** Especially useful when you're about to stuff a large document into a prompt and want to know the cost, or check it fits a budget, before sending anything:
+
+```python
+count = client.messages.count_tokens(
+    model="claude-sonnet-5",
+    messages=[{"role": "user", "content": "Summarize the plot of Hamlet in 200 words."}],
+)
+print(count.input_tokens)
+```
+
+```
+14
+```
+
+**Track spend from `response.usage` on every call**, don't estimate it after the fact:
+
+```python
+PRICE_PER_MILLION = {"input": 2.00, "output": 10.00}  # claude-sonnet-5, USD
+
+total_spent = 0.0
+
+def call_and_track(messages):
+    global total_spent
+    response = client.messages.create(
+        model="claude-sonnet-5", max_tokens=1024, messages=messages
+    )
+    cost = (
+        response.usage.input_tokens / 1_000_000 * PRICE_PER_MILLION["input"]
+        + response.usage.output_tokens / 1_000_000 * PRICE_PER_MILLION["output"]
+    )
+    total_spent += cost
+    print(f"this call: {response.usage.input_tokens} in / {response.usage.output_tokens} out -> ${cost:.5f}")
+    print(f"running total: ${total_spent:.5f}")
+    return response
+
+call_and_track([{"role": "user", "content": "Say hello in 5 languages."}])
+```
+
+```
+this call: 16 in / 58 out -> $0.00061
+running total: $0.00061
+```
+
+**Handle 429s with backoff, not a hard failure.** The SDK already retries transient errors twice by default, but write your own handling when you want to log it, alert on it, or fall back to a different strategy:
+
+```python
+import time
+import anthropic
+
+def call_with_backoff(messages, max_attempts=5):
+    for attempt in range(max_attempts):
+        try:
+            return client.messages.create(
+                model="claude-sonnet-5", max_tokens=1024, messages=messages
+            )
+        except anthropic.RateLimitError:
+            wait = 2 ** attempt
+            print(f"rate limited (attempt {attempt + 1}/{max_attempts}), waiting {wait}s...")
+            time.sleep(wait)
+    raise RuntimeError("exceeded max retries after repeated rate limiting")
+```
+
+You can also back off *before* you get rate limited, by reading the rate-limit headers on every response instead of waiting for a 429:
+
+```python
+raw = client.messages.with_raw_response.create(
+    model="claude-sonnet-5", max_tokens=1024, messages=[{"role": "user", "content": "hi"}]
+)
+print(raw.headers.get("anthropic-ratelimit-requests-remaining"))
+print(raw.headers.get("anthropic-ratelimit-tokens-remaining"))
+response = raw.parse()
+```
+
+```
+498
+38214
+```
+
+If `tokens-remaining` is dropping fast relative to your reset window, slow down proactively rather than waiting to get rejected.
+
+## Exercise
+
+Build a command-line "research assistant" that:
+
+1. Maintains conversation history across turns as a real Python list (like the `conversation` example above), not just printed text.
+2. Defines one tool of your choosing — a currency converter, a word counter, a mock inventory lookup — anything with a clear JSON schema and a deterministic local function.
+3. Wraps every API call in a function that updates a running `total_spent` from `response.usage`, using the pricing table above, and prints it after each call.
+4. Catches `anthropic.RateLimitError` around every call and retries with exponential backoff.
+5. Stops the session and prints `"budget exceeded"` if `total_spent` crosses an artificially low cap like `$0.01`, so you can actually trigger it while testing.
+
+**Hint:** a tool round-trip is *two* chargeable API calls, not one — the call where Claude asks for the tool, and the call where it reads the result and answers. Make sure your cost-tracking wrapper runs around both calls individually, not once around the whole exchange, or your running total will quietly undercount every tool use.

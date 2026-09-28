@@ -1,0 +1,332 @@
+---
+trackId: ai-ml-prompting
+tier: 2
+title: "Classical ML with scikit-learn"
+order: 1
+estimatedHours: 16
+slug: classical-ml-with-scikit-learn
+---
+
+## The dataset for this module
+
+Everything through the metrics sections uses one real dataset: the Wisconsin breast cancer dataset, built into scikit-learn — 569 tumor samples, 30 numeric features measured from digitized images (radius, texture, concavity, etc.), and a binary label (malignant or benign). It's small enough to iterate on fast and has enough structure that different models actually perform differently, which is the point.
+
+```python
+import numpy as np
+from sklearn.datasets import load_breast_cancer
+from sklearn.model_selection import train_test_split
+
+data = load_breast_cancer()
+X, y = data.data, data.target
+print(X.shape, y.shape)
+print(data.target_names, np.bincount(y))
+```
+```
+(569, 30) (569,)
+['malignant' 'benign'] [212 357]
+```
+
+`y` is 0 for malignant, 1 for benign — 212 malignant, 357 benign. Not wildly imbalanced, which is deliberate: it lets you learn the metrics cleanly before you meet a dataset where imbalance actually breaks accuracy, later in this module.
+
+## Linear regression: the dot product you already know, fit for you
+
+Tier 1 showed that a linear layer is `X @ W.T + b` — one dot product per output. Linear regression *is* that operation with a single output: scikit-learn finds the `W` (here called `coef_`) and `b` (`intercept_`) that minimize squared error, instead of you writing gradient descent by hand. Different dataset here — the diabetes dataset, 10 numeric health measurements predicting disease progression one year out, a continuous target instead of a class label:
+
+```python
+from sklearn.datasets import load_diabetes
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_squared_error, r2_score
+
+data = load_diabetes()
+X, y = data.data, data.target
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+reg = LinearRegression()
+reg.fit(X_train, y_train)
+print(np.round(reg.coef_, 1))
+print(round(reg.intercept_, 2))
+```
+```
+[  37.9 -242.   542.4  347.7 -931.5  518.1  163.4  275.3  736.2   48.7]
+151.35
+```
+
+That's the exact `W` and `b` from Tier 1's `W @ x + b`, just fit by scikit-learn instead of numpy gradient descent. Evaluate with RMSE (average prediction error, in the target's own units) and R² (fraction of variance explained):
+
+```python
+y_pred = reg.predict(X_test)
+rmse = mean_squared_error(y_test, y_pred) ** 0.5
+print("RMSE:", rmse, "R2:", r2_score(y_test, y_pred))
+```
+```
+RMSE: 53.85 R2: 0.4526
+```
+
+RMSE ≈ 53.85 means predictions are off by about 54 points on average, on a target that ranges roughly 25-350. R² = 0.45 means the model explains 45% of the variance in disease progression — not great, but it's the honest baseline every later model in this track has to beat.
+
+## Logistic regression: the same dot product, squashed into a probability
+
+Logistic regression is linear regression's output run through a sigmoid, turning `W @ x + b` into a probability. Back to the cancer dataset:
+
+```python
+from sklearn.linear_model import LogisticRegression
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42, stratify=y
+)
+clf = LogisticRegression(max_iter=5000)
+clf.fit(X_train, y_train)
+print("train acc:", clf.score(X_train, y_train))
+print("test acc:", clf.score(X_test, y_test))
+print(clf.predict_proba(X_test[:1]))
+```
+```
+train acc: 0.9582417582417583
+test acc: 0.9649122807017544
+[[1.00000000e+00 3.36973843e-11]]
+```
+
+`stratify=y` keeps the 63/37 benign/malignant ratio the same in both splits — worth doing on every classification split, and essential once you get to the imbalanced example later. `predict_proba` returns `[P(malignant), P(benign)]`; that first test row is essentially certain (probability 1.0) it's malignant. `.predict()` is just `.predict_proba()` thresholded at 0.5 — the threshold you'll deliberately move around in the ROC-AUC section.
+
+## Cross-validation: the validation split, automated
+
+Tier 1's "why three splits" module built train/validation/test by hand with numpy to show *why* a validation set exists. In practice you rarely hand-split a validation set once — you use **k-fold cross-validation**: split the training data into k folds, train on k-1 of them and validate on the held-out one, rotate which fold is held out, and average the k scores. Every example gets used for both training and validation, just never at the same time — a more data-efficient version of the same idea:
+
+```python
+from sklearn.model_selection import cross_val_score, StratifiedKFold
+from sklearn.ensemble import RandomForestClassifier
+
+rf = RandomForestClassifier(n_estimators=200, random_state=42)
+cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+scores = cross_val_score(rf, X_train, y_train, cv=cv, scoring="accuracy")
+print(np.round(scores, 4))
+print("mean:", scores.mean(), "std:", scores.std())
+```
+```
+[0.967  0.956  0.9341 0.967  0.989 ]
+mean: 0.9626373626373628 std: 0.01785502946073838
+```
+
+`StratifiedKFold` is `KFold` that preserves the class ratio in every fold — use it for classification, plain `KFold` for regression. Five scores instead of one also gives you a spread (0.934-0.989 here): a model whose cross-val scores bounce around a lot is a model whose single-split test score you shouldn't trust. The test set — untouched through all of this — is still the one number you report once, at the very end.
+
+## Decision trees: splits you can read
+
+A decision tree repeatedly asks "is feature X above threshold T?" and splits the data until each leaf is (close to) pure. Depth controls capacity directly:
+
+```python
+from sklearn.tree import DecisionTreeClassifier
+
+shallow = DecisionTreeClassifier(max_depth=3, random_state=42)
+shallow.fit(X_train, y_train)
+print("depth=3  train:", shallow.score(X_train, y_train), "test:", shallow.score(X_test, y_test))
+
+deep = DecisionTreeClassifier(random_state=42)   # no max_depth limit
+deep.fit(X_train, y_train)
+print("no limit train:", deep.score(X_train, y_train), "test:", deep.score(X_test, y_test), "depth:", deep.get_depth())
+```
+```
+depth=3  train: 0.9758241758241758 test: 0.9385964912280702
+no limit train: 1.0 test: 0.9122807017543859 depth: 7
+```
+
+The unrestricted tree hits 100% train accuracy — it memorized the training set down to individual points — and scores *worse* on test data than the depth-3 tree. That's overfitting from Tier 1's bias-variance module, now showing up as a hyperparameter (`max_depth`) instead of a polynomial degree. `feature_importances_` tells you which features the tree actually split on:
+
+```python
+top3 = np.argsort(shallow.feature_importances_)[::-1][:3]
+for i in top3:
+    print(data.feature_names[i], round(shallow.feature_importances_[i], 3))
+```
+```
+worst radius 0.764
+worst concave points 0.127
+texture error 0.048
+```
+
+76% of this tree's decisions trace back to one feature, `worst radius` — a direct, readable answer to "what is this model actually using," which is the main reason to reach for a tree over a black-box model when a stakeholder asks.
+
+## Random forests: many overfit trees, averaged into one good one
+
+A random forest trains many trees (each on a bootstrapped sample of rows and a random subset of features per split) and averages their votes. Each individual tree overfits its own bootstrap sample — same failure mode as the unrestricted tree above — but their errors are decorrelated, so averaging cancels most of it out:
+
+```python
+from sklearn.ensemble import RandomForestClassifier
+
+rf = RandomForestClassifier(n_estimators=200, random_state=42)
+rf.fit(X_train, y_train)
+print("train:", rf.score(X_train, y_train), "test:", rf.score(X_test, y_test))
+```
+```
+train: 1.0 test: 0.956140350877193
+```
+
+Train accuracy is still 1.0 — the individual trees still memorize — but test accuracy (0.956) beats the single unrestricted tree (0.912) by a wide margin, and even edges past the depth-3 tree (0.939), without you having to hand-tune a depth. This ensembling trick (many high-variance models, averaged) is the same principle behind bagging and, later in this track, behind why dropout works in neural nets.
+
+## k-NN: distance, and why Tier 1's scaling warning matters again
+
+k-NN classifies a point by majority vote among its k closest training points, by raw Euclidean distance — which means it inherits exactly the scale problem Tier 1's linear algebra module flagged for dot products: a feature measured in the thousands (like `mean area`) silently dominates the distance over a feature measured in single digits (like `mean smoothness`).
+
+```python
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import make_pipeline
+
+knn_raw = KNeighborsClassifier(n_neighbors=5)
+knn_raw.fit(X_train, y_train)
+print("no scaling:", knn_raw.score(X_test, y_test))
+
+knn_scaled = make_pipeline(StandardScaler(), KNeighborsClassifier(n_neighbors=5))
+knn_scaled.fit(X_train, y_train)
+print("scaled:    ", knn_scaled.score(X_test, y_test))
+```
+```
+no scaling: 0.9122807017543859
+scaled:     0.956140350877193
+```
+
+Same data, same k, +4.4 points of accuracy just from standardizing features to zero mean and unit variance first — proof, not theory, that k-NN needs scaling and tree-based models (which split on thresholds, not distances) don't. `make_pipeline` matters here for a second reason: it fits the scaler on training data only and reapplies those exact statistics to test data, which is how you avoid **data leakage** (accidentally letting test-set statistics influence anything about training). `GridSearchCV` can search `k` inside that same pipeline:
+
+```python
+from sklearn.model_selection import GridSearchCV
+
+grid = {"kneighborsclassifier__n_neighbors": [3, 5, 7, 9, 11, 15]}
+gs = GridSearchCV(knn_scaled, grid, cv=cv, scoring="accuracy")
+gs.fit(X_train, y_train)
+print(gs.best_params_, gs.best_score_)
+print("test:", gs.score(X_test, y_test))
+```
+```
+{'kneighborsclassifier__n_neighbors': 9} 0.9648351648351647
+test: 0.9736842105263158
+```
+
+`GridSearchCV` is cross-validation from the previous section, run once per candidate value, picking the winner by mean CV score — the validation-set decision from Tier 1, fully automated, and it never touches `X_test` until the final `.score()` call.
+
+## Confusion matrix, precision, recall, F1 — from a real fitted model
+
+Accuracy alone hides *what kind* of mistakes a model makes. The confusion matrix breaks it apart. Using the random forest's predictions on the test set:
+
+```python
+from sklearn.metrics import confusion_matrix, classification_report
+
+y_pred = rf.predict(X_test)
+print(confusion_matrix(y_test, y_pred))
+print(classification_report(y_test, y_pred, target_names=data.target_names))
+```
+```
+[[39  3]
+ [ 2 70]]
+              precision    recall  f1-score   support
+
+   malignant       0.95      0.93      0.94        42
+      benign       0.96      0.97      0.97        72
+```
+
+Read the matrix by row = actual, column = predicted, in label order `[malignant, benign]`: 39 malignant tumors correctly caught, 3 malignant tumors missed and predicted benign, 2 benign tumors wrongly flagged malignant, 70 benign correctly cleared. Treating "benign" as the positive class, `tp=70, fp=3, fn=2, tn=39`:
+
+- **Precision** = tp / (tp + fp) = 70 / 73 = **0.959** — of everything the model called benign, 95.9% actually was.
+- **Recall** = tp / (tp + fn) = 70 / 72 = **0.972** — of everything actually benign, it caught 97.2%.
+- **F1** = 2 · precision · recall / (precision + recall) = **0.966** — the harmonic mean, which punishes a model that trades one metric for the other instead of improving both.
+
+Flip which class you call "positive" and the same matrix gives different precision/recall — for malignant, `tp=39, fp=2, fn=3`: precision = 39/41 = 0.951, recall = 39/42 = 0.929. In this domain, missing a malignant tumor (a false negative on the malignant class) is the costly mistake, so recall on *malignant* — not accuracy, not the benign numbers — is the metric that should drive model choice here.
+
+## ROC-AUC, concretely
+
+`.predict()` uses a fixed 0.5 probability threshold. ROC-AUC asks: across *every possible threshold*, how well does the model separate the two classes? Sweep the threshold from 1.0 down to 0.0, plotting false-positive rate against true-positive rate at each point:
+
+```python
+from sklearn.metrics import roc_auc_score, roc_curve
+
+y_proba = rf.predict_proba(X_test)[:, 1]
+fpr, tpr, thresh = roc_curve(y_test, y_proba)
+auc = roc_auc_score(y_test, y_proba)
+print("AUC:", auc)
+for i in [0, len(thresh)//4, len(thresh)//2, 3*len(thresh)//4, -1]:
+    print("threshold", round(thresh[i], 3), "-> FPR", round(fpr[i], 3), "TPR", round(tpr[i], 3))
+```
+```
+AUC: 0.9930555555555556
+threshold inf   -> FPR 0.0   TPR 0.0
+threshold 0.97  -> FPR 0.0   TPR 0.625
+threshold 0.635 -> FPR 0.071 TPR 0.931
+threshold 0.035 -> FPR 0.286 TPR 1.0
+threshold 0.0   -> FPR 1.0   TPR 1.0
+```
+
+At threshold 0.97 (very strict — only call it benign if you're almost sure), the model already catches 62.5% of real benign cases with zero false alarms. Loosen to 0.635 and it catches 93.1% of benign cases at the cost of 7.1% false positives. AUC = 0.993 is the area under that whole FPR-vs-TPR curve — a random guesser scores 0.5 (the diagonal line), a perfect classifier scores 1.0, and 0.993 means: pick one random malignant and one random benign example, and 99.3% of the time this model scores the benign one higher. Unlike accuracy or F1, AUC doesn't depend on picking any single threshold — useful when you don't yet know what threshold the deployment will actually use.
+
+## When accuracy (and even ROC-AUC) lie to you: the imbalanced case
+
+Everything above used a roughly 63/37 split, where accuracy is roughly trustworthy. Now build a fraud-style dataset where 96.5% of examples are the negative class:
+
+```python
+from sklearn.datasets import make_classification
+from sklearn.dummy import DummyClassifier
+from sklearn.metrics import accuracy_score, precision_score, recall_score, average_precision_score
+
+Xf, yf = make_classification(n_samples=5000, n_features=10, n_informative=5,
+                              weights=[0.97, 0.03], flip_y=0.01, random_state=42)
+print(np.bincount(yf), yf.mean())
+
+Xf_tr, Xf_te, yf_tr, yf_te = train_test_split(Xf, yf, test_size=0.25, random_state=42, stratify=yf)
+
+dummy = DummyClassifier(strategy="most_frequent").fit(Xf_tr, yf_tr)
+y_dummy = dummy.predict(Xf_te)
+print("dummy accuracy:", accuracy_score(yf_te, y_dummy), "recall:", recall_score(yf_te, y_dummy, zero_division=0))
+```
+```
+[4823  177] 0.0354
+dummy accuracy: 0.9648 recall: 0.0
+```
+
+A classifier that predicts "not fraud" for *every single input*, never once catching real fraud, scores 96.48% accuracy — higher than most real models achieve on this dataset. Accuracy on imbalanced data mostly just measures the imbalance itself. A real logistic regression does barely better by default:
+
+```python
+clf = LogisticRegression(max_iter=2000).fit(Xf_tr, yf_tr)
+y_pred = clf.predict(Xf_te)
+print("accuracy:", accuracy_score(yf_te, y_pred))
+print("precision:", precision_score(yf_te, y_pred), "recall:", recall_score(yf_te, y_pred))
+
+y_proba = clf.predict_proba(Xf_te)[:, 1]
+print("ROC-AUC:", roc_auc_score(yf_te, y_proba))
+print("PR-AUC :", average_precision_score(yf_te, y_proba))
+```
+```
+accuracy: 0.9656
+precision: 1.0
+recall: 0.022727272727272728
+ROC-AUC: 0.7472862957937586
+PR-AUC : 0.22499925732772652
+```
+
+96.6% accuracy, but recall of 2.3% — it catches essentially none of the actual fraud. ROC-AUC (0.747) looks like a mediocre-but-usable model; PR-AUC (0.225) tells the harsher, more relevant truth, because ROC-AUC's false-positive rate is measured against the huge negative class and barely moves even when the model misses almost everything positive. **On severe imbalance, prefer precision/recall/F1 and PR-AUC over accuracy and ROC-AUC** — they're computed relative to the positive class, not the whole dataset. `class_weight="balanced"` (penalizing mistakes on the minority class more) trades the numbers directly:
+
+```python
+clf_bal = LogisticRegression(max_iter=2000, class_weight="balanced").fit(Xf_tr, yf_tr)
+y_pred_bal = clf_bal.predict(Xf_te)
+print("accuracy:", accuracy_score(yf_te, y_pred_bal))
+print("precision:", precision_score(yf_te, y_pred_bal), "recall:", recall_score(yf_te, y_pred_bal))
+```
+```
+accuracy: 0.7416
+precision: 0.09329446064139942
+recall: 0.7272727272727273
+```
+
+Accuracy *dropped* to 74%, and this is very possibly the better model to ship — recall jumped from 2.3% to 72.7%, catching most real fraud at the cost of more false alarms (precision fell to 9.3%). Which of those two models is "better" isn't a math question — it's a cost question: a missed fraud case versus an annoyed customer whose legitimate charge got flagged. That tradeoff, not a leaderboard number, is what a metric choice is actually encoding.
+
+## A decision framework
+
+- **Target is a number** (price, time, score) → regression. Start with linear regression as a baseline; move to trees/forests if the relationship looks nonlinear.
+- **Target is a category** → classification. Start with logistic regression (fast, interpretable, a real baseline) before reaching for trees or forests.
+- **Need to explain *why* to a non-technical stakeholder** → decision tree (shallow) over random forest; a forest's 200 trees can't be read by a human, one tree's splits can.
+- **Want the best accuracy and don't need to read the model** → random forest, almost always beats a single tree and a lot of linear-model baselines with minimal tuning.
+- **Small dataset, few features, no time pressure** → k-NN is a fine baseline, but scale features first and expect it to get slow as data grows (it has no separate "training" step — every prediction rescans the training set).
+- **Classes roughly balanced, threshold not yet fixed** → accuracy is fine as a headline number; ROC-AUC for threshold-independent comparison.
+- **Classes imbalanced, or false negatives/positives cost very different amounts** (fraud, disease screening, spam) → ignore accuracy; use precision/recall/F1 at a threshold chosen for the real cost tradeoff, and PR-AUC (not ROC-AUC) to compare models before a threshold is picked.
+- **Always**: pick the model using cross-validation on training data, tune hyperparameters against that same CV score (or `GridSearchCV`), and touch the test set exactly once, at the end, to report the number you'll actually stand behind.
+
+## Exercise: pick the right model and the right metric
+
+Using `sklearn.datasets.load_wine()` (a 3-class dataset, 178 samples, 13 features): fit a logistic regression, a decision tree, and a random forest, each through a proper train/test split plus 5-fold cross-validation on the training set. Report each model's mean CV accuracy and its final test-set confusion matrix (it's 3x3 now — `confusion_matrix` still works). Then answer, in writing: which model would you ship, and would your answer change if this were a medical dataset where one of the three classes represented a rare, dangerous condition?
+
+**Hint:** `classification_report` supports more than two classes and will give you per-class precision/recall directly — look at whether any *single* class has a much lower recall than the others before trusting the overall accuracy number.

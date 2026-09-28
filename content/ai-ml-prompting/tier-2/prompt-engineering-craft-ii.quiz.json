@@ -1,0 +1,98 @@
+[
+  {
+    "id": "ai-ml-prompting/tier-2/prompt-engineering-craft-ii/q1",
+    "type": "multiple_choice",
+    "prompt": "What makes a sequence of API calls a real 'pipeline' rather than just several unrelated prompts?",
+    "choices": [
+      "The Python code explicitly takes one call's parsed output and inserts it into the next call's prompt, so information moves between steps through code, not model memory",
+      "All the calls must share the exact same system prompt",
+      "The model automatically remembers everything from earlier calls in the same script",
+      "Every step must use temperature=0 so the whole pipeline is deterministic"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-2/prompt-engineering-craft-ii/q2",
+    "type": "multiple_choice",
+    "prompt": "In the three-step ticket pipeline (extract, draft, critique), does the Step 3 critique call automatically know what the raw customer email from Step 1 said?",
+    "choices": [
+      "Yes, because messages.create calls in the same script share a hidden context window",
+      "No \u2014 each messages.create call is independent; Step 3 only knows the draft reply text, because that's the only thing the code passed into its prompt",
+      "Yes, but only if all three calls use the same model",
+      "No, and the pipeline is broken because of this"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-2/prompt-engineering-craft-ii/q3",
+    "type": "multiple_choice",
+    "prompt": "What does self-consistency require that a normal single-shot chain-of-thought call does not?",
+    "choices": [
+      "A system prompt defining a persona",
+      "Sampling the same prompt multiple times at temperature > 0 and aggregating the results (e.g. majority vote), instead of trusting one greedy answer",
+      "A JSON schema for the final answer",
+      "A separate model for each sample"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-2/prompt-engineering-craft-ii/q4",
+    "type": "multiple_choice",
+    "prompt": "Seven self-consistency samples for a pricing problem return: ['47.5', '47.5', '52.5', '47.5', '47.5', '48.75', '47.5']. What does Counter(answers).most_common(1)[0] return?",
+    "choices": [
+      "('52.5', 1)",
+      "('47.5', 5)",
+      "('48.75', 1)",
+      "('47.5', 7)"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-2/prompt-engineering-craft-ii/q5",
+    "type": "multiple_choice",
+    "prompt": "Why is temperature=0 a poor choice when running self-consistency?",
+    "choices": [
+      "temperature=0 is not a valid parameter for the messages API",
+      "Greedy decoding at temperature=0 produces close to the same reasoning path every time, so repeated samples add cost without adding the path diversity a majority vote needs",
+      "temperature=0 forces the model to always return JSON",
+      "temperature=0 disables max_tokens"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-2/prompt-engineering-craft-ii/q6",
+    "type": "multiple_choice",
+    "prompt": "A model returns {\"customer\": \"Priya Raman\", \"product_area\": \"exports\", \"severity\": \"high\", \"summary\": \"Export hangs.\"} against a schema whose product_area enum is [\"billing\", \"auth\", \"export\", \"other\"]. What does jsonschema.validate() do?",
+    "choices": [
+      "Silently coerces \"exports\" to \"export\" and passes validation",
+      "Raises a ValidationError naming product_area, the enum rule, and the offending value \"exports\"",
+      "Returns False without raising an exception",
+      "Passes validation because product_area is a string, which matches the type"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-2/prompt-engineering-craft-ii/q7",
+    "type": "multiple_choice",
+    "prompt": "What does 'accuracy' mean in the prompt-evaluation harness built in this module?",
+    "choices": [
+      "The model's self-reported confidence score",
+      "The fraction of labeled test-set examples where the model's predicted label exactly matches the expected (ground-truth) label",
+      "The percentage of responses that were valid JSON",
+      "The average response length compared to a reference answer"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-2/prompt-engineering-craft-ii/q8",
+    "type": "multiple_choice",
+    "prompt": "A severity-classification harness scores 80% (8/10) overall, but a per-class breakdown shows critical at 2/3 and medium at 2/3 while low and high are perfect. What's the right conclusion?",
+    "choices": [
+      "80% is a good score, so the prompt is done and no further changes are needed",
+      "The overall accuracy number hides a systematic pattern \u2014 the prompt tends to under-rate severity on certain classes \u2014 which only the per-class breakdown reveals, so that's what should drive the next prompt change",
+      "The test set is too small to be valid, so no conclusion can be drawn at all",
+      "Since low and high are both 100%, the model has no real weaknesses"
+    ],
+    "correctIndex": 1
+  }
+]

@@ -1,0 +1,98 @@
+[
+  {
+    "id": "ai-ml-prompting/tier-2/intro-to-neural-networks/q1",
+    "type": "multiple_choice",
+    "prompt": "In the terms Tier 1 established (\"a weight matrix is a batch of dot products\"), what does a neural network layer add on top of that matrix multiply?",
+    "choices": [
+      "Nothing \u2014 a layer is exactly the matrix multiply W @ x + b",
+      "An elementwise nonlinear activation function applied to the result",
+      "A second, independent matrix multiply",
+      "A softmax applied directly to the input features"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-2/intro-to-neural-networks/q2",
+    "type": "multiple_choice",
+    "prompt": "What is sigmoid(0)?",
+    "choices": [
+      "0",
+      "0.5",
+      "1",
+      "-1"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-2/intro-to-neural-networks/q3",
+    "type": "multiple_choice",
+    "prompt": "If you stack two nn.Linear layers directly with no activation function between them, what happens mathematically?",
+    "choices": [
+      "The network becomes strictly more expressive than a single linear layer",
+      "It is mathematically equivalent to a single linear layer, because a product of matrices is still a matrix",
+      "PyTorch raises a shape error, since Linear layers can't be chained without an activation",
+      "It works, but only for regression tasks, not classification"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-2/intro-to-neural-networks/q4",
+    "type": "multiple_choice",
+    "prompt": "Given z = np.array([-1, 0, 2]), what does relu(z) (np.maximum(0, z)) return?",
+    "choices": [
+      "[0, 0, 2]",
+      "[-1, 0, 2]",
+      "[0, 0, 0]",
+      "[1, 0, 2]"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-2/intro-to-neural-networks/q5",
+    "type": "multiple_choice",
+    "prompt": "You compute softmax on logits = [1.0, 1.0, 1.0]. What is the resulting probability vector?",
+    "choices": [
+      "[1.0, 0.0, 0.0]",
+      "[0.333, 0.333, 0.333]",
+      "[0.5, 0.3, 0.2]",
+      "[0.4, 0.4, 0.2]"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-2/intro-to-neural-networks/q6",
+    "type": "multiple_choice",
+    "prompt": "In PyTorch, after calling loss.backward(), what does model.layer1.weight.grad contain?",
+    "choices": [
+      "The updated weight values, ready to use for the next forward pass",
+      "The gradient of the loss with respect to each weight in that tensor \u2014 how much the loss would change if that weight increased slightly",
+      "The classification accuracy contributed by that layer",
+      "A count of how many times each weight was used during the forward pass"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-2/intro-to-neural-networks/q7",
+    "type": "multiple_choice",
+    "prompt": "Why does nn.CrossEntropyLoss in PyTorch expect raw logits from the model rather than post-softmax probabilities?",
+    "choices": [
+      "Because it internally applies log-softmax itself, so pre-applying softmax yourself double-applies it and breaks training",
+      "Because it only accepts negative numbers as input",
+      "Because PyTorch cannot compute gradients through a softmax function",
+      "Because raw logits train faster on GPU hardware regardless of the loss function"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-2/intro-to-neural-networks/q8",
+    "type": "multiple_choice",
+    "prompt": "Which of these logical functions can a single perceptron (one linear decision boundary) NOT correctly classify?",
+    "choices": [
+      "AND",
+      "OR",
+      "NOT",
+      "XOR"
+    ],
+    "correctIndex": 3
+  }
+]

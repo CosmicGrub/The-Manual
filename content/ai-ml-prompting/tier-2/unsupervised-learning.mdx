@@ -1,0 +1,191 @@
+---
+trackId: ai-ml-prompting
+tier: 2
+title: "Unsupervised Learning"
+order: 3
+estimatedHours: 8
+slug: unsupervised-learning
+---
+
+# Unsupervised Learning
+
+Every model you've trained so far in Tier 2 — regression, decision trees, random forests, k-NN — learned from labeled examples: you gave it `X` and `y`, and it learned the mapping between them. Unsupervised learning drops the `y`. You get a pile of feature vectors and nothing else, and the algorithm has to find structure in `X` on its own: which rows are similar to which (clustering), and which directions in feature space actually carry the information (dimensionality reduction). This module covers both with scikit-learn, on a real dataset, end to end.
+
+The dataset is `sklearn.datasets.load_iris`: 150 flowers, 4 measured features (sepal length, sepal width, petal length, petal width), 3 known species. Critically, everything below except the final "did it work" check ignores the species label entirely — that's the whole point of unsupervised learning. We keep the label around only to grade ourselves at the end, the way you'd use a labeled subset to sanity-check a clustering pipeline in the real world.
+
+```python
+from sklearn.datasets import load_iris
+from sklearn.preprocessing import StandardScaler
+
+iris = load_iris()
+X = iris.data
+y = iris.target  # true species -- NOT used for fitting, only to check results later
+print(X.shape, iris.feature_names)
+```
+```
+(150, 4) ['sepal length (cm)', 'sepal width (cm)', 'petal length (cm)', 'petal width (cm)']
+```
+
+As you already know from Feature Engineering & Data Prep, distance-based algorithms need scaled features — and k-means is a distance-based algorithm through and through, so this isn't optional here:
+
+```python
+scaler = StandardScaler()
+Xs = scaler.fit_transform(X)
+print(Xs[:3].round(3))
+```
+```
+[[-0.901  1.019 -1.34  -1.315]
+ [-1.143 -0.132 -1.34  -1.315]
+ [-1.385  0.328 -1.397 -1.315]]
+```
+
+## K-means: grouping unlabeled rows by proximity
+
+K-means is mechanically simple: pick `k`, place `k` centroids, then repeat two steps until nothing changes — (1) assign every point to its nearest centroid (plain Euclidean distance), (2) move each centroid to the mean of the points now assigned to it. Because the starting centroid positions are random, scikit-learn reruns the whole thing several times from different random starts (`n_init`) and keeps the run with the lowest total error, so results are stable and reproducible with a fixed seed.
+
+```python
+from sklearn.cluster import KMeans
+
+km3 = KMeans(n_clusters=3, n_init=10, random_state=42)
+cluster_labels = km3.fit_predict(Xs)
+print(km3.inertia_)
+print(km3.cluster_centers_.round(2))
+```
+```
+139.82
+[[-0.05 -0.88  0.35  0.28]
+ [-1.01  0.85 -1.3  -1.25]
+ [ 1.14  0.09  1.    1.02]]
+```
+
+`inertia_` is the total squared distance from every point to its own assigned centroid — the exact quantity k-means minimizes. Lower is always "tighter" clusters, but lower is also *trivially* achievable by just increasing `k` (with `k = n_samples`, inertia hits 0). That's why you can't pick `k` by minimizing inertia directly — you need the elbow method.
+
+## Picking k with the elbow method
+
+Fit k-means once for every candidate `k`, record `inertia_` each time, and look for where adding another cluster stops buying you much:
+
+```python
+inertias = []
+for k in range(1, 9):
+    km = KMeans(n_clusters=k, n_init=10, random_state=42)
+    km.fit(Xs)
+    inertias.append(km.inertia_)
+
+for k, inertia in zip(range(1, 9), inertias):
+    print(k, round(inertia, 2))
+```
+```
+1 600.0
+2 222.36
+3 139.82
+4 114.09
+5 90.93
+6 81.54
+7 72.63
+8 62.54
+```
+
+Look at the drops between consecutive values, not the raw numbers: `600.0 → 222.36` is a drop of **377.64**, `222.36 → 139.82` drops **82.54**, but `139.82 → 114.09` drops only **25.73**, and every step after that stays in the same shallow 9-25 range. The curve falls off a cliff twice (k=1→2, k=2→3) and then flattens — that flattening point, k=3, is the elbow. Plot it and the kink is visible directly:
+
+```python
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+
+fig, ax = plt.subplots(figsize=(6, 4))
+ax.plot(range(1, 9), inertias, marker="o")
+ax.set_xlabel("k")
+ax.set_ylabel("Inertia")
+ax.set_title("Elbow plot: Iris k-means")
+fig.savefig("iris_elbow.png", dpi=150)
+```
+
+The line drops steeply through k=2 and k=3, then bends and runs almost flat out to k=8 — a visible elbow right at k=3. That it lands on 3 is not a coincidence: there really are 3 species in this data, and the elbow method recovered that number from the feature values alone, with no access to `y`.
+
+## Reading the clusters against ground truth
+
+Now, and only now, bring `y` back in — not to fit anything, but to check whether the clusters we found unsupervised actually line up with real biological categories:
+
+```python
+import pandas as pd
+
+ct = pd.crosstab(y, cluster_labels, rownames=["true species"], colnames=["cluster"])
+print(ct)
+```
+```
+cluster        0   1   2
+true species
+0              0  50   0
+1             39   0  11
+2             14   0  36
+```
+
+Cluster 1 is **pure setosa** — all 50 setosa examples, and nothing else, landed there. Cluster 0 is mostly versicolor (39) with some virginica mixed in (14); cluster 2 is mostly virginica (36) with some versicolor mixed in (11). k-means never saw a single label, yet it isolated one species perfectly and only confused the other two with each other — which matches a well-known fact about this dataset: setosa is linearly separable from the other two, while versicolor and virginica genuinely overlap in feature space. 125 of 150 points (83%) landed in the "right" cluster if you match clusters to species by majority vote; every one of the 25 misclassifications is a versicolor/virginica mixup, never a setosa mixup. Unsupervised structure and real-world categories agreeing this well is a strong signal the features actually carry the information you care about.
+
+## PCA in practice: scikit-learn does the eigendecomposition for you
+
+In the Linear Algebra module (Tier 1) you built PCA by hand: center the data, compute the covariance matrix with `np.cov`, eigendecompose it with `np.linalg.eigh`, sort by eigenvalue, and project. `sklearn.decomposition.PCA` does exactly that same sequence of operations internally — you're not learning a new algorithm here, you're learning the production-ready interface to the one you already derived:
+
+```python
+from sklearn.decomposition import PCA
+
+pca = PCA(n_components=2)
+X_pca = pca.fit_transform(Xs)
+print(pca.explained_variance_ratio_.round(4))
+print(pca.explained_variance_ratio_.sum().round(4))
+```
+```
+[0.7296 0.2285]
+0.9581
+```
+
+`explained_variance_ratio_` is exactly the `eigenvalue / sum(eigenvalues)` calculation from Tier 1, one entry per component, already sorted descending — scikit-learn does the `argsort` reversal for you. PC1 alone captures 72.96% of the total variance in the 4 original features; PC1 + PC2 together capture **95.81%** — keeping 2 numbers instead of 4 loses less than 5% of the information.
+
+`components_` holds the actual eigenvectors — the directions themselves, one row per component, one column per original feature:
+
+```python
+print(pca.components_.round(3))
+```
+```
+[[ 0.521 -0.269  0.58   0.565]
+ [ 0.377  0.923  0.024  0.067]]
+```
+
+Read row 0 (PC1) against the feature order `[sepal length, sepal width, petal length, petal width]`: petal length (0.580) and petal width (0.565) dominate, sepal length contributes moderately (0.521), and sepal width pulls the *opposite* direction (-0.269). PC1 is essentially "overall flower size, driven mostly by the petals." Row 1 (PC2) is almost entirely sepal width (0.923) — PC2 is capturing the one dimension PC1 mostly ignored. This is the payoff of looking at `components_` directly: you can name what each axis means instead of treating it as an opaque number.
+
+## Dimensionality reduction for visualization: the real point of 2D PCA plots
+
+You cannot look at a scatter plot in 4 dimensions. You can look at one in 2. That's the whole justification for reducing to exactly 2 (or 3) components when the goal is a human looking at the data, as opposed to reducing to 50 components when the goal is feeding a downstream model:
+
+```python
+print(X_pca[:5].round(3))
+```
+```
+[[-2.265  0.48 ]
+ [-2.081 -0.674]
+ [-2.364 -0.342]
+ [-2.299 -0.597]
+ [-2.39   0.647]]
+```
+
+```python
+fig, ax = plt.subplots(figsize=(6, 5))
+ax.scatter(X_pca[:, 0], X_pca[:, 1], c=y, cmap="viridis", edgecolor="k", s=40)
+ax.set_xlabel(f"PC1 ({pca.explained_variance_ratio_[0]*100:.1f}% variance)")
+ax.set_ylabel(f"PC2 ({pca.explained_variance_ratio_[1]*100:.1f}% variance)")
+ax.set_title("Iris in 2D: PCA projection, colored by true species")
+fig.savefig("iris_pca_scatter.png", dpi=150)
+```
+
+Checking the actual PC1 range per species explains exactly what the plot shows: setosa sits entirely in `[-2.77, -1.82]`, versicolor in `[-0.49, 1.36]`, and virginica in `[0.37, 3.31]`. Setosa's range doesn't touch either of the other two — a full gap on the PC1 axis, so it forms a tight, completely isolated cloud on the left of the scatter plot. Versicolor and virginica, by contrast, overlap in the `[0.37, 1.36]` range — their two clouds visibly bleed into each other in the middle-right of the plot. That overlap is not a plotting artifact: it is *the same overlap* that caused k-means to misclassify 25 points earlier. The 2D PCA plot doesn't just look nice — it's a direct, visual explanation for why the clustering step made exactly the mistakes it made, compressed from 4 numbers per flower down to 2 without losing the fact that mattered.
+
+## Exercise
+
+Run the same pipeline — elbow method, final k-means fit, PCA, 2D scatter — on a new dataset: `sklearn.datasets.load_wine()`. It has 178 samples, 13 features (alcohol, malic acid, flavanoids, proline, and so on), and 3 known classes, just like Iris but higher-dimensional and less cleanly separated.
+
+1. Load it, scale the 13 features with `StandardScaler`, and run the elbow method for k=1 through 8. Report the inertia values and say where you think the elbow is.
+2. Fit `KMeans` at your chosen k and cross-tabulate the cluster assignments against `wine.target`. How clean is the separation compared to Iris — is there one dominant, easy class the way setosa was, or is it messier?
+3. Run `PCA(n_components=2)` on the scaled features, report `explained_variance_ratio_`, and make the 2D scatter colored by true class.
+4. Look at `pca.components_` for PC1 — which 2-3 of the 13 original features have the largest-magnitude loadings? Those are the features doing the most work to separate the wines.
+
+**Hint:** wine's features span very different natural scales (`proline` is in the hundreds, `hue` is under 2) — if your elbow plot or PCA loadings look dominated by one feature, you skipped or misapplied `StandardScaler`. Also, because wine has 13 features instead of 4, don't expect PC1+PC2 to capture as much variance as Iris's 95.8% — check the actual number rather than assuming.

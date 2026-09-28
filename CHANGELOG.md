@@ -319,3 +319,14 @@ All notable changes to The Manual (curriculum + app) are logged here. This file 
 **Result:** `npm run build` passed clean on the first attempt. 123 unique slugs verified repo-wide.
 
 **Status:** AI/ML Tier 1 complete (42h, 6 lessons). AI/ML is now 2/6 tiers content-complete (Tiers 0-1, 71h); Tiers 2-5 remain.
+
+## [0.24.0] — 2026-09-28 — AI/ML Tier 2: complete (Builder level, real LLM API code)
+
+**Context:** Continuing the tier-by-tier pattern. No more guided-notebook hand-holding — this tier trains real scikit-learn models on real datasets (Wisconsin breast cancer, diabetes) with real fitted output shown, and moves from chatting with an LLM to writing actual software against its API.
+
+**Added**
+- `content/ai-ml-prompting/tier-2/*.mdx` (6 files) + matching quizzes: Classical ML with scikit-learn (linear/logistic regression explicitly tied back to Tier 1's "weight matrix is a batch of dot products," decision trees vs. random forests with a real overfitting demonstration, real precision/recall/F1 from a real fitted model), Feature Engineering & Data Prep (a real data-leakage demonstration — scaling before vs. after the train/test split, with the resulting inflated metric shown), Unsupervised Learning (PCA in practice now, building on Tier 1's PCA theory), Intro to Neural Networks (the perceptron built directly on Tier 1's weight-matrix framing, backprop intuition only — full derivation deferred to Tier 3, a real PyTorch training loop), Building with LLM APIs (real Anthropic API calls, streaming, multi-turn state, tool calling, rate-limit handling), Prompt Engineering Craft II (prompt chaining, self-consistency, a real prompt-evaluation harness).
+
+**Result:** `npm run build` passed clean on the first attempt. 129 unique slugs verified repo-wide.
+
+**Status:** AI/ML Tier 2 complete (68h, 6 lessons). AI/ML is now 3/6 tiers content-complete (Tiers 0-2, 139h); Tiers 3-5 remain.

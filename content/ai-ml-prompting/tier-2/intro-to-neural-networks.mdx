@@ -1,0 +1,290 @@
+---
+trackId: ai-ml-prompting
+tier: 2
+title: "Intro to Neural Networks"
+order: 4
+estimatedHours: 14
+slug: intro-to-neural-networks
+---
+
+## A neuron is Tier 1's dot product, plus a decision
+
+Tier 1 showed you that a weight matrix is a batch of dot products: `W @ x + b`, one dot product per output neuron. The perceptron — the original 1958 neural network — is that same computation for a *single* neuron, with one extra step: squash the result through a decision function.
+
+```python
+import numpy as np
+
+def step(z):
+    return 1 if z >= 0 else 0
+
+def perceptron(x, w, b):
+    z = np.dot(w, x) + b
+    return step(z), z
+```
+
+Hand-pick weights that implement logical AND over two binary inputs:
+
+```python
+w = np.array([1.0, 1.0])
+b = -1.5
+
+for x1 in (0, 1):
+    for x2 in (0, 1):
+        x = np.array([x1, x2])
+        out, z = perceptron(x, w, b)
+        print(f"AND({x1},{x2}) = {out}   (z={z:.1f})")
+```
+```
+AND(0,0) = 0   (z=-1.5)
+AND(0,1) = 0   (z=-0.5)
+AND(1,0) = 0   (z=-0.5)
+AND(1,1) = 1   (z=0.5)
+```
+
+One weight vector, one bias, one dot product, one threshold — that's the whole perceptron. It is exactly `w @ x + b` from Tier 1's linear layer, with a single output neuron and a hard step where "no activation at all" used to be.
+
+Here's the catch that shaped the field's history: no straight line separates XOR's four points the way this shifted line separates AND's. `(0,0)` and `(1,1)` need one label, `(0,1)` and `(1,0)` need the other, and there is no `w`, `b` pair that draws a single line achieving it — you can check this by trying to solve the four inequalities by hand and finding they contradict each other. This is the real 1969 Minsky–Papert critique that stalled neural network research for a decade. The fix is exactly what "multi-layer" means: chain two layers together so the first layer can bend the input space before the second layer draws its line.
+
+## A layer is that dot product plus a nonlinearity — stacked
+
+A full layer runs many perceptron-style dot products in parallel. That is precisely Tier 1's `W @ x + b`, where `W` has one row per output neuron. What turns it into a *neural network* layer, rather than plain linear regression wearing a new name, is a nonlinear function applied elementwise to the result. Skip that step and stacking layers buys nothing at all:
+
+```python
+import numpy as np
+np.random.seed(0)
+
+W1 = np.random.randn(8, 4) * 0.1
+b1 = np.zeros(8)
+W2 = np.random.randn(3, 8) * 0.1
+b2 = np.zeros(3)
+x = np.array([1.0, 2.0, -1.0, 0.5])
+
+# two linear layers stacked directly, no activation in between
+out_stacked = W2 @ (W1 @ x + b1) + b2
+
+# collapse into one equivalent linear layer
+W_collapsed = W2 @ W1
+b_collapsed = W2 @ b1 + b2
+out_collapsed = W_collapsed @ x + b_collapsed
+
+print("stacked:  ", out_stacked)
+print("collapsed:", out_collapsed)
+```
+```
+stacked:   [-0.0416  0.0333 -0.0031]
+collapsed: [-0.0416  0.0333 -0.0031]
+```
+
+Identical, down to floating-point noise. Any depth of pure matrix multiplies is algebraically one matrix multiply — `W2 @ (W1 @ x) = (W2 @ W1) @ x` is just associativity. Depth is worthless without something nonlinear breaking that collapse between layers. That something is the activation function.
+
+## Activation functions on real numbers
+
+Three activations cover almost everything you will touch in this tier and the next: sigmoid (historic, still used for a single probability output), ReLU (the default for hidden layers), and softmax (multi-class output). Run the first two on the same six numbers:
+
+```python
+import numpy as np
+
+z = np.array([-3.0, -0.5, 0.0, 0.5, 2.0, 5.0])
+
+sigmoid = lambda z: 1 / (1 + np.exp(-z))
+relu = lambda z: np.maximum(0, z)
+
+print("z:      ", z)
+print("sigmoid:", np.round(sigmoid(z), 4))
+print("relu:   ", np.round(relu(z), 4))
+```
+```
+z:       [-3.  -0.5  0.   0.5  2.   5. ]
+sigmoid: [0.0474 0.3775 0.5    0.6225 0.8808 0.9933]
+relu:    [0.     0.     0.     0.5    2.     5.    ]
+```
+
+Sigmoid squashes every real number into `(0, 1)` — useful for a probability, but notice how flat it already is by `z=5` (`0.9933`, barely different from `1`). That flatness is a real training problem: once a neuron's output saturates near 0 or 1, the local slope is close to zero, and — per the backprop intuition below — a near-zero slope means a near-zero gradient signal passes through it going backward. ReLU sidesteps this for positive inputs, where the slope is exactly `1` no matter how large `z` gets, which is why it (not sigmoid) is the default for hidden layers today. Its own failure mode, a "dead" neuron permanently stuck outputting `0` because the slope there is also `0`, is why variants like Leaky ReLU exist — worth knowing the name, not worth chasing further here.
+
+Softmax behaves differently: it does not act elementwise, it turns a whole vector of raw scores ("logits") into a probability distribution that sums to 1 — the standard output layer for multi-class classification:
+
+```python
+def softmax(z):
+    ez = np.exp(z - np.max(z))  # subtract max first, purely for numerical stability
+    return ez / ez.sum()
+
+logits = np.array([2.0, 1.0, 0.1])
+probs = softmax(logits)
+print("logits:", logits)
+print("probs: ", np.round(probs, 4), " sum:", probs.sum())
+```
+```
+logits: [2.  1.  0.1]
+probs:  [0.659  0.2424 0.0986]  sum: 1.0
+```
+
+The largest logit (`2.0`) does not just win — it gets nearly two-thirds of the total probability mass, because softmax amplifies gaps between scores exponentially. That is why it pairs naturally with cross-entropy loss from Tier 1's probability module: the loss punishes a low probability on the correct class hard, and softmax is what turns "the correct class's logit is a bit bigger" into "the correct class's probability is close to 1."
+
+## The multi-layer perceptron: layers, chained
+
+Put a hidden layer between input and output and you have a multi-layer perceptron (MLP): input, then `Linear -> activation -> Linear -> output`. Trace one example through a tiny one by hand:
+
+```python
+import numpy as np
+np.random.seed(0)
+
+x = np.array([0.5, -1.2, 0.3])          # 3 input features
+W1 = np.random.randn(4, 3) * 0.5        # layer 1: 3 -> 4
+b1 = np.zeros(4)
+W2 = np.random.randn(2, 4) * 0.5        # layer 2: 4 -> 2
+b2 = np.zeros(2)
+
+z1 = W1 @ x + b1
+a1 = relu(z1)          # nonlinearity between the two layers
+z2 = W2 @ a1 + b2      # output logits, no activation applied yet
+
+print("z1 (pre-activation): ", np.round(z1, 4))
+print("a1 (after ReLU):     ", np.round(a1, 4))
+print("z2 (output logits):  ", np.round(z2, 4))
+```
+```
+z1 (pre-activation):  [ 0.3477 -0.7069  0.3129  0.2344]
+a1 (after ReLU):      [0.3477 0.     0.3129 0.2344]
+z2 (output logits):   [0.2409 0.2087]
+```
+
+Notice `a1`'s second entry got clipped to exactly `0` — that neuron contributed nothing to `z2` for this particular input, the "dead for this example" behavior ReLU is named for. What happens after `z2` depends on the task: for regression you would stop here, for binary classification you would pass `z2[0]` through sigmoid, for multi-class you would pass the whole vector through softmax.
+
+## Forward pass, loss, and where backprop fits (intuition only)
+
+Training a network is two passes per batch, repeated:
+
+- **Forward pass** — exactly what you just traced by hand: input, layer, activation, layer, ..., prediction. Compare the prediction to the true label with a loss function (cross-entropy for classification, the same one from Tier 1's probability module).
+- **Backward pass ("backprop")** — the loss's gradient with respect to every weight in the network, computed automatically via the chain rule, flowing backward from the loss through each layer toward the input.
+
+The full chain-rule derivation — writing out `dL/dW1` layer by layer — is Tier 3's job (Deep Learning Foundations), and this module deliberately does not attempt it. The intuition you need right now is the same one you already have from Tier 1's Gradient Descent Mechanics module, just applied to thousands of weights instead of one or two: **the gradient tells each weight which direction increases the loss, so you nudge every weight a little in the opposite direction.** Backprop is the mechanism that computes "which direction" for every weight in a deep stack of layers in one pass, reusing intermediate results between layers instead of recomputing each one from scratch — that reuse, not the calculus itself, is what makes training deep networks computationally feasible at all.
+
+You never hand-implement this. PyTorch builds a computation graph as the forward pass runs, and one call walks it backward:
+
+```python
+import torch
+
+x = torch.tensor([0.5, -1.2, 0.3])
+W1 = torch.randn(4, 3, requires_grad=True)
+loss = (W1 @ x).sum() ** 2       # stand-in loss, just to watch gradients flow
+loss.backward()
+print(W1.grad.shape)             # one gradient value per weight, same shape as W1
+```
+```
+torch.Size([4, 3])
+```
+
+`requires_grad=True` tells PyTorch to track this tensor through the graph; `.backward()` runs the backward pass; `.grad` fills in with, for every single weight, "how much the loss would change if this weight went up slightly." That is the entire mental model this module asks for. You will use it for real next.
+
+## Training a real network end to end
+
+Time to run all of this on a dataset you have already worked with classically. `load_digits` from scikit-learn is 1,797 real 8x8 grayscale handwritten digit images (64 pixel-intensity features), labeled 0-9 — the same shape of tabular classification problem the Classical ML module had you solving with logistic regression and random forests. Now a neural net does it:
+
+```python
+import numpy as np
+import torch
+import torch.nn as nn
+from sklearn.datasets import load_digits
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+
+torch.manual_seed(0)
+
+digits = load_digits()
+X, y = digits.data, digits.target
+print(X.shape, y.shape, np.unique(y))
+```
+```
+(1797, 64) (1797,) [0 1 2 3 4 5 6 7 8 9]
+```
+
+Split and scale exactly like the Feature Engineering module taught you — a neural net is at least as sensitive to feature scale as a linear model, since an unscaled feature distorts the gradient just as easily as it distorts a dot-product-based distance:
+
+```python
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42, stratify=y
+)
+scaler = StandardScaler()
+X_train = scaler.fit_transform(X_train)
+X_test = scaler.transform(X_test)
+
+X_train_t = torch.tensor(X_train, dtype=torch.float32)
+y_train_t = torch.tensor(y_train, dtype=torch.long)
+X_test_t = torch.tensor(X_test, dtype=torch.float32)
+y_test_t = torch.tensor(y_test, dtype=torch.long)
+```
+
+Define the MLP as a PyTorch module — the exact `Linear -> ReLU -> Linear` shape from the hand-traced example above, just at real size (64 input pixels, a 32-neuron hidden layer, 10 output classes):
+
+```python
+class DigitClassifier(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.layer1 = nn.Linear(64, 32)
+        self.relu = nn.ReLU()
+        self.layer2 = nn.Linear(32, 10)
+
+    def forward(self, x):
+        x = self.layer1(x)
+        x = self.relu(x)
+        x = self.layer2(x)
+        return x  # raw logits -- CrossEntropyLoss applies softmax internally
+
+model = DigitClassifier()
+print(sum(p.numel() for p in model.parameters()), "trainable parameters")
+```
+```
+2410 trainable parameters
+```
+
+That is `64*32 + 32` weights and biases in layer 1, plus `32*10 + 10` in layer 2 — every one of them a number gradient descent is about to adjust. Loss function, optimizer, and the training loop:
+
+```python
+loss_fn = nn.CrossEntropyLoss()      # expects raw logits -- it applies log-softmax internally
+optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
+
+for epoch in range(41):
+    optimizer.zero_grad()            # clear gradients left over from the previous step
+    logits = model(X_train_t)        # forward pass
+    loss = loss_fn(logits, y_train_t)
+    loss.backward()                  # backward pass -- fills in .grad for every weight
+    optimizer.step()                 # nudge every weight opposite its gradient
+
+    if epoch % 10 == 0:
+        with torch.no_grad():
+            test_acc = (model(X_test_t).argmax(dim=1) == y_test_t).float().mean().item()
+        print(f"epoch {epoch:2d}  train_loss={loss.item():.4f}  test_acc={test_acc:.4f}")
+```
+```
+epoch  0  train_loss=2.3500  test_acc=0.2306
+epoch 10  train_loss=0.7141  test_acc=0.8528
+epoch 20  train_loss=0.2187  test_acc=0.9278
+epoch 30  train_loss=0.1034  test_acc=0.9528
+epoch 40  train_loss=0.0590  test_acc=0.9583
+```
+
+95.8% test accuracy after 41 epochs, from a 2,410-parameter network that started at random — epoch 0's loss, `2.35`, is close to `ln(10) ≈ 2.303`, the loss you would expect from guessing uniformly among 10 classes, which is roughly what an untrained network does before any weight has learned anything useful. Every one of those weights moved because of a `.grad` value that `loss.backward()` computed for it:
+
+```python
+optimizer.zero_grad()
+loss_fn(model(X_train_t), y_train_t).backward()
+print(model.layer1.weight.grad.shape)
+print(model.layer1.weight.grad[0, :5])
+```
+```
+torch.Size([32, 64])
+tensor([ 0.0000,  0.0003,  0.0006, -0.0009, -0.0003])
+```
+
+One gradient value per weight in `layer1` — 32 neurons times 64 inputs — each one saying "increasing this specific weight by a tiny amount would change the loss by this much." `optimizer.step()` is what actually applies those numbers to update the weights, using the same learning-rate idea from Tier 1's Gradient Descent Mechanics module, just handled by Adam instead of manual SGD, and across 2,410 weights instead of one or two.
+
+## Exercise: measure what depth and activation choice actually buy you
+
+Using the `DigitClassifier` setup above, run two variations and record test accuracy after the same 41 epochs for each:
+
+1. Add a second hidden layer: `64 -> 32 -> 16 -> 10`, with ReLU after each hidden layer.
+2. Keep the original single-hidden-layer shape, but replace every `nn.ReLU()` with `nn.Sigmoid()`.
+
+Then answer, in a couple of sentences each: did the extra layer help, hurt, or make no real difference to test accuracy? And what happened to the sigmoid version's loss curve compared to the ReLU version's — did it converge at a similar speed over the same 41 epochs?
+
+Hint: look back at the sigmoid values for large `|z|`. Pre-activation values (`z1`, `z2`, ...) tend to grow larger as more layers stack on top of each other. Think about what a near-flat sigmoid slope does to the gradient that backprop has to pass through it on the way back to the earlier layers, and why ReLU's constant slope of `1` (for positive inputs) avoids that problem. You are not expected to derive this mathematically yet — Tier 3 does that — just observe it happening in your own loss curve.
