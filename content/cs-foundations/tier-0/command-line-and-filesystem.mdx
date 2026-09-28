@@ -1,0 +1,39 @@
+---
+trackId: cs-foundations
+tier: 0
+title: The Command Line & Filesystem
+order: 2
+estimatedHours: 6
+---
+
+Every project you'll ever build lives somewhere in a filesystem, and until you can move around it, create and destroy things in it, and wire commands together, you're stuck clicking through folders like it's 1998. The terminal isn't a retro power-user flex — it's the fastest, most precise way to operate a computer, and it's the interface every tool in this curriculum (Python, Git, even VS Code's own integrated terminal) assumes you already have basic fluency with.
+
+If you're on Windows, do this whole lesson in **Git Bash** (installed alongside Git — you can install it now even though Module 3 covers Git properly) or **WSL**, not the classic Command Prompt. This curriculum uses Unix-style commands throughout, and Git Bash/WSL give you those on Windows, so you only ever have to learn one command set instead of two.
+
+## What you'll leave this lesson knowing
+
+- How to move around a filesystem from the command line with `cd`, `ls`, and `pwd`, and create, rename, copy, and delete things with `mkdir`, `mv`, `cp`, and `rm`
+- The difference between an absolute path and a relative path, and when each one is the right tool
+- What an environment variable is, what `PATH` specifically does, and how to inspect and set one
+- How to chain commands together with pipes (`|`) and send their output to files with redirection (`>` and `>>`)
+- How to read a permissions string like `rwxr-xr-x` and change it with `chmod`
+
+## Do this
+
+1. Open a terminal. Run `pwd`. Whatever it prints is "where you are" — almost always your home directory when you first open a terminal.
+2. Make a sandbox so you can break things safely: `mkdir -p sandbox/manual/notes sandbox/manual/scripts sandbox/manual/archive`. If you haven't seen the `-p` flag before, look it up (`man mkdir`, `mkdir --help`, or just search "mkdir create nested directories") — needing to look up a flag is completely normal and something you'll do for the rest of your career, not a sign you're behind.
+3. `cd sandbox/manual`, then run `ls -la`. You'll see more than before: `-la` shows hidden files (anything starting with `.` — you'll meet these again with `.gitignore` in the next module) and a long-format listing with permissions, owner, size, and modified date. You don't need to fully decode that yet; you will in step 9.
+4. Create some real files instead of empty ones: `echo "# Today" > notes/today.md` and `echo "echo hi from a script" > scripts/hello.sh`. Confirm with `cat notes/today.md`.
+5. Practice copy, move, and delete: `cp notes/today.md notes/today-backup.md`, then `mv notes/today-backup.md archive/`, then `ls archive/` to confirm it moved. Now delete it: `rm archive/today-backup.md`. There is no trash can and no undo — `rm` is permanent, which is exactly why you're practicing it on throwaway files first.
+6. Now the absolute-vs-relative path drill. From inside `sandbox/manual/notes`, run `cd ~` (or `cd /Users/yourname` / `cd /home/yourname` spelled out fully) — that's an **absolute path**: it works no matter where you currently are, because it starts from the root of the filesystem. Now get back with a **relative path**: `cd sandbox/manual/notes`. Then try `cd ..` (up one level) and `cd .` (stay put — rarely useful alone, but you'll use `./` constantly to mean "here" when running scripts). Relative paths depend on where you're starting from; absolute paths never do.
+7. Try deleting a whole directory: `mkdir sandbox/manual/scratch`, then `rm sandbox/manual/scratch` — it'll refuse, because `rm` alone won't remove a directory. Use `rm -r sandbox/manual/scratch` instead. Notice how much more dangerous `-r` is (it deletes everything inside, recursively) — get in the habit of double-checking the path before you hit enter on any `rm -r`.
+8. Environment variables: run `echo $HOME` and `echo $PATH`. `PATH` is a single string of directories separated by `:` (or `;` on Windows) — it's the list of places your shell searches, in order, whenever you type a command name. That's *why* typing `python` works at all: the shell is checking each directory in `PATH` for something named `python` until it finds one, and "command not found" just means it searched everywhere in `PATH` and came up empty. Now set a temporary variable of your own: `export MANUAL_NAME="your name here"` (in Git Bash) and `echo $MANUAL_NAME` to see it back. Close and reopen your terminal and echo it again — it's gone, because you set it only for that one session. Making a variable stick around permanently is a Module 3 problem (shell config files); for now, just feel the difference between "set for this session" and "gone."
+9. Piping and redirection, back in `sandbox/manual`: run `ls -la scripts | wc -l` — the pipe (`|`) takes the *output* of `ls` and feeds it as *input* to `wc -l` (which counts lines), all without a temporary file in between. Now redirect to a real file: `ls -la > listing.txt` overwrites `listing.txt` with the listing; `echo "one more line" >> listing.txt` appends instead of overwriting. Run `cat listing.txt` to see the result, then combine both ideas in one line: `ls -la | grep ".md" > markdown-files.txt`.
+10. File permissions: run `ls -l scripts/hello.sh` and look at the leftmost column, something like `-rw-r--r--`. After the leading `-` (meaning "regular file"), it's three groups of three: owner, group, everyone else, each `rwx` (read/write/execute — a `-` means that permission is off). Try running the script directly: `./scripts/hello.sh`. It'll refuse with "permission denied," because the execute bit isn't set. Fix it with `chmod +x scripts/hello.sh`, run `ls -l scripts/hello.sh` again to see the `x`s appear, and run `./scripts/hello.sh` once more — now it works.
+11. Capstone for this lesson: produce a single file that documents your sandbox. Run `ls -laR sandbox > sandbox-report.txt` (the `-R` makes `ls` recurse into subdirectories), then `cat sandbox-report.txt` to confirm it captures your whole tree. You just used navigation, redirection, and a flag you may not have seen before (look it up if `-R` alone didn't make sense) to generate a real artifact from the command line — that's the whole point of this lesson in one line.
+
+## Check on learning
+
+- Explain out loud the difference between `cd sandbox` and `cd /home/you/sandbox` (or your actual home path) — specifically, name one situation where the first would fail but the second wouldn't.
+- Before running it, predict exactly what `ls -la | grep ".txt" > text-files.txt` will do, step by step. Then run it and check your prediction against what actually landed in the file.
+- What does `chmod +x` do, and why did `./scripts/hello.sh` fail before you ran it?

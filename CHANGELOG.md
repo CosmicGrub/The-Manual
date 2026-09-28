@@ -54,3 +54,18 @@ All notable changes to The Manual (curriculum + app) are logged here. This file 
 **Net effect:** total estimated curriculum content drops from ~3,265h to ~3,202h — a modest reduction, because most of the fix was re-scoping/cross-referencing rather than pure deletion (CS Foundations also *gained* the new math-depth content it now has to carry for two tracks).
 
 **Deliberately not done in this pass** (scope note for transparency): the OOP three-way overlap (CS Foundations/Language Mastery/Software Engineering) and the three-way networking overlap (Hardware/Software Engineering/DevOps) were resolved with cross-reference notes and canonical-owner framing, not full content removal — each track's version teaches a genuinely different angle (concepts vs. syntax vs. applied design; deep protocol theory vs. HTTP-for-APIs vs. networking-for-ops), so the reviewer's fix ("reference each other" rather than "delete") was applied literally rather than over-trimmed.
+
+## [0.2.0] — 2026-09-28 — CS Foundations Tier 0: first complete real lesson content
+
+**Context:** Per the locked-in decision to start real (non-example) lesson content with CS Foundations, wrote all 6 Tier-0 modules as complete lessons via a 6-way parallel content-writing pass (one agent per module, sharing the tier's goal/checkpoint/format context).
+
+**Added**
+- `content/cs-foundations/tier-0/*.mdx` (6 files) + matching `*.quiz.json` (6 files, 5 questions each): "What Even Is a Computer?", "The Command Line & Filesystem", "Setting Up a Real Dev Environment", "Version Control Literacy: Git Day Zero", "Algorithmic Thinking Without Code", "What Is a Variable, Really?" — every lesson has a "What you'll leave this lesson knowing" outcomes list, a numbered hands-on "Do this" section with real OS-specific instructions, and a "Check on learning" self-check section, per the format established in `content/README.md`.
+
+**Removed**
+- `content/cs-foundations/tier-0/what-is-code.mdx` and its quiz — the illustrative placeholder from the initial scaffold, now fully superseded by the real module list above (its ground — terminal/hello-world literacy — is now properly split across "The Command Line & Filesystem" and "Setting Up a Real Dev Environment").
+
+**Changed**
+- `content/README.md` — updated its example frontmatter to a real lesson (`what-is-a-computer.mdx`) instead of the now-removed placeholder, and points to the finished Tier 0 as the reference example for tone/structure/quiz style.
+
+**Status:** CS Foundations Tier 0 is the first fully content-complete tier in The Manual — 27 hours of real material across 6 lessons, ready to seed into the app (`npm run db:seed`) and actually be studied from. All other tracks/tiers still have only their `docs/curriculum/*.md` syllabus, not lesson prose.

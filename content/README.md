@@ -6,13 +6,15 @@ Every lesson is one `.mdx` file under `content/<trackId>/tier-<N>/<slug>.mdx`, w
 ---
 trackId: cs-foundations
 tier: 0
-title: What Is Code, Actually?
+title: What Even Is a Computer?
 order: 1
-estimatedHours: 1.5
+estimatedHours: 4
 ---
 
 Lesson body in MDX (Markdown + JSX) goes here...
 ```
+
+CS Foundations' Tier 0 (`content/cs-foundations/tier-0/`) has all 6 modules written as real, complete lessons — use it as the reference example for tone, the "Do this" / "Check on learning" structure, and quiz-question style before writing any other track's content.
 
 `app/velite.config.ts` compiles every file matching this pattern into a typed JSON index (`.velite/lessons.json`) at build time. `prisma/seed.ts` then mirrors that index into the `Module` table so progress, quizzes, and checkpoints can reference a stable `moduleId` (`<trackId>/tier-<tier>/<slug>`).
 

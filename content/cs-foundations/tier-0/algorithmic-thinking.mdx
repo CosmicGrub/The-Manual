@@ -1,0 +1,50 @@
+---
+trackId: cs-foundations
+tier: 0
+title: Algorithmic Thinking Without Code
+order: 5
+estimatedHours: 4
+---
+
+Long before "algorithm" meant anything to do with computers, it meant a recipe, a knitting pattern, a set of driving directions — any precise sequence of steps that reliably turns a starting situation into a finished result. You already write and follow algorithms every day; you've just never had to make one so precise that something with zero common sense could follow it without messing up. That's the entire skill this lesson builds, and it's the one skill that carries unchanged into every programming language you'll ever learn — long before you write a single line of syntax.
+
+## What you'll leave this lesson knowing
+
+- What actually makes something an algorithm: a finite, ordered sequence of unambiguous steps — not just a description of a goal
+- How to find and eliminate ambiguity in a set of instructions by testing them against a maximally literal "executor"
+- How to decompose a large task into smaller ordered sub-tasks, and recognize when two different tasks share the same underlying step-pattern
+- What abstraction means in practice: hiding the part of a step that varies behind a stable "interface," so the rest of the algorithm doesn't need to know or care what's happening inside it
+- How to debug a flawed instruction set by classifying *what kind* of bug you're looking at (ambiguous step, missing edge case, wrong order, missing stop condition) rather than just re-reading it and hoping the fix jumps out
+
+## Do this
+
+1. **Write a literal algorithm for a real task.** Pick something physical and mundane you've never had to explain to anyone: making a peanut-butter-and-jelly sandwich, tying a shoe, or folding a paper airplane. Write it as a numbered list of steps. The rule: every step must be something you could hand to someone with zero context and no assumptions filled in for them. "Prepare the ingredients" is not a step — "open the bread bag" is.
+
+2. **Test it against the world's most literal executor.** Ideally, hand your numbered list to another person and have them do *exactly*, *only*, and *nothing more* than what's written, even when the literal result is absurd. No other person around? Do it yourself: put the list away for ten minutes, come back, and follow it as if you'd never made a sandwich in your life, refusing to silently fill in any gap with common sense. Every place where you (or your test subject) had to guess — "spread it" without saying spread *what* on *what*, "open the jar" when there are two jars on the counter — write down as a found bug. This is genuinely how professional programmers test whether their own instructions are actually precise, so if this feels tedious or overly pedantic, that's the exercise working correctly, not a sign you're overdoing it.
+
+3. **Revise for precision, then diff the two versions.** Rewrite the algorithm fixing every ambiguity you logged in step 2, and add an explicit stopping point ("Step 9: the sandwich is complete; stop.") — vague endings are one of the most common gaps. Put v1 and v2 side by side. The gap between them *is* the difference between "a goal" and "an algorithm." If you're unsure whether you've been literal enough, search for "algorithm definition computer science" and skim two or three results — looking up a working definition mid-exercise is normal, not a sign you're behind.
+
+4. **Decompose a bigger task, then hunt for a repeated pattern.** Pick something with real internal complexity — getting ready in the morning, or doing a load of laundry — and write it as a numbered algorithm of major steps. Then take just one of those major steps and break *it* into its own numbered sub-list. That's decomposition: turning one step that's secretly hiding a lot of complexity into an explicit smaller algorithm of its own. Now compare this task's structure to your sandwich algorithm from step 1. Circle any step-*shape* that shows up in both — something like "gather everything you need before you start" or "check whether you're done; if not, keep going." Finding the same underlying structure in two unrelated tasks is pattern recognition, and it's the same instinct that later lets you notice "wait, this is the same kind of problem I solved last week" in actual code.
+
+5. **Practice abstraction on purpose.** Write a single algorithm titled "Make a Hot Drink" that correctly produces tea, coffee, *or* cocoa, without ever branching into three separate algorithms. Every step should stay generic ("boil water," "pour into mug," "stir") except exactly one clearly marked step — something like "Step 4: add the drink-specific ingredient (tea bag / coffee grounds / cocoa powder), depending on what was requested." That one swappable step is abstraction: the rest of the algorithm doesn't need to know or care what's happening inside it, only that it happens. This is the same reason you'll later be able to call a function without reading its internals.
+
+6. **Debug this flawed instruction set.** Below is "The Laundry Algorithm," written by someone who has clearly never done laundry. Find and name at least three distinct bugs before you look at the categories listed after it, then rewrite a fixed version.
+
+   ```
+   1. Go to the laundry room.
+   2. Put the clothes in the machine.
+   3. Add soap.
+   4. Turn the machine on.
+   5. Wait until it's done.
+   6. Put the clothes in the dryer.
+   7. When it beeps, take the clothes out.
+   8. Go back to step 2.
+   ```
+
+   Once you've found your own, check them against these four bug categories, which cover almost every bug you'll ever chase in real code, not just laundry: an **ambiguous step** (step 3 — how much soap, and where does it go?), a **missing edge case** (step 2 — whites and colors both just go in "the machine," which will ruin someone's laundry), a **missing precondition** (nothing checks pockets for stray items or picks a wash setting before step 4 turns the machine on), and a **missing stop condition** (step 8 sends you back to step 2 forever, with nothing that ever says "if there are no more loads, stop" — the exact same shape as an infinite loop). Rewrite the algorithm so all four are fixed.
+
+## Check on learning
+
+- In your own words, explain the difference between "a goal" and "an algorithm," using your sandwich (or cereal, or shoe-tying) instructions as the example — what specifically changed between your v1 and your fixed v2?
+- Pick your "Make a Hot Drink" algorithm and explain, out loud, which single step is abstracted and why hiding that detail there — instead of writing three separate algorithms — is actually useful.
+- Without looking back at your fixed Laundry Algorithm, list the four bug categories from memory (ambiguous step, missing edge case, missing precondition, missing stop condition) and give one *new* everyday example of each that wasn't in this lesson.

@@ -1,0 +1,48 @@
+[
+  {
+    "id": "cs-foundations/tier-0/git-day-zero/q1",
+    "type": "multiple_choice",
+    "prompt": "What does `git commit` actually do?",
+    "choices": [
+      "It uploads your project to GitHub",
+      "It permanently records the currently staged changes as a new snapshot in the repo's history",
+      "It deletes the previous version of the file",
+      "It creates a full backup copy of your entire computer"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cs-foundations/tier-0/git-day-zero/q2",
+    "type": "multiple_choice",
+    "prompt": "You ran `git init` and created a file, but `git commit -m \"first\"` says there's nothing to commit. What almost certainly happened?",
+    "choices": [
+      "You forgot to run `git add` on the file first",
+      "Git only works with files created before `git init`",
+      "The file needs to be pushed to GitHub before it can be committed",
+      "You need to restart your terminal"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "cs-foundations/tier-0/git-day-zero/q3",
+    "type": "short_answer",
+    "prompt": "What single git command shows you the history of commits in a repository?",
+    "acceptedAnswers": [
+      "git log",
+      "log"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-0/git-day-zero/q4",
+    "type": "short_answer",
+    "prompt": "By convention, what name does git give to the remote repository URL when you connect a local repo to GitHub with `git remote add origin <url>`?",
+    "acceptedAnswers": [
+      "origin"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-0/git-day-zero/q5",
+    "type": "explain_back",
+    "prompt": "Explain to a friend who has never used git why keeping files like 'essay_v2_FINAL_actually_final.docx' isn't the same as version control. Use the words 'repository' and 'commit' in your explanation, and describe what a remote (like GitHub) adds on top of a local repo."
+  }
+]

@@ -1,0 +1,42 @@
+---
+trackId: cs-foundations
+tier: 0
+title: Setting Up a Real Dev Environment
+order: 3
+estimatedHours: 5
+---
+
+A "dev environment" is nothing mystical — it's just the specific stack of tools that has to exist on your machine before any code you write can run: an interpreter to execute Python, an editor built for reading and writing code (not prose), and version control so you never lose work to a bad keystroke. Right now you might have pieces of this already, half-configured, from some other tutorial. Today you build it deliberately, understand every piece, and end with a program you wrote actually running on your machine.
+
+## What you'll leave this lesson knowing
+
+- How to install Python 3 and confirm both `python3` and `pip` respond from your terminal
+- How to install VS Code and the extension that turns it into a real Python editor (not just a text pad)
+- How to set your Git identity (`user.name` / `user.email`) so every commit you ever make is attributable to you
+- What a virtual environment is, why every serious Python project uses one, and how to create, activate, and deactivate one
+- How to write a script, point VS Code at the right interpreter, and run it both from the terminal and from inside the editor
+
+## Do this
+
+1. **Check for Python 3 first.** Open your terminal and run `python3 --version` (macOS/Linux) or `python --version` (Windows). If you get back something like `Python 3.11.6`, you already have it — note the version and move to step 2. If you get an error or a `2.x` version, you need to install Python 3 fresh: on Windows or macOS, download the installer from python.org (on Windows, make sure you check "Add python.exe to PATH" in the installer — this is the single most common setup mistake beginners hit); on Linux, use your distro's package manager, e.g. `sudo apt install python3 python3-pip python3-venv` on Ubuntu/Debian. If you're on a different distro, look up the equivalent package name for your package manager — this is completely normal, every OS names things slightly differently and no tutorial covers all of them.
+
+2. **Verify pip came with it.** Run `pip3 --version` (or `pip --version` on Windows). This should print a version number and a path. Pip is the package manager you'll use constantly starting next tier to install third-party libraries — right now you just need to confirm it exists.
+
+3. **Install VS Code.** Download it from code.visualstudio.com and run the installer with defaults. Once it's open, install the essential extension: click the Extensions icon in the left sidebar (or press `Ctrl+Shift+X` / `Cmd+Shift+X`), search for "Python," and install the one published by Microsoft (it bundles Pylance, which gives you real autocomplete and error-checking, not just syntax coloring). If you'd rather do it from the terminal, the command is `code --install-extension ms-python.python`.
+
+4. **Install Git and set your identity.** Check if it's already there with `git --version`. If not: macOS prompts you to install Apple's Command Line Tools the first time you run a git command (or use `brew install git`); Windows should install Git from git-scm.com, which also gives you Git Bash; Linux users run `sudo apt install git` or their distro's equivalent. Once installed, set your identity globally — this is the name and email that get permanently baked into every commit you make, on every project, until you change it:
+   `git config --global user.name "Your Name"`
+   `git config --global user.email "you@example.com"`
+   Use the same email you plan to use for your GitHub account, since Module 4 will connect the two. Confirm both took effect with `git config --global --list`.
+
+5. **Create a project folder and a virtual environment inside it.** Make a folder for this lesson's practice, e.g. `mkdir dev-env-practice && cd dev-env-practice`. Now run `python3 -m venv .venv` (or `python -m venv .venv` on Windows). This creates a self-contained, private copy of Python and pip inside a `.venv` folder, used only by this project — nothing you install into it can affect any other project or your system Python. This matters the moment you have two projects that need different, conflicting versions of the same library, which happens more often than you'd expect.
+
+6. **Activate it, and notice what changes.** On macOS/Linux: `source .venv/bin/activate`. On Windows PowerShell: `.venv\Scripts\Activate.ps1` (if PowerShell refuses to run it citing execution policy, look up `Set-ExecutionPolicy` for your user scope — this is a known Windows quirk, not something you broke). On Windows Command Prompt: `.venv\Scripts\activate.bat`. Whichever one applies to you, your prompt should now show `(.venv)` at the start of the line. That prefix means "any `python` or `pip` command right now uses this project's isolated copy, not your system-wide one." Run `pip install --upgrade pip` while activated as a first sanity check that installs land inside the venv. When you're done working, type `deactivate` to leave it.
+
+7. **Write and run your first script.** With the venv still active, open the folder in VS Code with `code .` (on macOS, if `code` isn't recognized, open the Command Palette in VS Code with `Cmd+Shift+P`, run "Shell Command: Install 'code' command in PATH," then try again). Create a file named `hello.py` containing exactly one line: `print("Hello, Manual")`. In VS Code's bottom status bar, click the Python interpreter selector (or open the Command Palette and run "Python: Select Interpreter") and choose the one inside `./.venv` — this tells the editor to run and debug using your project's isolated Python, not some other copy on your system. Run the file two ways: from VS Code's integrated terminal with `python hello.py`, and by clicking the "Run Python File" play button in the top-right of the editor. Both should print `Hello, Manual`.
+
+## Check on learning
+
+- Say out loud what problem a virtual environment actually solves — what specifically would eventually go wrong on a machine with several Python projects on it if venvs didn't exist?
+- Confirm all four tools answer from your terminal: `python3 --version`, `pip --version`, `git --version`, and `code --version` each print something instead of erroring.
+- Explain why VS Code needed you to explicitly select an interpreter even after Python was already installed — what would you notice running your script if it were pointed at the wrong one (say, your system Python instead of `.venv`)?

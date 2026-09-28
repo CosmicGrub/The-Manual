@@ -1,0 +1,48 @@
+[
+  {
+    "id": "cs-foundations/tier-0/command-line-and-filesystem/q1",
+    "type": "multiple_choice",
+    "prompt": "Which of the following is an absolute path, not a relative one?",
+    "choices": [
+      "../notes",
+      "./scripts/hello.sh",
+      "/home/alex/notes",
+      "notes/today.md"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "cs-foundations/tier-0/command-line-and-filesystem/q2",
+    "type": "multiple_choice",
+    "prompt": "In `ls -la | grep \".txt\"`, what does the pipe (`|`) do?",
+    "choices": [
+      "It saves the output of ls into a file named grep",
+      "It sends the standard output of ls as the standard input to grep",
+      "It runs ls and grep at the same time with no connection between them",
+      "It deletes any files that don't match .txt"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cs-foundations/tier-0/command-line-and-filesystem/q3",
+    "type": "short_answer",
+    "prompt": "What single command creates a new, empty directory?",
+    "acceptedAnswers": [
+      "mkdir"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-0/command-line-and-filesystem/q4",
+    "type": "short_answer",
+    "prompt": "What environment variable holds the list of directories your shell searches to find a command when you type its name?",
+    "acceptedAnswers": [
+      "PATH",
+      "$PATH"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-0/command-line-and-filesystem/q5",
+    "type": "explain_back",
+    "prompt": "In your own words, explain to someone who has never used a terminal what an environment variable like PATH actually is, and why a command like `python` might say 'command not found' even though Python is installed on the computer."
+  }
+]

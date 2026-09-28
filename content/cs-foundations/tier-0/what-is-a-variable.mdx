@@ -1,0 +1,60 @@
+---
+trackId: cs-foundations
+tier: 0
+title: What Is a Variable, Really?
+order: 6
+estimatedHours: 3
+---
+
+Every programming language you will ever learn agrees on one thing before it agrees on anything else: data needs a name so your code can find it again. A variable is not a mysterious algebra symbol — it is a labeled box sitting in memory, and the label is how you refer to whatever is inside without caring exactly where in RAM the box physically lives. Get this picture solid now, in plain English, and every language's particular spelling for "make a variable" (`=` in Python, `let` in JavaScript, `int x` in C) will just be syntax on top of a concept you already own.
+
+## What you'll leave this lesson knowing
+
+- What a variable actually is: a name bound to a value stored somewhere in memory — the name is not the value
+- Why reassigning a variable changes what the label points to, not the identity of the label itself
+- The intuitive difference between the three most basic data types — numbers, text (strings), and true/false (booleans) — and why a computer treats `5` and `"5"` as completely different things
+- Why mixing types causes real, predictable errors, and how to read a type-error message instead of panicking at it
+- Enough shared vocabulary (variable, value, type, assignment) to walk into Tier 1's Python syntax module without having to translate concepts on the fly
+
+## Do this
+
+1. Confirm Python 3 is installed and on your PATH (you should already have this from "Setting Up a Real Dev Environment" — if not, install it from python.org or your OS's package manager before continuing). Open a terminal and run `python3` (on some Windows setups it's just `python` — if neither works, search "python not recognized command line" and fix it; PATH issues are one of the most commonly Googled problems in all of programming, not a sign you're behind). You should land on an interactive `>>>` prompt.
+
+2. At `>>>`, type `age = 27` and hit enter. Nothing prints — that line is an *assignment*, not a display. Now type just `age` and hit enter; Python prints `27`. You just created a box, labeled it `age`, put `27` inside, and then asked Python what that label currently points to.
+
+3. Now type `age = 28` and then `age` again. The value changed, but you did not create a second box — you re-pointed the same label at a new value. This is the whole boxes-and-labels model in one line: the name `age` is not glued to `27` forever, it's glued to *whatever you last assigned it*.
+
+4. Create three variables, one of each basic type, and check each one's type:
+   ```
+   score = 95
+   player = "Ada"
+   passed = True
+   type(score)
+   type(player)
+   type(passed)
+   ```
+   Read the three outputs: `<class 'int'>`, `<class 'str'>`, `<class 'bool'>`. Those words — integer, string, boolean — are *data types*, and `type()` is Python telling you, out loud, what kind of thing is sitting in a given box. A number, a chunk of text, and a true/false value are stored and behaved-with completely differently under the hood, even when they look similar on screen.
+
+5. Deliberately trigger a type bug so the error stops being scary. Type:
+   ```
+   age = 27
+   age_text = "27"
+   age + 1
+   age_text + 1
+   ```
+   The third line prints `28` fine. The fourth line raises a `TypeError`. Read the *whole* error message, not just the last word — it should say something like `unsupported operand type(s) for +: 'str' and 'int'`. Python isn't being difficult; it genuinely cannot know whether you meant "add one to a number" or "glue the character '1' onto a sentence," because those are different operations. If the message doesn't fully make sense yet, look up "python typeerror unsupported operand" — reading other people's explanations of a real error you just caused yourself is one of the fastest ways to actually learn this, and it's completely normal at every level of experience.
+
+6. Now fix the mismatch on purpose, in both directions, so you can see type conversion as a deliberate choice rather than a mystery:
+   ```
+   int(age_text) + 1
+   str(age) + " years old"
+   ```
+   The first line converts the string `"27"` into the integer `27` before adding. The second converts the integer `27` into the string `"27"` before gluing it to more text. Nothing here required new vocabulary — `int()` and `str()` just move a value from one box-type to another, on your terms instead of by accident.
+
+7. Last check: type `a = 5`, then `b = a`, then `a = 10`, then look at `b`. It should still be `5`. Assigning `a = 10` re-pointed the label `a` at a new value — it did not reach into `b`'s box and change it too, even though `b` was set *from* `a` a moment earlier. Sit with why that matters: labels are independent once assigned, even when they started out pointing at the same value.
+
+## Check on learning
+
+- Out loud, explain the boxes-and-labels model to someone who has never coded, using the `age = 27` then `age = 28` example — be specific about whether a new box gets created on reassignment.
+- Without running it, predict what `type(3.14)` will print and what kind of error (if any) `"3" + 3` will raise. Then run both and check yourself.
+- Why does the difference between `5` and `"5"` matter to a computer even though a human reading them side by side barely notices a difference? This is the idea Tier 1's "Python Core Syntax" module builds on immediately — you're not starting that module from zero.

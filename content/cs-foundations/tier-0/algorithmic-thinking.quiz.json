@@ -1,0 +1,49 @@
+[
+  {
+    "id": "cs-foundations/tier-0/algorithmic-thinking/q1",
+    "type": "multiple_choice",
+    "prompt": "Which of the following best defines an algorithm?",
+    "choices": [
+      "Any general description of a goal you want to achieve",
+      "A finite, ordered sequence of precise, unambiguous steps that produces a result",
+      "A computer program written in a specific programming language",
+      "A flowchart, specifically \u2014 any other format doesn't count"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cs-foundations/tier-0/algorithmic-thinking/q2",
+    "type": "multiple_choice",
+    "prompt": "An instruction set has a step that says \"Go back to step 2,\" and no step ever tells you when to stop repeating. What kind of bug is this most like?",
+    "choices": [
+      "An ambiguous step, since it's unclear which step 2 refers to",
+      "A pattern-recognition failure",
+      "A missing stop condition, the same shape as an infinite loop in code",
+      "An abstraction bug, since too much detail is hidden"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "cs-foundations/tier-0/algorithmic-thinking/q3",
+    "type": "short_answer",
+    "prompt": "What's the term for breaking one large task into an ordered set of smaller sub-steps (as you did when you turned one step of your morning/laundry algorithm into its own numbered sub-list)?",
+    "acceptedAnswers": [
+      "decomposition",
+      "decompose",
+      "breaking it down into smaller steps"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-0/algorithmic-thinking/q4",
+    "type": "short_answer",
+    "prompt": "In the \"Make a Hot Drink\" exercise, every step stayed generic except one swappable step for the drink-specific ingredient. What's the term for hiding a varying detail behind a stable step like that, so the rest of the algorithm doesn't need to know what's happening inside it?",
+    "acceptedAnswers": [
+      "abstraction"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-0/algorithmic-thinking/q5",
+    "type": "explain_back",
+    "prompt": "Explain to someone who has never programmed why ambiguity is the enemy of a good algorithm, using your own sandwich/cereal/shoe-tying instructions from this lesson as the example. Be specific about what changed between your first draft and your revised, precise version, and why that change mattered."
+  }
+]

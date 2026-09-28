@@ -1,0 +1,49 @@
+[
+  {
+    "id": "cs-foundations/tier-0/what-is-a-variable/q1",
+    "type": "multiple_choice",
+    "prompt": "Which best describes what a variable actually is?",
+    "choices": [
+      "A fixed mathematical value that can never change once set",
+      "A named label that points to a value stored somewhere in memory",
+      "A special kind of loop used to repeat a block of code",
+      "A file on disk that stores your program's source code"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cs-foundations/tier-0/what-is-a-variable/q2",
+    "type": "multiple_choice",
+    "prompt": "You run `age = 27`, then `age_text = \"27\"`, then `age + age_text`. What happens?",
+    "choices": [
+      "Python prints 54",
+      "Python prints \"2727\"",
+      "Python raises a TypeError because you can't add an int and a str directly",
+      "Python silently converts age_text to a number and adds them"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "cs-foundations/tier-0/what-is-a-variable/q3",
+    "type": "short_answer",
+    "prompt": "What built-in Python function tells you the data type of a value or variable, e.g. running it on 27 gives `<class 'int'>`?",
+    "acceptedAnswers": [
+      "type",
+      "type()"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-0/what-is-a-variable/q4",
+    "type": "short_answer",
+    "prompt": "What data type does Python give to a value like True or False?",
+    "acceptedAnswers": [
+      "bool",
+      "boolean"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-0/what-is-a-variable/q5",
+    "type": "explain_back",
+    "prompt": "Explain the 'boxes and labels' mental model of a variable to someone who has never programmed. Use the example of setting `age = 27` and then later `age = 28`: does reassignment create a brand new box, or does the existing label just start pointing somewhere else? Also explain why a computer treats the number 5 and the text \"5\" as genuinely different things, not just different-looking versions of the same thing."
+  }
+]

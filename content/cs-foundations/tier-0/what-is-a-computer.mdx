@@ -1,0 +1,47 @@
+---
+trackId: cs-foundations
+tier: 0
+title: What Even Is a Computer?
+order: 1
+estimatedHours: 4
+---
+
+Before you touch a terminal or write a line of code, you need the ground truth everything else in this curriculum sits on: a computer isn't magic, and it isn't one thing. It's a small number of dumb, simple parts — a processor, some fast temporary memory, some slow permanent storage — doing one incredibly stupid trick (follow one instruction, then the next, then the next) so fast that it feels intelligent. Every abstraction you'll meet later — variables, files, git commits, even AI models — is a story stacked on top of this mechanical reality. Get a real physical picture of it now and everything after this will click faster.
+
+## What you'll leave this lesson knowing
+
+- What a bit and a byte are, and how binary digits represent numbers, letters, and every other kind of data a computer touches
+- The distinct jobs of the CPU, RAM, and storage, and why "fast vs. permanent" is the tradeoff that explains most of a computer's design
+- The fetch-execute cycle: the dumb, repeating loop a CPU runs billions of times per second
+- The difference between a file and a folder, and how a filesystem is just a hierarchy for organizing bytes on storage
+- Why a plain text file and a binary file (a photo, a program) are both "just bytes underneath," but only one of them is readable if you crack it open in a text editor
+
+## Do this
+
+1. **Find your machine's real specs.** Windows: Settings > System > About, plus Task Manager > Performance tab for a live view of CPU/RAM usage. Mac: Apple menu > About This Mac. Linux: your desktop's system-info panel, or run `lscpu` and `free -h` in a terminal if you're comfortable. Write down your CPU model, how much RAM you have (in GB), and your total/free storage. If you're not sure where to look for your OS, search "[your OS] how to check RAM and CPU" — this is completely normal; nobody has every settings menu memorized.
+
+2. **Convert some numbers to binary.** Open your Calculator app and switch it to Programmer mode (Windows Calculator: menu icon > Programmer; Mac Calculator: View menu > Programmer). Type `42` in decimal mode, then switch the display to BIN and read off the binary result. Now go the other way: type `101010` in BIN mode and switch to DEC. Confirm for yourself that a single byte (8 bits) can only ever represent 256 distinct values (0 through 255) — that's why storage sizes, colors, and character sets keep showing up in multiples of 256 or 1024.
+
+3. **Turn a letter into binary.** Look up an ASCII table (search "ASCII table" if you don't already know one — this is a thing every programmer looks up, not something you're expected to have memorized). Find the decimal code for capital `A` and for lowercase `a`, then convert each to binary using the Programmer-mode calculator from step 2. Notice they're different numbers. That's the entire trick behind text-as-binary: every character is just an agreed-upon number, and that number gets stored as bits like any other number.
+
+4. **See a real filesystem.** Open your file manager (File Explorer, Finder, or your Linux file manager) and turn on "show file extensions" and "show hidden files" — both are one setting away in a view/options menu; look it up for your OS if it's not obvious. Create a new folder, and inside it, using a plain-text editor (Notepad, TextEdit switched to plain text, or gedit — not a word processor), create a file called `notes.txt` with one sentence in it.
+
+5. **Break a text editor on purpose.** Copy any image file (a `.jpg` or `.png`) or a PDF into that same folder. Right-click it and open it with the same plain-text editor you used for `notes.txt`. You'll get a wall of garbled symbols instead of a picture. That garbled wall *is* the file's actual data — the same underlying bits a photo viewer knows how to decode into pixels, but that a text editor can only try to interpret as printable characters. That's the real, concrete difference between a "plain text" file and a "binary" file: both are just bytes, but only one format was designed to be read as text.
+
+6. **Be the CPU, on paper.** Write out this tiny numbered instruction list:
+   ```
+   1. SET total = 0
+   2. SET total = total + 5
+   3. SET total = total + 10
+   4. IF total > 12, GO TO instruction 6
+   5. SET total = total + 100
+   6. PRINT total
+   7. HALT
+   ```
+   Using a pen and your finger as the "program counter," start at instruction 1, actually carry out what it says, and move to whatever instruction it tells you to go to next (usually just the line below). Narrate it out loud: "fetch instruction 1... execute it... total is now 0... fetch instruction 2..." Keep going until you hit HALT. What number gets printed? This slow, deliberate walkthrough *is* the fetch-execute cycle — your CPU runs the exact same loop, just billions of times a second, with electricity instead of a pen.
+
+## Check on learning
+
+- Using the "fast desk vs. slow filing cabinet" analogy (or one of your own), explain out loud why a computer needs both RAM and storage instead of just one.
+- Without looking anything back up, explain why a computer can store the letter "A" using nothing but 1s and 0s.
+- Walk someone through the fetch-execute cycle in your own words, using the paper exercise from step 6 as your example — what does the CPU actually do, one step at a time, on repeat?

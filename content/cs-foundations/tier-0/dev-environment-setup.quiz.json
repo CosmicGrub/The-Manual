@@ -1,0 +1,45 @@
+[
+  {
+    "id": "cs-foundations/tier-0/dev-environment-setup/q1",
+    "type": "multiple_choice",
+    "prompt": "Why do developers create a separate virtual environment (venv) for each Python project instead of installing every package globally?",
+    "choices": [
+      "It makes the Python interpreter itself run faster",
+      "It keeps each project's package versions isolated, so one project's dependencies can't break another's",
+      "It's a hard requirement \u2014 a Python script physically cannot run without an activated venv",
+      "It automatically syncs your project files to GitHub"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cs-foundations/tier-0/dev-environment-setup/q2",
+    "type": "short_answer",
+    "prompt": "What is the exact command, using Python 3's built-in tool, that creates a virtual environment in a folder named .venv?",
+    "acceptedAnswers": [
+      "python3 -m venv .venv",
+      "python -m venv .venv"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-0/dev-environment-setup/q3",
+    "type": "short_answer",
+    "prompt": "What is the exact terminal command to activate a virtual environment named .venv on macOS or Linux?",
+    "acceptedAnswers": [
+      "source .venv/bin/activate",
+      "source ./.venv/bin/activate"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-0/dev-environment-setup/q4",
+    "type": "short_answer",
+    "prompt": "What is the extension id, in publisher.name form, of the official Microsoft VS Code extension that gives you Python IntelliSense, linting, and debugging?",
+    "acceptedAnswers": [
+      "ms-python.python"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-0/dev-environment-setup/q5",
+    "type": "explain_back",
+    "prompt": "In your own words, explain to a beginner friend what a virtual environment actually is and why skipping it eventually causes real problems on a machine with more than one Python project on it."
+  }
+]

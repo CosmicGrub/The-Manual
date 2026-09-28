@@ -1,0 +1,88 @@
+---
+trackId: cs-foundations
+tier: 0
+title: Version Control Literacy: Git Day Zero
+order: 4
+estimatedHours: 5
+---
+
+You've probably already invented version control badly: `essay.docx`, `essay_v2.docx`,
+`essay_v2_FINAL.docx`, `essay_v2_FINAL_actually_final.docx`. It works until it doesn't — you
+can't tell what changed between versions, you can't merge two people's edits, and one bad
+overwrite loses everything. Git is a tool that does what those filenames were trying to do, but
+properly: it records precise, timestamped snapshots of a project's history, lets you see exactly
+what changed and why, and gives you a safety net to undo mistakes. Today you'll stop faking it.
+
+## What you'll leave this lesson knowing
+
+- What problem version control actually solves, and why "just keep copies of the folder" fails at it
+- How to turn a folder into a git repository and record snapshots with `git init`, `git add`, and `git commit`
+- How to read a project's history with `git log`, and what a commit really contains (a snapshot + message + author + timestamp, not a full disk backup)
+- The difference between your **local** repository and a **remote** one on GitHub, and what pushing, cloning, and "origin" mean
+- How to keep files out of version control on purpose using `.gitignore`
+
+## Do this
+
+1. Confirm git is installed and knows who you are: run `git --version`, then `git config --global user.name` and `git config --global user.email`. If either comes back empty, set them now:
+   ```
+   git config --global user.name "Your Name"
+   git config --global user.email "you@example.com"
+   ```
+   Every commit you ever make gets stamped with this identity — get it right once and forget about it.
+
+2. Make a practice project and turn it into a repository:
+   ```
+   mkdir ~/git-practice
+   cd ~/git-practice
+   git init
+   ```
+   Run `ls -a` (Mac/Linux) or `dir /a` (Windows) and confirm you now see a hidden `.git` folder. That folder *is* the repository — it's where all the history you're about to create actually lives. Deleting it un-does everything below; nothing outside your project folder is touched.
+
+3. Create a file and make your first commit:
+   ```
+   echo "Day 1: learning git." > log.txt
+   git status
+   ```
+   Read what `git status` tells you — it should say `log.txt` is untracked. Now stage it and commit it:
+   ```
+   git add log.txt
+   git commit -m "Add first log entry"
+   ```
+   `git add` says "include this file's current state in my next snapshot." `git commit` actually takes the snapshot and permanently records it in history with your message. They're two separate steps on purpose — staging lets you build up exactly the snapshot you want before you seal it.
+
+4. Change something and commit again — twice more, as separate, meaningfully-described commits, not one dump:
+   ```
+   echo "Day 2: git add vs git commit finally clicked." >> log.txt
+   git add log.txt
+   git commit -m "Add day 2 entry"
+   ```
+   Do it once more with a third entry and its own commit message. Then run `git log` and `git log --oneline` and compare the two — same history, different amounts of detail. If a `main` vs `master` branch-name question or something else about your setup confuses you here, search for it. Nearly every real git session involves looking something up mid-task; that's just how it's used, not a sign you're behind.
+
+5. Now separate **local** from **remote**. If you don't already have one, create a free account at [github.com](https://github.com). On GitHub, click "New repository," name it `git-practice`, set it **public**, and — important — do *not* check "Add a README" (you already have a repo locally; starting one on GitHub too would give you two unrelated histories to reconcile).
+
+6. Connect your local repo to that empty GitHub repo and push your history to it. GitHub shows you the exact commands after you create the repo, but they'll look like this:
+   ```
+   git branch -M main
+   git remote add origin https://github.com/<your-username>/git-practice.git
+   git push -u origin main
+   ```
+   `git remote add origin <url>` names GitHub's copy `origin` and tells your local repo where it lives. `git push` sends your commits there. Refresh the GitHub page — your three commits and their messages should now be visible in the browser, on a server, independent of your machine.
+
+7. Add a `.gitignore`. Simulate a file you never want tracked (a secrets file, a log dump, an OS junk file — pick one):
+   ```
+   echo "SECRET_KEY=whatever123" > .env
+   git status
+   ```
+   You'll see `.env` listed as untracked. Instead of adding it, create a file named exactly `.gitignore` in the same folder containing one line: `.env`. Run `git status` again — it's gone from the list. Commit the `.gitignore` file itself (`git add .gitignore` then `git commit -m "Ignore .env"`) and push (`git push`). `.gitignore` doesn't hide files from you; it tells git which ones to never even offer to stage.
+
+8. Prove to yourself what "clone" means. Pick a different folder — Desktop, `~/Downloads`, anywhere else — and run:
+   ```
+   git clone https://github.com/<your-username>/git-practice.git git-practice-clone
+   ```
+   `cd` into `git-practice-clone` and run `git log --oneline`. You should see the exact same commit history you built step by step, downloaded fresh from GitHub in one command. This is the whole point of a remote: your work isn't trapped on one machine.
+
+## Check on learning
+
+- In your own words: what is a commit, actually? (It's fair game to explain what it is *not* — it's not a copy of your whole computer, and it's not the same as saving a file.)
+- What's the difference between `git add` and `git commit`, and separately, between your local repo and `origin`?
+- Open your `git-practice` repo on github.com in a browser and find the same three commit messages `git log` showed you locally. Why do they match exactly?
