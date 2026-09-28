@@ -1,0 +1,49 @@
+[
+  {
+    "id": "cs-foundations/tier-1/working-with-text-and-files/q1",
+    "type": "multiple_choice",
+    "prompt": "What does `f\"{3.14159:.2f}\"` evaluate to?",
+    "choices": [
+      "'3.14'",
+      "'3.1'",
+      "'3.14159'",
+      "'3.00'"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "cs-foundations/tier-1/working-with-text-and-files/q2",
+    "type": "multiple_choice",
+    "prompt": "You run `open(\"log.txt\", \"w\")` on a file that already has content in it. What happens?",
+    "choices": [
+      "Python appends your new writes to the end of the existing content",
+      "The file's existing content is erased the moment it's opened, before you write anything",
+      "Python raises an error because the file already exists",
+      "Nothing happens until you explicitly call a 'clear' method"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cs-foundations/tier-1/working-with-text-and-files/q3",
+    "type": "short_answer",
+    "prompt": "What is the exact name of the exception Python raises when you try to open a file in read mode and it doesn't exist?",
+    "acceptedAnswers": [
+      "FileNotFoundError"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-1/working-with-text-and-files/q4",
+    "type": "short_answer",
+    "prompt": "What does this code print?\n\n```python\nscores = [\"88\", \"92\", \"not-a-number\", \"75\"]\ntotal = 0\ncount = 0\nfor s in scores:\n    try:\n        total += int(s)\n        count += 1\n    except ValueError:\n        pass\nprint(total, count)\n```",
+    "acceptedAnswers": [
+      "255 3",
+      "255, 3",
+      "total 255 count 3"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-1/working-with-text-and-files/q5",
+    "type": "explain_back",
+    "prompt": "Explain, in your own words, why a real program should wrap file reading and number conversion in try/except instead of just trusting the file and the user's input will always be well-formed. Walk through a concrete example of what would happen to a program without that try/except when it hits a missing file or a bad row of data."
+  }
+]

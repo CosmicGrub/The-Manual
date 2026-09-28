@@ -1,0 +1,182 @@
+---
+trackId: cs-foundations
+tier: 1
+title: Working with Text & Files
+order: 5
+estimatedHours: 6
+---
+
+Every program you've written in this track so far disappears the moment it finishes running — whatever it computed lived only in memory, and closing the terminal erased it completely. Real, useful programs read data that already exists somewhere and leave behind data that outlives the run: a log file, a saved roster, a report someone else opens later. This lesson is where your scripts stop being toys that vanish and start remembering things — and where you start handling reality's mess: files go missing, users mistype numbers, so your code has to fail gracefully instead of just crashing and dumping a wall of red text.
+
+## What you'll leave this lesson knowing
+
+- How to clean and format text with core string methods (`.strip()`, `.split()`, `.join()`, `.replace()`, `.title()`) and f-string format specs like `:.2f` and column alignment
+- How to read a text file three different ways (`.read()`, `.readlines()`, iterating line-by-line) and which one fits which job
+- How to write and append to files safely with `with open(...) as f`, and why the `with` matters
+- How to turn plain lines of text into structured Python data (a list of dicts) and write structured data back out as text
+- How to use `try`/`except` to handle predictable failures — a missing file, a bad number — so one bad input doesn't take down the whole program
+
+## Do this
+
+1. **Warm up with string methods and formatting.** Create `text_practice.py`:
+
+   ```python
+   raw = "  Ada LovelacE, Score:  92.5  "
+   cleaned = raw.strip()                       # removes leading/trailing whitespace only
+   print(repr(cleaned))                        # 'Ada LovelacE, Score:  92.5'
+
+   name_part, score_part = cleaned.split(",")
+   name = name_part.strip().title()            # .title() -> "Ada Lovelace"
+   score = float(score_part.split(":")[1].strip())
+
+   print(f"{name}: {score:.1f}%")              # Ada Lovelace: 92.5%
+   ```
+
+   `.strip()` only trims the outer edges — it won't collapse the double space before `92.5`, which is why the code splits and strips again rather than relying on one call to fix everything. `title()` capitalizes each word and lowercases the rest, which is why `"LovelacE"` comes out as `"Lovelace"`. The `:.1f` inside the f-string is a **format spec**: it forces the float to print with exactly one decimal place, regardless of how many digits Python is actually tracking internally.
+
+   Now format a small table with alignment specs:
+
+   ```python
+   roster = [("Ada Lovelace", 92.5), ("Grace Hopper", 88.0), ("Alan Turing", 95.3)]
+   for name, score in roster:
+       print(f"{name:<15}{score:>6.1f}")
+   ```
+
+   `<15` left-justifies the name in a 15-character-wide field; `>6.1f` right-justifies the score in a 6-character field with one decimal. Run it — the three scores should line up in a clean column on the right, even though the names are different lengths. This is the same trick behind every neatly formatted report you've ever seen printed from code.
+
+2. **Write a file, then read it back three ways.** In a new script:
+
+   ```python
+   with open("practice_log.txt", "w") as f:
+       f.write("Session 1: strings review\n")
+       f.write("Session 2: file I/O practice\n")
+   ```
+
+   `open(..., "w")` opens the file for **writing** — and if `practice_log.txt` already existed, `"w"` erases its old contents the instant it opens, before you write anything new. `with` matters because it guarantees the file gets closed (and its contents actually flushed to disk) even if an error happens partway through — without it, you'd have to remember to call `f.close()` yourself every time, and forgetting is a classic source of "my file is empty" bugs.
+
+   Now read it back three ways, in the same script:
+
+   ```python
+   with open("practice_log.txt") as f:
+       whole_thing = f.read()
+   print(whole_thing)              # both lines, with the \n's intact
+
+   with open("practice_log.txt") as f:
+       each_line = f.readlines()
+   print(each_line)                # ['Session 1: strings review\n', 'Session 2: file I/O practice\n']
+
+   with open("practice_log.txt") as f:
+       for line in f:
+           print(line.strip())     # loop directly over the file object, one line at a time
+   ```
+
+   `.read()` grabs everything as one big string — fine for small files, wasteful for huge ones. `.readlines()` gives you a list of lines, newlines included. Looping directly over `f` reads one line at a time without ever holding the whole file in memory — that's usually the right default. Append a third line with `open("practice_log.txt", "a")` (append mode adds to the end instead of erasing) and confirm all three read methods now show three lines.
+
+3. **Parse a "roster" file into real data.** Write and then read structured text — this is the pattern behind every CSV-reading script you'll ever write:
+
+   ```python
+   roster_text = "Ada Lovelace,92.5\nGrace Hopper,88.0\nAlan Turing,95.3\n"
+   with open("roster.txt", "w") as f:
+       f.write(roster_text)
+
+   students = []
+   with open("roster.txt") as f:
+       for line in f:
+           line = line.strip()
+           if not line:
+               continue
+           name, score_str = line.split(",")
+           students.append({"name": name, "score": float(score_str)})
+
+   average = sum(s["score"] for s in students) / len(students)
+   print(f"Average score: {average:.2f}")     # Average score: 91.93
+   ```
+
+   You now have a list of dicts built entirely from plain text — the exact shape you'd get from a real CSV file. Write the summary back out:
+
+   ```python
+   with open("roster_summary.txt", "w") as f:
+       f.write(f"Average score: {average:.2f}\n")
+       for s in students:
+           f.write(f"{s['name']:<15}{s['score']:>6.1f}\n")
+   ```
+
+   Open `roster_summary.txt` in your editor and confirm it looks like the aligned table from step 1, now living permanently on disk instead of just printed to a terminal that closes.
+
+4. **Handle a file that isn't there.** Try this and watch it crash on purpose first:
+
+   ```python
+   with open("does_not_exist.txt") as f:
+       data = f.read()
+   ```
+
+   Read the traceback — the last line names the exception: `FileNotFoundError`. Now catch it instead of letting it kill the program:
+
+   ```python
+   try:
+       with open("does_not_exist.txt") as f:
+           data = f.read()
+   except FileNotFoundError:
+       print("No file found — starting with an empty roster instead.")
+       data = ""
+   ```
+
+   If you're not 100% sure whether a missing file raises `FileNotFoundError` or something else, or whether you need an `encoding=` argument on `open()` — look it up. Even experienced Python developers check the exact exception name rather than memorize every one; the skill isn't knowing every exception by heart, it's knowing *that* something predictable can go wrong here and wrapping it.
+
+5. **Handle bad data inside a file, one row at a time.** Bad files rarely fail all at once — usually one row is broken and the rest are fine:
+
+   ```python
+   messy_lines = ["Ada Lovelace,92.5", "Grace Hopper,not-a-number", "Alan Turing,95.3"]
+
+   clean_students = []
+   for line in messy_lines:
+       name, score_str = line.split(",")
+       try:
+           score = float(score_str)
+       except ValueError:
+           print(f"Skipping bad row for {name}: {score_str!r} isn't a number")
+           continue
+       clean_students.append({"name": name, "score": score})
+
+   print(len(clean_students))   # 2 — the bad row was skipped, not fatal
+   ```
+
+   Notice the `try`/`except` wraps only the one line (`float(score_str)`) that can actually fail — not the whole loop. That's deliberate: a narrow `try` block tells you (and anyone reading the code later) exactly which operation you expected might break, instead of hiding bugs in unrelated lines.
+
+6. **Put it together: a validated `add_entry` function.** This is a direct preview of the checkpoint project at the end of this tier — a command-line tool that reads/writes a file and validates input before saving it:
+
+   ```python
+   def add_entry(filename, name, score_input):
+       try:
+           score = float(score_input)
+       except ValueError:
+           print(f"'{score_input}' isn't a valid number — entry not saved.")
+           return False
+
+       if not (0 <= score <= 100):
+           print(f"{score} is outside 0-100 — entry not saved.")
+           return False
+
+       with open(filename, "a") as f:
+           f.write(f"{name},{score}\n")
+       return True
+
+   add_entry("roster.txt", "Katherine Johnson", "97")      # saved, returns True
+   add_entry("roster.txt", "Bad Entry", "not-a-number")    # rejected, returns False, no crash
+   add_entry("roster.txt", "Out Of Range", "150")          # rejected, returns False, no crash
+   ```
+
+   Run all three calls back to back and confirm the program never crashes, `roster.txt` only ever gains the one valid line, and each rejected call prints a clear reason instead of a traceback. This is the whole point of the lesson in one function: reading/writing a file, validating input, and catching failure without stopping the program.
+
+## Check on learning
+
+- In your own words: what's the actual difference between `.read()`, `.readlines()`, and looping directly over an open file — and when would you reach for each one?
+- Explain why `open(filename, "w")` is dangerous to call carelessly, and how `"a"` mode is different.
+- Without running it, predict what this prints, then check yourself:
+  ```python
+  try:
+      count = int("twelve")
+  except ValueError:
+      count = 0
+  print(count + 5)
+  ```

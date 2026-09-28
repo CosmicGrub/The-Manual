@@ -69,3 +69,10 @@ All notable changes to The Manual (curriculum + app) are logged here. This file 
 - `content/README.md` — updated its example frontmatter to a real lesson (`what-is-a-computer.mdx`) instead of the now-removed placeholder, and points to the finished Tier 0 as the reference example for tone/structure/quiz style.
 
 **Status:** CS Foundations Tier 0 is the first fully content-complete tier in The Manual — 27 hours of real material across 6 lessons, ready to seed into the app (`npm run db:seed`) and actually be studied from. All other tracks/tiers still have only their `docs/curriculum/*.md` syllabus, not lesson prose.
+
+## [0.3.0] — 2026-09-28 — CS Foundations Tier 1: complete real lesson content
+
+**Added**
+- `content/cs-foundations/tier-1/*.mdx` (8 files) + matching `*.quiz.json` (8 files, 5 questions each): Python Core Syntax, Loops & Iteration, Functions & Scope, Core Data Structures I, Working with Text & Files, Math Primer (Algebra & Functions), Discrete Math I (Logic & Sets), and Intro to Probability & Statistics (including the information-theory/entropy primer added during the structural-fix pass, so AI/ML's Tier 1 has real prerequisite content to point to). Written by 8 parallel agents sharing the tier's goal/checkpoint/format context, assuming Tier 0 is complete (no re-explaining terminal/git/environment basics).
+
+**Status:** CS Foundations Tiers 0-1 are now both fully content-complete — 95 hours of real material across 14 lessons.

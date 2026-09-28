@@ -1,0 +1,176 @@
+---
+trackId: cs-foundations
+tier: 1
+title: Functions & Scope
+order: 3
+estimatedHours: 8
+---
+
+Every loop from the last module repeats one fixed block of code from start to finish, in place, right where you wrote it. A function lets you package a block of logic once, give it a name, and then run it — with different inputs, from anywhere in your program — as many times as you want. That's the whole idea this lesson is built on: give a piece of logic a name, let it take inputs (**parameters**), and let it hand back an output (a **return value**). Recursion, the trickiest new idea here, is the exact same concept turned on itself: a function that solves a problem by calling a slightly smaller version of itself, and trusting that smaller call to do its job correctly.
+
+## What you'll leave this lesson knowing
+
+- How to define a function with parameters and use `return` to hand back a value — and why that's a completely different thing from a function that just `print`s something
+- How default argument values work, including the classic "mutable default argument" trap that catches almost every Python learner once
+- The difference between local and global scope: why a function can freely *read* a global variable but needs the `global` keyword to *reassign* one — and why passing values in and returning them out is almost always the better habit anyway
+- How to read, trace by hand, and write a recursive function, using factorial and Fibonacci as the two worked examples, including the two things every correct recursive function must have: a base case, and a case that shrinks toward it
+- How to recognize two of the most common early bugs — a function silently returning `None`, and an `UnboundLocalError` from touching a global by accident — from their symptoms alone
+
+## Do this
+
+1. **Write a function with no inputs, and notice what "naming a block of code" actually buys you.** In a new file, `functions_practice.py`, write:
+   ```python
+   def greet_shift_start():
+       print("Clocking in.")
+       print("Checking the schedule.")
+       print("Ready to go.")
+
+   greet_shift_start()
+   greet_shift_start()
+   ```
+   Run it. The three-line block prints twice, but you only wrote it once. That's the entire value of a function before it even takes an input: a name you can replay on demand instead of copy-pasting the block everywhere you need it.
+
+2. **Add parameters so the function can behave differently each time.** Rewrite it to take an input:
+   ```python
+   def greet_worker(name):
+       print(f"Clocking in, {name}.")
+
+   greet_worker("Priya")
+   greet_worker("Malik")
+   ```
+   `name` is a **parameter** — a local variable that only exists while the function is running, filled in with whatever you pass at call time (the **argument**). Now add a second parameter and try both calling styles:
+   ```python
+   def describe_shift(name, hours):
+       print(f"{name} is working a {hours}-hour shift.")
+
+   describe_shift("Priya", 8)          # positional: matched by order
+   describe_shift(hours=6, name="Malik")  # keyword: matched by name, order doesn't matter
+   ```
+   Both calls work identically well — positional args are matched left-to-right, keyword args are matched by name, and you can mix them as long as every positional arg comes before any keyword arg.
+
+3. **Return a value instead of printing one, and deliberately trigger the single most common early bug.** `print` shows something to you; `return` hands a value back to whatever called the function, so it can be stored, passed along, or used in more math. Try:
+   ```python
+   def add(a, b):
+       return a + b
+
+   total = add(3, 4)
+   print(total)      # 7
+   print(total + 10) # 17 — total is a real number you can keep using
+   ```
+   Now, on purpose, do the buggy version — call `greet_worker` from step 2 as if it returned something:
+   ```python
+   result = greet_worker("Sam")   # prints "Clocking in, Sam." as a side effect
+   print(result)                  # None
+   ```
+   `result` is `None`, because `greet_worker` never has a `return` statement — every Python function returns `None` by default unless you say otherwise. This exact bug (calling a `print`-only function expecting a usable value back) is one of the most common things beginners get stuck on, and the fix is always the same: check whether the function actually has a `return` line for the value you wanted. Seeing `None` where you expected real data is a specific, recognizable symptom now, not a mystery.
+
+4. **Add a default argument.** A default lets a parameter be optional:
+   ```python
+   def greet_worker(name, greeting="Clocking in"):
+       print(f"{greeting}, {name}.")
+
+   greet_worker("Priya")                    # Clocking in, Priya.
+   greet_worker("Malik", "Welcome back")    # Welcome back, Malik.
+   ```
+   Omit the second argument and Python fills in the default; supply one and it overrides it. Nothing surprising yet — that comes next.
+
+5. **Find the mutable-default-argument trap, then fix it.** Write this exactly as shown and call it twice:
+   ```python
+   def add_to_cart(item, cart=[]):
+       cart.append(item)
+       return cart
+
+   print(add_to_cart("apples"))
+   print(add_to_cart("bread"))
+   ```
+   You'd expect two separate one-item lists. You get `['apples']` then `['apples', 'bread']` — the *same* list, growing across unrelated calls. The reason: a default value is created exactly **once**, when the `def` line runs, not fresh on every call — so every call that skips the `cart` argument shares that one original list. This is a real, well-known Python gotcha, not a sign you did anything wrong for not seeing it coming. The standard fix is a `None` sentinel:
+   ```python
+   def add_to_cart(item, cart=None):
+       if cart is None:
+           cart = []
+       cart.append(item)
+       return cart
+   ```
+   Now each call that omits `cart` gets a brand-new empty list, because the `if` creates it fresh every time the function runs. Never use a mutable object (list, dict, set) as a default value directly — always default to `None` and build the real value inside the function.
+
+6. **Explore local vs. global scope, including the surprising error.** Define a variable outside any function, then try to update it from inside one, without asking Python's permission first:
+   ```python
+   shift_count = 0
+
+   def log_shift():
+       shift_count = shift_count + 1   # trying to update the global
+       print(shift_count)
+
+   log_shift()
+   ```
+   This raises `UnboundLocalError: local variable 'shift_count' referenced before assignment` — confusing the first time you see it, because `shift_count` clearly exists. Here's why: because the function *assigns* to `shift_count` anywhere in its body, Python treats `shift_count` as local for the *entire* function, top to bottom — so the right-hand side tries to read a local variable that hasn't been created yet. Reading a global is fine; assigning to one, from inside a function, is not — unless you say so explicitly:
+   ```python
+   shift_count = 0
+
+   def log_shift():
+       global shift_count
+       shift_count = shift_count + 1
+
+   log_shift()
+   print(shift_count)  # 1
+   ```
+   `global` works, but the far more common — and safer — habit is to pass values in and return the updated value out, so no function ever quietly reaches outside itself:
+   ```python
+   def log_shift(count):
+       return count + 1
+
+   shift_count = 0
+   shift_count = log_shift(shift_count)
+   print(shift_count)  # 1
+   ```
+   Confirm reading a global still needs nothing special: `def price_with_tax(price): return price * 1.08` works fine even though `1.08` could just as easily be a global `TAX_RATE` variable it only reads.
+
+7. **Write factorial two ways: the loop you already know, then recursively.** First, the iterative version, as a bridge from the last module:
+   ```python
+   def factorial_loop(n):
+       result = 1
+       for i in range(1, n + 1):
+           result = result * i
+       return result
+
+   print(factorial_loop(5))  # 120
+   ```
+   Now the recursive version — a function that calls itself on a smaller input:
+   ```python
+   def factorial(n):
+       if n == 0:          # base case: stops the recursion
+           return 1
+       return n * factorial(n - 1)  # recursive case: shrinks toward the base case
+
+   print(factorial(5))  # 120
+   ```
+   Before running it, trace `factorial(4)` by hand on paper: `factorial(4)` waits on `4 * factorial(3)`, which waits on `3 * factorial(2)`, which waits on `2 * factorial(1)`, which waits on `1 * factorial(0)`, which finally returns `1` with no further waiting — then the answers unwind back up: `1`, then `1*1=1`, then `2*1=2`, then `3*2=6`, then `4*6=24`. That stack of "waiting" calls is the **call stack**. If it helps to see it happen, add `print(f"computing factorial({n})")` as the first line inside the function and watch the calls print in order, then watch the multiplications happen as each call finally returns.
+
+8. **Write Fibonacci recursively, and notice where it gets slow.** The rule: each number is the sum of the two before it, with `fib(0) = 0` and `fib(1) = 1` as the two base cases.
+   ```python
+   def fib(n):
+       if n <= 1:
+           return n
+       return fib(n - 1) + fib(n - 2)
+
+   for i in range(10):
+       print(fib(i), end=" ")
+   # 0 1 1 2 3 5 8 13 21 34
+   ```
+   That output should match the Fibonacci sequence you already know. Now try `fib(32)` and time how long it takes to return — it's noticeably slow, because `fib(n-1)` and `fib(n-2)` each independently recompute huge overlapping chunks of the same smaller calls (`fib(5)` alone triggers `fib(3)` twice, `fib(2)` three times, and so on). You don't need to fix this yet — Tier 2's Big-O module is exactly where you'll learn to name and fix this kind of hidden repeated work — but *feeling* a function get slow because of how it's structured, not because of what it computes, is worth noticing now.
+
+9. **Break recursion on purpose, then read the error.** Delete the base case:
+   ```python
+   def bad_countdown(n):
+       print(n)
+       return bad_countdown(n - 1)   # no base case — never stops
+
+   bad_countdown(5)
+   ```
+   This eventually raises `RecursionError: maximum recursion depth exceeded`. That message is Python's version of an infinite loop — without a base case, the calls pile up on the call stack forever, and Python has a limit on how deep that stack can get. If you don't immediately recall what "maximum recursion depth" means, searching that exact phrase is a completely normal move here, not a shortcut you should feel bad about — it's one of the most-searched Python errors there is. Fix it by putting the base case back and confirm it counts down to `0` cleanly.
+
+## Check on learning
+
+- Explain out loud the difference between a function that `print`s something and one that `return`s something — specifically, why `result = some_function()` can silently leave `result` holding `None`, and how you'd notice that had happened in your own code.
+- Without running it, trace `factorial(4)` on paper: list every call in the order it happens going down, then every multiplication in the order it happens coming back up. Then run it and check yourself.
+- Explain the mutable-default-argument bug in your own words: what object actually gets created only once, why sharing it across calls causes the bug, and what the `cart=None` pattern does differently.

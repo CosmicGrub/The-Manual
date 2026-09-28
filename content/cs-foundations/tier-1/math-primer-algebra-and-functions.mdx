@@ -1,0 +1,85 @@
+---
+trackId: cs-foundations
+tier: 1
+title: Math Primer: Algebra & Functions Refresher
+order: 6
+estimatedHours: 8
+---
+
+Algebra you half-remember from school is about to become directly useful, in a very specific way: every algorithm's running time is a function of its input size, and the whole reason you'll later be able to glance at two pieces of code and say "this one scales fine, this one falls over at scale" is that you already have a gut feel for what a straight line, a curve, and an exploding curve each look like. Nothing here is new territory — it's a small, sharp set of algebra tools from a few years back, dusted off and pointed directly at graphs you'll be staring at for the rest of this curriculum.
+
+You don't need to fall back in love with algebra for its own sake. You need four things solid: solving a linear equation, working comfortably with exponents and their inverse (logarithms), reading function notation without flinching, and an intuitive feel for how different growth rates compare on a graph. Treat this like a workout, not a lecture — every section below is a worked problem you do by hand or with a plain calculator, with the answer sitting right there so you can check yourself immediately instead of wondering if you got it right three days from now.
+
+## What you'll leave this lesson knowing
+
+- How to solve a linear equation for an unknown, and how to read a line's slope as a constant rate of change
+- The exponent rules (product, power, negative, fractional) well enough to simplify expressions without reaching for a calculator first
+- What a logarithm actually is — the inverse of an exponent, not a mysterious separate operation — and how to compute simple logs by reasoning from powers you already know
+- How to read and evaluate function notation, including composing two functions together
+- An intuitive, graph-level feel for how linear, quadratic, logarithmic, and exponential growth compare to each other — the exact four shapes Big-O notation formalizes with names later on
+
+## Do this
+
+1. **Warm up on linear equations.** Solve each of these for `x` by hand, showing your work line by line the way you would have in school (isolate the variable one operation at a time):
+
+   - `4x - 9 = 15`
+   - `5x + 2 = 2x + 17`
+   - `2(x - 3) = 3x - 10`
+
+   Work the first one as a model: `4x - 9 = 15` → add 9 to both sides → `4x = 24` → divide by 4 → `x = 6`. Do the same style of step-by-step isolation for the other two. Check yourself: the three answers are `6`, `5`, and `4`. If you got a different number, redo the problem and find exactly which step broke — that's a more useful skill than getting it right on the first try.
+
+2. **Read a line as a rate of change.** A rideshare app charges a $3 base fee plus $2 per mile. As an equation, that's `cost = 2m + 3`, where `m` is miles. This is a linear function: the `2` is the slope (how fast cost grows per mile) and the `3` is the y-intercept (the fixed cost before you've gone anywhere). Compute the cost for a 5-mile ride by hand: `2(5) + 3 = 13`. Now go the other direction — you're given two points that lie on this same line, `(2, 7)` and `(5, 13)`, and asked to recover the slope and intercept without being told the equation. Slope is "change in cost over change in miles": `(13 - 7) / (5 - 2) = 6/3 = 2`. Plug that back in with either point to find the intercept: `7 = 2(2) + b` → `b = 3`. You just reverse-engineered the line from two of its points — this exact move (rate of change between two data points) is what "slope" means everywhere you'll meet it again, including when you eventually eyeball a runtime graph and ask "how steep is this?"
+
+3. **Refresh the exponent rules.** Work these out by hand, one rule at a time:
+
+   - Product rule: `2³ × 2⁴` — add the exponents when the base matches: `2⁷ = 128`
+   - Power rule: `(3²)³` — multiply the exponents: `3⁶ = 729`
+   - Negative exponent: `5⁻²` — flip to a fraction: `1/5² = 1/25 = 0.04`
+   - Fractional exponent (root): `27^(1/3)` — this means "cube root of 27": `3`
+   - Fractional exponent (root + power): `16^(3/4)` — take the 4th root first (`16^(1/4) = 2`), then cube it: `2³ = 8`
+
+   If the fractional-exponent ones don't click on the first pass, that's completely ordinary — plenty of people who use exponents all the time still pause and look up "fractional exponents explained" every so often. Search it, skim one explanation, then redo the last two problems from scratch without peeking.
+
+4. **See why exponents matter specifically for computing.** Compute `2⁸`, `2¹⁰`, `2¹⁶`, and `2³²` by hand or calculator: `256`, `1024`, `65536`, and `4,294,967,296`. Those aren't arbitrary — `2⁸` is exactly how many distinct values one byte can hold (0–255), `2¹⁰` is where "kilo" comes from in computing (1024, not 1000), and `2³²` is roughly the size of the old 32-bit integer range you'll bump into constantly once you start reading about integer overflow. Powers of 2 aren't a math-class abstraction here — they're the literal unit of measurement for memory and addressing.
+
+5. **Meet logarithms as the inverse of exponents, nothing more.** The definition: `log_b(x) = y` means exactly the same thing as `b^y = x`. A logarithm answers the question "what power do I need?" Reasoning from powers you already know from step 4: `log2(8) = 3` because `2³ = 8`; `log2(1024) = 10` because `2¹⁰ = 1024`; `log2(1) = 0` because anything to the 0 power is 1; `log10(1000) = 3` because `10³ = 1000`. Now do one yourself: what is `log2(64)`? Think "2 to what power gives 64" — `2⁶ = 64`, so the answer is `6`. A calculator's `log` button (or Python's `math.log2()` if you'd rather double-check with code you already know) will confirm every one of these, but do the reasoning by hand first — that's the part that actually builds the intuition.
+
+   If you want a quick sanity-check tool for the rest of this lesson, Python's REPL doubles as a scientific calculator:
+
+   ```python
+   import math
+   math.log2(64)      # 6.0
+   math.log2(1024)    # 10.0
+   16 ** 0.75          # 8.0 — same fractional-exponent trick as step 3
+   ```
+
+6. **Practice the log rules by cross-checking them against direct computation.** Three rules, three problems, each one verified two independent ways so you can see they agree:
+
+   - Product rule, `log_b(xy) = log_b(x) + log_b(y)`: `log2(4 × 8) = log2(4) + log2(8) = 2 + 3 = 5`. Check directly: `4 × 8 = 32`, and `log2(32) = 5`. Matches.
+   - Quotient rule, `log_b(x/y) = log_b(x) - log_b(y)`: `log2(64/8) = log2(64) - log2(8) = 6 - 3 = 3`. Check directly: `64/8 = 8`, and `log2(8) = 3`. Matches.
+   - Power rule, `log_b(x^k) = k × log_b(x)`: `log2(4³) = 3 × log2(4) = 3 × 2 = 6`. Check directly: `4³ = 64`, and `log2(64) = 6`. Matches.
+
+   Do one more on your own: use the power rule to find `log2(8²)` without computing `8²` first, then check it by computing `8² = 64` and taking `log2(64)` directly. Both routes should land on `6`.
+
+7. **Get comfortable with function notation, including composing functions.** Given `f(x) = 3x + 2`, evaluate `f(4)`, `f(0)`, and `f(-1)` by hand: `14`, `2`, and `-1`. Now bring in a second function, `g(x) = x² - 1`, and compute the composition `f(g(2))` — meaning "run 2 through g first, then feed that result into f." Step through it: `g(2) = 2² - 1 = 3`, then `f(3) = 3(3) + 2 = 11`. So `f(g(2)) = 11`. This is exactly what you'll be doing constantly once functions call other functions in real code — you just did it in math notation first. One more concept worth having a name for: a function's domain is every input it's actually allowed to take. `h(x) = 1/(x - 5)` is undefined at `x = 5` (division by zero), so its domain is "every real number except 5" — the same instinct you'll use later to spot which inputs would crash a piece of code before you ever run it.
+
+8. **Sketch two shapes by hand.** On paper (or a notes app, if you'd rather), plot `y = 2x + 1` for `x = -2, -1, 0, 1, 2, 3` — compute each `y` value, mark the six points, and connect them. You should get a straight, evenly-rising line, because a linear function changes by the same fixed amount every step. Now do the same for `y = x²` over the same `x` values. You should get a symmetric U-shape (a parabola) that stays low near zero and curves upward faster and faster the farther you get from it. Put the two sketches side by side and name, out loud, the one structural difference: the line's steepness never changes, while the parabola's steepness keeps increasing. That difference — constant rate of change vs. accelerating rate of change — is the entire visual vocabulary you need before Big-O graphs show up later in the curriculum.
+
+9. **Run the growth-rate showdown.** This is the payoff step. Build a table by hand (or calculator) with a column for `n` and one column each for `log2(n)`, `n` itself, `n²`, and `2ⁿ`, using `n = 1, 2, 4, 8, 16, 32`:
+
+   | n  | log2(n) | n  | n²   | 2ⁿ            |
+   |----|---------|----|------|---------------|
+   | 1  | 0       | 1  | 1    | 2             |
+   | 2  | 1       | 2  | 4    | 4             |
+   | 4  | 2       | 4  | 16   | 16            |
+   | 8  | 3       | 8  | 64   | 256           |
+   | 16 | 4       | 16 | 256  | 65,536        |
+   | 32 | 5       | 32 | 1,024| 4,294,967,296 |
+
+   Fill in the first five rows yourself using the log and exponent skills from earlier steps, then check against the table above. Look at what happens across that last row: at `n = 32`, `log2(n)` is a sleepy `5`, `n²` is a manageable `1,024`, and `2ⁿ` has already blown past four billion. Nothing about the *formula* changed shape as `n` grew — but the four columns pull apart from each other explosively. That gap is not a coincidence you're seeing once; it's the exact ranking — logarithmic, then linear, then quadratic, then exponential, slowest-growing to fastest — that gets a formal name (`O(log n)`, `O(n)`, `O(n²)`, `O(2ⁿ)`) when Big-O & Complexity Analysis arrives in a later tier. You're not learning that concept from zero when it shows up; you're just learning what to call something you already watched happen with your own hand-built table. (Keep an eye on `log2` specifically, too — you'll meet it again by name in this tier's probability and information-theory module, measuring uncertainty in bits instead of measuring an algorithm's speed.)
+
+## Check on learning
+
+- Without saying the word "log" anywhere in your explanation, explain out loud what `log2(32) = 5` actually means and why the answer is 5.
+- Pick any two of the four growth-rate columns from step 9's table and explain, in your own words, why one eventually overtakes the other in size even though it may have started smaller or equal.
+- Given `f(x) = 2x - 5`, compute `f(3)` and then `f(f(3))` from memory, without looking back at this lesson, then check your work against a calculator.

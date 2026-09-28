@@ -1,0 +1,48 @@
+[
+  {
+    "id": "cs-foundations/tier-1/functions-and-scope/q1",
+    "type": "multiple_choice",
+    "prompt": "What is printed by this code?\n\n```python\ndef greet(name):\n    print(f\"Hi, {name}!\")\n\nresult = greet(\"Sam\")\nprint(result)\n```",
+    "choices": [
+      "Hi, Sam!\nNone",
+      "Hi, Sam!\nHi, Sam!",
+      "This raises an error because greet has no return statement",
+      "None\nHi, Sam!"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "cs-foundations/tier-1/functions-and-scope/q2",
+    "type": "short_answer",
+    "prompt": "What Python keyword must you put inside a function before you can reassign (not just read) a variable that was defined outside it, at global scope?",
+    "acceptedAnswers": [
+      "global"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-1/functions-and-scope/q3",
+    "type": "multiple_choice",
+    "prompt": "Given `def fib(n): return n if n <= 1 else fib(n-1) + fib(n-2)`, what does `fib(5)` return?",
+    "choices": [
+      "3",
+      "5",
+      "8",
+      "13"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cs-foundations/tier-1/functions-and-scope/q4",
+    "type": "short_answer",
+    "prompt": "Fill in the blank to fix the mutable-default-argument bug: `def add_item(item, cart=None):` then on the next line `if cart is ____: cart = []`",
+    "acceptedAnswers": [
+      "None",
+      "none"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-1/functions-and-scope/q5",
+    "type": "explain_back",
+    "prompt": "In your own words, explain what a base case is and why every recursive function needs one, using factorial or Fibonacci as your example \u2014 include what actually happens (the error) when a recursive function is missing one."
+  }
+]

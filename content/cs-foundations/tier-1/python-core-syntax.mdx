@@ -1,0 +1,166 @@
+---
+trackId: cs-foundations
+tier: 1
+title: Python Core Syntax
+order: 1
+estimatedHours: 10
+---
+
+You already know the boxes-and-labels idea from Tier 0 — now you're going to make those boxes actually *do* things. This lesson is where Python stops being an interactive toy and starts being a language you can write real, if small, programs in: doing math, building sentences out of text, asking a person for input, and making the program decide between different paths depending on what it's given. Every one of those four skills shows up in literally every Python program you will ever write, including the command-line toolkit app that caps off this tier.
+
+## What you'll leave this lesson knowing
+
+- How to use Python's arithmetic operators correctly, including the two people mix up most (`//` integer division and `%` modulo), and why floating-point math occasionally gives "wrong-looking" answers
+- How to build and format strings with concatenation, repetition, and f-strings, plus a handful of the string methods you'll use constantly (`.strip()`, `.upper()`, `.lower()`, `len()`)
+- How to get input from a person with `input()` and print clean, formatted output — and why every single thing `input()` gives you is a string, no exceptions
+- How to write `if` / `elif` / `else` chains using comparison and logical operators (`==`, `<=`, `and`, `or`, `not`) to make your program branch
+- What "truthiness" means in Python — which values count as `True` and `False` when you don't explicitly compare them to anything — and why this matters the moment you start validating input
+
+## Do this
+
+1. **Get comfortable with every arithmetic operator, not just `+` and `-`.** Open a terminal, start `python3`, and run each of these one at a time:
+
+   ```
+   17 + 5
+   17 - 5
+   17 * 5
+   17 / 5
+   17 // 5
+   17 % 5
+   17 ** 2
+   ```
+
+   You should see `22`, `12`, `85`, `3.4`, `3`, `2`, and `289`. The two that trip people up: `//` is *floor (integer) division* — it throws away the remainder and gives you a whole number — and `%` is *modulo*, which gives you *only* the remainder. Together, `//` and `%` are how you split a quantity into a whole part and a leftover part, which is exactly what you'd use to turn 137 total seconds into "2 minutes, 17 seconds": `137 // 60` is `2`, and `137 % 60` is `17`. Try that conversion yourself with a different number of seconds before moving on.
+
+2. **Meet a genuine, non-scary floating-point quirk.** Run:
+
+   ```
+   0.1 + 0.2
+   ```
+
+   Python prints `0.30000000000000004`, not `0.3`. This is not a bug in Python and not a sign you did something wrong — computers store decimal fractions in binary, and most decimal fractions (including `0.1`) can't be represented exactly in binary, the same way `1/3` can't be written exactly as a finite decimal. Every language with floating-point numbers has this quirk. The practical fix, when you need a clean comparison or display value, is `round()`: run `round(0.1 + 0.2, 2)` and you'll get the `0.3` you expected. File this away — it's a real thing that bites real programmers, and knowing the name for it ("floating-point precision error") makes it a five-second Google away instead of a mystery.
+
+3. **Build strings, don't just print literals.** In a new file `strings_practice.py` (or straight in the REPL), try:
+
+   ```python
+   first_name = "Ada"
+   last_name = "Lovelace"
+   full_name = first_name + " " + last_name        # concatenation with +
+   cheer = "hip! " * 3                               # repetition with *
+   print(full_name)
+   print(cheer)
+   print(len(full_name))
+   print(full_name.upper())
+   print("   messy input   ".strip())
+   ```
+
+   Expected output, line by line: `Ada Lovelace`, `hip! hip! hip! `, `12`, `ADA LOVELACE`, and `messy input` (with the surrounding spaces gone). `+` glues strings together, `*` repeats a string a given number of times, `len()` counts characters, `.upper()` returns a new all-caps copy, and `.strip()` removes leading/trailing whitespace — genuinely useful the moment you start reading messy user input.
+
+4. **Switch to f-strings for anything with a variable in it.** Concatenating with `+` gets ugly fast, especially with numbers. Compare:
+
+   ```python
+   price = 19.999
+   # ugly and breaks on non-strings:
+   print("Total: $" + str(price))
+   # the modern, readable way:
+   print(f"Total: ${price:.2f}")
+   ```
+
+   Both print a line starting with `Total: $`, but the second one prints `Total: $20.00` — the `:.2f` inside the curly braces means "format this as a fixed-point number with 2 decimal places," which also rounds it for you. f-strings (the `f` right before the opening quote) let you drop any variable or expression directly into a string with `{}`, and you'll use them in almost every `print()` from here on.
+
+5. **Take real input from a person.** Write and run this as a script (`python3 greet.py`, not the REPL — you'll want the practice running actual files):
+
+   ```python
+   name = input("What's your name? ")
+   age_text = input("What's your age? ")
+   age = int(age_text)
+   next_year = age + 1
+   print(f"Hi {name}, next year you'll be {next_year}.")
+   ```
+
+   Run it and answer the prompts. If you type `Sam` and `29`, you should see `Hi Sam, next year you'll be 30.`. The critical fact to burn into memory: **`input()` always returns a string**, even if the person types digits. Skip the `int(age_text)` conversion and try `age_text + 1` directly — you'll get a `TypeError`, the exact same one from Tier 0's variable lesson, and for the exact same reason. This is the single most common first-week bug in Python, so if you hit it, you're not behind — you're on schedule.
+
+6. **Make your program branch with `if` / `elif` / `else`.** This is the big new idea in this lesson: a program that does different things depending on the data it's given, instead of always running top to bottom the same way. Write:
+
+   ```python
+   score = int(input("Enter a test score (0-100): "))
+
+   if score >= 90:
+       grade = "A"
+   elif score >= 80:
+       grade = "B"
+   elif score >= 70:
+       grade = "C"
+   elif score >= 60:
+       grade = "D"
+   else:
+       grade = "F"
+
+   print(f"A score of {score} is a {grade}.")
+   ```
+
+   Run it with `95`, then again with `72`, then again with `40`. You should get grades `A`, `C`, and `F`. Notice Python checks each `elif` top to bottom and stops at the *first* one that's true — a score of 95 satisfies `score >= 80` too, but Python never even checks that line because `score >= 90` already matched. Order matters: if you wrote the conditions smallest-first, every score would incorrectly match the first branch. This exact grade-bucketing pattern is a direct preview of the checkpoint project at the end of this tier.
+
+7. **Combine comparisons with `and`, `or`, and `not`.** These let one `if` check more than one condition at once:
+
+   ```python
+   age = int(input("Enter your age: "))
+   has_ticket = input("Do you have a ticket? (yes/no): ")
+
+   if age >= 18 and has_ticket == "yes":
+       print("Welcome in.")
+   elif age < 18 and has_ticket == "yes":
+       print("Ticket's valid, but you need a guardian.")
+   else:
+       print("You can't enter yet.")
+   ```
+
+   `and` requires both sides to be true; `or` requires at least one; `not` flips a condition. Python also lets you chain comparisons directly, which reads closer to math notation: `0 <= score <= 100` means exactly what it looks like — "score is between 0 and 100, inclusive" — instead of writing `score >= 0 and score <= 100`.
+
+8. **Now the concept that trips almost everyone up once: truthiness.** In Python, `if` doesn't require an actual `True`/`False` value — it accepts *anything* and asks "is this value truthy or falsy?" Run each of these:
+
+   ```python
+   print(bool(0))
+   print(bool(1))
+   print(bool(""))
+   print(bool("0"))
+   print(bool("hello"))
+   print(bool(None))
+   ```
+
+   You'll get `False, True, False, True, True, False`. The falsy values worth memorizing are `0`, `0.0`, `""` (empty string), `None`, and empty containers like `[]` — everything else counts as truthy, *including* the string `"0"`, because it's a non-empty string. That last one is the classic gotcha: if you write `if user_input:` to check "did they type something," a person who typed the digit `0` will still trigger the truthy branch, because `"0"` is a string with one character in it, not the number zero. Getting caught by this once, on purpose, right now, is much cheaper than getting caught by it later inside a program you don't remember writing.
+
+9. **Put all five ideas into one script.** This is the closest thing in this lesson to a mini version of the checkpoint project — a tiny command-line calculator:
+
+   ```python
+   num1 = float(input("Enter the first number: "))
+   op = input("Enter an operator (+, -, *, /): ").strip()
+   num2 = float(input("Enter the second number: "))
+
+   if op == "+":
+       result = num1 + num2
+   elif op == "-":
+       result = num1 - num2
+   elif op == "*":
+       result = num1 * num2
+   elif op == "/":
+       if num2 == 0:
+           result = None
+       else:
+           result = num2 and num1 / num2
+   else:
+       result = None
+
+   if result is None:
+       print("Couldn't compute that — check your operator, and don't divide by zero.")
+   else:
+       print(f"{num1} {op} {num2} = {result}")
+   ```
+
+   (Ignore the `num2 and num1 / num2` line if it looks odd — it's just there so the zero-check above it always runs first; you'll get proper error handling for cases like this with `try`/`except` in a couple of lessons, so a manual guard is the honest tool for the job right now.) Test it with `10 + 5`, `10 / 0`, and an invalid operator like `x`, and confirm you get a real answer, a graceful message, and a graceful message, respectively — not a crash.
+
+## Check on learning
+
+- Out loud, explain the difference between `/`, `//`, and `%` using the "137 seconds into minutes and seconds" example — what does each operator actually give you?
+- Without running it, predict what this prints, then check yourself: `x = "5"`; `y = 5`; `print(x == y)`. Why is the answer what it is?
+- Explain truthiness to someone who hasn't coded: why is `""` falsy but `"0"` truthy, and why does that specific distinction matter the moment you start reading text a person typed in?

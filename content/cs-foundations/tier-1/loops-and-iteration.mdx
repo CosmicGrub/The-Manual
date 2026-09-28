@@ -1,0 +1,153 @@
+---
+trackId: cs-foundations
+tier: 1
+title: Loops & Iteration
+order: 2
+estimatedHours: 8
+---
+
+You already know how to make a computer do something once. Loops are how you make it do something as many times as the problem actually needs — five times, five hundred times, or "keep going until this condition stops being true" — without you typing the same lines over and over. Almost every real program you'll ever write spends most of its time inside a loop, so getting comfortable with the two flavors Python gives you, and the handful of ways they bite people, pays off immediately and permanently.
+
+## What you'll leave this lesson knowing
+
+- The difference between a `for` loop (repeat once per item in a known sequence) and a `while` loop (repeat until a condition becomes false), and how to pick the right one for a given problem
+- How to iterate directly over a list's or string's elements instead of manually indexing into it, and when `enumerate()` is the right tool if you actually need the index too
+- How `break` (exit the loop immediately) and `continue` (skip to the next iteration) change a loop's flow, and a concrete case where each one matters
+- What causes the classic "off-by-one" bug — a wrong `range()` endpoint or loop bound — and how to spot one by comparing expected vs. actual output
+- How to recognize an accidental infinite loop, safely stop it, and fix the missing update that caused it
+
+## Do this
+
+1. Start with the most common loop shape: repeating a fixed number of times with `for` and `range()`. Open a file called `loops.py` and run this:
+   ```python
+   for n in range(1, 6):
+       print(n, n * n)
+   ```
+   Expected output:
+   ```
+   1 1
+   2 4
+   3 9
+   4 16
+   5 25
+   ```
+   `range(1, 6)` produces `1, 2, 3, 4, 5` — it stops *before* 6. That "stop before the second number" behavior is the single most common source of off-by-one confusion in this whole lesson, so say it out loud now: `range(a, b)` never includes `b`.
+
+2. Iterate directly over a sequence instead of indexing into it. This is the Pythonic default — reach for it first:
+   ```python
+   fruits = ["apple", "banana", "cherry"]
+   for fruit in fruits:
+       print("I like", fruit)
+   ```
+   Output:
+   ```
+   I like apple
+   I like banana
+   I like cherry
+   ```
+   Compare it to the index-based version, which does the same thing with more moving parts and more room for mistakes:
+   ```python
+   for i in range(len(fruits)):
+       print("I like", fruits[i])
+   ```
+   Same output, but now you're tracking an index `i` for no reason — you never actually needed it. Use direct iteration whenever you don't need the position of the item, which is most of the time.
+
+3. Sometimes you *do* need the index — for numbering output, or comparing an item to its neighbor later. That's what `enumerate()` is for:
+   ```python
+   for i, fruit in enumerate(fruits):
+       print(i, fruit)
+   ```
+   Output:
+   ```
+   0 apple
+   1 banana
+   2 cherry
+   ```
+   `enumerate()` hands you `(index, value)` pairs so you never have to write `fruits[i]` by hand. If you want the numbering to start at 1 instead of 0 for a human-facing display, `enumerate(fruits, start=1)` does that — this is exactly the kind of small keyword argument that's easy to forget exists and completely normal to look up when you need it.
+
+4. Now the other kind of loop. A `while` loop repeats based on a *condition*, not a count you know in advance. Try this:
+   ```python
+   value = 1
+   steps = 0
+   while value < 1000:
+       value = value * 2
+       steps += 1
+
+   print(value, steps)
+   ```
+   Expected output: `1024 10`. You had no idea ahead of time it would take exactly 10 doublings to clear 1000 — that's precisely the situation `for` isn't built for and `while` is. Trace it by hand on paper (1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024) and confirm the count matches before trusting the code.
+
+5. Decision practice, no new syntax needed — just answer these three out loud before scrolling further: (a) print every line of a file, (b) keep asking a user for a password until they type the right one, (c) sum the first 100 positive integers. Answers: (a) and (c) are `for` loops — you know the number of iterations (one per line, or exactly 100) before you start; (b) is a `while` loop — you have no idea how many wrong guesses will happen first. If you got any of these backwards, that's the exact instinct this lesson is building.
+
+6. Now deliberately trigger an off-by-one bug so you learn to recognize the shape of one. This code is supposed to total a list of scores:
+   ```python
+   scores = [88, 92, 79, 95, 84]
+   total = 0
+   for i in range(len(scores) - 1):
+       total += scores[i]
+
+   print(total)
+   ```
+   Run it. It prints `354`, not the `438` you'd get by adding all five scores by hand. The bug is `len(scores) - 1`: with 5 scores, `range(4)` only produces indices `0, 1, 2, 3` — it silently drops the last element, `scores[4]`. Fix it by removing the `- 1` so it's `range(len(scores))`, rerun, and confirm you now get `438`. This exact mistake — one wrong character next to a `len()` — is the most common off-by-one bug you'll write in the wild.
+
+7. `break` exits a loop immediately, before it would otherwise finish. Use it to stop as soon as you find what you're looking for:
+   ```python
+   numbers = [4, 7, 2, 9, 15, 6, 23]
+   first_big = None
+   for n in numbers:
+       if n > 10:
+           first_big = n
+           break
+
+   print(first_big)
+   ```
+   Output: `15` — the *first* number over 10. Now delete the `break` line and rerun. You'll get `23` instead, because without `break` the loop keeps going and `first_big` gets overwritten by every later match, so you end up with the *last* one instead of the first. That difference is the entire reason `break` exists.
+
+8. `continue` skips just the rest of the current iteration and moves on to the next one — it doesn't exit the loop. Use it to filter out items you don't want to process:
+   ```python
+   even_total = 0
+   for n in numbers:
+       if n % 2 != 0:
+           continue
+       even_total += n
+
+   print(even_total)
+   ```
+   Output: `12` (only `4 + 2 + 6` from that same list — the odd numbers get skipped, not counted, and the loop keeps running afterward instead of stopping).
+
+9. Now write an infinite loop on purpose, so the first accidental one you write for real doesn't panic you. Run this and watch it flood your terminal with `0` forever:
+   ```python
+   count = 0
+   while count < 5:
+       print(count)
+   ```
+   Hit `Ctrl+C` to kill it. This is a completely normal, extremely common mistake — the condition `count < 5` never becomes false because nothing inside the loop ever changes `count`. Fix it the way you'll fix this bug for the rest of your career: update the thing the condition depends on.
+   ```python
+   count = 0
+   while count < 5:
+       print(count)
+       count += 1
+   ```
+   Output: `0 1 2 3 4`, and it stops on its own.
+
+10. Capstone: combine `for`, `break`, and `continue` in one small program that previews the shape of this tier's checkpoint project (a transaction/expense tracker). You're given a list of amounts with a sentinel value of `-1` meaning "stop reading here," and negative amounts (refunds) should be skipped from the running total rather than subtracted:
+    ```python
+    transactions = [12.50, 8.00, -5.00, 22.75, -1, 15.00]
+    total_spent = 0
+
+    for entry in transactions:
+        if entry == -1:
+            break
+        if entry < 0:
+            continue
+        total_spent += entry
+
+    print(total_spent)
+    ```
+    Expected output: `43.25`. Walk through it by hand: `12.50` and `8.00` add normally, `-5.00` gets skipped by `continue`, `22.75` adds, then `-1` triggers `break` before the trailing `15.00` is ever reached. If your traced total doesn't match the printed one, that's a sign to add a `print(entry, total_spent)` line inside the loop and watch it run step by step — inserting a print statement to see what a loop is actually doing at each pass is a normal debugging habit, not a last resort.
+
+## Check on learning
+
+- Explain out loud why `range(1, 6)` produces `1, 2, 3, 4, 5` and not `1, 2, 3, 4, 5, 6` — connect it directly to why the buggy `scores` example in step 6 silently dropped the last element.
+- Without running it, predict what removing just the `break` (but not the `continue`) would do to the capstone transactions example in step 10. Then run it and check yourself.
+- In your own words, explain to someone new to programming how you decide between a `for` loop and a `while` loop, using one example of each that isn't from this lesson.

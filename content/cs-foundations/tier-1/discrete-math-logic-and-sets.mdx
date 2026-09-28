@@ -1,0 +1,98 @@
+---
+trackId: cs-foundations
+tier: 1
+title: Discrete Math I: Logic & Sets
+order: 7
+estimatedHours: 10
+---
+
+Every `if` statement you've written since Module 1 is already propositional logic, and every Python `set` or `dict` you've touched is already set theory — you've been doing discrete math this whole time without the vocabulary for it. This module gives you that vocabulary, plus the two proof techniques (direct and contrapositive) that let you *argue* a program is correct instead of just testing it and hoping. That argument-writing skill is exactly what this tier's checkpoint project asks you to produce, and it's the same reasoning Tier 2's Big-O proofs and every later "why does this algorithm work" argument in this track will lean on.
+
+## What you'll leave this lesson knowing
+
+- How to build a full truth table for a compound proposition using ¬, ∧, ∨, →, and ↔, and how to spot a tautology (always true) versus a contradiction (always false)
+- Why a conditional's contrapositive always shares its truth value, while its converse and inverse generally do not — and how to use that fact to make a hard proof easy
+- How to write a clean direct proof and a clean proof by contrapositive using precise "let x be..." mathematical language
+- How to compute unions, intersections, differences, and complements by hand and confirm De Morgan's law holds for sets, not just propositions
+- What separates a relation from a function in set-theoretic terms, and why that distinction is the exact reason a Python dict silently drops duplicate keys
+
+## Do this
+
+1. **Learn the five connectives, then read the one that trips everyone up.** A *proposition* is a statement that's unambiguously true or false ("7 is prime" — yes; "this sentence is short" — not a proposition, too subjective). The connectives: ¬P ("not P"), P ∧ Q ("P and Q," true only if both are true), P ∨ Q ("P or Q," true if at least one is true), P → Q ("if P then Q"), and P ↔ Q ("P if and only if Q"). The conditional → is the one that feels wrong at first: it's only *false* when P is true and Q is false. Here's the full table:
+
+   | P | Q | P → Q |
+   |---|---|-------|
+   | T | T | T |
+   | T | F | F |
+   | F | T | T |
+   | F | F | T |
+
+   Read the last two rows out loud: "if P is false, P → Q is true no matter what Q is." This is called *vacuous truth*, and it's why "if it's raining, I bring an umbrella" doesn't become a lie on a sunny day when you left the umbrella home — the statement was never about sunny days at all. This exact rule is why an `if condition:` block in Python that never runs (because `condition` was `False`) doesn't mean anything went wrong.
+
+2. **Build an 8-row truth table by hand for `(P ∧ Q) → R`.** List all 8 combinations of P, Q, R (T/T/T, T/T/F, T/F/T, T/F/F, F/T/T, F/T/F, F/F/T, F/F/F), compute P ∧ Q for each row, then apply → against R. Do this on paper before reading further — it's tedious on purpose; that tedium is exactly why truth tables stop being your go-to tool once formulas get bigger, and proofs (steps 5-6) become necessary instead. Check yourself: the whole formula is **false in exactly one row** (P=T, Q=T, R=F) and true in the other seven. If you got a different count, you mis-evaluated a row — go find it before moving on; catching your own truth-table mistake by re-checking one row at a time is a completely normal part of this, not a sign you're bad at it.
+
+3. **Prove De Morgan's Law is a tautology, by hand, then check it with code.** Build the truth table for `¬(P ∨ Q) ↔ (¬P ∧ ¬Q)` across all 4 combinations of P and Q. Every single row should come out **True** — that's what makes it a *tautology* (true regardless of the inputs) rather than just "a formula that's sometimes true." Once you've confirmed all 4 rows by hand, verify it with actual code instead of trusting your own arithmetic:
+
+   ```python
+   from itertools import product
+
+   def demorgan_holds(p, q):
+       left = not (p or q)
+       right = (not p) and (not q)
+       return left == right
+
+   for p, q in product([True, False], repeat=2):
+       print(p, q, demorgan_holds(p, q))
+   ```
+
+   Expected output is `True` printed on all four lines. If `itertools.product` is new to you, that's fine — search "python itertools product example" and skim the first result; generating every combination of a set of options is a thing you'll do constantly, and looking up the exact function name instead of memorizing it is completely normal.
+
+4. **Work out converse, inverse, and contrapositive on a statement where getting it wrong is obvious.** Take "If a shape is a square, then it has four sides" (P → Q, true). Its **converse** (Q → P) is "if a shape has four sides, then it is a square" — false, a rectangle is a four-sided counterexample. Its **inverse** (¬P → ¬Q) is "if a shape is not a square, then it does not have four sides" — also false, same rectangle. Its **contrapositive** (¬Q → ¬P) is "if a shape does not have four sides, then it is not a square" — true, and notice it's true for the *same reason* the original is. Now do this yourself on "If an integer is divisible by 6, then it is divisible by 3." Write out all three variants and mark each true or false before checking here: converse ("divisible by 3 → divisible by 6") is false — 9 is a counterexample; inverse ("not divisible by 6 → not divisible by 3") is false — 9 again; contrapositive ("not divisible by 3 → not divisible by 6") is true, matching the original. The pattern that should be sinking in: **contrapositive always matches the original's truth value; converse and inverse generally don't.** That's not a coincidence — it's the fact you'll lean on in step 6.
+
+5. **Write a direct proof, following a fixed template.** A direct proof's shape is always: assume the hypothesis, unpack definitions, do algebra, land on the conclusion. Worked example — prove *the sum of two even integers is even*:
+
+   > Let `a` and `b` be even integers. By definition of even, there exist integers `j` and `k` such that `a = 2j` and `b = 2k`. Then `a + b = 2j + 2k = 2(j + k)`. Since `j + k` is an integer, `a + b` is 2 times an integer, so `a + b` is even. ∎
+
+   Now write that same shape yourself for: *the product of two odd integers is odd.* Start "Let `a` and `b` be odd integers. By definition of odd, `a = 2j + 1` and `b = 2k + 1` for integers `j, k`..." and multiply it out. Check your answer against this: `ab = (2j+1)(2k+1) = 4jk + 2j + 2k + 1 = 2(2jk + j + k) + 1`, which is `2m + 1` for the integer `m = 2jk + j + k` — exactly the definition of odd. If your algebra landed somewhere else, redo the expansion one term at a time rather than guessing where it went wrong.
+
+6. **Write a proof by contrapositive, and notice why it's the easier tool here.** Some claims are awkward to prove directly because the hypothesis doesn't hand you anything to compute with. "If n² is even, then n is even" is one — you can't easily factor an unknown `n` out of "n² is even." So instead, use step 4's fact: proving ¬Q → ¬P proves P → Q for free. Prove the contrapositive instead — "if n is odd, then n² is odd":
+
+   > Let `n` be odd, so `n = 2k + 1` for some integer `k`. Then `n² = (2k+1)² = 4k² + 4k + 1 = 2(2k² + 2k) + 1`, which is odd. Since ¬Q → ¬P holds, the original P → Q holds: if n² is even, then n is even. ∎
+
+   Now prove *"if 3n + 2 is even, then n is even"* by contrapositive yourself: assume `n` is odd and show `3n + 2` is odd. Check against: `n = 2k+1` gives `3n + 2 = 6k + 3 + 2 = 6k + 5 = 2(3k + 2) + 1` — odd, as required. The rule of thumb going forward: **if you can't get a grip on P directly, try assuming ¬Q and see if ¬P falls out easily instead.**
+
+7. **Compute set operations by hand on concrete sets.** Let `A = {1, 2, 3, 4, 5}`, `B = {4, 5, 6, 7}`, and universal set `U = {1, 2, ..., 10}`. Work out, on paper: `A ∪ B` (union — everything in either), `A ∩ B` (intersection — only what's in both), `A − B` (difference — in A but not B), and the complement of A relative to U (written `Aᶜ` — everything in U that's not in A). You should get `A ∪ B = {1,2,3,4,5,6,7}`, `A ∩ B = {4,5}`, `A − B = {1,2,3}`, `Aᶜ = {6,7,8,9,10}`. Then check that De Morgan's law holds for *sets*, not just propositions, by computing both sides independently: `(A ∪ B)ᶜ` should equal `Aᶜ ∩ Bᶜ`. Work both out — you should land on `{8, 9, 10}` both times.
+
+8. **Confirm your set math with Python's built-in set operators.** Python's `set` type uses `|` for union, `&` for intersection, and `-` for difference — no library needed:
+
+   ```python
+   A = {1, 2, 3, 4, 5}
+   B = {4, 5, 6, 7}
+   U = set(range(1, 11))
+
+   print(A | B)               # {1, 2, 3, 4, 5, 6, 7}
+   print(A & B)                # {4, 5}
+   print(A - B)                 # {1, 2, 3}
+   print(U - (A | B))          # complement of A ∪ B
+   print((U - A) & (U - B))    # complement of A, intersect complement of B
+   ```
+
+   The last two lines should print the identical set (`{8, 9, 10}`), matching your by-hand answer from step 7. If your hand-computed answer and the code disagree, don't assume the code is right — recheck both independently until you find which one has the mistake; that habit of trusting neither answer until they agree is worth more than either answer on its own.
+
+9. **Pin down what makes a relation a function, and watch Python enforce it whether you meant it to or not.** A *relation* from set A to set B is any set of ordered pairs `(a, b)` — a subset of A × B. A *function* is a relation where every input appears in **exactly one** pair — no input maps to two different outputs. `R = {(1, 2), (2, 4), (3, 6)}` is a function: 1, 2, and 3 each show up once. `S = {(1, 2), (1, 5), (2, 4)}` is **not** a function: the input 1 maps to both 2 and 5. For `R`, the *domain* (the set of inputs actually used) is `{1, 2, 3}` and the *range* (outputs actually produced) is `{2, 4, 6}`. Now run this and watch what happens when you feed a non-function relation into a Python dict:
+
+   ```python
+   pairs = [(1, 2), (1, 5), (2, 4)]
+   d = dict(pairs)
+   print(d)   # {1: 5, 2: 4} -- the pair (1, 2) is just gone
+   ```
+
+   A dict *cannot* store a relation that isn't a function, because keys have to be unique — when it hits the second `1`, it silently overwrites the first instead of raising an error. This isn't a Python quirk; it's the function definition itself showing up as real, silent, debuggable behavior in code you'll write again.
+
+10. **Preview the checkpoint project's proof, without doing the whole thing yet.** This tier's checkpoint asks you to write a short proof that some invariant holds in your program — something like "`total` always equals the sum of every entry added so far." That's a direct proof, same shape as step 5: state what's true before the first entry is added (`total = 0`, the sum of zero entries), then show that *if* the invariant holds before one more entry is processed, it still holds *after* `total = total + entry` runs. Sketch that argument in a few sentences right now, in plain English with one or two lines of notation — you don't need it polished, you just need to feel that it's the exact same "assume, unpack, conclude" shape you've now practiced twice today.
+
+## Check on learning
+
+- Explain, out loud, why a statement's contrapositive always matches its original truth value while the converse and inverse generally don't — use the "divisible by 6 / divisible by 3" example from step 4 to make it concrete.
+- Without re-deriving it, describe the difference in *shape* between a direct proof and a proof by contrapositive, and say when you'd reach for the second one instead of the first.
+- Explain why a Python `dict` can represent any mathematical function but never an arbitrary relation — tie the words "unique key" directly back to the definition of "function" from step 9.

@@ -1,0 +1,48 @@
+[
+  {
+    "id": "cs-foundations/tier-1/loops-and-iteration/q1",
+    "type": "multiple_choice",
+    "prompt": "What values does `range(1, 6)` produce when you loop over it?",
+    "choices": [
+      "0, 1, 2, 3, 4, 5",
+      "1, 2, 3, 4, 5",
+      "1, 2, 3, 4, 5, 6",
+      "0, 1, 2, 3, 4"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cs-foundations/tier-1/loops-and-iteration/q2",
+    "type": "multiple_choice",
+    "prompt": "What does this code print?\n\n```python\nfor n in range(5):\n    if n == 3:\n        break\n    print(n)\n```",
+    "choices": [
+      "0 1 2",
+      "0 1 2 3",
+      "0 1 2 3 4",
+      "It raises an error"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "cs-foundations/tier-1/loops-and-iteration/q3",
+    "type": "short_answer",
+    "prompt": "Which loop keyword skips the rest of the current iteration and moves on to the next one, without exiting the loop entirely?",
+    "acceptedAnswers": [
+      "continue"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-1/loops-and-iteration/q4",
+    "type": "short_answer",
+    "prompt": "What is the name for the bug where a `while` loop's condition never becomes False because nothing inside the loop updates the variable it depends on, so the loop never stops on its own?",
+    "acceptedAnswers": [
+      "infinite loop",
+      "an infinite loop"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-1/loops-and-iteration/q5",
+    "type": "explain_back",
+    "prompt": "Explain, in your own words, how you decide whether to use a `for` loop or a `while` loop for a new problem. Use the doubling example (repeatedly doubling a number until it passes 1000) to explain why that specific problem needed a `while` loop rather than a `for` loop, and mention how `range()`'s 'stops before the second number' behavior connects to off-by-one bugs."
+  }
+]

@@ -1,0 +1,125 @@
+---
+trackId: cs-foundations
+tier: 1
+title: Intro to Probability & Statistics
+order: 8
+estimatedHours: 10
+---
+
+Every time you say a die roll is "about even odds," or notice that one function is "usually fast but occasionally slow," you're already doing statistics and probability — you just haven't had to make the arithmetic precise yet. This lesson gives you that precision: how to summarize a pile of numbers, how to reason correctly about chance, and then one more idea most intro courses skip — how "surprise" itself gets measured in bits. That last piece isn't a detour. It's the exact quantity ("cross-entropy") that trains almost every modern machine learning model, and you're about to understand it from first principles instead of just memorizing a formula later.
+
+## What you'll leave this lesson knowing
+
+- How to compute the mean, median, and mode of a small dataset by hand, and explain when each one is the more honest summary
+- How to compute variance and standard deviation by hand, and why squaring the deviations (instead of just averaging them) is the standard way to measure spread
+- The core probability rules — complement, addition (for both mutually exclusive and overlapping events), and multiplication/conditional probability for independent vs. dependent events — well enough to work a new probability problem from scratch
+- Why "average-case" algorithm analysis and things like hash-table collisions are just expected value and probability wearing a computer-science costume
+- What a "bit" of information actually measures, how to compute the entropy of a simple distribution, and why minimizing cross-entropy is the exact same idea as "make your model less surprised by the right answer"
+
+## Do this
+
+1. **Compute mean, median, and mode by hand.** Here's a small dataset — quiz scores out of 10 from eight students: `2, 4, 4, 4, 5, 5, 7, 9`. It's already sorted, which is deliberate; always sort before finding a median.
+
+   - **Mean** (the arithmetic average): add everything up and divide by the count. `(2+4+4+4+5+5+7+9) / 8 = 40 / 8 = 5`.
+   - **Median** (the middle value): with an even count (8 scores), there's no single middle element, so you average the two middle ones — positions 4 and 5, which are `4` and `5`. Median = `(4+5)/2 = 4.5`.
+   - **Mode** (the most frequent value): `4` appears three times, more than anything else, so mode = `4`.
+
+   Notice mean (5) and median (4.5) are close but not identical here — that gap is information. Now do the same three calculations by hand for `1, 2, 2, 3, 3, 3, 40` before reading on. (Mean = `54/7 ≈ 7.71`, median = `3`, mode = `3`.) That one outlier, `40`, dragged the mean way up while barely nudging the median — this is exactly why "median household income" gets reported instead of "mean household income": a handful of billionaires would otherwise make everyone else's number look wrong.
+
+2. **Compute variance and standard deviation by hand, on the same dataset.** Use `2, 4, 4, 4, 5, 5, 7, 9` again (mean = 5 from step 1). Variance measures spread — how far, on average, values sit from the mean.
+
+   Step through it explicitly: subtract the mean from every value, square each result, then average those squares.
+
+   | value | deviation (value − mean) | squared |
+   |---|---|---|
+   | 2 | −3 | 9 |
+   | 4 | −1 | 1 |
+   | 4 | −1 | 1 |
+   | 4 | −1 | 1 |
+   | 5 | 0 | 0 |
+   | 5 | 0 | 0 |
+   | 7 | 2 | 4 |
+   | 9 | 4 | 16 |
+
+   Sum of squared deviations = `9+1+1+1+0+0+4+16 = 32`. Population variance = `32 / 8 = 4`. Standard deviation is just the square root of variance: `√4 = 2`.
+
+   You might wonder why we square the deviations instead of just averaging `−3, −1, −1, −1, 0, 0, 2, 4` directly — try it: that sum is `0`, every time, for any dataset, because deviations above and below the mean always cancel out by definition of what a mean is. Squaring gets rid of the sign so spread doesn't fake-cancel to zero, and taking the square root at the end (standard deviation) brings the units back to something comparable to the original data instead of "squared quiz points."
+
+   Now check yourself with Python — this is genuinely worth doing even though it's a math lesson, because it will save you a debugging session later:
+   ```
+   import statistics
+   data = [2, 4, 4, 4, 5, 5, 7, 9]
+   statistics.mean(data)      # 5
+   statistics.median(data)    # 4.5
+   statistics.pvariance(data) # 4   <- population variance, matches your hand calc
+   statistics.variance(data)  # 4.571428571428571  <- NOT 4!
+   ```
+   If that last line surprised you, good — that's the exercise working. `statistics.variance()` divides by `n − 1` instead of `n` (this is called Bessel's correction, and it matters when your data is a *sample* meant to estimate some larger population rather than the entire population itself); `statistics.pvariance()` divides by `n`, matching what you did by hand. Every stats library has this exact fork, under slightly different names, and "why doesn't my variance match the textbook's" is one of the most commonly searched stats questions there is — looking it up mid-exercise is normal, not a sign you missed something.
+
+3. **Work the addition rule on a deck of cards.** A standard deck has 52 cards: 4 suits of 13, including 4 kings and 13 hearts (one of which — the king of hearts — is both).
+
+   - `P(king) = 4/52 = 1/13`
+   - `P(heart) = 13/52 = 1/4`
+   - If you just added those, you'd double-count the king of hearts. The correct **general addition rule** is `P(A or B) = P(A) + P(B) − P(A and B)`, so: `P(king or heart) = 4/52 + 13/52 − 1/52 = 16/52 = 4/13 ≈ 0.308`.
+   - Only when two events are **mutually exclusive** (can't both happen — e.g., drawing a king vs. drawing a queen) does the subtraction term drop out, because `P(A and B) = 0`: `P(king or queen) = 4/52 + 4/52 = 8/52 = 2/13`.
+
+   Work one more yourself before continuing: what's `P(spade or face card)`? (A deck has 13 spades and 12 face cards total — jack, queen, king in each suit — with 3 of those face cards, the spade J/Q/K, being both.) Answer: `13/52 + 12/52 − 3/52 = 22/52 = 11/26 ≈ 0.423`.
+
+4. **Work conditional and multiplication rules on the same deck.** Draw two cards without putting the first one back (this is called "without replacement," and it's what makes the two draws *dependent* — the second draw's odds depend on what the first draw removed).
+
+   - `P(first card is a king) = 4/52`
+   - Given that the first card was a king, only 3 kings remain among 51 cards: `P(second is a king | first was a king) = 3/51`
+   - The **multiplication rule** for dependent events: `P(A and B) = P(A) × P(B | A)`, so `P(both kings) = 4/52 × 3/51 = 12/2652 = 1/221 ≈ 0.0045`.
+
+   Now contrast that with **independent** events, where knowing one outcome tells you nothing about the other — like two separate coin flips: `P(both heads) = P(heads) × P(heads) = 1/2 × 1/2 = 1/4`. The rule `P(A and B) = P(A) × P(B)` (no conditioning needed) only works because the coin has no memory of its last flip. Mixing up independent and dependent multiplication is one of the single most common probability bugs — when in doubt, ask yourself directly: "does knowing A happened change the odds of B?" If yes, you need `P(B | A)`, not plain `P(B)`.
+
+5. **Connect probability to algorithm behavior: the birthday paradox and hash collisions.** Here's a claim that reliably feels wrong the first time you hear it: in a room of just 23 random people, there's better than a 50% chance two of them share a birthday. It feels wrong because you're probably (wrongly) comparing it to "the odds someone else shares *my* birthday" (which really is low, about 6%) — but the actual question is about *any* pair out of the `23 choose 2 = 253` possible pairs matching, and 253 chances adds up fast. If this still feels off, that's completely normal — it's one of the most famous counterintuitive results in probability, and looking up a visual explanation is a perfectly good way to build the intuition.
+
+   Verify it instead of just trusting it:
+   ```
+   p_no_shared_birthday = 1.0
+   n = 23
+   for i in range(n):
+       p_no_shared_birthday *= (365 - i) / 365
+   p_shared = 1 - p_no_shared_birthday
+   print(p_shared)  # about 0.507
+   ```
+   This is exactly the math behind why hash tables collide sooner than people expect. A hash table with `m` slots holding `n` items behaves like `n` people picking random "birthdays" out of `m` days: once you've inserted even a modest fraction of `√m` items, collisions start becoming likely, not rare — this is literally why hash table load factor (how full the table is) matters so much, and it's the same reasoning used to size hash functions in cryptography so collisions stay astronomically unlikely instead of merely "unlikely."
+
+   More generally: when people say an algorithm's "average-case" running time is such-and-such, they mean exactly what "mean" meant back in step 1 — the expected value of the running time, averaged (weighted by probability) over every possible input, not a guarantee about any one run. A quicksort that's usually O(n log n) but occasionally O(n²) on unlucky input has real variance in its runtime, the same concept you computed by hand in step 2, just applied to "seconds" instead of "quiz scores."
+
+6. **Measure surprise: self-information and entropy.** Flip a fair coin. Before it lands, you're maximally unsure — heads and tails are equally likely, so learning the result genuinely tells you something. Flip a coin that's rigged to land heads 90% of the time, and the outcome "heads" barely tells you anything; you basically already knew.
+
+   Information theory makes "barely tells you anything" precise with one formula for the **self-information** of an event with probability `p`:
+   ```
+   I(p) = -log2(p)
+   ```
+   Work it for the fair coin: `I(0.5) = -log2(0.5) = 1 bit`. That's not a coincidence — it's *why* a bit is called a bit: one fair coin flip carries exactly one bit of information, by definition.
+
+   Now the biased coin (`P(heads) = 0.9`, `P(tails) = 0.1`):
+   - `I(heads) = -log2(0.9) ≈ 0.152 bits` — an unsurprising outcome carries little information.
+   - `I(tails) = -log2(0.1) ≈ 3.322 bits` — a rare, surprising outcome carries a lot.
+
+   **Entropy** is just the expected value (there's "mean" again) of self-information across every possible outcome — the average surprise you should expect from the whole distribution:
+   ```
+   H(X) = sum over all outcomes of  p(x) * I(p(x))  =  -sum p(x) * log2(p(x))
+   ```
+   For the fair coin: `H = 0.5(1) + 0.5(1) = 1 bit` — maximum possible uncertainty for two outcomes. For the biased coin: `H = 0.9(0.152) + 0.1(3.322) ≈ 0.137 + 0.332 ≈ 0.469 bits` — meaningfully less uncertain overall, because the outcome is usually predictable, even though the rare case is very surprising when it happens. If a log base of 2 feels unfamiliar, run `import math; -math.log2(0.9)` and just watch the number come out — the formula is more approachable once you've actually pressed enter on it once.
+
+7. **Compute cross-entropy and see why lower is better.** Suppose the true answer to a classification problem is "cat" — as a probability distribution over `{cat, dog}`, that's `p = [1, 0]`. A model doesn't output a single guess; it outputs a predicted distribution `q` over both classes. **Cross-entropy** measures how surprised you'd be by the true outcome if you actually believed the model's predicted probabilities:
+   ```
+   H(p, q) = -sum p(x) * log2(q(x))
+   ```
+   Since `p = [1, 0]`, the `dog` term always multiplies by `0` and vanishes, leaving just `-log2(q(cat))`. Compute it for three different models predicting the same true answer, "cat":
+
+   - Confident and correct, `q = [0.99, 0.01]`: `H = -log2(0.99) ≈ 0.0145 bits`
+   - Unsure, `q = [0.5, 0.5]`: `H = -log2(0.5) = 1 bit`
+   - Confident and wrong, `q = [0.1, 0.9]`: `H = -log2(0.1) ≈ 3.322 bits`
+
+   Lay those three numbers side by side: `0.0145 < 1 < 3.322`. Cross-entropy shrinks toward `0` exactly as the model gets more confident *and* correct, and it punishes confident wrongness far harder than honest uncertainty — being unsure costs you 1 bit, but being confidently wrong costs you over 3. This is not a metaphor for what "cross-entropy loss" does in machine learning training — it is literally this same formula, applied every time a model sees a labeled example, with gradient descent nudging the model's weights to push `q` closer to `p` and drive this exact number down. You now know, from arithmetic you did by hand, the actual quantity the AI/ML track will tell you to "minimize" later — it will not be a new idea, just a familiar one applied at scale.
+
+## Check on learning
+
+- Using the second dataset from step 1 (`1, 2, 2, 3, 3, 3, 40`), explain out loud why the mean and median disagree so much, and why a reporter writing about typical incomes would reach for the median instead of the mean.
+- Explain why `P(A or B) = P(A) + P(B)` only works when `A` and `B` are mutually exclusive, and what you have to do differently when they can overlap — use the king/heart card example to justify your answer without looking it back up.
+- Teach back, in your own words, what a "bit" of information measures using the 90%-biased coin from step 6, then explain why a machine learning model's cross-entropy loss keeps dropping as its predictions get both more confident and more correct.

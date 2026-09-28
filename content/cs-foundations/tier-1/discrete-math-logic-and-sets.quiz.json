@@ -1,0 +1,52 @@
+[
+  {
+    "id": "cs-foundations/tier-1/discrete-math-logic-and-sets/q1",
+    "type": "multiple_choice",
+    "prompt": "Which statement is logically equivalent to \"if P then Q\" (P \u2192 Q) \u2014 that is, always shares the same truth value?",
+    "choices": [
+      "The converse: Q \u2192 P",
+      "The inverse: \u00acP \u2192 \u00acQ",
+      "The contrapositive: \u00acQ \u2192 \u00acP",
+      "The negation: P \u2227 \u00acQ"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "cs-foundations/tier-1/discrete-math-logic-and-sets/q2",
+    "type": "short_answer",
+    "prompt": "Let A = {2, 4, 6, 8} and B = {4, 8, 12}. What is A \u2229 B? Write it as a set.",
+    "acceptedAnswers": [
+      "{4, 8}",
+      "{4,8}",
+      "4, 8",
+      "4 and 8"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-1/discrete-math-logic-and-sets/q3",
+    "type": "multiple_choice",
+    "prompt": "Which of these propositions is a tautology (comes out True on every row of its truth table, regardless of P and Q)?",
+    "choices": [
+      "P \u2227 \u00acP",
+      "P \u2228 \u00acP",
+      "P \u2192 \u00acQ",
+      "P \u2194 Q"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cs-foundations/tier-1/discrete-math-logic-and-sets/q4",
+    "type": "short_answer",
+    "prompt": "You want to prove \"if n\u00b2 is odd, then n is odd,\" but a direct proof gives you nothing to grab onto algebraically. What proof technique from this lesson handles this cleanly instead?",
+    "acceptedAnswers": [
+      "contrapositive",
+      "proof by contrapositive",
+      "by contrapositive"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-1/discrete-math-logic-and-sets/q5",
+    "type": "explain_back",
+    "prompt": "In your own words, explain why a Python dict can represent any mathematical function but can never hold an arbitrary relation \u2014 connect the ideas of 'relation,' 'function,' and 'unique key' from this lesson, and describe what actually happens if you try to build a dict from pairs like [(1, 2), (1, 5)]."
+  }
+]

@@ -1,0 +1,50 @@
+[
+  {
+    "id": "cs-foundations/tier-1/python-core-syntax/q1",
+    "type": "multiple_choice",
+    "prompt": "What does `17 // 5` evaluate to in Python?",
+    "choices": [
+      "3.4",
+      "3",
+      "2",
+      "4"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cs-foundations/tier-1/python-core-syntax/q2",
+    "type": "multiple_choice",
+    "prompt": "What does the following code print?\n\n```python\nx = \"5\"\ny = 5\nif x == y:\n    print(\"equal\")\nelse:\n    print(\"not equal\")\n```",
+    "choices": [
+      "equal",
+      "not equal",
+      "It raises a TypeError",
+      "5"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cs-foundations/tier-1/python-core-syntax/q3",
+    "type": "short_answer",
+    "prompt": "What built-in Python function converts a string like \"27\" into the whole number 27?",
+    "acceptedAnswers": [
+      "int",
+      "int()"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-1/python-core-syntax/q4",
+    "type": "short_answer",
+    "prompt": "No matter what a user types, what data type does Python's `input()` function always return?",
+    "acceptedAnswers": [
+      "str",
+      "string",
+      "a string"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-1/python-core-syntax/q5",
+    "type": "explain_back",
+    "prompt": "Explain 'truthiness' in Python in your own words, as if to someone who's never coded. Cover: what makes a value falsy versus truthy, name at least three falsy values, and explain specifically why the empty string \"\" is falsy while the string \"0\" is truthy \u2014 and why that distinction matters once you start checking user input with a plain `if user_input:`."
+  }
+]

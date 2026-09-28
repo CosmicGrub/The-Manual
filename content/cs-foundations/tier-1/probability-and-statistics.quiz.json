@@ -1,0 +1,53 @@
+[
+  {
+    "id": "cs-foundations/tier-1/probability-and-statistics/q1",
+    "type": "multiple_choice",
+    "prompt": "For the dataset 2, 4, 4, 4, 5, 5, 7, 9 (mean = 5), what is the population variance?",
+    "choices": [
+      "2",
+      "4",
+      "8",
+      "32"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cs-foundations/tier-1/probability-and-statistics/q2",
+    "type": "multiple_choice",
+    "prompt": "You draw one card from a standard 52-card deck. What is P(king or heart)?",
+    "choices": [
+      "4/52, since you just add P(king) and P(heart) worth of kings",
+      "17/52, adding P(king) + P(heart) with no adjustment",
+      "16/52 (equivalently 4/13), because the king of hearts is subtracted once so it isn't double-counted",
+      "13/52, since hearts already include every king"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "cs-foundations/tier-1/probability-and-statistics/q3",
+    "type": "multiple_choice",
+    "prompt": "Why does the birthday paradox (23 people, >50% chance two share a birthday) matter for how hash tables behave?",
+    "choices": [
+      "It doesn't relate to hash tables; it's just a fun fact about probability",
+      "It shows collisions become likely well before a hash table is nearly full, because the number of possible colliding PAIRS grows much faster than the number of items",
+      "It proves every hash table degrades to O(n) lookup time no matter what",
+      "It means a hash table should never be given more than 23 items"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cs-foundations/tier-1/probability-and-statistics/q4",
+    "type": "short_answer",
+    "prompt": "Using I(p) = -log2(p), how many bits of self-information does an event with probability 0.5 carry?",
+    "acceptedAnswers": [
+      "1",
+      "1 bit",
+      "one bit"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-1/probability-and-statistics/q5",
+    "type": "explain_back",
+    "prompt": "Explain, in your own words, what entropy measures using the fair-coin (1 bit) vs. 90%-biased-coin (about 0.469 bits) example from this lesson. Then explain what cross-entropy adds on top of that, and why a machine learning model's cross-entropy loss keeps getting smaller as its predictions get more confident AND more correct (use the cat/dog example: q = [0.99, 0.01] vs. q = [0.5, 0.5] vs. q = [0.1, 0.9])."
+  }
+]

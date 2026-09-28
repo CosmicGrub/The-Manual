@@ -1,0 +1,49 @@
+[
+  {
+    "id": "cs-foundations/tier-1/core-data-structures-i/q1",
+    "type": "multiple_choice",
+    "prompt": "What does this print?\n\na = [1, 2, 3]\nb = a\nb.append(4)\nprint(a)",
+    "choices": [
+      "[1, 2, 3]",
+      "[1, 2, 3, 4]",
+      "[4]",
+      "TypeError"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cs-foundations/tier-1/core-data-structures-i/q2",
+    "type": "multiple_choice",
+    "prompt": "Which of these four is immutable, meaning it cannot be changed after it's created?",
+    "choices": [
+      "list",
+      "dictionary",
+      "set",
+      "tuple"
+    ],
+    "correctIndex": 3
+  },
+  {
+    "id": "cs-foundations/tier-1/core-data-structures-i/q3",
+    "type": "short_answer",
+    "prompt": "You have `scores = {\"Ada\": 92}` and you run `scores[\"Grace\"]`, but \"Grace\" isn't a key in the dictionary. What error type does Python raise?",
+    "acceptedAnswers": [
+      "KeyError",
+      "Key Error"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-1/core-data-structures-i/q4",
+    "type": "short_answer",
+    "prompt": "What is the result of `[10, 20, 30, 40, 50][1:3]`?",
+    "acceptedAnswers": [
+      "[20, 30]",
+      "20, 30"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-1/core-data-structures-i/q5",
+    "type": "explain_back",
+    "prompt": "Explain the aliasing bug in your own words: if `b = a` where `a` is a list, and you then modify `b`, why does `a` change too? Use the boxes-and-labels mental model, explain why the same thing does NOT happen with tuples or numbers, and say what you'd write instead of `b = a` to get a real, independent copy."
+  }
+]

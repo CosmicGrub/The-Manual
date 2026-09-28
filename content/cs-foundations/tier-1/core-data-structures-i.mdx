@@ -1,0 +1,141 @@
+---
+trackId: cs-foundations
+tier: 1
+title: Core Data Structures I
+order: 4
+estimatedHours: 8
+---
+
+Every program you've written so far has juggled data one variable at a time — one number, one string, one running total. Real programs don't work that way: they hold a whole class roster, a shopping cart, a set of usernames that must never contain a duplicate. Python gives you four built-in containers for exactly this — lists, tuples, dictionaries, and sets — and the single most important skill in this lesson isn't syntax, it's judgment: learning to look at a piece of data and immediately know which of the four actually fits the shape of the problem.
+
+## What you'll leave this lesson knowing
+
+- How to create, index, slice, and modify lists and tuples, and why one of them lets you mutate its contents and the other flatly refuses
+- How dictionaries map keys to values, and how sets store unique, unordered items — plus the classic set operations (union, intersection, difference)
+- How indexing and slicing notation works, including negative indices and step values, across lists, tuples, and strings alike
+- The mutability vs. immutability distinction well enough to explain *why* two variables can silently end up pointing at "the same list" and how that causes real bugs
+- Enough of a decision framework to pick the right structure for a given problem without having to guess
+
+## Do this
+
+1. **Build a list and put it through its paces.** Open a new file, `structures.py`, and write:
+   ```
+   grades = [88, 92, 75, 100, 60]
+   print(grades[0])        # 88 — first item, index 0
+   print(grades[-1])       # 60 — last item, negative indexing counts from the end
+   grades.append(95)
+   print(grades)           # [88, 92, 75, 100, 60, 95]
+   grades[2] = 80          # lists are mutable: you can overwrite an item in place
+   print(grades)           # [88, 92, 80, 100, 60, 95]
+   grades.sort()
+   print(grades)           # [60, 80, 88, 92, 95, 100]
+   print(len(grades))      # 6
+   ```
+   Run it. A list is an ordered, mutable sequence — order is preserved, duplicates are allowed, and you can add, remove, or overwrite items after creation.
+
+2. **Build the same data as a tuple and try to break it.** Add this below:
+   ```
+   point = (3, 7)
+   print(point[0])   # 3
+   point[0] = 9       # this line should raise an error
+   ```
+   Run it. You'll get `TypeError: 'tuple' object does not support item assignment`. That error is the entire point of a tuple: it's an ordered sequence like a list, but *immutable* — once created, it can never be changed. Use a tuple whenever a value is a fixed record that shouldn't drift, like an (x, y) coordinate or a (year, month, day) triple. Delete or comment out the line that crashes before moving on, then try unpacking — one of the biggest reasons tuples show up constantly in real code:
+   ```
+   x, y = point
+   print(x, y)   # 3 7
+   ```
+
+3. **Get comfortable with slicing — it works the same way on lists, tuples, and strings.** Add:
+   ```
+   letters = ["a", "b", "c", "d", "e", "f"]
+   print(letters[1:4])     # ['b', 'c', 'd'] — index 1 up to (not including) 4
+   print(letters[:3])      # ['a', 'b', 'c'] — start defaults to the beginning
+   print(letters[3:])      # ['d', 'e', 'f'] — end defaults to the end
+   print(letters[::2])     # ['a', 'c', 'e'] — step of 2: every other item
+   print(letters[::-1])    # ['f', 'e', 'd', 'c', 'b', 'a'] — step of -1: reversed
+   ```
+   The slice `[start:stop:step]` never raises an error even for out-of-range values (try `letters[2:100]`), which makes it forgiving to experiment with — run each line and predict the output before you look at it.
+
+4. **Build a dictionary to map names to values instead of positions to values.** A list only knows "item 3"; a dictionary knows "the item called `'Ada'`." Add:
+   ```
+   roster = {"Ada": 92, "Grace": 88, "Alan": 75}
+   print(roster["Ada"])          # 92
+   roster["Linus"] = 100          # add a new key
+   roster["Grace"] = 90           # update an existing key
+   print(roster)
+   print(roster.get("Turing"))          # None — .get() doesn't crash on a missing key
+   print(roster.get("Turing", 0))       # 0 — you can supply a fallback default
+   for name, score in roster.items():
+       print(name, "scored", score)
+   ```
+   Now deliberately trigger the error `.get()` was built to avoid: run `print(roster["Turing"])` with square brackets on a name that isn't there. You'll get `KeyError: 'Turing'`. This is normal and expected — reading a `KeyError` traceback and knowing it means "that key genuinely isn't in the dictionary" (not "Python is broken") is exactly the skill this exercise builds.
+
+5. **Use a set when duplicates shouldn't exist and order doesn't matter.** Add:
+   ```
+   emails_submitted = ["a@x.com", "b@x.com", "a@x.com", "c@x.com", "b@x.com"]
+   unique_emails = set(emails_submitted)
+   print(unique_emails)          # duplicates gone; order is not guaranteed
+   print(len(unique_emails))     # 3
+
+   honor_roll = {"Ada", "Grace", "Alan"}
+   extra_credit = {"Grace", "Linus"}
+   print(honor_roll | extra_credit)   # union: everyone in either set
+   print(honor_roll & extra_credit)   # intersection: in both
+   print(honor_roll - extra_credit)   # difference: in honor_roll only
+   ```
+   Converting a list to a set is the single fastest way to de-duplicate data in Python — you'll use `set(some_list)` constantly once you know it exists.
+
+6. **Now find the aliasing bug — this is the bug that catches almost everyone once.** Add and run:
+   ```
+   original = [1, 2, 3]
+   copy_attempt = original
+   copy_attempt.append(4)
+   print(original)   # [1, 2, 3, 4] — wait, we only touched copy_attempt!
+   ```
+   `copy_attempt = original` didn't create a second list — it made a second label pointing at the *same* list in memory, exactly like the boxes-and-labels model from Tier 0, except this time the box itself is mutable, so a change through either label shows up through both. This is a real, common source of bugs, especially when you pass a list into a function (from the Functions & Scope module) and the function mutates it without you expecting it to. The fix is an actual copy:
+   ```
+   original = [1, 2, 3]
+   real_copy = original.copy()
+   real_copy.append(4)
+   print(original)    # [1, 2, 3] — untouched
+   print(real_copy)   # [1, 2, 3, 4]
+   ```
+   Tuples, strings, and numbers don't have this problem at all — they're immutable, so there's no shared box to accidentally corrupt. That's a second, quieter reason immutability is a feature and not just a restriction.
+
+7. **Combine two structures to model something real.** A common, useful pattern is a list of small fixed-size tuples paired with a dictionary for lookup. Write a small gradebook:
+   ```
+   students = [("Ada", 92), ("Grace", 88), ("Alan", 75)]
+   lookup = dict(students)          # dict() can build a dictionary straight from (key, value) pairs
+   print(lookup["Grace"])           # 88
+
+   total = 0
+   for name, score in students:
+       total += score
+   average = total / len(students)
+   print(f"Average: {average:.1f}")   # Average: 85.0
+   ```
+   If `dict(students)` surprises you, that's a completely normal moment to pause and look up "python dict from list of tuples" — recognizing "I've seen a shape like this before, I just don't remember the exact syntax" and confirming it is a real, permanent part of how programmers work, not a gap in you.
+
+8. **Debug three broken snippets before reading the fixes.** For each one, predict the error or wrong output, then run it to check yourself:
+   ```
+   # Snippet A
+   colors = ("red", "green", "blue")
+   colors.append("yellow")
+
+   # Snippet B
+   scores = {"Ada": 92, "Grace": 88}
+   print(scores["ada"])
+
+   # Snippet C
+   inventory = [10, 20, 30]
+   backup = inventory
+   inventory.pop()
+   print(backup)
+   ```
+   A raises `AttributeError: 'tuple' object has no attribute 'append'` — tuples have no `.append` at all, immutability again. B raises `KeyError: 'ada'` — dictionary keys are case-sensitive strings, `"ada"` and `"Ada"` are different keys entirely. C prints `[10, 20]`, not `[10, 20, 30]` — the exact aliasing bug from step 6, since `backup` and `inventory` are the same list.
+
+## Check on learning
+
+- Out loud, explain the difference between a list and a tuple, and give one real example (not from this lesson) where using a tuple instead of a list is the *correct* choice, not just a stylistic one.
+- Without running it, predict what this prints, then check yourself: `a = [1, 2]; b = a; b += [3]; print(a)`.
+- Explain the four set operations (union, intersection, difference, and what `^` does — look it up if you need to) using a real-world example of two overlapping groups of people, like two class rosters.
