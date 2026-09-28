@@ -1,0 +1,98 @@
+[
+  {
+    "id": "languages/tier-3/reading-real-codebases/q1",
+    "type": "multiple_choice",
+    "prompt": "In a Go codebase, why can grep for a method name like `.Save(` be insufficient to know which implementation actually runs at a given call site?",
+    "choices": [
+      "Because Go allows method overloading across unrelated types",
+      "Because any type whose method set satisfies an interface can define a method with that same name, and grep can't tell which concrete type is wired in at runtime",
+      "Because grep ignores package boundaries when searching Go source",
+      "Because Go interfaces are erased from the source before compilation and can't be grepped"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-3/reading-real-codebases/q2",
+    "type": "multiple_choice",
+    "prompt": "You build a Go binary with plain `go build -o app .`, then run `dlv exec ./app` and set a breakpoint inside a small helper function. Execution never stops there, even though you're certain the function runs. What's the most likely cause?",
+    "choices": [
+      "Delve cannot attach to binaries built with `go build`, only with `dlv debug`",
+      "The compiler's default optimizations likely inlined the small function into its caller, leaving no separate instruction to break on",
+      "Go binaries never contain any debug symbols under any build",
+      "The breakpoint must be set using a fully package-qualified function name instead of a file:line"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-3/reading-real-codebases/q3",
+    "type": "multiple_choice",
+    "prompt": "In `go tool pprof` output, a function showing high \"flat\" time should be read as:",
+    "choices": [
+      "A function that is called very infrequently",
+      "A function whose own code, excluding the functions it calls, is consuming that much CPU time",
+      "A function located near the top of main.go",
+      "A function that only affects memory allocation, never CPU time"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-3/reading-real-codebases/q4",
+    "type": "multiple_choice",
+    "prompt": "Given `result += e + \"\\n\"` inside a loop over N strings in Go, what happens to running time as N grows, and why?",
+    "choices": [
+      "It grows linearly with N, because Go string concatenation is O(1) per append",
+      "It grows roughly quadratically with N, because each `+=` allocates a new string and copies the entire prior result into it",
+      "It stays constant, because Go interns and reuses all string literals automatically",
+      "It panics once N exceeds roughly 10,000, because Go strings have a fixed maximum length"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-3/reading-real-codebases/q5",
+    "type": "multiple_choice",
+    "prompt": "How does contributing to the core Go standard library (the `golang/go` repository) differ from contributing to most Go open-source projects hosted on GitHub?",
+    "choices": [
+      "It works identically \u2014 fork the repo and open a normal GitHub pull request",
+      "It only accepts contributions mailed in as raw patch files, with no tooling support",
+      "Its GitHub mirror does not accept pull requests; real changes go through Gerrit code review via the `git-codereview` tool",
+      "It requires a paid cloud account before any change can be submitted"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "languages/tier-3/reading-real-codebases/q6",
+    "type": "multiple_choice",
+    "prompt": "While stopped at a breakpoint inside `LedgerService.Deposit`, you run `print s.store` in Delve and see `main.Store(*main.MemStore) 0xc0000a4010`. What does this tell you that reading `service.go` alone never could?",
+    "choices": [
+      "The exact numeric value of the `amount` argument",
+      "That the interface field `store` is, at this exact moment, actually holding a `*MemStore` rather than some other type that also satisfies `Store`",
+      "That the running program has a memory leak",
+      "The compiled byte size of the `Store` interface type"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-3/reading-real-codebases/q7",
+    "type": "multiple_choice",
+    "prompt": "After reading a \"good first issue\" and understanding the bug, what's the most reliable next step before writing the fix itself?",
+    "choices": [
+      "Open a PR immediately with your best guess at the correct fix",
+      "Write a test that reproduces the reported bug, confirm it fails, then make it pass",
+      "Rewrite the entire module you suspect is responsible, to be thorough",
+      "Wait for a maintainer to personally assign you the issue before touching any code"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-3/reading-real-codebases/q8",
+    "type": "multiple_choice",
+    "prompt": "What does `git commit -s` add to a commit, and why do some open-source projects require it before merging a PR?",
+    "choices": [
+      "A GPG signature that encrypts the diff contents",
+      "A `Signed-off-by:` trailer certifying you have the right to submit the change under the project's license (Developer Certificate of Origin)",
+      "An automatic squash of every prior commit on the branch",
+      "A trigger that forces CI to re-run on the pull request"
+    ],
+    "correctIndex": 1
+  }
+]

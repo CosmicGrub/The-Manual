@@ -1,0 +1,418 @@
+---
+trackId: languages
+tier: 3
+title: "Java or C# for OOP at Scale"
+order: 2
+estimatedHours: 16
+slug: java-or-csharp-for-oop-at-scale
+---
+
+## Picking Up From Here
+
+You already know OOP — classes, encapsulation, inheritance, polymorphism — from Tier 2's Python coverage, and basic Java syntax and compilation from earlier in this tier, so none of that gets re-taught here. This module is about what changes when you move from Python's dynamic, duck-typed OOP to Java's statically-checked, contract-enforced OOP, and how that shows up in real, multi-file codebases: interfaces as explicit contracts, generics as compile-time type safety, checked exceptions as a distinct failure category, and the collections framework as the connective tissue between all three.
+
+## Interfaces: Contracts the Compiler Enforces
+
+In Python, if an object has a `.speak()` method, you can call `.speak()` on it — nobody checks that it formally belongs to any type. That's duck typing. Java doesn't allow it. If you want a set of unrelated classes to be usable interchangeably, they must explicitly declare that they implement a shared interface, and the compiler verifies every required method is present.
+
+```java
+public interface Priceable {
+    double getUnitPrice();
+    default double totalFor(int quantity) {
+        return getUnitPrice() * quantity;
+    }
+}
+
+public class Item implements Priceable {
+    private final double unitPrice;
+    public Item(double unitPrice) { this.unitPrice = unitPrice; }
+
+    @Override
+    public double getUnitPrice() { return unitPrice; }
+}
+```
+
+`totalFor` is a **default method** — a method with a body living directly in the interface, inherited by every implementer for free. A class can implement any number of interfaces (Java forbids multiple *class* inheritance but not multiple interface implementation), which is how Java gets most of the flexibility Python gets from mixins.
+
+> **C# aside:** C# interfaces work the same way (`interface IPriceable { ... }`, `class Item : IPriceable`), and since C# 8 also support default method bodies. The one syntax difference worth knowing: C# conventionally prefixes interface names with `I` (`IPriceable`, `IRepository`), a naming convention Java doesn't use.
+
+Where Python would use `isinstance()` checks or just trust duck typing, Java uses the interface type directly as a parameter or variable type:
+
+```java
+public void printPrice(Priceable p) {
+    System.out.printf("$%.2f%n", p.getUnitPrice());
+}
+```
+
+Any class implementing `Priceable` — `Item`, `Service`, whatever — can be passed here. This is Java's version of "if it walks like a duck," except the compiler checked the duck-ness before your program ever ran.
+
+## Generics: Compile-Time Type Safety
+
+Python's collections hold anything; a `list` can mix strings and integers, and you find out about a type mismatch at runtime (or not at all, if the buggy path never executes). Java's generics catch that class of bug at compile time.
+
+```java
+List<String> names = new ArrayList<>();
+names.add("wrench");
+names.add(42);           // compile error: incompatible types
+```
+
+Generics aren't limited to the standard collections — you write your own generic classes and methods:
+
+```java
+public class Box<T> {
+    private T contents;
+    public void put(T item) { contents = item; }
+    public T get() { return contents; }
+}
+
+Box<Item> itemBox = new Box<>();
+itemBox.put(new Item(8.50));
+Item retrieved = itemBox.get();   // no cast needed
+```
+
+Before generics (pre-Java 5), that `get()` would have returned `Object`, forcing an explicit cast at every call site. Generics push that cast into the type system so the compiler does it for you, silently, and rejects the code if the types don't line up.
+
+**Bounded type parameters** restrict what `T` can be:
+
+```java
+public static <T extends Comparable<T>> T max(List<T> list) {
+    T best = list.get(0);
+    for (T item : list) {
+        if (item.compareTo(best) > 0) best = item;
+    }
+    return best;
+}
+```
+
+`<T extends Comparable<T>>` means "T must implement `Comparable<T>`" — not literal subclassing, since `Comparable` is an interface, but `extends` is the keyword Java reuses for both bounds. Without that bound, `item.compareTo(best)` wouldn't compile, because plain `Object` has no `compareTo`.
+
+> **C# aside:** C# generics are *reified* — the runtime knows `List<Item>` is distinct from `List<string>` even via reflection. Java generics are *erased*: at runtime a `List<Item>` and a `List<String>` are both just `List`, with the element type checks happening only at compile time. This is why you can't do `new T[10]` in Java generic code, and why `instanceof List<Item>` doesn't compile — the JVM has already forgotten `T` by the time the code runs. It rarely bites you in application code, but it's the single biggest generics gotcha Java has that C# doesn't.
+
+## Exceptions: Checked vs. Unchecked
+
+Python, like C#, treats every exception the same way — nothing forces you to declare or catch anything. Java splits exceptions into two categories, and this split is genuinely new material, not something Tier 2 covered.
+
+**Checked exceptions** (subclasses of `Exception`, not `RuntimeException`) must be either caught or declared in a `throws` clause — the compiler enforces it:
+
+```java
+public class ItemNotFoundException extends Exception {
+    public ItemNotFoundException(String sku) {
+        super("No item with SKU " + sku);
+    }
+}
+
+public void sell(String sku, int amount) throws ItemNotFoundException {
+    // ...
+    throw new ItemNotFoundException(sku);
+}
+```
+
+Any caller of `sell` must either catch `ItemNotFoundException` or itself declare `throws ItemNotFoundException` — omit both and the code doesn't compile.
+
+**Unchecked exceptions** (subclasses of `RuntimeException`) carry no such obligation — they can be thrown from anywhere and propagate silently until something catches them or the program crashes, exactly like Python exceptions do:
+
+```java
+public class InsufficientStockException extends RuntimeException {
+    public InsufficientStockException(String sku, int requested, int available) {
+        super(String.format("Cannot remove %d of %s — only %d in stock", requested, sku, available));
+    }
+}
+```
+
+The convention: use checked exceptions for conditions a caller can reasonably be expected to recover from (item not found → maybe prompt the user for a different SKU), and unchecked exceptions for programming errors or business-rule violations you want to bubble straight up (insufficient stock is usually a logic error upstream, not something you retry). `try`-with-resources handles cleanup for anything implementing `AutoCloseable`:
+
+```java
+try (BufferedReader reader = new BufferedReader(new FileReader("stock.csv"))) {
+    String line;
+    while ((line = reader.readLine()) != null) {
+        processLine(line);
+    }
+} catch (IOException e) {
+    System.err.println("Failed to load stock file: " + e.getMessage());
+}
+```
+
+`reader.close()` runs automatically when the block exits, success or failure — no `finally` needed.
+
+> **C# aside:** C# has no checked/unchecked distinction at all — every exception behaves like Java's unchecked ones, and there's no `throws` clause. If you've written C# before Java, the compiler yelling about an undeclared `IOException` will be the most surprising thing in this module.
+
+## The Collections Framework
+
+You've used Python `list` and `dict` extensively. Java's equivalents — `ArrayList` and `HashMap` — behave similarly but sit inside a much stricter type hierarchy, all built around three core interfaces: `List`, `Set`, and `Map`.
+
+```java
+List<Item> items = new ArrayList<>();       // ordered, duplicates allowed
+Set<String> skus = new HashSet<>();         // no duplicates, no guaranteed order
+Map<String, Item> byId = new HashMap<>();   // key → value lookups
+```
+
+Always declare the variable as the *interface* (`List<Item>`) and instantiate a concrete implementation (`new ArrayList<>()`). This lets you swap `ArrayList` for `LinkedList` later without touching any code that uses the variable — the same principle as coding against `Priceable` instead of `Item` directly.
+
+```java
+Map<String, Integer> stock = new HashMap<>();
+stock.put("W-100", 12);
+stock.put("H-220", 3);
+
+for (Map.Entry<String, Integer> entry : stock.entrySet()) {
+    System.out.println(entry.getKey() + ": " + entry.getValue());
+}
+
+stock.merge("W-100", 5, Integer::sum);   // W-100 → 17
+```
+
+**The `equals`/`hashCode` contract** is the sharpest edge in this framework, and it's the direct analog of Python's `__eq__` and `__hash__` dunder methods. A `HashMap` or `HashSet` uses `hashCode()` to find the right bucket and `equals()` to confirm a match within it. Override one without the other and lookups silently fail:
+
+```java
+class Point {
+    int x, y;
+    Point(int x, int y) { this.x = x; this.y = y; }
+
+    @Override
+    public boolean equals(Object o) {
+        if (!(o instanceof Point p)) return false;
+        return x == p.x && y == p.y;
+    }
+    // no hashCode() override — bug
+}
+
+Set<Point> seen = new HashSet<>();
+seen.add(new Point(1, 2));
+seen.contains(new Point(1, 2));   // false! different default hashCode, wrong bucket
+```
+
+The fix is always to override both together (or generate both from the same fields, as you'll see in the project below). This is exactly the pitfall Python developers hit if they define `__eq__` without `__hash__` — Python actually protects you partially by setting `__hash__` to `None` automatically when you define `__eq__` alone, making the object unhashable rather than silently broken. Java gives you no such guardrail; a class with a broken `hashCode()` compiles and runs, it just gives wrong answers.
+
+Sorting uses `Comparable` (natural order, built into the class) or `Comparator` (external, pluggable order):
+
+```java
+items.sort(Comparator.comparingInt(Item::getQuantity));
+items.sort(Comparator.comparing(Item::getName).reversed());
+```
+
+And the Streams API, layered on top of collections, lets you express filter/map/reduce pipelines without hand-written loops:
+
+```java
+List<Item> low = items.stream()
+    .filter(i -> i.getQuantity() < 5)
+    .sorted(Comparator.comparingInt(Item::getQuantity))
+    .collect(Collectors.toList());
+```
+
+Both the loop version and the stream version below do the same thing — use whichever reads clearer for the operation.
+
+## Build Tooling: Maven Basics
+
+Real Java projects aren't compiled with a bare `javac` — a build tool manages dependencies, compilation, testing, and packaging. Maven describes a project declaratively in `pom.xml`:
+
+```xml
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>com.themanual</groupId>
+    <artifactId>shelfkeeper</artifactId>
+    <version>1.0-SNAPSHOT</version>
+
+    <properties>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>5.10.0</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>
+```
+
+Standard commands:
+
+```shell
+mvn compile          # compile src/main/java
+mvn test             # run src/test/java
+mvn package          # produce a .jar in target/
+mvn exec:java -Dexec.mainClass="com.themanual.Main"
+```
+
+Maven expects a fixed directory layout — `src/main/java` for code, `src/test/java` for tests, `src/main/resources` for non-code files. Gradle solves the same problem with a Groovy or Kotlin DSL instead of XML, and is faster for large builds via incremental compilation:
+
+```groovy
+// build.gradle
+plugins { id 'java' }
+repositories { mavenCentral() }
+dependencies {
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.0'
+}
+```
+
+Either tool does the same job; Maven's XML is more verbose but you'll see it more often in existing enterprise codebases, so it's worth being fluent in reading it even if you prefer writing Gradle.
+
+> **C# aside:** the .NET equivalent is a `.csproj` file plus NuGet for dependencies (`dotnet add package Newtonsoft.Json`), conceptually identical to `pom.xml` plus Maven Central.
+
+## Project: ShelfKeeper, an Inventory Tracker
+
+This ties interfaces, generics, exceptions, and collections together in one small but real codebase — a console-driven inventory tracker, four classes deep, all in one package (so no `import` statements are needed between them).
+
+**`Item.java`** — the domain object, with `equals`/`hashCode` done correctly:
+
+```java
+public class Item {
+    private final String sku;
+    private final String name;
+    private int quantity;
+    private final double unitPrice;
+
+    public Item(String sku, String name, int quantity, double unitPrice) {
+        this.sku = sku;
+        this.name = name;
+        this.quantity = quantity;
+        this.unitPrice = unitPrice;
+    }
+
+    public String getSku() { return sku; }
+    public String getName() { return name; }
+    public int getQuantity() { return quantity; }
+    public void setQuantity(int quantity) { this.quantity = quantity; }
+
+    @Override
+    public boolean equals(Object o) {
+        if (!(o instanceof Item item)) return false;
+        return sku.equals(item.sku);
+    }
+
+    @Override
+    public int hashCode() { return sku.hashCode(); }
+
+    @Override
+    public String toString() {
+        return String.format("%-8s %-20s qty=%-4d $%.2f", sku, name, quantity, unitPrice);
+    }
+}
+```
+
+**`Repository.java`** — a generic interface, parameterized over both the entity type and its ID type:
+
+```java
+import java.util.List;
+import java.util.Optional;
+
+public interface Repository<T, ID> {
+    void save(T entity);
+    Optional<T> findById(ID id);
+    List<T> findAll();
+    void deleteById(ID id);
+}
+```
+
+**`InMemoryItemRepository.java`** — the concrete implementation, backed by a `HashMap`:
+
+```java
+import java.util.*;
+
+public class InMemoryItemRepository implements Repository<Item, String> {
+    private final Map<String, Item> items = new HashMap<>();
+
+    @Override
+    public void save(Item entity) { items.put(entity.getSku(), entity); }
+
+    @Override
+    public Optional<Item> findById(String sku) { return Optional.ofNullable(items.get(sku)); }
+
+    @Override
+    public List<Item> findAll() { return new ArrayList<>(items.values()); }
+
+    @Override
+    public void deleteById(String sku) { items.remove(sku); }
+}
+```
+
+**`InventoryException.java`** and **`InsufficientStockException.java`** — one checked, one unchecked, as discussed above.
+
+**`InventoryService.java`** — the business logic, depending on `Repository<Item, String>` (the interface, not the `HashMap`-backed class — swap in a database-backed repository later without touching this file):
+
+```java
+import java.util.ArrayList;
+import java.util.List;
+
+public class InventoryService {
+    private final Repository<Item, String> repository;
+
+    public InventoryService(Repository<Item, String> repository) {
+        this.repository = repository;
+    }
+
+    public void receiveStock(Item item) {
+        repository.findById(item.getSku()).ifPresentOrElse(
+            existing -> existing.setQuantity(existing.getQuantity() + item.getQuantity()),
+            () -> repository.save(item)
+        );
+    }
+
+    public void sell(String sku, int amount) throws ItemNotFoundException {
+        Item item = repository.findById(sku).orElseThrow(() -> new ItemNotFoundException(sku));
+        if (item.getQuantity() < amount) {
+            throw new InsufficientStockException(sku, amount, item.getQuantity());
+        }
+        item.setQuantity(item.getQuantity() - amount);
+    }
+
+    public List<Item> lowStock(int threshold) {
+        List<Item> result = new ArrayList<>();
+        for (Item item : repository.findAll()) {
+            if (item.getQuantity() < threshold) result.add(item);
+        }
+        return result;
+    }
+}
+```
+
+**`Main.java`** — the CLI, wiring everything together and handling both exception types where they belong:
+
+```java
+import java.util.*;
+
+public class Main {
+    public static void main(String[] args) {
+        Repository<Item, String> repo = new InMemoryItemRepository();
+        InventoryService service = new InventoryService(repo);
+
+        service.receiveStock(new Item("W-100", "Wrench", 12, 8.50));
+        service.receiveStock(new Item("H-220", "Hammer", 3, 15.00));
+        service.receiveStock(new Item("N-050", "Nails (box)", 40, 4.25));
+
+        Scanner in = new Scanner(System.in);
+        System.out.println("ShelfKeeper — commands: sell <sku> <qty>, low <threshold>, list, quit");
+
+        while (true) {
+            System.out.print("> ");
+            String[] parts = in.nextLine().trim().split("\\s+");
+            if (parts[0].equals("quit")) break;
+
+            try {
+                switch (parts[0]) {
+                    case "sell" -> service.sell(parts[1], Integer.parseInt(parts[2]));
+                    case "low" -> service.lowStock(Integer.parseInt(parts[1]))
+                                         .forEach(System.out::println);
+                    case "list" -> repo.findAll().forEach(System.out::println);
+                    default -> System.out.println("Unknown command");
+                }
+            } catch (ItemNotFoundException | InsufficientStockException e) {
+                System.out.println("Error: " + e.getMessage());
+            }
+        }
+    }
+}
+```
+
+Notice the multi-catch (`ItemNotFoundException | InsufficientStockException`): one checked, one unchecked, caught together because `Main` treats both the same way — printing a message and continuing the loop. The compiler still enforces that `ItemNotFoundException` must be caught somewhere, since `sell` declares `throws ItemNotFoundException`; `InsufficientStockException` didn't need to be caught at all, but catching it here gives a better user experience than crashing the CLI.
+
+Run it with `mvn exec:java -Dexec.mainClass="com.themanual.Main"` (or your IDE's run button), then try `list`, `sell W-100 5`, `sell H-220 99` (triggers `InsufficientStockException`), and `sell Z-999 1` (triggers `ItemNotFoundException`).
+
+## Exercise
+
+Extend ShelfKeeper with a `restock <filename>` command that bulk-loads items from a CSV file where each line is `sku,name,quantity,price`. Add a new **checked** exception, `MalformedInventoryLineException`, thrown by a private helper that parses one line. When a line is malformed, `restock` should print a warning with the line number and *keep processing the rest of the file* rather than aborting the whole load.
+
+Hint: read the file with `Files.readAllLines(Path.of(filename))`, which gives you a `List<String>` you can iterate with an index; wrap the per-line parsing in its own `try`/`catch` inside the loop so one bad line doesn't stop the others.

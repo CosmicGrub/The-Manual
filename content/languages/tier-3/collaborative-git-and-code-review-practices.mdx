@@ -1,0 +1,210 @@
+---
+trackId: languages
+tier: 3
+title: "Collaborative Git & Code Review Practices"
+order: 6
+estimatedHours: 6
+slug: collaborative-git-and-code-review-practices
+---
+
+## Branching strategy: trunk-based vs. long-lived feature branches
+
+You already know how to create a branch and open a PR from Tier 0. What you haven't had to reckon with yet is *how long a branch should stay alive* when other people are committing to the same repo at the same time. That choice — more than almost anything else — determines how painful your week is.
+
+**Trunk-based development**: everyone merges small changes into `main` at least once a day, often several times. Branches live for hours, not weeks. Incomplete features are hidden behind a feature flag rather than kept off `main` entirely:
+
+```go
+func CheckoutHandler(cart Cart) Receipt {
+    if featureflags.Enabled("new-tax-engine") {
+        return checkoutWithNewTaxEngine(cart)
+    }
+    return checkoutLegacy(cart)
+}
+```
+
+The `main` branch is always deployable. CI has to stay green, because everyone is building on top of it *right now*. The cost is discipline: you need feature flags, small PRs, and a culture where "half-done but flagged off" is a normal thing to merge.
+
+**Long-lived feature branches** (the GitFlow-style model): you cut a branch, work on it for a week or three, and open a PR only when the feature is "done." Other people's branches diverge from yours the whole time. The benefit is isolation — nothing half-finished touches `main`. The cost shows up at merge time: the longer a branch lives, the more `main` has moved underneath it, and the bigger and scarier the eventual merge becomes. A two-day branch might have a five-line conflict. A three-week branch touching the same files as four other three-week branches can have conflicts nobody fully understands anymore, because nobody remembers why either side wrote what it wrote.
+
+The practical tradeoff:
+
+| | Trunk-based | Long-lived branches |
+|---|---|---|
+| Merge conflicts | Small, frequent, cheap | Rare, but large and expensive |
+| Integration bugs found | Early (daily) | Late (at merge time) |
+| Requires | Feature flags, CI discipline, small PRs | Less day-to-day discipline |
+| Review size | Small diffs, easy to review well | Large diffs, easy to rubber-stamp |
+
+Most production teams at scale lean trunk-based specifically because it turns one terrifying merge into fifty boring ones. Keep your own branches short — rebase onto `main` or merge `main` into your branch at least daily — regardless of which model your team nominally follows. A branch that's three days old is a branch you can still reason about. A branch that's three weeks old has drifted into someone else's changes and you don't know it yet.
+
+## Opening a PR someone will actually want to review
+
+A PR is a request for someone else's time and judgment. Treat the description like documentation, not a formality.
+
+Weak PR: title `fix stuff`, description empty, 40 files changed, three unrelated bugs fixed alongside a new feature. The reviewer has no idea where to start, can't tell what's in scope, and either rubber-stamps it or spends an hour reverse-engineering your intent.
+
+Strong PR:
+
+```
+Title: Reject negative quantities in AddToCart
+
+Problem: AddToCart silently accepted qty <= 0, which let a
+client bug set cart totals negative (see #482).
+
+Change: Validate qty > 0 in AddToCart; return CartError
+otherwise. No changes to checkout logic.
+
+Test plan: added TestAddToCart_RejectsNonPositiveQuantity.
+Manually verified via the /cart endpoint with qty=-1.
+```
+
+One logical change, a stated problem, a stated fix, a way to verify it. A reviewer can hold this in their head in thirty seconds.
+
+**Reviewing**, not just approving, is the other half. The difference between a useless comment and a useful one is almost always *specificity plus reasoning*:
+
+Useless: `this is wrong`
+Useless: `nit: rename this`
+Useless: `👍`
+
+Useful:
+```
+`quantity` can be 0 here if the cart was emptied concurrently
+by another request — line 42 doesn't hold a lock, so this check
+can pass and then fail at checkout. Consider re-checking inside
+the transaction, or documenting that this race is accepted.
+```
+
+That comment names a concrete failure path, says why it matters, and offers a path forward without dictating the exact fix. Also mark severity explicitly — `blocking:` vs `nit:` vs `question:` — so the author knows what must change before merge versus what's a suggestion:
+
+```
+nit: `tmp` -> `pendingOrders` would read clearer, not blocking.
+blocking: this drops the error from `db.Save`; a failed write
+looks like a success to the caller.
+```
+
+A review that only says "LGTM" on a 40-file PR isn't a review, it's a signature. A review that nitpicks variable names while missing a swallowed error isn't reviewing for correctness at all.
+
+## Resolving a real multi-person merge conflict, step by step
+
+Here's the scenario. `main` has `discount.go`:
+
+```go
+func ApplyDiscount(price float64, code string) float64 {
+    if code == "SAVE10" {
+        return price * 0.9
+    }
+    return price
+}
+```
+
+Alice branches off this and adds a new code. Meanwhile Bob branches off the same commit and adds a price floor. Bob merges first:
+
+```go
+// main, after Bob's PR merges
+func ApplyDiscount(price float64, code string) float64 {
+    if code == "SAVE10" {
+        price *= 0.9
+    }
+    if price < 1.00 {
+        price = 1.00 // never discount below $1
+    }
+    return price
+}
+```
+
+Now Alice tries to bring her branch up to date:
+
+```bash
+git fetch origin
+git rebase origin/main
+```
+
+Git stops and reports a conflict in `discount.go`. Opening the file shows:
+
+```go
+func ApplyDiscount(price float64, code string) float64 {
+<<<<<<< HEAD
+    if code == "SAVE10" {
+        price *= 0.9
+    }
+    if price < 1.00 {
+        price = 1.00 // never discount below $1
+    }
+=======
+    if code == "SAVE10" {
+        return price * 0.9
+    }
+    if code == "SAVE20" {
+        return price * 0.8
+    }
+>>>>>>> a3f9c21 (Add SAVE20 discount code)
+    return price
+}
+```
+
+`HEAD` (above `=======`) is Bob's already-merged version — the new base you're rebasing onto. Below `=======` is Alice's own commit. The conflict exists because both sides touched the same lines of the same function: Git can't guess that you want *both* the floor and the new code. You have to.
+
+Read both sides, understand the *intent* of each, and hand-merge:
+
+```go
+func ApplyDiscount(price float64, code string) float64 {
+    switch code {
+    case "SAVE10":
+        price *= 0.9
+    case "SAVE20":
+        price *= 0.8
+    }
+    if price < 1.00 {
+        price = 1.00 // never discount below $1
+    }
+    return price
+}
+```
+
+Then:
+
+```bash
+git add discount.go
+go test ./...            # never trust a resolved conflict untested
+git rebase --continue
+git push --force-with-lease
+```
+
+Two details matter here. First, `go test` (or your language's equivalent) after every resolved conflict — Git successfully merging text tells you the *syntax* didn't collide, not that the *logic* still makes sense. It's entirely possible to resolve a conflict into code that compiles and is wrong. Second, `--force-with-lease` instead of `--force`: after a rebase, your branch's history has been rewritten, so a normal push is rejected. `--force-with-lease` still overwrites the remote branch, but it first checks that nobody else pushed to it since you last fetched — if they did, it refuses instead of silently deleting their work. Plain `--force` has no such check.
+
+If this were a three-way merge (`git merge` instead of `git rebase`), the same conflict markers appear, but you'd resolve it with `git add` + `git commit` instead of `--continue`. The markers and the judgment call are identical either way — only the command that closes it out differs.
+
+## Commit messages and review comments for a future reader
+
+Nobody reading `git log` six months from now was in your head when you wrote the code. They have the diff and your words. Write for them.
+
+Weak:
+```
+fix bug
+```
+
+Weak:
+```
+update pricing.go
+```
+
+Useful:
+```
+Fix discount stacking when SAVE20 combines with price floor
+
+ApplyDiscount applied the $1 floor before checking SAVE20,
+so a $1.10 item with SAVE20 rounded to $1.00 instead of the
+correct $0.88. Reordered: apply discount, then floor.
+
+Fixes #517
+```
+
+Subject line in the imperative mood ("Fix", not "Fixed" or "Fixing"), under ~50 characters, blank line, then a body that explains *why* the change was needed — the bug, the reasoning, the tradeoff — not a restatement of the diff. `git diff` already shows *what* changed; the message's job is to carry the *why*, which the diff can never show.
+
+The same rule governs review comments left in the PR thread: a comment that says `changed the check order` is redundant with the diff itself. A comment that says `moved the floor check after the discount switch, since applying it first was clipping SAVE20 before it ran` tells the next person who touches this file — possibly you, in eight months, with zero memory of this PR — what invariant they'd break if they moved it back.
+
+## Exercise
+
+You and a teammate both branched from the same commit of a `Cart` service. Your teammate's branch (already merged to `main`) added a `MaxItems` check to `AddItem`. Your branch adds a `giftWrap bool` parameter to the same function and updates every call site. Rebase your branch onto the updated `main`, resolve the conflict in `AddItem` so both the item-count check and the gift-wrap parameter survive, write a commit message for the resolution that would make sense to someone reading it in a year, and leave one review comment on your own diff pointing out something a reviewer should double check.
+
+*Hint:* the conflict will be inside the function signature and body both — resolve the signature first, get it compiling, then work out whether `MaxItems` should be checked before or after you touch `giftWrap`, and think about whether checking order matters here the way it did in the discount example.

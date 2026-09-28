@@ -1,0 +1,98 @@
+[
+  {
+    "id": "languages/tier-3/cpp-fundamentals-atop-c-knowledge/q1",
+    "type": "multiple_choice",
+    "prompt": "What does RAII (Resource Acquisition Is Initialization) mean in C++?",
+    "choices": [
+      "A resource's lifetime is tied to an object's lifetime: the constructor acquires it, and the destructor releases it automatically when the object's scope ends",
+      "All resources must be allocated on the stack, never the heap",
+      "A naming convention requiring resource-owning classes to start with the letter R",
+      "A compiler optimization that removes unused malloc/free calls at compile time"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-3/cpp-fundamentals-atop-c-knowledge/q2",
+    "type": "multiple_choice",
+    "prompt": "class Buffer {\npublic:\n    explicit Buffer(size_t n) : data_(new int[n]), size_(n) {}\n    ~Buffer() { delete[] data_; }\nprivate:\n    int* data_;\n    size_t size_;\n};\n\nint main() {\n    Buffer a(10);\n    Buffer b = a;\n}\n\nWhat happens when this program runs?",
+    "choices": [
+      "It compiles and runs cleanly -- b gets its own independent copy of the array",
+      "It fails to compile because Buffer has no copy constructor defined",
+      "It compiles, but produces a double-free: the compiler-generated copy constructor shallow-copies data_, so both destructors delete[] the same pointer",
+      "It compiles and runs cleanly because delete[] is safe to call on the same pointer twice"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "languages/tier-3/cpp-fundamentals-atop-c-knowledge/q3",
+    "type": "multiple_choice",
+    "prompt": "Which of the following is true of a C++ reference (e.g. int&), in contrast to a pointer?",
+    "choices": [
+      "It must be initialized when declared and can never afterward be made to refer to a different object",
+      "It can be null, just like an uninitialized pointer",
+      "It supports pointer arithmetic (ref + 1) the same way a pointer does",
+      "Assigning a new value to a reference always rebinds it to a different variable"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-3/cpp-fundamentals-atop-c-knowledge/q4",
+    "type": "multiple_choice",
+    "prompt": "std::vector<int> v = {1, 2, 3};\nv.push_back(4);\nfor (int x : v) std::cout << x << \" \";\n\nWhat is printed?",
+    "choices": [
+      "1 2 3",
+      "1 2 3 4",
+      "4 1 2 3",
+      "Compile error -- push_back cannot be used after list initialization"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-3/cpp-fundamentals-atop-c-knowledge/q5",
+    "type": "multiple_choice",
+    "prompt": "std::map<std::string, int> m;\nm[\"banana\"] = 2;\nm[\"apple\"] = 1;\nfor (const auto& [k, v] : m) std::cout << k << \" \";\n\nWhat is printed?",
+    "choices": [
+      "banana apple",
+      "apple banana",
+      "The order is unspecified and may differ between runs",
+      "Compile error -- structured bindings cannot be used in a range-based for loop"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-3/cpp-fundamentals-atop-c-knowledge/q6",
+    "type": "multiple_choice",
+    "prompt": "std::unique_ptr<int> p1 = std::make_unique<int>(5);\nstd::unique_ptr<int> p2 = p1;\n\nWhat happens when this is compiled?",
+    "choices": [
+      "It compiles, and p1 and p2 both share ownership of the same int",
+      "It compiles, but p1 becomes null after the assignment",
+      "It fails to compile: unique_ptr's copy constructor is deleted, so this needs std::move instead",
+      "It compiles and links, but crashes at runtime when both destructors try to free the same pointer"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "languages/tier-3/cpp-fundamentals-atop-c-knowledge/q7",
+    "type": "multiple_choice",
+    "prompt": "How does std::shared_ptr decide when to destroy the object it manages?",
+    "choices": [
+      "It destroys the object as soon as any single shared_ptr pointing to it goes out of scope",
+      "It keeps a reference count and destroys the object when that count reaches zero -- i.e. when the last owning shared_ptr is destroyed",
+      "It relies on the garbage collector built into the C++ runtime",
+      "It destroys the object at program exit, regardless of how many shared_ptrs point to it"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-3/cpp-fundamentals-atop-c-knowledge/q8",
+    "type": "multiple_choice",
+    "prompt": "What is the purpose of doing an out-of-source CMake build (mkdir build && cd build && cmake .. && cmake --build .)?",
+    "choices": [
+      "It compiles the project with a different, faster compiler than the source tree specifies",
+      "It keeps all generated build files (object files, the Makefile CMake generates, binaries) separate from the source tree, so the source directory stays clean and a full rebuild is just deleting the build directory",
+      "It is required syntax -- CMake cannot generate a build system in the same directory as the source files under any configuration",
+      "It automatically runs the project's test suite before compiling"
+    ],
+    "correctIndex": 1
+  }
+]

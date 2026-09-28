@@ -1,0 +1,281 @@
+---
+trackId: languages
+tier: 3
+title: "Reading Real Codebases"
+order: 5
+estimatedHours: 8
+slug: reading-real-codebases
+---
+
+## Same Muscle, Compiled Terrain
+
+CS Foundations Tier 3 already put you through the core moves against `psf/requests` in Python — orienting from the public API surface inward, using grep to chain two facts into one confirmed claim, symbol navigation with ctags or an IDE, a static trace confirmed live with `pdb`, and git archaeology through `blame` and linked PRs. That's assumed here, not re-taught. What changes in a compiled, statically typed codebase is real: the type system gives you a stronger "find usages," but interfaces make "which implementation actually ran" a genuine open question a debugger has to answer for you — grep can't. And you get a tool the Python module never touched at all: a profiler, for when the question isn't "what calls what" but "where does the time actually go." This module ends the way your checkpoint project needs it to — an actual pull request against code you didn't write.
+
+You'll work against a small ledger service written for this lesson — three files, one HTTP endpoint, one interface with two implementations. Small enough to read in full, but shaped exactly like the layered handler → service → store split you'll find in any real Go backend:
+
+```go
+// store.go
+package main
+
+import (
+	"database/sql"
+	"sync"
+)
+
+type Store interface {
+	Save(id string, amount int) error
+	Balance(id string) (int, error)
+}
+
+type MemStore struct {
+	mu     sync.Mutex
+	ledger map[string]int
+}
+
+func NewMemStore() *MemStore {
+	return &MemStore{ledger: make(map[string]int)}
+}
+
+func (m *MemStore) Save(id string, amount int) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.ledger[id] += amount
+	return nil
+}
+
+func (m *MemStore) Balance(id string) (int, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.ledger[id], nil
+}
+
+// SQLStore is a second, real implementation of the same interface.
+// It exists purely to make the grep trap in the next section concrete.
+type SQLStore struct{ db *sql.DB }
+
+func (s *SQLStore) Save(id string, amount int) error {
+	_, err := s.db.Exec("UPDATE accounts SET balance = balance + ? WHERE id = ?", amount, id)
+	return err
+}
+
+func (s *SQLStore) Balance(id string) (int, error) {
+	var bal int
+	err := s.db.QueryRow("SELECT balance FROM accounts WHERE id = ?", id).Scan(&bal)
+	return bal, err
+}
+```
+
+```go
+// service.go
+package main
+
+import "fmt"
+
+type LedgerService struct {
+	store Store
+}
+
+func NewLedgerService(s Store) *LedgerService {
+	return &LedgerService{store: s}
+}
+
+func (s *LedgerService) Deposit(id string, amount int) error {
+	if amount <= 0 {
+		return fmt.Errorf("deposit amount must be positive, got %d", amount)
+	}
+	return s.store.Save(id, amount)
+}
+```
+
+```go
+// main.go
+package main
+
+import (
+	"fmt"
+	"log"
+	"net/http"
+	"strconv"
+)
+
+func depositHandler(svc *LedgerService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := r.URL.Query().Get("account")
+		amount, _ := strconv.Atoi(r.URL.Query().Get("amount"))
+		if err := svc.Deposit(id, amount); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		fmt.Fprintf(w, "ok")
+	}
+}
+
+func main() {
+	store := NewMemStore()
+	svc := NewLedgerService(store)
+	http.HandleFunc("/deposit", depositHandler(svc))
+	log.Fatal(http.ListenAndServe(":8080", nil))
+}
+```
+
+## Find Usages Isn't Free Just Because the Compiler Checks It
+
+Start where the sibling module told you to: orient from the entry point. `main()` wires `MemStore` into `LedgerService` into the handler — three files, one direction of dependency. Now go looking for who calls `Save`:
+
+```bash
+grep -rn "func.*) Save(" .
+# ./store.go:16:func (m *MemStore) Save(id string, amount int) error {
+# ./store.go:34:func (s *SQLStore) Save(id string, amount int) error {
+```
+
+Two definitions, same method name, same interface. This is the thing Python's dynamic typing never gave you and Go's interfaces hand you for free: two *completely separate* concrete types can satisfy `Store` with no shared base class, no explicit `implements` keyword, nothing textually linking them except an identical method set. An IDE's "Go to Definition" on `s.store.Save(id, amount)` inside `service.go` won't resolve to either one — it resolves to the interface method declaration, because `s.store` is statically typed as `Store`, not as any concrete type. "Find All References" on `MemStore.Save` will find `store.go` and nothing else, because the call site in `service.go` never mentions `MemStore` by name.
+
+In this toy example the wiring is one line away in `main.go`, so you can resolve it by eye. In a real codebase, that wiring routinely lives behind a config-driven factory, a dependency-injection container, or a build tag three directories away from the code you're actually trying to understand — and grep, by itself, cannot tell you which implementation is live at a given call site. It can only hand you the candidates. That's not a grep failure; it's what "polymorphism" means at the text level. The fix isn't a better grep pattern — it's confirming the live type dynamically, which is exactly what a debugger is for.
+
+## Confirming Which Implementation Actually Ran, With a Real Debugger
+
+`pdb` worked by dropping into a running Python process and stepping line by line. Go's equivalent, Delve, does the same job against a compiled binary — same mental model, different commands, one extra wrinkle. First get the exact line to break on (don't hardcode it — confirm it, the same discipline as the sibling module):
+
+```bash
+grep -n "store.Save" service.go
+# 14:	return s.store.Save(id, amount)
+```
+
+```
+$ dlv debug .
+Type 'help' for list of commands.
+(dlv) break service.go:14
+Breakpoint 1 set at 0x... for main.(*LedgerService).Deposit() ./service.go:14
+(dlv) continue
+```
+
+In another terminal, trigger the request:
+
+```bash
+curl "http://localhost:8080/deposit?account=ada&amount=50"
+```
+
+Back in the debugger, it stops at your breakpoint. Now ask the one question grep couldn't answer:
+
+```
+> main.(*LedgerService).Deposit() ./service.go:14 (hits goroutine(1):1 total:1)
+(dlv) print s.store
+main.Store(*main.MemStore) 0xc0000a4010
+```
+
+That output — `main.Store(*main.MemStore)` — is a live interface value showing both its static type (`Store`) and its dynamic type (`*MemStore`) in the same line. No amount of reading `service.go` in isolation gets you that fact; the field's static type is just `Store`, forever. Only running the program tells you which implementation is actually behind it right now.
+
+The wrinkle compiled languages add: an optimizing compiler can inline a small function directly into its caller, meaning there's no separate instruction for your breakpoint to land on. `dlv debug` rebuilds with optimizations and inlining disabled automatically, so this rarely bites you there. It *does* bite you if you build normally (`go build -o app .`) and then attach with `dlv exec ./app` — some breakpoints in small functions silently never trigger. If that happens, rebuild with `go build -gcflags="all=-N -l" -o app .` before attaching, or just use `dlv debug` in the first place.
+
+## When You Need to Know Where the Time Goes: Profiling
+
+Tracing tells you the shape of execution. It tells you nothing about where the milliseconds go. For that you need a profiler — sampling the running program's stack thousands of times a second and tallying where it spent its time, without you reading a single unrelated line. Here's a function with a real, common Go performance bug:
+
+```go
+func buildReport(entries []string) string {
+	var result string
+	for _, e := range entries {
+		result += e + "\n"
+	}
+	return result
+}
+```
+
+Strings in Go are immutable, so every `+=` allocates a brand-new string and copies the entire growing result into it. That's quadratic work hiding behind a line that looks linear. Profile it instead of guessing:
+
+```go
+package main
+
+import (
+	"fmt"
+	"os"
+	"runtime/pprof"
+)
+
+func main() {
+	f, _ := os.Create("cpu.prof")
+	pprof.StartCPUProfile(f)
+	defer pprof.StopCPUProfile()
+
+	entries := make([]string, 200_000)
+	for i := range entries {
+		entries[i] = fmt.Sprintf("entry-%d", i)
+	}
+	fmt.Println(len(buildReport(entries)))
+}
+```
+
+```bash
+go build -o report . && ./report
+go tool pprof cpu.prof
+```
+
+```
+(pprof) top
+Showing nodes accounting for 1.79s, 96.24% of 1.86s total
+      flat  flat%   sum%        cum   cum%
+     1.31s 70.43% 70.43%      1.79s 96.24%  main.buildReport
+     0.29s 15.59% 86.02%      0.29s 15.59%  runtime.memmove
+     0.19s 10.22% 96.24%      0.19s 10.22%  runtime.mallocgc
+(pprof) list buildReport
+```
+
+Two numbers matter: **flat** is time spent in that function's own code; **cum** (cumulative) includes everything it calls. `buildReport` dominates both, and `list buildReport` points the finger at the exact `result += e + "\n"` line, annotated with the time attributed to it. You didn't read a single other file in this codebase to find that — the profile told you where to look. Fix it with `strings.Builder`, which grows a single backing buffer instead of reallocating every iteration:
+
+```go
+func buildReport(entries []string) string {
+	var b strings.Builder
+	for _, e := range entries {
+		b.WriteString(e)
+		b.WriteString("\n")
+	}
+	return b.String()
+}
+```
+
+Re-run the same profile on the same 200,000-entry input and `buildReport` all but disappears from `top` — total runtime drops from roughly 1.8s to under 50ms, an O(n²)→O(n) fix confirmed by measurement, not just by Big-O reasoning on paper. The same instinct carries to the other languages this tier taught you, just with different tools: Java's async-profiler or VisualVM sampling the JVM, C++'s `perf record`/`perf report` or Valgrind's `callgrind` tool. The tools differ; "measure before you optimize, then read exactly the function the measurement points at" doesn't.
+
+## From Reading to Shipping: Your First Real PR
+
+Everything above is the *reading* half. Here's the concrete path to an actual merged (or at least reviewed) change:
+
+1. **Find a real, scoped issue**, not a feature request needing design discussion:
+   ```bash
+   gh issue list --repo <owner>/<repo> --label "good first issue" --state open
+   ```
+2. **Read `CONTRIBUTING.md` before writing a line of code.** Check for a Developer Certificate of Origin requirement — some projects reject PRs whose commits aren't signed off:
+   ```bash
+   git commit -s -m "fix: reject non-positive deposit amounts with a clear error"
+   ```
+   `-s` appends a `Signed-off-by:` trailer certifying you have the right to submit the change under the project's license.
+3. **One project-specific trap worth knowing by name:** the Go standard library itself (`golang/go`) does not take GitHub pull requests at all — its GitHub mirror is read-only for PRs, and real changes go through Gerrit code review via the `git-codereview` tool and a `golang.org/cl/...` link. Most Go *libraries and tools* (Cobra, Viper, fzf, and thousands of others) use ordinary GitHub PRs. Always check — assuming the standard GitHub flow on a project that doesn't use it is a fast way to submit into the void.
+4. **Reproduce with a failing test before writing the fix.** Write the test, confirm it's red, then make it pass — this is the artifact a reviewer actually wants to see, and it's the fastest way to confirm you understood the bug before touching production code.
+5. **Keep the diff scoped to exactly the issue.** A one-line fix with a one-line test beats a "while I was in there" refactor every time in review.
+6. **Write the PR description like a reviewer will actually read it:**
+   ```markdown
+   ## Problem
+   `LedgerService.Deposit` silently accepted amount=0 and negative amounts,
+   which corrupted account balances downstream (#412).
+
+   ## Fix
+   Return an explicit error when amount <= 0, matching the validation
+   already used in `Withdraw`.
+
+   ## Testing
+   Added `TestDeposit_RejectsNonPositiveAmount`; full suite passes locally
+   (`go test ./...`).
+
+   Fixes #412
+   ```
+7. **Expect a review cycle.** CI fails, a maintainer asks for a changed error message, you push a follow-up commit to the same branch. That back-and-forth is the job, not a sign you did it wrong.
+
+## Exercise
+
+Pick a small, real Go, Java, or C# CLI tool on GitHub with at least one open "good first issue" (`gh issue list --repo <owner>/<repo> --label "good first issue"` or the equivalent web filter). Then:
+
+1. Use grep plus your IDE's "Go to Definition"/"Find Usages" to locate the entry point and the specific function the issue is about.
+2. Attach a debugger and confirm, live, one full call path from entry point to that function — print at least one variable's runtime value you couldn't have gotten from static reading alone.
+3. Write (you don't need to run it against a huge input) the profiling command you'd use to check whether a fix there touches a hot path.
+4. Write a full PR description for the fix, using the template above, without submitting it.
+
+**Hint:** step 2 is where people cut corners. If the codebase uses an interface with more than one implementation anywhere near the function you care about, printing the field's *dynamic* type at a breakpoint is the whole point of the exercise — don't settle for "I read the code and it looks like it calls X," confirm it actually did.

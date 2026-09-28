@@ -1,0 +1,300 @@
+---
+trackId: languages
+tier: 3
+title: "C++ Fundamentals atop C Knowledge"
+order: 1
+estimatedHours: 16
+slug: cpp-fundamentals-atop-c-knowledge
+---
+
+## From C to C++: Same Metal, Different Defaults
+
+Nearly every C program you wrote in Tier 2 compiles as C++ with only minor changes. What's different isn't the machine model — C++ still has a stack and a heap, pointers still hold addresses, `struct` still means what it meant — it's what the *language* is willing to do for you automatically. This module is not "C++ from scratch." It's specifically the set of tools C++ adds on top of the C you already know, aimed at the exact bug categories Tier 2 forced you to fight by hand: leaks, dangling pointers, double frees, and hand-rolled `realloc`-based growth. Everything below either eliminates one of those bugs structurally or replaces a pattern you already hand-wrote in C with a library version of the same idea.
+
+## Classes and RAII: Making the Destructor Do the Job of Remembering
+
+In Tier 2, freeing a resource was your responsibility on *every* exit path out of a function — including early returns and error branches — and forgetting even one was a silent leak. C++ classes give you a hook that runs automatically no matter how a scope is exited: the destructor.
+
+```cpp
+#include <cstdio>
+#include <stdexcept>
+
+class FileHandle {
+public:
+    explicit FileHandle(const char* path, const char* mode) {
+        file_ = std::fopen(path, mode);
+        if (!file_) throw std::runtime_error("failed to open file");
+    }
+    ~FileHandle() {
+        if (file_) std::fclose(file_);   // runs no matter how we leave scope
+    }
+    std::FILE* get() const { return file_; }
+
+    FileHandle(const FileHandle&) = delete;             // see below
+    FileHandle& operator=(const FileHandle&) = delete;
+
+private:
+    std::FILE* file_;
+};
+
+void process(const char* path, bool bail_early) {
+    FileHandle f(path, "r");
+    if (bail_early) return;          // destructor still runs here
+    // ... more work using f.get() ...
+}                                      // ...and here, on the normal path too
+```
+
+This is **RAII** — Resource Acquisition Is Initialization. The constructor acquires the resource; the destructor releases it; the compiler guarantees the destructor runs when the object's scope ends, whether that's a normal fall-through, an early `return`, or a thrown exception unwinding the stack. Compare that to `malloc`/`free`: you had to manually place a `free()` call on every single exit path, and a sanitizer or a code review was the only thing catching the one you missed. RAII moves that bookkeeping from "a discipline you must remember" to "a language guarantee you can't forget."
+
+There's a trap hiding in that class above, and it's worth seeing fail before you see the fix. If you write a destructor that frees a resource, the compiler-generated copy constructor and copy assignment operator still do a plain member-wise copy — they don't know your pointer means "I own this":
+
+```cpp
+class Buffer {
+public:
+    explicit Buffer(size_t n) : data_(new int[n]), size_(n) {}
+    ~Buffer() { delete[] data_; }
+private:
+    int* data_;
+    size_t size_;
+};
+
+int main() {
+    Buffer a(10);
+    Buffer b = a;      // compiler-generated copy: b.data_ == a.data_, same pointer
+}                        // ~Buffer runs for b, then for a -- both delete[] the same address
+```
+
+This compiles cleanly, with no warning, and crashes or corrupts the heap at runtime — the same double-free bug from Tier 2, except now it's triggered by a copy constructor you never wrote a line of. This is the **Rule of Three**: if a class needs a custom destructor, it almost certainly needs a custom copy constructor and copy assignment operator too (or, since C++11, you should also consider the move constructor and move assignment operator — the Rule of Five). `FileHandle` above sidesteps the whole problem with `= delete`, which makes copying a compile error instead of a runtime crash. The STL containers and smart pointers in the rest of this module give you a better option still: the **Rule of Zero** — write no special member functions at all, and let member sub-objects (a `std::vector`, a `std::unique_ptr`) own the resource and handle their own copying, moving, and destruction correctly for you.
+
+## References vs. Pointers
+
+A reference is an alias, not a variable that holds an address. Once bound, it can't be pointed somewhere else, and it can't be null:
+
+```cpp
+void swap_by_pointer(int* a, int* b) {
+    int tmp = *a; *a = *b; *b = tmp;
+}
+
+void swap_by_reference(int& a, int& b) {
+    int tmp = a; a = b; b = tmp;
+}
+
+int main() {
+    int x = 1, y = 2;
+    swap_by_pointer(&x, &y);       // caller must take addresses explicitly
+    swap_by_reference(x, y);        // binding is implicit -- looks like pass-by-value
+}
+```
+
+The rebinding rule trips people up the first time: assigning *through* a reference assigns to the thing it refers to, it never changes what the reference refers to.
+
+```cpp
+int a = 1, b = 2;
+int& ref = a;
+ref = b;                 // assigns b's value into a -- does NOT rebind ref to b
+std::cout << a << " " << ref;   // 2 2 -- ref still refers to a
+```
+
+Practical rule: use a reference for a function parameter that must refer to an existing object, doesn't need a null state, and won't be reseated during the call — most in/out parameters fit this. Reach for a pointer when null is a legitimate value ("optional" arguments), when the thing needs to be reseated after the fact (a member variable that might later point elsewhere), or for C interop and pointer arithmetic where references don't apply. Ownership — "who is responsible for freeing this" — is a separate question from reference-vs-pointer, and it's the one smart pointers answer below.
+
+## STL Containers: The Library Version of What You Hand-Rolled
+
+Tier 2's closing exercise was `IntVector` — a `struct` with `data`, `len`, `capacity`, plus `iv_push` doing manual capacity-doubling through `realloc`. That's exactly `std::vector`:
+
+```cpp
+#include <vector>
+#include <iostream>
+
+int main() {
+    std::vector<int> v;
+    for (int i = 0; i < 20; i++) {
+        v.push_back(i * i);   // grows automatically -- no realloc, no manual capacity math
+    }
+    std::cout << v.size() << "\n";        // 20
+    for (int x : v) std::cout << x << " ";
+    std::cout << "\n";
+}   // v's destructor frees the underlying buffer here -- no free() to remember
+```
+
+`push_back` is amortized O(1) using the same doubling strategy you implemented by hand; `size()` gives the element count, `capacity()` the allocated space, and `v[i]` is unchecked (like raw indexing) while `v.at(i)` bounds-checks and throws `std::out_of_range`. There is no destructor to write for `v` itself — its destructor is generated for you and does the right thing, which is the Rule of Zero in action.
+
+`std::string` replaces the `char*` buffer-length-null-terminator triangle you managed manually in C:
+
+```cpp
+#include <string>
+#include <iostream>
+
+int main() {
+    std::string name = "Ada";
+    name += " Lovelace";                 // grows itself; no strcat, no manual buffer resize
+    std::cout << name.length() << " " << name << "\n";   // 14 Ada Lovelace
+}
+```
+
+`std::map<K, V>` is a sorted associative container (a balanced binary tree under the hood, so lookup, insert, and erase are all O(log n)):
+
+```cpp
+#include <map>
+#include <string>
+#include <iostream>
+
+int main() {
+    std::map<std::string, int> inventory;
+    inventory["bananas"] = 5;
+    inventory["apples"] = 12;
+    inventory["apples"] += 3;             // operator[] inserts-or-updates
+
+    for (const auto& [item, count] : inventory) {
+        std::cout << item << ": " << count << "\n";
+    }
+}
+// apples: 15
+// bananas: 5     <-- iteration is in KEY-SORTED order, not insertion order
+```
+
+If you don't need sorted iteration and want average O(1) lookup instead, `std::unordered_map` has the same interface with a hash table underneath — default to it unless you specifically need the sorted-key iteration `std::map` provides.
+
+## Smart Pointers: RAII Applied to `malloc`/`free` Itself
+
+`std::unique_ptr<T>` is exactly the fix for Tier 2's leak and double-free bugs: it owns a heap allocation, frees it in its own destructor, and — critically — the compiler refuses to let two `unique_ptr`s own the same object at once.
+
+```cpp
+#include <memory>
+
+struct Node {
+    int value;
+    std::unique_ptr<Node> next;
+};
+
+void demo() {
+    auto head = std::make_unique<Node>();
+    head->value = 1;
+    head->next = std::make_unique<Node>();
+    head->next->value = 2;
+}   // head's destructor runs, which destroys head->next, which destroys ITS next...
+    // the whole chain frees itself, one destructor call at a time -- nothing to leak
+```
+
+`unique_ptr`'s copy constructor is deleted, on purpose:
+
+```cpp
+std::unique_ptr<int> p1 = std::make_unique<int>(5);
+std::unique_ptr<int> p2 = p1;              // compile error: copy constructor is deleted
+std::unique_ptr<int> p3 = std::move(p1);   // OK: ownership transfers to p3; p1 is now null
+```
+
+`std::move` doesn't move any bytes — it casts `p1` to an rvalue reference so the *move* constructor runs instead of the (deleted) copy constructor, which steals the raw pointer out of `p1` and leaves `p1` holding `nullptr`. In Tier 2, nothing stopped two variables from both holding the same `malloc`'d address, and calling `free` on both was a double free waiting to happen the moment either path executed twice. With `unique_ptr`, that exact mistake — writing `p2 = p1` to "share" ownership — doesn't compile. The bug becomes a compiler error instead of an undefined-behavior crash you find in production.
+
+When ownership genuinely needs to be shared, `std::shared_ptr<T>` uses reference counting: the object is destroyed when the last `shared_ptr` pointing at it goes away.
+
+```cpp
+#include <memory>
+#include <iostream>
+
+int main() {
+    auto a = std::make_shared<int>(42);
+    std::cout << a.use_count() << "\n";     // 1
+    {
+        auto b = a;                          // both point at the same int; count -> 2
+        std::cout << a.use_count() << "\n";  // 2
+    }                                          // b destroyed; count -> 1
+    std::cout << a.use_count() << "\n";       // 1
+}   // a destroyed here; count hits 0, memory freed
+```
+
+`shared_ptr` costs more than `unique_ptr` (an atomic refcount update on every copy), and a cycle of `shared_ptr`s pointing at each other will leak because the count never reaches zero — `std::weak_ptr` exists to break exactly that cycle, a topic worth knowing exists but out of scope here. Default to `unique_ptr`; reach for `shared_ptr` only when two independent parts of a program genuinely need to keep an object alive together. And for a function that just needs to *use* an object without taking ownership of it, pass a reference or a raw pointer — not a smart pointer. Smart pointer types are a statement about ownership; a function that doesn't own the object shouldn't take one just to read from it.
+
+## Multi-File Builds with CMake
+
+Tier 2 hand-wrote a `Makefile` with an explicit rule per object file. CMake doesn't replace that layer — on Linux it typically *generates* a Makefile for you — but you describe the project once, at a higher level, and the same `CMakeLists.txt` works whether the underlying build uses Make, Ninja, or an IDE's own build system.
+
+Project layout:
+
+```
+buffer-demo/
+├── CMakeLists.txt
+└── src/
+    ├── main.cpp
+    ├── buffer.h
+    └── buffer.cpp
+```
+
+```cpp
+// src/buffer.h
+#pragma once
+#include <cstddef>
+
+class Buffer {
+public:
+    explicit Buffer(size_t n);
+    ~Buffer();
+    Buffer(const Buffer&) = delete;
+    Buffer& operator=(const Buffer&) = delete;
+    int& at(size_t i);
+private:
+    int* data_;
+    size_t size_;
+};
+```
+
+```cpp
+// src/buffer.cpp
+#include "buffer.h"
+#include <stdexcept>
+
+Buffer::Buffer(size_t n) : data_(new int[n]), size_(n) {}
+Buffer::~Buffer() { delete[] data_; }
+
+int& Buffer::at(size_t i) {
+    if (i >= size_) throw std::out_of_range("Buffer::at");
+    return data_[i];
+}
+```
+
+```cpp
+// src/main.cpp
+#include "buffer.h"
+#include <iostream>
+
+int main() {
+    Buffer b(10);
+    b.at(0) = 42;
+    std::cout << b.at(0) << "\n";
+}
+```
+
+```cmake
+# CMakeLists.txt
+cmake_minimum_required(VERSION 3.16)
+project(BufferDemo CXX)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+add_executable(buffer_demo
+    src/main.cpp
+    src/buffer.cpp
+)
+
+target_include_directories(buffer_demo PRIVATE src)
+```
+
+```shell
+mkdir build && cd build
+cmake ..              # generates the underlying build system (Makefiles by default on Linux)
+cmake --build .        # compiles -- same command regardless of what generator ran underneath
+./buffer_demo          # 42
+```
+
+`add_executable` lists every source file that goes into one binary — the direct analogue of the `OBJS` list in Tier 2's Makefile — but CMake works out per-file dependency tracking and incremental recompilation itself; you never hand-write a rule per `.o` file. For a reusable component, `add_library(buffer STATIC src/buffer.cpp)` builds it as its own target, and another target links against it with `target_link_libraries(buffer_demo PRIVATE buffer)` — the CMake equivalent of linking separate object files, but composable across an entire project instead of one flat file. Building in a separate `build/` directory (an "out-of-source" build) keeps every generated file out of your source tree, so `git status` stays clean and `rm -rf build` is always a safe full reset.
+
+## Exercise: A `Matrix` Class, the C++ Way
+
+Reimplement Tier 2's `IntVector` exercise, but aim at what actually changes in C++ rather than at growable storage itself (that part is now `std::vector`'s job, not yours):
+
+1. In `matrix.h` / `matrix.cpp`, write a `Matrix` class wrapping a `std::vector<double>` as flat row-major storage, constructed with `Matrix(size_t rows, size_t cols)`. Give it a bounds-checked `double& at(size_t r, size_t c)` that throws `std::out_of_range` on a bad index. Don't write a destructor — the `vector` member's own destructor already frees the storage correctly (Rule of Zero).
+2. Add a free function `std::unique_ptr<Matrix> make_matrix(size_t rows, size_t cols)` that returns a heap-allocated matrix via `std::make_unique`.
+3. In `main.cpp`, create two matrices through `make_matrix`, fill one with values via `at()`, deliberately trigger an out-of-range access inside a `try`/`catch`, print a confirmation that it was caught, and let both `unique_ptr`s go out of scope with no `delete` anywhere in `main`.
+4. Wire it all together with a `CMakeLists.txt` and build it out-of-source, following the layout above.
+
+**Hint:** the part worth deliberately testing is destructor *order*. Add a `std::cout` line to `Matrix`'s constructor and destructor before you do anything else, then watch what prints and in what order as your `unique_ptr`s go out of scope — it should match your intuition about scope exit exactly, one destructor per matrix, each firing once. If you ever see a matrix's constructor-message print once but its destructor-message print twice (or a crash on exit), you've reintroduced a copy somewhere the Rule of Three warned you about — trace where a `Matrix` got copied instead of moved or referenced, rather than reaching for a raw `delete` to "fix" it.

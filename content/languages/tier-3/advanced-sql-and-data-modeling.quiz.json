@@ -1,0 +1,98 @@
+[
+  {
+    "id": "languages/tier-3/advanced-sql-and-data-modeling/q1",
+    "type": "multiple_choice",
+    "prompt": "What does adding an index to a table primarily cost you in exchange for faster reads on that column?",
+    "choices": [
+      "Slower writes on that table, plus extra disk space for the index",
+      "Weaker isolation guarantees on transactions that touch the table",
+      "The loss of atomicity for inserts into the table",
+      "The query planner can no longer use EXPLAIN on that table"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-3/advanced-sql-and-data-modeling/q2",
+    "type": "multiple_choice",
+    "prompt": "EXPLAIN ANALYZE on `SELECT * FROM orders WHERE customer_id = 4213` (2,000,000 rows) returns:\n\nSeq Scan on orders (actual time=0.021..210.442 rows=39 loops=1)\n  Filter: (customer_id = 4213)\n  Rows Removed by Filter: 1999961\n\nWhat is the most direct fix to speed this query up?",
+    "choices": [
+      "CREATE INDEX ON orders (customer_id);",
+      "Rewrite the WHERE clause as a subquery",
+      "Add a UNIQUE constraint on customer_id",
+      "Increase the LIMIT on the query"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-3/advanced-sql-and-data-modeling/q3",
+    "type": "multiple_choice",
+    "prompt": "Given CREATE INDEX idx ON orders (customer_id, status);, which query can this index actually serve?",
+    "choices": [
+      "WHERE customer_id = 4213 AND status = 'pending'",
+      "WHERE status = 'pending'",
+      "WHERE total_cents > 500",
+      "WHERE created_at > now() - interval '7 days'"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-3/advanced-sql-and-data-modeling/q4",
+    "type": "multiple_choice",
+    "prompt": "Session A updates a row inside an open transaction but has not committed. Session B, running under READ UNCOMMITTED, reads that row and sees the new value. Session A then rolls back. What just happened to Session B's read?",
+    "choices": [
+      "A dirty read \u2014 Session B read a value that never actually existed once A rolled back",
+      "A phantom read \u2014 Session B saw a row appear that matched its filter",
+      "A non-repeatable read \u2014 Session B re-read the same row and got a different value",
+      "Nothing anomalous \u2014 this is guaranteed behavior under every isolation level"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-3/advanced-sql-and-data-modeling/q5",
+    "type": "multiple_choice",
+    "prompt": "A transaction under READ COMMITTED runs `SELECT count(*) FROM orders WHERE status = 'pending'` twice. Between the two reads, a different transaction commits a new row with status = 'pending'. The count goes from 120 to 121. What anomaly is this?",
+    "choices": [
+      "A phantom read \u2014 a new row matching the predicate appeared between reads",
+      "A dirty read \u2014 uncommitted data was visible to the transaction",
+      "A non-repeatable read \u2014 an existing row's column value changed",
+      "A lost update \u2014 a concurrent write was silently discarded"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-3/advanced-sql-and-data-modeling/q6",
+    "type": "multiple_choice",
+    "prompt": "A table order_items(order_id, product_id, product_name, product_price, quantity) has PRIMARY KEY (order_id, product_id). product_name and product_price depend only on product_id, not on the full composite key. Which normal form does this violate?",
+    "choices": [
+      "2NF \u2014 a partial dependency on only part of the composite key",
+      "1NF \u2014 a repeating group packed into a single column",
+      "3NF \u2014 a transitive dependency through a non-key column",
+      "It doesn't violate any normal form \u2014 composite keys are exempt"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-3/advanced-sql-and-data-modeling/q7",
+    "type": "multiple_choice",
+    "prompt": "A table orders(order_id PK, customer_id, customer_name, customer_email) has customer_name and customer_email depending on customer_id, not directly on order_id. Splitting these into a separate customers table fixes a violation of which normal form?",
+    "choices": [
+      "3NF \u2014 it removes a transitive dependency through customer_id",
+      "2NF \u2014 it removes a partial dependency on part of the key",
+      "1NF \u2014 it removes a repeating group",
+      "None \u2014 the original table was already fully normalized"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-3/advanced-sql-and-data-modeling/q8",
+    "type": "multiple_choice",
+    "prompt": "An app in production still uses Base.metadata.create_all(engine) to manage its schema, then a developer adds a new column to a SQLAlchemy model and deploys. What actually happens to the already-existing production table?",
+    "choices": [
+      "Nothing \u2014 create_all() only creates missing tables and will not alter an existing table's columns",
+      "The new column is added automatically with a NULL default",
+      "create_all() raises an error and refuses to start the app",
+      "The entire table is dropped and recreated with the new column"
+    ],
+    "correctIndex": 0
+  }
+]

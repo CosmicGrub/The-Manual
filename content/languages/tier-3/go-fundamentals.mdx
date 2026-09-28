@@ -1,0 +1,329 @@
+---
+trackId: languages
+tier: 3
+title: "Go Fundamentals"
+order: 3
+estimatedHours: 12
+slug: go-fundamentals
+---
+
+Go was designed at Google to solve a specific problem: C++ build times and complexity were slowing down large teams, and neither Java nor Python gave them fast native binaries with built-in concurrency. The result is a small, opinionated language — one way to format code (`gofmt`), one way to handle errors (return values, not exceptions), one way to do object orientation (structs and interfaces, no classes or inheritance), and concurrency primitives built into the language itself rather than bolted on as a library. You'll feel the difference immediately: Go programs read almost like pseudocode, and the entire standard library is designed to be used directly, without a framework.
+
+## Syntax essentials
+
+A minimal Go program: a `package` declaration, imports, and a `main` function as the entry point.
+
+```go
+package main
+
+import (
+	"fmt"
+	"strings"
+)
+
+func wordCount(text string) map[string]int {
+	counts := make(map[string]int)
+	for _, word := range strings.Fields(text) {
+		counts[strings.ToLower(word)]++
+	}
+	return counts
+}
+
+func main() {
+	counts := wordCount("the quick brown fox the lazy dog the")
+	for word, n := range counts {
+		fmt.Printf("%s: %d\n", word, n)
+	}
+}
+```
+
+A few things to note before moving on, since they show up in every example below:
+
+- `:=` is short variable declaration with type inference — `counts := make(map[string]int)` is equivalent to `var counts map[string]int = make(map[string]int)`.
+- `make(map[string]int)` allocates an empty, usable map. A `nil` map (the zero value, from `var counts map[string]int` alone) can be *read* but panics on write.
+- `for _, word := range strings.Fields(text)` ranges over a `[]string`; the blank identifier `_` discards the index you don't need. Ranging over a map instead yields `key, value` pairs, in random order — Go deliberately randomizes map iteration order so you don't accidentally rely on it.
+- Every value has a zero value — `0` for numeric types, `""` for strings, `nil` for pointers/slices/maps/interfaces — so `counts[word]++` works on a fresh key without an explicit initialization step; the zero value of `int` is `0`.
+
+Go has no exceptions for ordinary failure. Functions that can fail return an `error` as an extra return value, checked explicitly:
+
+```go
+func divide(a, b float64) (float64, error) {
+	if b == 0 {
+		return 0, fmt.Errorf("divide by zero: %v / %v", a, b)
+	}
+	return a / b, nil
+}
+
+func main() {
+	result, err := divide(10, 0)
+	if err != nil {
+		fmt.Println("error:", err)
+		return
+	}
+	fmt.Println(result)
+}
+```
+
+`if err != nil` immediately after almost every call is idiomatic Go, not boilerplate to eliminate — it's what makes every failure path visible at the call site instead of hidden in a stack unwind. `defer` schedules a call to run when the surrounding function returns, regardless of which return statement fired — the standard idiom for cleanup:
+
+```go
+func readFile(path string) error {
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	// ... use f
+	return nil
+}
+```
+
+## Structs and methods
+
+A `struct` groups fields; a method is a function with a *receiver* — the type it operates on, declared between `func` and the method name.
+
+```go
+type Rectangle struct {
+	Width, Height float64
+}
+
+func (r Rectangle) Area() float64 {
+	return r.Width * r.Height
+}
+
+func (r *Rectangle) Scale(factor float64) {
+	r.Width *= factor
+	r.Height *= factor
+}
+
+func main() {
+	r := Rectangle{Width: 3, Height: 4}
+	fmt.Println(r.Area()) // 12
+
+	r.Scale(2)
+	fmt.Println(r.Area()) // 48
+}
+```
+
+`Area` has a *value* receiver — it operates on a copy of `r` and cannot mutate the original. `Scale` has a *pointer* receiver — it operates on the real struct through its address, so the mutation sticks. Go lets you write `r.Scale(2)` instead of `(&r).Scale(2)` because `r` is an addressable variable and Go takes the address for you automatically; this convenience disappears if `r` isn't addressable (e.g. a map value), which is one reason pointer receivers are the default choice once a type has any mutating method.
+
+There's no constructor syntax and no inheritance. The convention is a `NewXxx` function returning a pointer:
+
+```go
+func NewRectangle(w, h float64) *Rectangle {
+	return &Rectangle{Width: w, Height: h}
+}
+```
+
+Composition replaces inheritance: embed one struct inside another and its fields and methods are promoted to the outer type. There's no `super` call and no override resolution to reason about — just a field with no name, accessed as if it were flattened in.
+
+## Interfaces: implicit satisfaction
+
+You already saw Go's Java counterpart earlier in this tier, where a class must declare `implements Shape` to be usable as a `Shape` — Go drops that declaration entirely. An interface in Go is a set of method signatures, and *any* type that happens to have those methods satisfies it, automatically, with zero extra syntax:
+
+```go
+type Shape interface {
+	Area() float64
+}
+
+type Circle struct {
+	Radius float64
+}
+
+func (c Circle) Area() float64 {
+	return math.Pi * c.Radius * c.Radius
+}
+
+// Rectangle, defined above, already has Area() float64 — it satisfies
+// Shape too. Nothing was declared. Nobody imported anything to make it so.
+
+func describe(s Shape) {
+	fmt.Printf("area = %.2f\n", s.Area())
+}
+
+func main() {
+	describe(Circle{Radius: 2})
+	describe(Rectangle{Width: 3, Height: 4})
+}
+```
+
+This is *structural typing*, and it changes where interfaces get defined. In Java, the interface usually lives near the implementing classes, because implementing it requires editing their declarations. In Go, you define the interface at the point where you *consume* a value, describing only the methods you actually call — and any type anywhere, including ones from a package you don't own and can't edit, satisfies it as long as the shapes line up. This is the source of the idiom "accept interfaces, return structs": a function should take the narrowest interface it needs as a parameter, and return a concrete type, letting callers decide what interface view they need.
+
+When you need to recover the concrete type behind an interface value, use a type switch:
+
+```go
+func printArea(s Shape) {
+	switch v := s.(type) {
+	case Circle:
+		fmt.Printf("circle r=%.1f area=%.2f\n", v.Radius, v.Area())
+	case Rectangle:
+		fmt.Printf("rect %vx%v area=%.2f\n", v.Width, v.Height, v.Area())
+	default:
+		fmt.Printf("unknown shape, area=%.2f\n", v.Area())
+	}
+}
+```
+
+The empty interface, `interface{}` (aliased as `any` since Go 1.18), has zero required methods, so every value satisfies it — it's Go's "could be anything" escape hatch, used for things like `encoding/json` decoding into unknown shapes, though generics now cover most of the cases that used to force it.
+
+## Goroutines and channels: a first look
+
+A goroutine is a function running concurrently with the rest of your program — you start one by putting `go` in front of a call. A channel is a typed pipe goroutines use to hand values to each other. That's the whole mental model for this tier; deep concurrency (`sync.WaitGroup`, `select`, contexts, race conditions, worker pools) is Tier 4's job.
+
+```go
+func main() {
+	messages := make(chan string)
+
+	go func() {
+		messages <- "done"
+	}()
+
+	msg := <-messages
+	fmt.Println(msg)
+}
+```
+
+`messages := make(chan string)` creates an unbuffered channel. `go func() { ... }()` launches an anonymous function as a goroutine — `main` doesn't wait for it explicitly. `messages <- "done"` sends; `<-messages` receives. With an unbuffered channel, the send blocks until a receiver is ready and the receive blocks until a sender is ready — that mutual blocking *is* the synchronization; there's no lock anywhere in this example, and none is needed.
+
+A slightly larger example, fanning work out across goroutines:
+
+```go
+func square(n int, results chan<- int) {
+	results <- n * n
+}
+
+func main() {
+	results := make(chan int)
+	for i := 1; i <= 3; i++ {
+		go square(i, results)
+	}
+	for i := 0; i < 3; i++ {
+		fmt.Println(<-results)
+	}
+}
+```
+
+`chan<- int` is a send-only channel type — a small bit of documentation-as-types saying `square` only ever sends on `results`, never receives. Three goroutines run concurrently, each computing one square and sending it back; the main goroutine receives three times. The output is *some permutation* of `1, 4, 9` — whichever goroutine's send reaches the channel first wins the race to be printed first. That nondeterminism is normal and expected; if you need a guaranteed order, you send more structure (like the input `n`) alongside the result and sort on the receiving end.
+
+A channel can also be buffered — `make(chan int, 3)` lets up to three sends succeed without a receiver standing by, only blocking once the buffer fills. For now, know that it exists; when to reach for it is a Tier 4 question.
+
+## Go modules: go.mod and go get
+
+`go mod init` creates a `go.mod` file, which records your module's import path and the Go version it targets:
+
+```bash
+mkdir wordcounter && cd wordcounter
+go mod init github.com/yourname/wordcounter
+```
+
+```
+module github.com/yourname/wordcounter
+
+go 1.22
+```
+
+Adding a dependency is one command — `go get` fetches it, records the version in `go.mod`, and records a cryptographic checksum of its contents in `go.sum`:
+
+```bash
+go get github.com/google/uuid@v1.6.0
+```
+
+`go.sum` is what makes builds reproducible and tamper-evident: anyone building your module fetches the exact bytes you fetched, or the build fails. Unlike ecosystems where a lockfile is a separate tool bolted on afterward (`package-lock.json`, `poetry.lock`), this is built into the `go` command itself — `go build`, `go run .`, and `go test ./...` all resolve against `go.mod`/`go.sum` automatically, with no virtual environment step, because Go binaries are statically linked and the module cache lives outside your project entirely.
+
+## Building a minimal HTTP server (standard library only)
+
+Go's standard library is unusually complete — `net/http` alone is enough to ship a real service, no framework required.
+
+```go
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"log"
+	"net/http"
+)
+
+type Task struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+	Done bool   `json:"done"`
+}
+
+var tasks = []Task{
+	{ID: 1, Name: "Write go.mod", Done: true},
+	{ID: 2, Name: "Learn channels", Done: false},
+}
+
+func tasksHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(tasks); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func main() {
+	http.HandleFunc("/tasks", tasksHandler)
+	fmt.Println("listening on :8080")
+	log.Fatal(http.ListenAndServe(":8080", nil))
+}
+```
+
+The backtick-quoted text after each field (`` `json:"id"` ``) is a struct tag — metadata `encoding/json` reads via reflection to decide field names in the JSON output. And notice: `tasksHandler` never declares that it implements anything. Its signature, `func(http.ResponseWriter, *http.Request)`, is exactly what `http.HandleFunc` expects; the standard library's `http.HandlerFunc` adapter type wraps any such function with a `ServeHTTP` method, which is all `http.Handler` requires. That's the interface-satisfaction idea from earlier in this lesson, at work inside the standard library itself, not just in toy examples.
+
+A CLI needs no framework either — `flag` handles argument parsing and `os`/`bufio` handle I/O:
+
+```go
+package main
+
+import (
+	"bufio"
+	"flag"
+	"fmt"
+	"os"
+	"strings"
+)
+
+func main() {
+	filePath := flag.String("file", "", "path to text file to count words in")
+	flag.Parse()
+
+	if *filePath == "" {
+		fmt.Fprintln(os.Stderr, "usage: wordcount -file=path/to/file.txt")
+		os.Exit(1)
+	}
+
+	f, err := os.Open(*filePath)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "error:", err)
+		os.Exit(1)
+	}
+	defer f.Close()
+
+	counts := make(map[string]int)
+	scanner := bufio.NewScanner(f)
+	scanner.Split(bufio.ScanWords)
+	for scanner.Scan() {
+		counts[strings.ToLower(scanner.Text())]++
+	}
+
+	for word, n := range counts {
+		fmt.Printf("%s: %d\n", word, n)
+	}
+}
+```
+
+`flag.String` returns a `*string`, not a `string` — the flag package can't populate the value until `flag.Parse()` runs later, so it hands you a pointer to fill in afterward. That's why every use of `filePath` above dereferences it with `*filePath`. `bufio.NewScanner` with `bufio.ScanWords` reads the file one whitespace-delimited token at a time without loading the whole file into memory first — the same pattern you'd reach for on files too large to `ReadAll`.
+
+## Exercise
+
+Extend the HTTP server above with a `POST /tasks` endpoint: it should read a JSON body shaped like `{"name": "Ship the CLI"}`, create a new `Task` with the next available `ID` and `Done: false`, append it to `tasks`, and write the created task back as JSON with a `201 Created` status.
+
+Try it, then check with:
+
+```bash
+curl -X POST localhost:8080/tasks -d '{"name":"Ship the CLI"}'
+curl localhost:8080/tasks
+```
+
+*Hint: `tasksHandler` currently ignores `r.Method`. You'll need to branch on `r.Method == http.MethodPost` vs. the existing `GET` behavior, decode the body with `json.NewDecoder(r.Body).Decode(&t)` into a `Task`, and call `w.WriteHeader(http.StatusCreated)` — before you write anything else to `w`, since the first write locks in the status code.*

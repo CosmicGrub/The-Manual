@@ -1,0 +1,98 @@
+[
+  {
+    "id": "languages/tier-3/java-or-csharp-for-oop-at-scale/q1",
+    "type": "multiple_choice",
+    "prompt": "In Java, which keyword does a class use to declare that it fulfills the contract defined by an interface?",
+    "choices": [
+      "implements",
+      "extends",
+      "inherits",
+      "interface"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-3/java-or-csharp-for-oop-at-scale/q2",
+    "type": "multiple_choice",
+    "prompt": "Which of these Java collection types stores unique elements with no guaranteed iteration order?",
+    "choices": [
+      "ArrayList",
+      "HashSet",
+      "LinkedList",
+      "TreeMap"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-3/java-or-csharp-for-oop-at-scale/q3",
+    "type": "multiple_choice",
+    "prompt": "What does this print?\n\nList<Integer> nums = new ArrayList<>(List.of(3, 1, 2));\nCollections.sort(nums);\nSystem.out.println(nums);",
+    "choices": [
+      "[1, 2, 3]",
+      "[3, 1, 2]",
+      "[3, 2, 1]",
+      "Compile error"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-3/java-or-csharp-for-oop-at-scale/q4",
+    "type": "multiple_choice",
+    "prompt": "A Point class overrides equals() (comparing x and y) but does NOT override hashCode(). What happens here?\n\nSet<Point> seen = new HashSet<>();\nseen.add(new Point(1, 2));\nSystem.out.println(seen.contains(new Point(1, 2)));",
+    "choices": [
+      "Prints false \u2014 without a matching hashCode(), HashSet looks in the wrong bucket and never finds the equal object",
+      "Prints true \u2014 equals() alone is enough for HashSet lookups to succeed",
+      "Throws a NullPointerException at runtime",
+      "Fails to compile because Point does not implement Comparable"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-3/java-or-csharp-for-oop-at-scale/q5",
+    "type": "multiple_choice",
+    "prompt": "InsufficientFundsException extends Exception (a checked exception). Bank.withdraw() throws it and declares `throws InsufficientFundsException`. What happens when calling code does `bank.withdraw(50);` with no try/catch and no throws clause of its own?",
+    "choices": [
+      "Compile error: the call must be wrapped in try/catch, or the calling method must itself declare throws InsufficientFundsException",
+      "Compiles fine \u2014 checked exceptions are only enforced at runtime, like in Python",
+      "Compile error: instance methods are not allowed to throw checked exceptions",
+      "Compiles and runs fine, silently swallowing any thrown exception"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-3/java-or-csharp-for-oop-at-scale/q6",
+    "type": "multiple_choice",
+    "prompt": "What does the bound in `public static <T extends Comparable<T>> T max(List<T> list)` actually require of T?",
+    "choices": [
+      "T must implement the Comparable<T> interface, so instances of T can be compared to each other",
+      "T must be a subclass of a class literally named Comparable",
+      "T is restricted to Java's primitive numeric wrapper types only",
+      "The method can accept only one type argument, and it must be called Comparable"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-3/java-or-csharp-for-oop-at-scale/q7",
+    "type": "multiple_choice",
+    "prompt": "In a Maven project, which file declares the project's dependencies and build configuration?",
+    "choices": [
+      "build.gradle",
+      "pom.xml",
+      "package.json",
+      "settings.xml"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-3/java-or-csharp-for-oop-at-scale/q8",
+    "type": "multiple_choice",
+    "prompt": "Which Java mechanism is the closest equivalent to overriding Python's __eq__ and __hash__ dunder methods to customize how an object behaves as a dictionary/set key?",
+    "choices": [
+      "Overriding equals() and hashCode()",
+      "Implementing the Comparable<T> interface",
+      "Declaring the class as final",
+      "Overriding toString()"
+    ],
+    "correctIndex": 0
+  }
+]

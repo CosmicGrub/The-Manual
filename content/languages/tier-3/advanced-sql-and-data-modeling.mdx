@@ -1,0 +1,271 @@
+---
+trackId: languages
+tier: 3
+title: "Advanced SQL & Data Modeling"
+order: 4
+estimatedHours: 8
+slug: advanced-sql-and-data-modeling
+---
+
+Software Engineering Tier 1 covered basic SQL and schema design, and this track's own Tier 2 (`calling-sql-from-your-language`) covered connecting a driver or ORM and running queries — both are assumed here. This module goes deeper on SQL itself: how the database actually executes a query, what a transaction guarantees (and doesn't) under concurrency, how to normalize a schema for real, and how to use an ORM for more than "connect and query."
+
+## Indexes: what they actually do
+
+An index is a separate, sorted data structure (almost always a B-tree) that maps column values to row locations, so the database can find matching rows without scanning the whole table. The cost: every `INSERT`/`UPDATE`/`DELETE` has to update every index on that table too, and each index takes disk space. Indexes are a read/write tradeoff, not a free win.
+
+Build a table big enough to make the difference visible:
+
+```sql
+CREATE TABLE orders (
+    id BIGSERIAL PRIMARY KEY,
+    customer_id INT NOT NULL,
+    status TEXT NOT NULL,
+    total_cents INT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT now()
+);
+
+INSERT INTO orders (customer_id, status, total_cents, created_at)
+SELECT
+    (random() * 50000)::int,
+    (ARRAY['pending','shipped','delivered','cancelled'])[floor(random()*4+1)],
+    (random() * 10000)::int,
+    now() - (random() * interval '365 days')
+FROM generate_series(1, 2000000);
+```
+
+### Reading `EXPLAIN ANALYZE`
+
+```sql
+EXPLAIN ANALYZE SELECT * FROM orders WHERE customer_id = 4213;
+```
+
+```
+Seq Scan on orders  (cost=0.00..38500.00 rows=41 width=41) (actual time=0.021..210.442 rows=39 loops=1)
+  Filter: (customer_id = 4213)
+  Rows Removed by Filter: 1999961
+Planning Time: 0.112 ms
+Execution Time: 210.489 ms
+```
+
+`cost=0.00..38500.00` is the planner's *estimate* in abstract units (startup cost..total cost), not milliseconds — `actual time=0.021..210.442` is what really happened. `Seq Scan` means it read all 2,000,000 rows and threw away 1,999,961 of them to find 39 matches. Now add an index and rerun:
+
+```sql
+CREATE INDEX idx_orders_customer_id ON orders (customer_id);
+EXPLAIN ANALYZE SELECT * FROM orders WHERE customer_id = 4213;
+```
+
+```
+Index Scan using idx_orders_customer_id on orders  (cost=0.43..8.87 rows=41 width=41) (actual time=0.019..0.041 rows=39 loops=1)
+  Index Cond: (customer_id = 4213)
+Planning Time: 0.098 ms
+Execution Time: 0.061 ms
+```
+
+210ms down to 0.06ms. `Index Scan` walked the B-tree straight to the matching entries instead of reading every row. For queries that return a large *fraction* of the table (say, `WHERE status = 'pending'`, roughly 25% of rows), the planner will often ignore an index on `status` entirely and go back to a sequential scan — jumping around the index and then fetching each row from the table individually (random I/O) is slower than one straight read through the table (sequential I/O). This is correct planner behavior, not a bug.
+
+### Composite indexes and the leftmost-prefix rule
+
+```sql
+CREATE INDEX idx_orders_customer_status ON orders (customer_id, status);
+```
+
+This index can serve `WHERE customer_id = 4213`, and `WHERE customer_id = 4213 AND status = 'pending'`, because both queries can be satisfied by walking the tree starting from `customer_id`. It **cannot** serve `WHERE status = 'pending'` alone — the tree is sorted by `customer_id` first, so without a `customer_id` value the database has no starting point and falls back to a scan. Column order in a composite index is a deliberate design choice, not decoration: put the column your queries always filter on first.
+
+A covering index — one that includes every column a query needs — lets Postgres answer entirely from the index without touching the table at all (`Index Only Scan`), which is the fastest scan type there is.
+
+## Transactions and isolation levels
+
+A transaction groups statements so they succeed or fail together (atomicity) and don't leave the database in a half-updated state. What isolation levels control is *what one transaction is allowed to see of another transaction's in-progress or just-committed work*. Rather than memorizing definitions, look at each anomaly concretely, as two sessions running side by side.
+
+**Dirty read** — reading a value another transaction hasn't committed yet, which might not exist a moment later. Postgres never actually allows this (its `READ UNCOMMITTED` behaves like `READ COMMITTED`), but it's real in MySQL's InnoDB under `READ UNCOMMITTED`:
+
+```sql
+-- Session A                          -- Session B
+BEGIN;
+UPDATE accounts SET balance = 0
+  WHERE id = 1;                       -- not committed yet
+                                       SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+                                       BEGIN;
+                                       SELECT balance FROM accounts WHERE id = 1;  -- reads 0
+ROLLBACK;                             -- balance was never really 0
+                                       -- but Session B already acted on that value
+```
+
+**Non-repeatable read** — the same row, read twice in one transaction, comes back different because another transaction committed a change in between. This happens under Postgres's default, `READ COMMITTED`:
+
+```sql
+-- Session A                          -- Session B
+BEGIN;
+SELECT balance FROM accounts
+  WHERE id = 1;                       -- 500
+                                       BEGIN;
+                                       UPDATE accounts SET balance = 300
+                                         WHERE id = 1;
+                                       COMMIT;
+SELECT balance FROM accounts
+  WHERE id = 1;                       -- 300, in the *same* transaction
+COMMIT;
+```
+
+**Phantom read** — a repeated query returns a different *set of rows*, not just a changed value, because another transaction inserted or deleted rows matching the predicate:
+
+```sql
+-- Session A                                  -- Session B
+BEGIN;
+SELECT count(*) FROM orders
+  WHERE status = 'pending';                   -- 120
+                                               INSERT INTO orders (customer_id, status, total_cents)
+                                                 VALUES (1, 'pending', 999);
+                                               COMMIT;
+SELECT count(*) FROM orders
+  WHERE status = 'pending';                   -- 121 under READ COMMITTED
+COMMIT;
+```
+
+Under Postgres's `REPEATABLE READ`, that second count would still read 120 — Postgres implements it with a consistent snapshot taken at `BEGIN`, which is stricter than the SQL standard requires and blocks phantoms too. That's a Postgres-specific bonus; don't assume every database's `REPEATABLE READ` blocks phantoms (older MySQL configurations, for instance, may not).
+
+| Isolation level | Dirty read | Non-repeatable read | Phantom read |
+|---|---|---|---|
+| `READ UNCOMMITTED` | possible* | possible | possible |
+| `READ COMMITTED` (Postgres default) | prevented | possible | possible |
+| `REPEATABLE READ` | prevented | prevented | possible (standard) / prevented (Postgres) |
+| `SERIALIZABLE` | prevented | prevented | prevented |
+
+*Postgres treats `READ UNCOMMITTED` as `READ COMMITTED`, so it never actually produces a dirty read.
+
+`SERIALIZABLE` is the strongest guarantee — transactions behave as if run one at a time — and the most expensive, since the database has to detect conflicts and abort one side with a serialization-failure error your application code has to catch and retry. Reach for it only when the correctness cost of an anomaly (double-booking a seat, double-spending a balance) is worse than the cost of occasionally retrying a transaction.
+
+## Normalization, with a real schema
+
+Start from a single flat table an early prototype might actually ship with:
+
+```
+orders_flat(order_id, customer_name, customer_email, product1, product2, product3)
+```
+
+This violates **1NF** (first normal form: every column holds one atomic value, no repeating groups) — `product1`/`product2`/`product3` is a repeating group, and it caps every order at three items. Fix: one row per order line.
+
+```
+order_items(order_id, product_id, product_name, product_price, quantity, customer_name, customer_email)
+PRIMARY KEY (order_id, product_id)
+```
+
+Atomic values, no repeating groups — 1NF satisfied. But this table has an update anomaly: `product_name` and `product_price` repeat on every line that mentions that product, and `customer_name`/`customer_email` repeat on every line of that order. Rename a product and you have to update it everywhere it appears, or the rows disagree.
+
+That's a **2NF** violation (second normal form: every non-key column must depend on the *whole* composite key, not part of it). Here `product_name`/`product_price` depend only on `product_id`, and `customer_name`/`customer_email` depend only on `order_id` — both are partial dependencies on half of `(order_id, product_id)`. Fix by pulling out the parts that don't depend on the full key:
+
+```
+products(product_id PK, product_name, product_price)
+orders(order_id PK, customer_name, customer_email)
+order_items(order_id FK, product_id FK, quantity)
+PRIMARY KEY (order_id, product_id)
+```
+
+Now check `orders` against **3NF** (third normal form: no non-key column depends on another non-key column — no *transitive* dependency). `customer_email` doesn't depend on `order_id`; it depends on which customer placed the order, and `customer_name` depends on that same customer, not on the order itself. That's transitive: `order_id → customer_id → customer_name`. Fix:
+
+```sql
+CREATE TABLE customers (
+    customer_id SERIAL PRIMARY KEY,
+    name  TEXT NOT NULL,
+    email TEXT UNIQUE NOT NULL
+);
+
+CREATE TABLE products (
+    product_id SERIAL PRIMARY KEY,
+    name  TEXT NOT NULL,
+    price_cents INT NOT NULL
+);
+
+CREATE TABLE orders (
+    order_id SERIAL PRIMARY KEY,
+    customer_id INT NOT NULL REFERENCES customers(customer_id),
+    created_at TIMESTAMP NOT NULL DEFAULT now()
+);
+
+CREATE TABLE order_items (
+    order_id INT NOT NULL REFERENCES orders(order_id),
+    product_id INT NOT NULL REFERENCES products(product_id),
+    quantity INT NOT NULL,
+    PRIMARY KEY (order_id, product_id)
+);
+```
+
+Rename a customer once, in `customers`, and every order reflects it. This is the schema Tier 1 asked you to design intuitively; now you have the vocabulary (1NF/2NF/3NF) to explain *why* it's shaped this way, and to spot the same three anomalies in someone else's schema.
+
+## ORMs, beyond connect-and-query
+
+### Relationships
+
+Tier 2 mapped one table to one class. Real schemas have foreign keys, and an ORM should let you walk them as attributes instead of writing joins by hand. In SQLAlchemy, `relationship()` plus `back_populates` keeps both sides of an association in sync in Python (it does not create any SQL — the `ForeignKey` column does that):
+
+```python
+from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy.orm import declarative_base, relationship
+
+Base = declarative_base()
+
+class Customer(Base):
+    __tablename__ = "customers"
+    id = Column(Integer, primary_key=True)
+    name = Column(String, nullable=False)
+    orders = relationship("Order", back_populates="customer")
+
+class Order(Base):
+    __tablename__ = "orders"
+    id = Column(Integer, primary_key=True)
+    customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False)
+    customer = relationship("Customer", back_populates="orders")
+
+ada = Customer(name="Ada Lovelace")
+ada.orders.append(Order())
+# session.add(ada); session.commit() would INSERT both rows,
+# with order.customer_id filled in automatically from the relationship
+```
+
+Many-to-many needs an association table. If the link itself carries data (here, `quantity`), model it as its own class rather than a bare join table:
+
+```python
+class OrderItem(Base):
+    __tablename__ = "order_items"
+    order_id = Column(Integer, ForeignKey("orders.id"), primary_key=True)
+    product_id = Column(Integer, ForeignKey("products.id"), primary_key=True)
+    quantity = Column(Integer, nullable=False)
+    order = relationship("Order", back_populates="items")
+    product = relationship("Product")
+```
+
+### Migrations
+
+`Base.metadata.create_all(engine)`, which Tier 2 used, only creates tables that don't exist yet — it will never alter a table to match a model you changed, so the moment you add a column to a model that's already deployed, `create_all` silently does nothing and production drifts out of sync with your code. That's what a migration tool is for. With Alembic:
+
+```bash
+alembic init migrations
+alembic revision --autogenerate -m "add total_cents to orders"
+alembic upgrade head
+```
+
+The generated file is real, reviewable Python, not magic:
+
+```python
+def upgrade():
+    op.add_column("orders", sa.Column("total_cents", sa.Integer(), nullable=False, server_default="0"))
+
+def downgrade():
+    op.drop_column("orders", "total_cents")
+```
+
+`upgrade()` is what ships; `downgrade()` is how you undo it if the deploy goes wrong. Every schema change in a team codebase should go through a migration file like this — checked into version control, applied the same way in every environment — rather than someone hand-running an `ALTER TABLE` against production.
+
+## Exercise
+
+Take this flat table, the kind a quick prototype tends to accumulate:
+
+```
+signups(email, plan_name, plan_price_cents, referred_by_email, signed_up_at)
+```
+
+1. Identify which normal form each of these violates, and why: (a) `plan_name`/`plan_price_cents` living directly on `signups` instead of a `plans` table, and (b) `referred_by_email` being a raw email string instead of a foreign key to another row in the same table.
+2. Design and write the `CREATE TABLE` statements for a 3NF version, including a self-referencing foreign key for the referral relationship.
+3. Load 500,000 fake rows into your `signups`-equivalent table, run `EXPLAIN ANALYZE` on a query filtering by `referred_by_email`, confirm it's a `Seq Scan`, add the right index, and confirm the plan flips to an `Index Scan`.
+
+**Hint:** for step 3, a self-referencing foreign key column still needs its own index — a `REFERENCES` constraint does *not* automatically index the referencing column the way a primary key does.

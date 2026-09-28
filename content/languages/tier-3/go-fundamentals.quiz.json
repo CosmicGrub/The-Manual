@@ -1,0 +1,98 @@
+[
+  {
+    "id": "languages/tier-3/go-fundamentals/q1",
+    "type": "multiple_choice",
+    "prompt": "How does a Go type satisfy an interface?",
+    "choices": [
+      "It must declare `implements InterfaceName` in its type definition",
+      "It automatically satisfies the interface as soon as it has all the required methods \u2014 no explicit declaration needed",
+      "It must embed the interface by name as a struct field",
+      "It must be registered with the interface via an `init()` function"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-3/go-fundamentals/q2",
+    "type": "multiple_choice",
+    "prompt": "Predict the output:\n\ntype Counter struct {\n\tn int\n}\n\nfunc (c Counter) Increment() {\n\tc.n++\n}\n\nfunc main() {\n\tc := Counter{n: 0}\n\tc.Increment()\n\tc.Increment()\n\tfmt.Println(c.n)\n}",
+    "choices": [
+      "2",
+      "1",
+      "0",
+      "compile error: Increment cannot modify c"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "languages/tier-3/go-fundamentals/q3",
+    "type": "multiple_choice",
+    "prompt": "What happens when this runs?\n\nfunc main() {\n\tch := make(chan int)\n\tch <- 42\n\tfmt.Println(<-ch)\n}",
+    "choices": [
+      "Prints 42",
+      "Prints 0, since the channel is empty at read time",
+      "Fatal error: deadlock \u2014 the send blocks forever because no other goroutine is ready to receive",
+      "Compile error: cannot send and receive on the same channel"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "languages/tier-3/go-fundamentals/q4",
+    "type": "multiple_choice",
+    "prompt": "Which command creates a new go.mod file for a project?",
+    "choices": [
+      "go init",
+      "go mod init <module-path>",
+      "go new module <module-path>",
+      "go build --init"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-3/go-fundamentals/q5",
+    "type": "multiple_choice",
+    "prompt": "What is idiomatic Go's mechanism for signaling that a function call failed?",
+    "choices": [
+      "Throwing an exception that a caller must catch with try/catch",
+      "Returning an `error` as an additional return value, checked with `if err != nil`",
+      "Returning `nil` in place of any failed result",
+      "Calling `panic()` for any recoverable failure"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-3/go-fundamentals/q6",
+    "type": "multiple_choice",
+    "prompt": "What does the empty interface type `interface{}` (aliased as `any`) represent in Go?",
+    "choices": [
+      "An interface with no methods, which every type automatically satisfies",
+      "An interface that no type can ever satisfy",
+      "A placeholder that must be filled in with a generic type parameter before compiling",
+      "A pointer to any struct type in the current package"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-3/go-fundamentals/q7",
+    "type": "multiple_choice",
+    "prompt": "http.HandleFunc(\"/tasks\", tasksHandler) is called with a plain function, func tasksHandler(w http.ResponseWriter, r *http.Request) {...}, and it compiles with no `implements` declaration anywhere. Why?",
+    "choices": [
+      "Because Go uses reflection at runtime to bypass the type system for HTTP handlers",
+      "Because tasksHandler's signature matches what's required, and the standard library's http.HandlerFunc adapter gives any such function a ServeHTTP method \u2014 satisfying http.Handler implicitly",
+      "Because every function in Go automatically implements every interface",
+      "Because tasksHandler and http.Handler are declared in the same package"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-3/go-fundamentals/q8",
+    "type": "multiple_choice",
+    "prompt": "filePath := flag.String(\"file\", \"\", \"path to file\")\nflag.Parse()\nfmt.Println(filePath)\n\nWhat's wrong with this last line, given the goal is to print the file path the user passed in?",
+    "choices": [
+      "Nothing \u2014 it prints the file path string correctly",
+      "It prints a pointer address, not the string, because flag.String returns *string and this never dereferences it with *filePath",
+      "It causes a compile error since flag.String's return type is incompatible with fmt.Println",
+      "It always prints an empty string regardless of what the user passed"
+    ],
+    "correctIndex": 1
+  }
+]

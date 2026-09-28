@@ -203,3 +203,13 @@ All notable changes to The Manual (curriculum + app) are logged here. This file 
 **Result:** `npm run build` passed with zero errors on the first attempt — no bugs caught this round, confirming 0.11.0's fixes actually closed the gaps rather than just papering over that one run.
 
 **Status:** Language Mastery Tier 2 complete (41h, 6 lessons). Language Mastery is now 3/6 tiers content-complete (Tiers 0-2, 109h); Tiers 3-5 remain.
+
+## [0.13.0] — 2026-09-28 — Language Mastery Tier 3: complete (Practitioner level)
+
+**Context:** Continuing the tier-by-tier pattern. This tier's workflow output reintroduced the HTML-entity-escaping issue seen once before this session (agents writing `&amp;`/`&lt;`/`&gt;` into code blocks as if targeting HTML rather than raw Markdown) — caught before assembly this time instead of after, and fixed once in the tooling rather than in the content.
+
+**Added**
+- `content/languages/tier-3/*.mdx` (6 files) + matching quizzes: C++ Fundamentals atop C Knowledge (RAII, STL containers, smart pointers, CMake — framed explicitly as "C plus tools that fix the bug classes Tier 2 made you fight by hand"), Java or C# for OOP at Scale, Go Fundamentals (structs/interfaces, a first taste of goroutines/channels — full concurrency stays Tier 4's job), Advanced SQL & Data Modeling (indexes, query plans, transactions/isolation, normalization — beyond Tier 2's driver-only level), Reading Real Codebases, Collaborative Git & Code Review Practices (branching strategy and real PR review, beyond Tier 0's solo git basics).
+- `assemble_tier_v2.py` now runs `html.unescape()` on every lesson body and every quiz prompt/choice before writing, instead of relying on a post-hoc grep-and-fix pass — closes the entity-escaping bug class at the tooling level rather than per-tier.
+
+**Status:** Language Mastery Tier 3 complete (66h, 6 lessons). Language Mastery is now 4/6 tiers content-complete (Tiers 0-3, 175h); Tiers 4-5 remain. `npm run build` passed clean (0 errors).

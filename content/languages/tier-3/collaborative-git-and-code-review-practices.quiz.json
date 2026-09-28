@@ -1,0 +1,98 @@
+[
+  {
+    "id": "languages/tier-3/collaborative-git-and-code-review-practices/q1",
+    "type": "multiple_choice",
+    "prompt": "What is the central practical tradeoff between trunk-based development and long-lived feature branches?",
+    "choices": [
+      "Trunk-based trades frequent small merge conflicts for early integration; long-lived branches trade rare but larger conflicts for late integration",
+      "Trunk-based development doesn't use pull requests at all, while long-lived branches require them",
+      "Long-lived feature branches are only possible with centralized version control, not Git",
+      "Trunk-based development means nobody can work on incomplete features, ever"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-3/collaborative-git-and-code-review-practices/q2",
+    "type": "multiple_choice",
+    "prompt": "In trunk-based development, how do teams typically merge incomplete features into main without breaking it?",
+    "choices": [
+      "They don't \u2014 incomplete work never touches main until it's finished",
+      "They gate the incomplete code path behind a feature flag that's off by default",
+      "They comment out the new code until it's ready",
+      "They keep incomplete features on a branch that never gets deleted"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-3/collaborative-git-and-code-review-practices/q3",
+    "type": "multiple_choice",
+    "prompt": "Which review comment is most useful to the PR author?",
+    "choices": [
+      "\"this looks wrong\"",
+      "\"nit: rename this\"",
+      "\"blocking: db.Save's error is discarded here, so a failed write looks like success to the caller\"",
+      "\"LGTM\""
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "languages/tier-3/collaborative-git-and-code-review-practices/q4",
+    "type": "multiple_choice",
+    "prompt": "During `git rebase origin/main`, a conflict marker block shows HEAD above `=======` and your own commit below it. What does the HEAD side represent?",
+    "choices": [
+      "Your uncommitted local changes",
+      "The commit you're rebasing onto (the updated main)",
+      "A random Git-generated merge candidate",
+      "The very first commit in the repository's history"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-3/collaborative-git-and-code-review-practices/q5",
+    "type": "multiple_choice",
+    "prompt": "After hand-resolving a merge conflict in code and running `git add` on the file, what is the most important next step before continuing the rebase?",
+    "choices": [
+      "Immediately run `git push --force` to save progress",
+      "Run the test suite to confirm the resolved code is not just syntactically valid but logically correct",
+      "Delete the conflicting branch to avoid future conflicts",
+      "Squash all commits into one before resolving anything"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-3/collaborative-git-and-code-review-practices/q6",
+    "type": "multiple_choice",
+    "prompt": "What does `git push --force-with-lease` do differently from `git push --force`?",
+    "choices": [
+      "It pushes to a different remote branch automatically",
+      "It refuses to overwrite the remote branch if someone else has pushed to it since your last fetch, instead of overwriting unconditionally",
+      "It skips CI checks before pushing",
+      "It automatically resolves any remaining conflicts before pushing"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-3/collaborative-git-and-code-review-practices/q7",
+    "type": "multiple_choice",
+    "prompt": "A commit message reads only: \"update pricing.go\". What is the main problem with it as documentation for a future reader?",
+    "choices": [
+      "It's too short; ideal messages are always at least 200 characters",
+      "It restates what file changed but gives no reasoning for why the change was needed, which git diff can't supply on its own",
+      "It should have been written in the past tense instead of present tense",
+      "Commit messages are never read by anyone, so the content doesn't matter"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-3/collaborative-git-and-code-review-practices/q8",
+    "type": "multiple_choice",
+    "prompt": "Two branches, Alice's and Bob's, both diverge from the same commit and both modify the same function in different ways. Bob's branch merges to main first. When Alice rebases her branch onto the updated main, what causes the conflict?",
+    "choices": [
+      "Git detects that Alice and Bob are different authors and always flags this as a conflict",
+      "Both branches changed overlapping lines of the same function, and Git cannot infer that the intent was to keep both changes",
+      "Alice forgot to run `git fetch` before branching",
+      "Rebasing always produces a conflict regardless of what changed"
+    ],
+    "correctIndex": 1
+  }
+]
