@@ -1,0 +1,270 @@
+---
+trackId: languages
+tier: 1
+title: Python Syntax & Core Semantics
+order: 1
+estimatedHours: 10
+slug: python-syntax-and-core-semantics
+---
+
+## Quick Recap: Variables & Dynamic Typing
+
+You already know this from CS Foundations: Python variables are just names bound to objects, types live on the object not the name, and rebinding is free (`x = 5; x = "five"` is completely legal). The one thing worth pinning down before moving on is how this compares to JS, since you'll be context-switching between them constantly on this track: JS is *also* dynamically typed with types on values, but `let`/`const` control whether the **binding** can be reassigned — `const` doesn't make the value immutable, it just freezes the name-to-object link (`const arr = [1]; arr.push(2)` works fine). Python has no `const`; convention (`ALL_CAPS` names) is the only signal.
+
+```python
+x = 5
+x = "five"        # fine, x now points at a str object
+print(type(x))    # <class 'str'>
+```
+
+```js
+let x = 5;
+x = "five";        // fine
+console.log(typeof x); // "string"
+```
+
+That's the whole recap. Everything below is new.
+
+## Functions: Defaults, and a Classic Trap
+
+Python functions are first-class objects, same as JS — you can assign them, pass them, return them. Where Python actually differs is **default argument evaluation**: defaults are evaluated *once*, when the `def` statement runs, not on every call. If the default is mutable, you've created a shared, persistent object across every call that doesn't pass its own argument.
+
+```python
+def add_item(item, cart=[]):
+    cart.append(item)
+    return cart
+
+add_item("apple")            # ['apple']
+add_item("banana")           # ['apple', 'banana']  <- surprise, same list!
+```
+
+The fix is the standard idiom: default to `None`, create the mutable object inside the body.
+
+```python
+def add_item(item, cart=None):
+    if cart is None:
+        cart = []
+    cart.append(item)
+    return cart
+```
+
+JS sidesteps this entirely — default parameters are re-evaluated on *every call*:
+
+```js
+function addItem(item, cart = []) {
+  cart.push(item);
+  return cart;
+}
+addItem("apple");   // ["apple"]
+addItem("banana");  // ["banana"]  <- fresh array each time, no trap
+```
+
+For variadic arguments, Python's `*args`/`**kwargs` splits positional from keyword collection explicitly:
+
+```python
+def total(*args, **kwargs):
+    print(args, kwargs)
+
+total(1, 2, 3, tax=0.08)
+# (1, 2, 3) {'tax': 0.08}
+```
+
+JS's rest parameter only does the positional half — `...args` collects everything into one array, there's no separate keyword bucket:
+
+```js
+function total(...args) {
+  console.log(args); // [1, 2, 3]
+}
+```
+
+To get Python's keyword-argument feel in JS, the idiom is a single destructured object parameter, not a language feature:
+
+```js
+function createUser({ name, age, email }) {
+  return `${name} (${age})`;
+}
+createUser({ name: "Amy", age: 30, email: "a@x.com" }); // order doesn't matter
+```
+
+## Scope: LEGB, and Why `nonlocal` Exists at All
+
+Python resolves names with the **LEGB** rule: Local → Enclosing → Global → Built-in. Nothing unusual there conceptually — JS does lexical scoping too. The part that trips people coming from JS is *how* Python decides a name is local: if a name is assigned **anywhere** in a function body, Python treats it as local for the *entire* function, even on lines before the assignment.
+
+```python
+count = 0
+
+def broken():
+    print(count)   # UnboundLocalError, not 0!
+    count = 1
+
+broken()
+```
+
+Python sees the `count = 1` later in the body and decides `count` is local throughout — so the `print` line fails, because the local `count` hasn't been assigned yet at that point. JS has no equivalent trap here in this form; reading an outer `let`/`const` before any local shadowing assignment just works (or throws a clear temporal-dead-zone error if you shadow-declare with `let` below, which is a different, more obvious problem).
+
+To reassign an enclosing (not global) variable, Python requires an explicit `nonlocal` declaration:
+
+```python
+def make_counter():
+    count = 0
+    def increment():
+        nonlocal count
+        count += 1
+        return count
+    return increment
+
+counter = make_counter()
+print(counter())  # 1
+print(counter())  # 2
+```
+
+Drop the `nonlocal` line and `count += 1` raises `UnboundLocalError` for the same reason as above. JS needs **no keyword at all** for the equivalent pattern — closures just read and write the enclosing scope directly:
+
+```js
+function makeCounter() {
+  let count = 0;
+  return function increment() {
+    count += 1;
+    return count;
+  };
+}
+const counter = makeCounter();
+console.log(counter()); // 1
+console.log(counter()); // 2
+```
+
+This is the core mechanical difference: Python's scope for a name is decided statically per-function by scanning for assignments, and `global`/`nonlocal` are escape hatches you must declare explicitly. JS's scope is just "the nearest enclosing binding," full stop — assignment never silently redeclares a name as local.
+
+## Closures: Capturing Variables, Not Snapshots
+
+Closures in both languages capture the **variable**, not the value at closure-creation time. This is exactly the loop-variable gotcha you may have hit in either language:
+
+```python
+funcs = []
+for i in range(3):
+    funcs.append(lambda: i)
+
+print([f() for f in funcs])   # [2, 2, 2], not [0, 1, 2]
+```
+
+All three lambdas close over the *same* `i`, and by the time you call them the loop has finished with `i == 2` (the last value `range(3)` produced). The fix: force a per-iteration capture with a default argument, which *is* evaluated at definition time:
+
+```python
+funcs = [lambda i=i: i for i in range(3)]
+print([f() for f in funcs])   # [0, 1, 2]
+```
+
+JS has the identical bug with `var`, because `var` is function-scoped, not block-scoped:
+
+```js
+var funcs = [];
+for (var i = 0; i < 3; i++) {
+  funcs.push(() => i);
+}
+console.log(funcs.map(f => f())); // [3, 3, 3]
+```
+
+Note it's `3` here, not `2` — the JS `for` loop increments `i` *after* the last body execution, then fails the `i < 3` check, leaving `i` at `3` when the loop exits. Python's `for i in range(3)` never runs an extra increment, so it lands on `2`. Same category of bug, different off-by-one detail — worth remembering if you're translating code between the two.
+
+`let` fixes it in JS by creating a fresh binding per iteration, which is JS's built-in equivalent of the `lambda i=i` trick:
+
+```js
+let funcs2 = [];
+for (let i = 0; i < 3; i++) {
+  funcs2.push(() => i);
+}
+console.log(funcs2.map(f => f())); // [0, 1, 2]
+```
+
+## Truthy and Falsy: Where the Two Languages Diverge
+
+Python's falsy set: `False`, `None`, `0`, `0.0`, `0j`, `''`, `[]`, `{}`, `set()`, and any empty container. JS's falsy set: `false`, `null`, `undefined`, `0`, `-0`, `NaN`, `''`. Two divergences will bite you specifically when porting logic between the languages:
+
+**Empty containers.** In Python, empty collections are falsy. In JS, *every* object and array is truthy, even empty ones, because objects are always truthy references regardless of contents.
+
+```python
+cart = []
+if not cart:
+    print("empty")   # prints — [] is falsy
+```
+
+```js
+const cart = [];
+if (!cart) {
+  console.log("empty"); // never prints — [] is truthy!
+}
+if (cart.length === 0) {
+  console.log("empty"); // this is the correct JS check
+}
+```
+
+**NaN.** JS explicitly lists `NaN` as falsy. Python does not special-case it — a `nan` float is a perfectly normal non-zero-looking object as far as `bool()` is concerned:
+
+```python
+import math
+print(bool(float('nan')))   # True
+```
+
+```js
+console.log(Boolean(NaN));  // false
+```
+
+**Short-circuit defaults.** Both languages let `and`/`or` (`&&`/`||`) return an operand rather than a boolean, which is convenient for defaults — until the valid value is itself falsy:
+
+```python
+def get_discount(percent=None):
+    return percent or 10
+
+print(get_discount(0))   # 10 — wrong! 0 was a valid, intentional value
+```
+
+```js
+function getDiscount(percent) {
+  return percent || 10;
+}
+console.log(getDiscount(0)); // 10 — same bug
+```
+
+JS gained a real fix in ES2020, the nullish coalescing operator `??`, which only falls through on `null`/`undefined`, not on falsy-but-valid values like `0` or `''`:
+
+```js
+function getDiscount(percent) {
+  return percent ?? 10;
+}
+console.log(getDiscount(0)); // 0 — correct
+```
+
+Python has no operator equivalent — you write the `is None` check explicitly:
+
+```python
+def get_discount(percent=None):
+    return 10 if percent is None else percent
+```
+
+## Exercise
+
+Two small bugs, same file. Fix both.
+
+```python
+def make_click_handlers(labels):
+    handlers = []
+    for i, label in enumerate(labels):
+        def handler():
+            print(f"Button {i}: {label} clicked")
+        handlers.append(handler)
+    return handlers
+
+def price_with_discount(price, discount_percent=None):
+    discount = discount_percent or 5
+    return price * (1 - discount / 100)
+
+# Expected: each handler prints its own index/label
+btns = make_click_handlers(["Save", "Cancel", "Delete"])
+for h in btns:
+    h()
+
+# Expected: a 0% discount should mean no discount at all
+print(price_with_discount(100, discount_percent=0))  # should print 100.0
+```
+
+Run it first and see what actually prints. **Hints:** the first bug is the loop-closure capture problem covered above — think about what `i` and `label` are pointing to by the time each `handler` actually runs. The second bug is the falsy-default trap — `0` is being treated as "no discount specified" when it should mean "explicitly zero." Don't write out the full fix here; find the two one-line changes that resolve each.

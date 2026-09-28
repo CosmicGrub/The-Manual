@@ -28,6 +28,7 @@ export function resolveQuizQuestionItem(itemId: string): QuizQuestion | undefine
   const match = itemId.match(/^(.+)\/tier-(\d+)\/(.+)\/(q\d+)$/)
   if (!match) return undefined
   const [, trackId, tierStr, slug] = match
+  if (!trackId || !tierStr || !slug) return undefined
   const questions = getQuizQuestions(trackId, Number(tierStr), slug)
   return questions.find((q) => q.id === itemId)
 }

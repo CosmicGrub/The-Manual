@@ -1,0 +1,98 @@
+[
+  {
+    "id": "languages/tier-1/functions-modules-and-basic-oop/q1",
+    "type": "multiple_choice",
+    "prompt": "What does this print?\n\ndef make_multiplier(factor):\n    def multiplier(x):\n        return x * factor\n    return multiplier\n\ndouble = make_multiplier(2)\ntriple = make_multiplier(3)\nprint(double(5), triple(5))",
+    "choices": [
+      "10 15",
+      "5 5",
+      "2 3",
+      "TypeError: multiplier is not defined"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-1/functions-modules-and-basic-oop/q2",
+    "type": "multiple_choice",
+    "prompt": "Which line is exactly equivalent to writing '@trace' above 'def add(a, b): ...'?",
+    "choices": [
+      "add = trace(add)",
+      "add = trace",
+      "trace = add()",
+      "add() = trace()"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-1/functions-modules-and-basic-oop/q3",
+    "type": "multiple_choice",
+    "prompt": "What happens when this runs?\n\nclass Cart:\n    items = []\n    def add(self, item):\n        self.items.append(item)\n\nc1, c2 = Cart(), Cart()\nc1.add('apple')\nprint(c2.items)",
+    "choices": [
+      "['apple'] \u2014 c2 sees the item too",
+      "[] \u2014 each Cart has its own empty list",
+      "AttributeError: 'Cart' object has no attribute 'items'",
+      "['apple', 'apple'] \u2014 the item is added to both"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-1/functions-modules-and-basic-oop/q4",
+    "type": "multiple_choice",
+    "prompt": "A BankAccount class defines 'def deposit(self, amount): ...'. What error do you get from calling 'account.deposit()' with no arguments?",
+    "choices": [
+      "TypeError: deposit() missing 1 required positional argument: 'amount'",
+      "No error \u2014 amount defaults to None",
+      "NameError: name 'self' is not defined",
+      "It silently does nothing"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-1/functions-modules-and-basic-oop/q5",
+    "type": "multiple_choice",
+    "prompt": "Why put 'if __name__ == \"__main__\":' around demo/test code in a module?",
+    "choices": [
+      "So that code only runs when the file is executed directly, not when another file imports it",
+      "It's required syntax for every Python file to be importable at all",
+      "It makes the function calls inside run faster",
+      "It hides the function definitions above it from other files"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-1/functions-modules-and-basic-oop/q6",
+    "type": "multiple_choice",
+    "prompt": "Two different files in the same program both write 'import tasks'. How many times does tasks.py's top-level code actually execute?",
+    "choices": [
+      "Once \u2014 Python caches the imported module and reuses it",
+      "Twice \u2014 once per import statement",
+      "Zero \u2014 the second import is silently skipped entirely, including the module object",
+      "It depends on whether the module has an __init__ function"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-1/functions-modules-and-basic-oop/q7",
+    "type": "multiple_choice",
+    "prompt": "What's the main reason to use a virtual environment (venv) instead of just running 'pip install' normally?",
+    "choices": [
+      "It isolates each project's installed packages so different projects can depend on different, possibly conflicting, versions",
+      "It makes Python code run significantly faster",
+      "It's required before Python will let you define a class",
+      "It automatically converts your code to work with any Python version"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-1/functions-modules-and-basic-oop/q8",
+    "type": "multiple_choice",
+    "prompt": "What does this print?\n\nwords = ['banana', 'kiwi', 'fig']\nprint(sorted(words, key=len))",
+    "choices": [
+      "['fig', 'kiwi', 'banana']",
+      "['banana', 'kiwi', 'fig']",
+      "['fig', 'banana', 'kiwi']",
+      "TypeError: 'function' object is not subscriptable"
+    ],
+    "correctIndex": 0
+  }
+]

@@ -4,6 +4,7 @@ tier: 0
 title: The Command Line & Filesystem Mental Model
 order: 1
 estimatedHours: 6
+slug: command-line-and-filesystem-mental-model
 ---
 
 You already know how to move around a filesystem and chain a couple of commands together — `cd`, `ls`, `pwd`, and a basic `ls -la | grep .py` pipe are old news from CS Foundations Tier 0. What that lesson didn't need to cover yet is what happens the moment you're running programs written in *different* languages against each other: how your shell finds each language's own toolchain, how a program's real output and its error chatter travel as two genuinely separate streams, and how to wire your own Python, Bash, and (eventually) Node, C, Java, and Rust programs together using nothing but stdin and stdout. That's the actual job of this lesson — the plumbing every other module in this tier, and every language you touch from Tier 1 onward, quietly assumes you already have.

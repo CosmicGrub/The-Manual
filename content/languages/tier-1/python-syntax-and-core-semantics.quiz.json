@@ -1,0 +1,98 @@
+[
+  {
+    "id": "languages/tier-1/python-syntax-and-core-semantics/q1",
+    "type": "multiple_choice",
+    "prompt": "What does Python's LEGB rule stand for, in resolution order?",
+    "choices": [
+      "Local, Enclosing, Global, Built-in",
+      "Lexical, Environment, Global, Base",
+      "Local, External, Generic, Base",
+      "Loop, Enclosing, Global, Block"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-1/python-syntax-and-core-semantics/q2",
+    "type": "multiple_choice",
+    "prompt": "What does this print?\n\ncount = 0\n\ndef broken():\n    print(count)\n    count = 1\n\nbroken()",
+    "choices": [
+      "0",
+      "1",
+      "UnboundLocalError",
+      "None"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "languages/tier-1/python-syntax-and-core-semantics/q3",
+    "type": "multiple_choice",
+    "prompt": "Spot the bug: what do these two calls actually produce?\n\ndef add_item(item, cart=[]):\n    cart.append(item)\n    return cart\n\nprint(add_item(\"apple\"))\nprint(add_item(\"banana\"))",
+    "choices": [
+      "['apple'] then ['banana'] \u2014 each call gets a fresh list",
+      "['apple'] then ['apple', 'banana'] \u2014 the default list is shared across calls",
+      "A TypeError on the second call",
+      "['apple'] then ['banana', 'apple'] \u2014 order is reversed"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-1/python-syntax-and-core-semantics/q4",
+    "type": "multiple_choice",
+    "prompt": "Predict the output:\n\nfuncs = []\nfor i in range(3):\n    funcs.append(lambda: i)\n\nprint([f() for f in funcs])",
+    "choices": [
+      "[0, 1, 2]",
+      "[2, 2, 2]",
+      "[3, 3, 3]",
+      "A NameError"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-1/python-syntax-and-core-semantics/q5",
+    "type": "multiple_choice",
+    "prompt": "The equivalent JS loop below has a similar bug, but with a different final value. Why does it print 3 instead of 2?\n\nvar funcs = [];\nfor (var i = 0; i < 3; i++) {\n  funcs.push(() => i);\n}\nconsole.log(funcs.map(f => f()));",
+    "choices": [
+      "JS arrays are 1-indexed so everything shifts by one",
+      "var is block-scoped in JS, unlike Python's for-loop variable",
+      "The for loop increments i to 3 and fails the i < 3 check before exiting, so i is left at 3 when the closures run",
+      "console.log evaluates each closure twice"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "languages/tier-1/python-syntax-and-core-semantics/q6",
+    "type": "multiple_choice",
+    "prompt": "You port this Python check directly to JS. What actually happens?\n\nPython: `if not cart: print(\"empty\")` where `cart = []`\nJS: `if (!cart) { console.log(\"empty\"); }` where `const cart = [];`",
+    "choices": [
+      "Both print \"empty\" \u2014 [] is falsy in both languages",
+      "Python prints \"empty\"; JS prints nothing, because [] is truthy in JS even when empty",
+      "Neither prints anything",
+      "JS throws a TypeError on an empty array"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-1/python-syntax-and-core-semantics/q7",
+    "type": "multiple_choice",
+    "prompt": "Predict the output:\n\nimport math\nprint(bool(float('nan')))",
+    "choices": [
+      "False",
+      "True",
+      "TypeError: unsupported operand",
+      "None"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-1/python-syntax-and-core-semantics/q8",
+    "type": "multiple_choice",
+    "prompt": "Spot the bug:\n\ndef get_discount(percent=None):\n    return percent or 10\n\nprint(get_discount(0))",
+    "choices": [
+      "Prints 0, as intended",
+      "Prints 10, because 0 is falsy so `or` falls through to the default, even though 0 was explicitly passed",
+      "Raises a TypeError",
+      "Prints None"
+    ],
+    "correctIndex": 1
+  }
+]

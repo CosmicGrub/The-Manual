@@ -8,6 +8,11 @@ import { getOrCreateDefaultUser } from '@/lib/user'
 // not statically generated. Offline behavior comes from the service worker's
 // navigation strategy (network-first, falls back to the last cached snapshot)
 // rather than from SSG, same as the dashboard. See MASTERFILE.md §3.8.
+// The explicit directive (not just this comment) is required — without it
+// `next build` still attempts to prerender the page at build time, before a
+// DB exists in the Docker build stage, and the build fails outright.
+export const dynamic = 'force-dynamic'
+
 export default async function ReviewPage() {
   const user = await getOrCreateDefaultUser()
   const due = await db.reviewState.findMany({ where: { userId: user.id, dueAt: { lte: new Date() } }, orderBy: { dueAt: 'asc' } })

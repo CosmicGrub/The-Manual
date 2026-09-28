@@ -1,0 +1,201 @@
+---
+trackId: languages
+tier: 1
+title: Error Handling & Debugging Fundamentals
+order: 4
+estimatedHours: 6
+slug: error-handling-and-debugging-fundamentals
+---
+
+CS Foundations Tier 1 already had you writing `try`/`except` around bad file reads and bad `float()` conversions — that muscle memory is assumed here. This module is about what happens *after* the crash: reading the traceback like a map instead of noise, guaranteeing cleanup with `finally`, designing exceptions that carry real information, and stepping into a live, broken process with `pdb` and the VS Code debugger instead of guessing from `print()` output.
+
+## `finally`: the block that always runs
+
+`except` catches what you expected. `finally` runs no matter what — exception or not, `return` or not:
+
+```python
+def read_config(path):
+    f = open(path)
+    try:
+        return int(f.read().strip())
+    except ValueError:
+        print("Config file doesn't contain a valid integer")
+        return None
+    finally:
+        f.close()
+        print("file handle closed")
+
+read_config("config.txt")
+```
+
+Even though `return` inside `try` normally exits the function immediately, Python pauses just long enough to run `finally` first — "file handle closed" prints before the function actually returns. If the `except` clause didn't exist and a `TypeError` blew straight through the `try` block unhandled, `finally` would *still* run before the exception propagated out of `read_config`. That's the whole point: `finally` is for cleanup that has to happen regardless of how the block exits — closing files, releasing locks, disconnecting a socket. (In practice, `with open(path) as f:` handles this specific file-closing case for you — `finally` is what `with` is built on top of, and you'll reach for it directly whenever the resource isn't something with built-in context-manager support.)
+
+## Custom exception classes
+
+A bare `except ValueError` tells you *that* something broke, not *what it means for your program*. Custom exceptions let you raise something meaningful and attach data to it:
+
+```python
+class InsufficientFundsError(Exception):
+    """Raised when a withdrawal exceeds the account balance."""
+    def __init__(self, balance, amount):
+        self.balance = balance
+        self.amount = amount
+        super().__init__(f"Cannot withdraw {amount}: balance is only {balance}")
+
+class Account:
+    def __init__(self, balance):
+        self.balance = balance
+
+    def withdraw(self, amount):
+        if amount > self.balance:
+            raise InsufficientFundsError(self.balance, amount)
+        self.balance -= amount
+        return self.balance
+
+acct = Account(50)
+try:
+    acct.withdraw(100)
+except InsufficientFundsError as e:
+    print(e)              # Cannot withdraw 100: balance is only 50
+    print(e.balance, e.amount)   # 50 100
+```
+
+Two things matter here. First, `InsufficientFundsError` inherits from `Exception`, not from nothing — that's what makes `except InsufficientFundsError` (and, if you wanted the fallback, `except Exception`) work at all. Second, calling `super().__init__(message)` is what makes `print(e)` show something readable instead of an empty string; skip it and `str(e)` comes back blank even though the exception still carries `.balance` and `.amount`.
+
+You can also chain exceptions deliberately, so a low-level failure explains a high-level one instead of being swallowed:
+
+```python
+try:
+    balance = int(raw_balance)
+except ValueError as original:
+    raise InsufficientFundsError(0, 0) from original
+```
+
+`from original` links the two in the traceback ("The above exception was the direct cause of the following exception") instead of hiding *why* the `ValueError` happened in the first place.
+
+## Reading a traceback top-to-bottom
+
+Most people read a traceback bottom-first for the *symptom* — that's correct, the last line is always the exception type and message. But to find *where to fix it*, you read the frames above that top-to-bottom, in call order:
+
+```python
+def parse_price(raw):
+    return float(raw.strip("$"))
+
+def compute_total(items):
+    return sum(parse_price(item["price"]) for item in items)
+
+def checkout(cart):
+    return compute_total(cart["items"])
+
+cart = {"items": [{"price": "$10.00"}, {"price": "free"}]}
+checkout(cart)
+```
+
+```text
+Traceback (most recent call last):
+  File "shop.py", line 11, in <module>
+    checkout(cart)
+  File "shop.py", line 9, in checkout
+    return compute_total(cart["items"])
+  File "shop.py", line 6, in compute_total
+    return sum(parse_price(item["price"]) for item in items)
+  File "shop.py", line 6, in <genexpr>
+    return sum(parse_price(item["price"]) for item in items)
+  File "shop.py", line 2, in parse_price
+    return float(raw.strip("$"))
+ValueError: could not convert string to float: 'free'
+```
+
+The method: read the last line first (`ValueError: could not convert string to float: 'free'` — the *what*). Then start at the top and walk down — each `File ..., line ..., in ...` block is one stack frame, and the frames go from where execution *started* (`<module>`, line 11) down to where it actually *broke* (`parse_price`, line 2). The bottom frame is always the one whose line raised the exception. Don't stop reading at the first frame that mentions your own file — walk all the way to the last one before the exception line; that's the exact line and function responsible. Here it's `parse_price`, which assumed every price string starts with `$` and is numeric after stripping it — `"free"` violates that assumption. Frames pointing into `<genexpr>` or standard-library files are context, not usually where the fix goes.
+
+## `pdb`: stepping through code from the terminal
+
+Instead of guessing which `print()` to add, drop a real breakpoint into the code:
+
+```python
+def parse_price(raw):
+    breakpoint()
+    return float(raw.strip("$"))
+```
+
+Run `python shop.py` normally. Execution stops at `breakpoint()` and drops you into an interactive `(Pdb)` prompt with the program's actual state, right there in the terminal:
+
+```text
+(Pdb) p raw
+'free'
+(Pdb) l
+  1  	def parse_price(raw):
+  2  ->	    breakpoint()
+  3  	    return float(raw.strip("$"))
+(Pdb) n
+(Pdb) c
+```
+
+The core commands: `n` (next) runs the current line and stops at the next one *without* descending into function calls; `s` (step) does descend into whatever the current line calls; `c` (continue) runs until the next breakpoint or the program ends; `p <expr>` prints a value; `l` lists source around where you are; `w` (where) prints the call stack, and `u`/`d` move up/down it. `breakpoint()` is a builtin since Python 3.7 — no import needed, and it's a no-op you can leave in code (it does nothing unless `sys.breakpointhook` triggers, which it does by default). To start debugging from the very first line instead of a specific spot, run `python -m pdb shop.py`. To debug a crash *after* it happens in an interactive session, `import pdb; pdb.pm()` drops you into the traceback's last frame post-mortem.
+
+## The VS Code debugger, applied to exceptions
+
+Tier 0's Editor & Debugger Setup module had you stepping through working code with breakpoints and the Variables pane — same DAP machinery, applied now to failures. Two additions specific to exceptions: in the Run and Debug view's **Breakpoints** panel, check "Uncaught Exceptions" (and optionally "Caught Exceptions") — VS Code then stops automatically the instant something raises, without you having to guess which line to put a breakpoint on. And right-click any breakpoint to add a **condition** (e.g. `amount > 1000`) so it only stops when the interesting case shows up, instead of on every call.
+
+## JavaScript's `try`/`catch`/`finally`, contrasted
+
+The shape is nearly identical; the type-matching is not. Python lets you write multiple `except` clauses by exception type; JavaScript gives you exactly one `catch` block and expects you to branch manually with `instanceof`:
+
+```javascript
+class InsufficientFundsError extends Error {
+  constructor(balance, amount) {
+    super(`Cannot withdraw ${amount}: balance is only ${balance}`);
+    this.name = "InsufficientFundsError";
+    this.balance = balance;
+    this.amount = amount;
+  }
+}
+
+function withdraw(account, amount) {
+  if (amount > account.balance) {
+    throw new InsufficientFundsError(account.balance, amount);
+  }
+  account.balance -= amount;
+  return account.balance;
+}
+
+try {
+  withdraw({ balance: 50 }, 100);
+} catch (err) {
+  if (err instanceof InsufficientFundsError) {
+    console.log(err.message, err.balance, err.amount);
+  } else {
+    throw err; // don't swallow errors you didn't anticipate
+  }
+} finally {
+  console.log("attempt complete");
+}
+```
+
+Custom errors extend `Error` (not some separate exception base), and `finally` means exactly what it does in Python. The differences that actually bite: JavaScript can `throw` *any* value, not just `Error` instances (`throw "oops"` is legal, and now `err` in your `catch` is a string with no `.message` — always throw real `Error` objects); there's no built-in multi-`catch`-by-type, so an unguarded `catch` silently absorbs errors you never meant to handle unless you re-throw explicitly, as above; and chaining uses `new Error(msg, { cause: originalErr })` (ES2022+) rather than Python's `raise ... from`. For debugging, Node's parallel to `pdb` is `node inspect script.js` (a REPL debugger) or the `debugger;` statement combined with Chrome DevTools / VS Code's Node debugger — the same DAP adapter from Tier 0, just watching JS state instead of Python state.
+
+## Exercise
+
+Below is a script with a bug that only shows up on certain inputs — it works for some orders and throws for others:
+
+```python
+class OutOfStockError(Exception):
+    pass
+
+inventory = {"widget": 4, "gadget": 0}
+
+def fulfill_order(item, qty):
+    stock = inventory[item]
+    if qty > stock:
+        raise OutOfStockError(f"Only {stock} {item}(s) left")
+    inventory[item] -= qty
+    return f"Shipped {qty} {item}(s)"
+
+orders = [("widget", 2), ("gadget", 1), ("sprocket", 1)]
+for item, qty in orders:
+    print(fulfill_order(item, qty))
+```
+
+Your job: run it, read the traceback it produces top-to-bottom to find exactly which line and call are responsible, then fix `fulfill_order` so an unknown item raises a clear custom exception (not whatever Python raises by default) while still letting `OutOfStockError` behave as it already does. Verify your fix by stepping through `fulfill_order` with `breakpoint()` and `pdb` (or the VS Code debugger with an uncaught-exception breakpoint) on the `"sprocket"` order, inspecting `inventory` and `item` at the point of failure before you patch it.
+
+**Hint:** the exception Python raises for a missing dictionary key is not `OutOfStockError`, and it's not something you're currently catching at all — that's exactly the gap your new exception class needs to cover, and `finally` is the right place to log that an order was *attempted* regardless of whether it succeeded.

@@ -1,0 +1,86 @@
+[
+  {
+    "id": "languages/tier-1/error-handling-and-debugging-fundamentals/q1",
+    "type": "multiple_choice",
+    "prompt": "What does Python's `finally` block guarantee?",
+    "choices": [
+      "It runs only if no exception occurred in the try block",
+      "It runs only if an exception occurred and was not caught by any except clause",
+      "It runs whether or not an exception occurred, even if the try block hits a return statement",
+      "It runs only when you explicitly call it as a function"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "languages/tier-1/error-handling-and-debugging-fundamentals/q2",
+    "type": "multiple_choice",
+    "prompt": "What does this print?\n\ndef f():\n    try:\n        return 1\n    finally:\n        print(\"cleanup\")\n\nprint(f())",
+    "choices": [
+      "1\ncleanup",
+      "cleanup\n1",
+      "1",
+      "cleanup"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-1/error-handling-and-debugging-fundamentals/q3",
+    "type": "multiple_choice",
+    "prompt": "What does this print?\n\nclass InsufficientFundsError(Exception):\n    pass\n\ntry:\n    raise InsufficientFundsError\nexcept InsufficientFundsError as e:\n    print(f\"Failed: {e}\")",
+    "choices": [
+      "Failed: Cannot withdraw funds",
+      "Failed: InsufficientFundsError",
+      "Failed: (with nothing after the colon)",
+      "It raises a TypeError because the exception was never instantiated with ()"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "languages/tier-1/error-handling-and-debugging-fundamentals/q4",
+    "type": "multiple_choice",
+    "prompt": "In a Python traceback with multiple stack frames, which frame corresponds to the exact line where the exception was actually raised?",
+    "choices": [
+      "The first frame listed, at the top",
+      "The last frame listed, immediately above the exception type and message line",
+      "Whichever frame has the most lines of surrounding code shown",
+      "Tracebacks list frames in random order, so you have to check each one"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-1/error-handling-and-debugging-fundamentals/q5",
+    "type": "multiple_choice",
+    "prompt": "In pdb, which command executes the current line and, if it calls a function, steps *into* that function's code rather than running it as one opaque step?",
+    "choices": [
+      "n (next)",
+      "s (step)",
+      "c (continue)",
+      "l (list)"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-1/error-handling-and-debugging-fundamentals/q6",
+    "type": "multiple_choice",
+    "prompt": "JavaScript's try/catch gives you exactly one catch block per try, unlike Python's multiple typed except clauses. How do you typically distinguish which kind of error you're handling inside that single catch block?",
+    "choices": [
+      "You can't \u2014 JavaScript silently ignores any error type it wasn't written to expect",
+      "By checking `err instanceof SomeErrorClass` inside the catch block and branching manually",
+      "JavaScript automatically routes different Error subclasses to separate catch blocks, same as Python",
+      "You write `catch (SomeErrorClass err)` the way you'd write `except SomeErrorClass`"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-1/error-handling-and-debugging-fundamentals/q7",
+    "type": "multiple_choice",
+    "prompt": "What does this print?\n\ntry:\n    int(\"abc\")\nexcept Exception:\n    print(\"general\")\nexcept ValueError:\n    print(\"specific\")",
+    "choices": [
+      "general",
+      "specific",
+      "Both \"general\" and \"specific\" are printed",
+      "Python raises a SyntaxError because except clauses are in the wrong order"
+    ],
+    "correctIndex": 0
+  }
+]

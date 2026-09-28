@@ -4,6 +4,7 @@ tier: 4
 title: Advanced Data Structures
 order: 2
 estimatedHours: 12
+slug: advanced-data-structures
 ---
 
 Every data structure through Tier 3 came with an asterisk you probably noticed and moved past anyway: the binary search tree from Tier 2 is O(log n) *if* it stays balanced, and you already proved to yourself it doesn't automatically. Real systems close that asterisk with actual engineering, not hope. Redis's sorted sets are a skip list, not a tree, because a skip list stays correct under a simpler set of invariants. The Linux kernel's process scheduler keeps every runnable task in a red-black tree keyed by virtual runtime, specifically because red-black's looser balance means fewer rotations per scheduling tick than AVL would cost. Chrome's original Safe Browsing list and Cassandra's on-disk lookups both lean on Bloom filters to skip real work for something that's almost certainly not there. None of this is academic — it's what's actually running under software you use today, built from five ideas you're about to implement yourself, in an afternoon, from scratch.

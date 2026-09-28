@@ -4,6 +4,7 @@ tier: 0
 title: Polyglot Repo Conventions
 order: 4
 estimatedHours: 2
+slug: polyglot-repo-conventions
 ---
 
 You already know how to turn a folder into a git repo, stage changes, commit them, and push to GitHub — that's Git Day Zero, and none of that changes here. What changes the moment your project has a Python service, a Node script, and a C utility living side by side is *what belongs in that repo and what absolutely does not*: every language leaves its own trail of generated junk, and a `.gitignore` written with only one language in mind silently lets every other language's clutter through. This lesson covers the two things a polyglot codebase needs on top of the git basics you already have: knowing what to exclude per language, and choosing whether multiple languages live in one repo or several.

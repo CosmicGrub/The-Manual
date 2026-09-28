@@ -1,0 +1,230 @@
+---
+trackId: languages
+tier: 1
+title: Functions, Modules & Basic OOP
+order: 3
+estimatedHours: 8
+slug: functions-modules-and-basic-oop
+---
+
+## Functions Are Objects Too
+
+You already know how to write a function — `def`, parameters, `return` — from CS Foundations. What's new here is what Python lets you *do* with a function once it exists: store it, pass it around, and return it from other functions.
+
+```python
+def shout(text):
+    return text.upper() + "!"
+
+def whisper(text):
+    return text.lower() + "..."
+
+greeting = shout          # no parentheses — this stores the FUNCTION, not a call
+print(greeting("hello"))  # HELLO!
+print(type(shout))        # <class 'function'>
+```
+
+Because functions are ordinary objects, they go in lists and dicts just like ints or strings:
+
+```python
+handlers = {"shout": shout, "whisper": whisper}
+mode = "shout"
+print(handlers[mode]("hey there"))  # HEY THERE!
+```
+
+That dict-of-functions pattern replaces long `if mode == "shout": ... elif mode == "whisper": ...` chains — a dispatch table instead of a branch ladder.
+
+**Higher-order functions** take a function as an argument or return one:
+
+```python
+def apply_twice(func, value):
+    return func(func(value))
+
+print(apply_twice(shout, "hi"))  # HI!!
+
+words = ["banana", "kiwi", "apple", "fig"]
+print(sorted(words, key=len))              # ['fig', 'kiwi', 'apple', 'banana']
+print(sorted(words, key=lambda w: w[-1]))  # sorted by last letter
+```
+
+`key=len` doesn't call `len()` for you — it hands `sorted` the `len` function itself, which `sorted` calls once per element. `lambda` makes a throwaway one-expression function inline; anything longer than one expression needs a real `def`.
+
+**Returning a function from a function** creates a closure — the returned function "remembers" the variables from the scope it was created in:
+
+```python
+def make_multiplier(factor):
+    def multiplier(x):
+        return x * factor   # factor comes from the enclosing scope
+    return multiplier
+
+double = make_multiplier(2)
+triple = make_multiplier(3)
+print(double(5), triple(5))  # 10 15
+```
+
+`double` and `triple` are separate closures, each holding its own `factor`. This is the mechanism behind decorators, which you'll want once you write classes — logging, timing, and permission checks all follow this shape. Decorators also need `*args` / `**kwargs` to forward arbitrary arguments through the wrapper:
+
+```python
+def trace(func):
+    def wrapper(*args, **kwargs):
+        print(f"Calling {func.__name__}{args}")
+        result = func(*args, **kwargs)
+        print(f"{func.__name__} returned {result}")
+        return result
+    return wrapper
+
+@trace
+def add(a, b):
+    return a + b
+
+add(2, 3)
+# Calling add(2, 3)
+# add returned 5
+```
+
+`@trace` above `def add` is exactly `add = trace(add)` — syntax sugar, nothing magic. `*args` collects positional arguments into a tuple, `**kwargs` collects keyword arguments into a dict; `wrapper` forwards both untouched so `trace` works on any function's signature.
+
+**If you know JS:** the closure concept is identical — a JS function returned from another function keeps access to its outer variables too. The difference is scope: `let`/`const` are block-scoped and JS arrow functions can have multi-statement bodies (`x => { ...; return y; }`), while Python's `lambda` is restricted to a single expression with no statements — reach for `def` the moment logic gets non-trivial.
+
+## Your First Classes
+
+You already bundle related data in dicts (`{"owner": "Ada", "balance": 100}`). A class bundles data *and* the behavior that operates on it into one thing.
+
+```python
+class BankAccount:
+    def __init__(self, owner, balance=0):
+        self.owner = owner
+        self.balance = balance
+
+    def deposit(self, amount):
+        self.balance += amount
+
+    def withdraw(self, amount):
+        if amount > self.balance:
+            raise ValueError("Insufficient funds")
+        self.balance -= amount
+
+    def __repr__(self):
+        return f"BankAccount({self.owner!r}, balance={self.balance})"
+```
+
+```python
+acct = BankAccount("Ada", 100)
+acct.deposit(50)
+acct.withdraw(30)
+print(acct)  # BankAccount('Ada', balance=120)
+```
+
+`__init__` runs automatically when you call `BankAccount(...)` — it's the constructor. `self` is the instance being operated on; Python passes it in automatically, but you must declare it explicitly as every method's first parameter. `acct.deposit(50)` is really `BankAccount.deposit(acct, 50)` under the hood — the dot-call just supplies `acct` as `self` for you. `__repr__` controls what `print()` and the REPL show for your object; without it you'd get an unhelpful `<__main__.BankAccount object at 0x7f...>`.
+
+**Class attributes vs. instance attributes** — a class attribute is defined directly in the class body and shared by every instance; an instance attribute is set on `self` inside a method and belongs to that one object:
+
+```python
+class BankAccount:
+    bank_name = "First Python Bank"   # class attribute — one copy, shared
+
+    def __init__(self, owner, balance=0):
+        self.owner = owner            # instance attribute — one per object
+        self.balance = balance
+```
+
+Watch out for **mutable class attributes** — this is the single most common beginner OOP bug:
+
+```python
+class Cart:
+    items = []              # BUG: one list shared by every Cart
+
+    def add(self, item):
+        self.items.append(item)
+
+c1, c2 = Cart(), Cart()
+c1.add("apple")
+print(c2.items)  # ['apple'] — not empty!
+```
+
+`c1.add` mutates the *class's* list because `self.items.append(...)` looks up `items` (finds it on the class, since no instance attribute shadows it yet) and mutates it in place. The fix is to create a fresh list per instance in `__init__`: `self.items = []`.
+
+**If you know JS:** the shapes map directly — `__init__` is `constructor`, `self` is `this`, instance methods are the same idea. The real gotcha going either direction: Python's `self` is an explicit parameter you must name (forget it and you get a `TypeError: takes 1 positional argument but 2 were given`), while JS's `this` is implicit but *unstable* — it depends on how a method is called, and passing `this.deposit` as a bare callback silently loses its binding. Python methods stay correctly bound to their instance no matter how you pass them around.
+
+```js
+class BankAccount {
+  constructor(owner, balance = 0) {
+    this.owner = owner;
+    this.balance = balance;
+  }
+  deposit(amount) {
+    this.balance += amount;
+  }
+}
+```
+
+## Modules and Imports
+
+Every `.py` file is already a module — nothing special to declare. Say `mathutils.py` contains:
+
+```python
+def add(a, b):
+    return a + b
+
+def square(x):
+    return x * x
+
+PI = 3.14159
+
+if __name__ == "__main__":
+    print(add(2, 2))   # only runs when this file is executed directly
+```
+
+`__name__` is `"__main__"` when you run `python mathutils.py`, but `"mathutils"` when another file imports it. That guard lets a file work as both a reusable module and a standalone script, without its test/demo code firing every time someone imports it.
+
+```python
+# main.py
+import mathutils
+print(mathutils.add(2, 3))      # 5
+print(mathutils.PI)             # 3.14159
+
+from mathutils import square
+print(square(4))                # 16
+
+import mathutils as mu
+print(mu.add(1, 1))             # 2
+```
+
+`import x` gives you the module as a namespace (`x.thing`); `from x import thing` pulls a name directly into your file's namespace, which risks collisions if you import from several modules. A directory containing an `__init__.py` (or just a directory, in modern Python) is a **package** — `from utils import mathutils` if `mathutils.py` lives in a `utils/` folder. Python finds modules by searching `sys.path`: the running script's directory first, then installed packages.
+
+**If you know JS:** `import x from "./x.js"` (ES modules) vs. Python's `import x` — same idea, different mechanics. JS distinguishes a `default export` from named exports; Python has no default export, only named attributes on the module. `require("./x")` (CommonJS) is closer to Python's model: everything you didn't prefix with an underscore is importable by name.
+
+## Virtual Environments
+
+Two projects on your machine might need different, incompatible versions of the same package — one needs `requests==2.28`, another needs `requests==2.31`. Install both globally and one project breaks. A **virtual environment** gives each project its own isolated Python interpreter and package directory, so installs in one project never touch another.
+
+```bash
+python -m venv .venv              # create an isolated environment in .venv/
+source .venv/bin/activate         # macOS/Linux
+.venv\Scripts\activate            # Windows
+
+pip install requests              # installs into .venv only, not system-wide
+pip freeze > requirements.txt     # snapshot exact versions for teammates
+
+deactivate                        # leave the environment
+```
+
+`activate` works by prepending the venv's own `bin`/`Scripts` folder to your shell's `PATH`, so `python` and `pip` resolve to the venv's copies instead of the system ones. Anyone cloning your project reproduces it with:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+**If you know JS:** you've been getting this for free. `npm install` already writes to a project-local `node_modules/`, so Node projects are isolated by default — there's no JS equivalent of "accidentally installed globally and broke another project" in the way pip's global site-packages allows. `requirements.txt` is roughly `package.json`'s dependency list, though `pip freeze` pins exact versions transitively rather than giving you a real lockfile — that gap is why tools like Poetry and Pipenv exist, beyond this module's scope.
+
+## Exercise
+
+Build a tiny task-tracking module:
+
+1. In a file `tasks.py`, write a `Task` class with `__init__(self, title, done=False)`, a `complete()` method that sets `self.done = True`, and a `__repr__` that shows the title and done-state.
+2. In the same file, write a decorator `log_calls` that prints the method name and arguments before running it, then apply it to a `TaskList.add_task(self, task)` method (`TaskList.__init__` should set `self.tasks = []`).
+3. In `main.py`, `import tasks`, create a `TaskList`, add three `Task` objects, then print them sorted alphabetically by title using `sorted(..., key=...)`.
+4. Set up a `.venv`, activate it, and `pip freeze > requirements.txt` even with an empty dependency list — get the habit in place before you actually need a third-party package.
+
+**Hint:** step 2 is the tricky one — `add_task` is an *instance* method, so when `log_calls` wraps it, the first element of `*args` inside `wrapper` will be `self`, not the task. Print `args[1:]` if you want to show just the task, or print the whole tuple and notice the instance sitting at index 0.

@@ -1,0 +1,289 @@
+---
+trackId: languages
+tier: 1
+title: JavaScript Foundations in Parallel
+order: 5
+estimatedHours: 8
+slug: javascript-foundations-in-parallel
+---
+
+You already know how to program — CS Foundations covered variables, control flow, functions, and data structures using Python. This module doesn't re-teach those ideas. It teaches JavaScript's specific *mechanics*, and every section calls out exactly where JS diverges from the Python you already know. Scoping rules, truthiness, and equality are where most Python-to-JS bugs come from, so those get the most attention.
+
+## Running JavaScript with Node
+
+In the browser, JS runs inside a page. Outside it, [Node.js](https://nodejs.org) runs `.js` files directly, the way `python3 script.py` runs a Python file.
+
+```bash
+node script.js          # like: python3 script.py
+node                     # REPL, like: python3
+node -e "console.log(2 + 2)"   # like: python3 -c "print(2 + 2)"
+```
+
+`console.log` is JS's `print`. There's no `if __name__ == "__main__":` idiom — a Node file just executes top to bottom the moment it's run, whether it was `require`d or run directly (checking `require.main === module` is the closest equivalent, but you rarely need it at this level).
+
+Two module systems exist. Older Node code uses **CommonJS**:
+
+```js
+// math.js
+function add(a, b) { return a + b; }
+module.exports = { add };
+
+// main.js
+const { add } = require('./math');
+```
+
+Modern code uses **ES Modules** (same `import`/`export` syntax as browser JS), enabled by adding `"type": "module"` to `package.json`:
+
+```js
+// math.js
+export function add(a, b) { return a + b; }
+
+// main.js
+import { add } from './math.js';
+```
+
+Command-line args work like Python's `sys.argv`, with one twist: `process.argv[0]` is the path to the `node` executable itself, `process.argv[1]` is the script path, and your actual arguments start at index 2. In Python, `sys.argv[0]` is already the script path and your args start at index 1.
+
+```js
+// args.js
+console.log(process.argv.slice(2));
+// node args.js foo bar  ->  [ 'foo', 'bar' ]
+```
+
+`npm init -y` creates a `package.json` (like a minimal `pyproject.toml`), and `npm install <package>` downloads dependencies into `node_modules` (like a local, unshared `venv`) and records them in `package.json`.
+
+## Declaring Variables: var, let, const, and Hoisting
+
+Python has no declaration keyword — a name comes into existence the first time you assign it, scoped to the function or module it's assigned in. JS has three declaration keywords, and they behave differently enough to cause real bugs.
+
+**`var`** is function-scoped (or global) and is *hoisted*: the declaration is moved to the top of its function, initialized to `undefined`, before any code runs.
+
+```js
+console.log(x);   // undefined — not an error
+var x = 5;
+console.log(x);   // 5
+```
+
+**`let`** and **`const`** are block-scoped and are also hoisted, but they land in the "temporal dead zone" (TDZ) — the binding exists but can't be touched until its declaration line executes.
+
+```js
+console.log(y);   // ReferenceError: Cannot access 'y' before initialization
+let y = 5;
+```
+
+`const` prevents *reassignment* of the binding, not mutation of the value it holds — same as Python has no true immutability for lists/dicts, just no rebinding syntax to speak of:
+
+```js
+const arr = [1, 2, 3];
+arr.push(4);        // fine — mutates the array
+console.log(arr);   // [1, 2, 3, 4]
+arr = [9, 9];        // TypeError: Assignment to constant variable.
+```
+
+The classic `var` bug — and a real interview question — is a loop with an async callback:
+
+```js
+for (var i = 0; i < 3; i++) {
+  setTimeout(() => console.log(i), 0);
+}
+// logs: 3 3 3
+```
+
+`var i` is one shared binding for the whole loop. By the time the callbacks fire, the loop has finished and `i` is `3`. Swap in `let`:
+
+```js
+for (let i = 0; i < 3; i++) {
+  setTimeout(() => console.log(i), 0);
+}
+// logs: 0 1 2
+```
+
+`let` creates a *fresh binding per iteration*, so each closure captures its own `i`. There's no Python equivalent to this footgun because Python's `for` doesn't create a new scope per iteration either way — but it also doesn't have this shared-mutable-loop-variable trap in the same way, since closures over loop variables in list comprehensions behave differently again. The takeaway for JS: default to `const`, use `let` only when you need to reassign, and treat `var` as legacy.
+
+## Scope: Block vs. Function (and How Python Differs)
+
+Python resolves names via LEGB — Local, Enclosing, Global, Built-in — and has **no block scoping**: an `if`, `for`, or `while` body doesn't create a new scope, only `def` and `lambda` do.
+
+```python
+if True:
+    val = 10
+print(val)   # 10 — leaks out of the if-block, fine in Python
+```
+
+JS's `let`/`const` *do* create block scope — the equivalent leaks in Python but errors in JS:
+
+```js
+if (true) {
+  let val = 10;
+}
+console.log(val);   // ReferenceError: val is not defined
+```
+
+The other direction matters too: reassigning an outer variable from inside a function. Python requires an explicit `global` (or `nonlocal` for enclosing-function scope) keyword to rebind an outer name — without it, assignment creates a new local variable instead:
+
+```python
+count = 0
+def increment():
+    count += 1   # UnboundLocalError — Python assumes count is local here
+```
+
+JS has no such requirement. A regular assignment (not a declaration) inside a function walks up the scope chain and mutates the outer variable directly:
+
+```js
+let count = 0;
+function increment() {
+  count += 1;   // works — reassigns the outer `count`
+}
+increment();
+console.log(count);   // 1
+```
+
+This cuts both ways: it's convenient, but it also means forgetting `let`/`const`/`const` entirely on a new variable silently creates an implicit global in non-strict JS — one more reason to always declare with `const` or `let`.
+
+## Truthiness and Equality: == vs ===
+
+This is the single biggest Python-to-JS gotcha. **In JS, `[]` and `{}` are truthy.** In Python, empty lists and dicts are falsy. This trips up almost everyone coming from Python.
+
+```js
+if ([]) console.log('truthy!');   // truthy! — this runs
+```
+
+```python
+if []:
+    print("truthy!")   # does NOT run — [] is falsy in Python
+```
+
+JS's falsy values are a short, fixed list — memorize it: `false`, `0`, `-0`, `0n`, `""`, `null`, `undefined`, `NaN`. Everything else, including `[]`, `{}`, `"0"`, and `"false"` (as strings), is truthy.
+
+Equality is the second trap. `==` performs type coercion before comparing; `===` compares type and value with no coercion.
+
+```js
+'' == 0          // true  — both coerce to 0
+null == undefined // true  — special-cased to equal each other
+null == 0         // false — null does NOT coerce like that
+[] == false       // true  — [] -> "" -> 0, false -> 0
+NaN === NaN       // false — NaN never equals anything, even itself
+```
+
+Python's `==` never does this kind of cross-type coercion (aside from numeric types like `1 == 1.0`), so there's no direct parallel to internalize — just the rule: **always use `===` and `!==` in JS.** Treat `==` as effectively deprecated except for the one idiom `x == null` (catches both `null` and `undefined` at once).
+
+One more reference-vs-value trap: Python's `==` on lists and dicts compares *contents*. JS's `===` on objects and arrays compares *identity* — it's never structurally equal unless it's the literal same object in memory.
+
+```js
+[1, 2] === [1, 2]        // false — two different arrays
+const a = [1, 2];
+const b = a;
+a === b                   // true — same array, same reference
+```
+
+```python
+[1, 2] == [1, 2]   # True — Python compares values
+```
+
+## Functions and Arrow Functions
+
+Function **declarations** are hoisted (usable before their line in the file, unlike `let`); function **expressions** are not:
+
+```js
+greet();                 // works
+function greet() { console.log('hi'); }
+
+sayHi();                 // TypeError: sayHi is not a function
+var sayHi = function() { console.log('hi'); };
+```
+
+Arrow functions are always expressions, never hoisted, and — the important part — they don't have their own `this`. They inherit `this` from the enclosing scope at the point they're *defined*, rather than getting a new `this` based on how they're *called* (which is how regular functions work). This is the single most common reason to reach for an arrow function inside a method:
+
+```js
+const obj = {
+  name: 'Alice',
+  brokenGreet: function() {
+    setTimeout(function() {
+      console.log(`Hi, I'm ${this.name}`);   // undefined — `this` is not `obj` here
+    }, 10);
+  },
+  workingGreet: function() {
+    setTimeout(() => {
+      console.log(`Hi, I'm ${this.name}`);   // 'Alice' — arrow keeps `this` from workingGreet
+    }, 10);
+  }
+};
+```
+
+Python sidesteps this entirely — `self` is just a regular parameter you pass explicitly, so there's no equivalent binding puzzle. That explicitness is exactly what arrow functions are trying to restore in JS.
+
+Rest parameters are JS's `*args`, and default parameters work like Python's:
+
+```js
+function sum(...nums) { return nums.reduce((a, b) => a + b, 0); }
+sum(1, 2, 3);   // 6
+
+function greet(name = 'friend') { return `Hi, ${name}`; }
+```
+
+JS has no direct equivalent of `**kwargs` — the closest pattern is destructuring an options object: `function f({ a, b } = {}) {}`.
+
+## Arrays and Objects
+
+JS arrays parallel Python lists, but the method names differ, and `map`/`filter`/`reduce` are methods rather than builtins/comprehensions:
+
+```js
+const nums = [1, 2, 3, 4, 5];
+
+nums.push(6);          // append(6)
+nums.pop();             // pop()
+nums.unshift(0);        // insert(0, 0)
+nums.shift();           // pop(0)
+
+const doubled = nums.map(n => n * 2);          // [n*2 for n in nums]
+const evens   = nums.filter(n => n % 2 === 0); // [n for n in nums if n % 2 == 0]
+const total   = nums.reduce((acc, n) => acc + n, 0);  // functools.reduce, but with a required initial value
+```
+
+`typeof []` is `'object'`, not `'array'` — use `Array.isArray(x)` to actually test for an array.
+
+JS objects parallel Python dicts, with keys effectively coerced to strings (a genuine `Map` exists for non-string keys, but that's beyond this module):
+
+```js
+const user = { name: 'Alice', age: 30 };
+
+user.name;            // dot access — user['name'] also works, like dict['name']
+Object.keys(user);    // ['name', 'age']   <- dict.keys()
+Object.values(user);  // ['Alice', 30]     <- dict.values()
+Object.entries(user); // [['name','Alice'], ['age',30]]  <- dict.items()
+
+const { name, age } = user;   // destructuring, like Python's tuple unpacking
+const { name: n2 = 'anon' } = {};  // n2 === 'anon' — default on missing key
+```
+
+Spread works on both, mirroring `{**d1, **d2}` and `[*list1, *list2]`:
+
+```js
+const merged = { ...user, age: 31 };   // shallow copy + override
+const combined = [...nums, ...[7, 8]];
+```
+
+## Exercise
+
+Write `inventory.js` and run it with `node inventory.js`. Given this data:
+
+```js
+const products = [
+  { name: 'Widget', qty: 42, price: 3.50 },
+  { name: 'Gadget', qty: 3,  price: 19.99 },
+  { name: 'Gizmo',  qty: 0,  price: 7.25 },
+  { name: 'Doohickey', qty: 15, price: 2.10 },
+];
+```
+
+Produce, using only `const`/`let`, arrow functions, and array methods (no `for` loops):
+
+1. A list of names of products that are **in stock** (`qty > 0`), formatted as `"Widget (42 in stock)"`.
+2. The **total inventory value** (`sum of qty * price` across all products), logged with `.toFixed(2)`.
+3. A check that logs `"LOW STOCK WARNING"` for any product with `qty > 0 && qty < 5`.
+
+*Hint:* chain `.filter()` before `.map()` for part 1, use `.reduce()` for part 2, and remember the `===`/`&&` rules from this module — `qty` being `0` is falsy, but don't rely on truthiness where an explicit comparison is clearer.
+
+## What's Next
+
+You now have the vocabulary to read and write real Node scripts and to recognize the exact spots — hoisting, block scope, truthiness, `==` vs `===`, `this` — where JS habits and Python habits diverge. The next module builds on this with JS's asynchronous model (callbacks, promises, `async`/`await`), which has no direct Python-tier-1 parallel yet.

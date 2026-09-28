@@ -1,0 +1,273 @@
+---
+trackId: languages
+tier: 1
+title: Data Structures in Practice
+order: 2
+estimatedHours: 8
+slug: data-structures-in-practice
+---
+
+## You already know lists, dicts, and sets — now use them like a Python programmer
+
+CS Foundations had you building lists and dicts with loops to solve algorithm problems. That part's assumed here. This module is about the idioms: comprehensions, slicing, string methods, and the mutability rules that cause real bugs — with the JavaScript equivalent next to each one, since you likely already think in `map`/`filter`/spread.
+
+### List comprehensions replace the `for` + `append` pattern
+
+This loop:
+
+```python
+squares = []
+for n in range(10):
+    squares.append(n * n)
+```
+
+is always written as a comprehension in idiomatic Python:
+
+```python
+squares = [n * n for n in range(10)]
+```
+
+Add a filter with a trailing `if`:
+
+```python
+evens_squared = [n * n for n in range(10) if n % 2 == 0]
+# [0, 4, 16, 36, 64]
+```
+
+Comprehensions can nest, reading left-to-right as nested loops would:
+
+```python
+pairs = [(x, y) for x in range(3) for y in range(3) if x != y]
+# [(0,1), (0,2), (1,0), (1,2), (2,0), (2,1)]
+```
+
+**JS parallel.** There's no comprehension syntax — you chain `map`/`filter`:
+
+```javascript
+const squares = Array.from({length: 10}, (_, n) => n * n);
+
+const evensSquared = Array.from({length: 10}, (_, n) => n)
+  .filter(n => n % 2 === 0)
+  .map(n => n * n);
+```
+
+The chained version builds an intermediate array at each `.filter()`/`.map()` step. Python's comprehension does the filter-and-map in one pass with no intermediate list. For huge sequences, prefer a **generator expression** (no brackets) over a list comprehension when you're just going to consume the values once:
+
+```python
+total = sum(n * n for n in range(1_000_000))  # never materializes a list
+```
+
+That's the closest thing Python has to a lazy `reduce`. Speaking of which: `functools.reduce` exists, but idiomatic Python avoids it in favor of built-ins — `sum`, `min`, `max`, `sorted`, `any`, `all` — combined with comprehensions. Where JS reaches for `.reduce((acc, x) => ..., init)`, Python usually reaches for one of those built-ins instead.
+
+### Dict and set comprehensions
+
+Same syntax, different brackets:
+
+```python
+words = ["cat", "elephant", "ox"]
+word_lengths = {w: len(w) for w in words}        # {'cat': 3, 'elephant': 8, 'ox': 2}
+unique_lengths = {len(w) for w in words}          # {3, 8, 2}
+inverted = {v: k for k, v in word_lengths.items()}
+```
+
+**JS parallel** — no native comprehension, so you build entries and convert:
+
+```javascript
+const words = ["cat", "elephant", "ox"];
+const wordLengths = Object.fromEntries(words.map(w => [w, w.length]));
+const uniqueLengths = new Set(words.map(w => w.length));
+```
+
+`Object.fromEntries(arr.map(...))` is the direct translation of a dict comprehension — worth recognizing in both directions.
+
+### Slicing: syntax and idioms
+
+`seq[start:stop:step]`, with negative indices counting from the end. This works identically on lists, tuples, and strings, because they're all sequences.
+
+```python
+nums = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+nums[2:5]      # [2, 3, 4]
+nums[:3]       # [0, 1, 2]
+nums[-3:]      # [7, 8, 9]
+nums[::2]      # [0, 2, 4, 6, 8]   every other
+nums[::-1]     # reversed copy
+nums[2:8:2]    # [2, 4, 6]
+nums[:]        # shallow copy of the whole list
+
+s = "hello world"
+s[::-1]        # 'dlrow olleh'
+s[:5]          # 'hello'
+```
+
+Slice *assignment* is Python-only and can change the list's length:
+
+```python
+nums[2:5] = [100, 200]   # replaces 3 elements with 2 — list shrinks
+del nums[3:5]            # deletes a chunk
+```
+
+**JS parallel** — `slice()` exists but has no step argument, and it never mutates:
+
+```javascript
+const nums = [0,1,2,3,4,5,6,7,8,9];
+nums.slice(2, 5);        // [2, 3, 4]
+nums.slice(-3);           // [7, 8, 9]
+nums.slice().reverse();   // reversed copy — slice() FIRST or you mutate the original
+nums.filter((_, i) => i % 2 === 0); // no step slice; fake it with filter+index
+```
+
+Gotcha worth memorizing: `.reverse()` in JS mutates in place; `nums[::-1]` in Python returns a new list and leaves the original untouched. Mixing up which language's "reverse" mutates is a common source of bugs when you switch between them — which leads into the next section.
+
+### String methods you'll actually use
+
+Python strings are immutable, so every method below **returns a new string** rather than modifying in place:
+
+```python
+s = "  Hello, World!  "
+s.strip()                        # 'Hello, World!'
+s.lower()                        # '  hello, world!  '
+s.split(",")                     # ['  Hello', ' World!  ']
+",".join(["a", "b", "c"])        # 'a,b,c'
+s.replace("World", "Python")     # '  Hello, Python!  '
+f"{s.strip()} has {len(s)} chars"
+```
+
+**JS parallel**, method-for-method:
+
+```javascript
+const s = "  Hello, World!  ";
+s.trim();
+s.toLowerCase();
+s.split(",");
+["a", "b", "c"].join(",");
+s.replace("World", "Python");
+`${s.trim()} has ${s.length} chars`;
+```
+
+Small naming friction to internalize: `.strip()` not `.trim()`, `len(s)` (a function call) not `s.length` (a property).
+
+### Mutability vs immutability: where the real bugs live
+
+**1. The mutable default argument trap.** A default argument is evaluated *once*, when the function is defined — not on every call:
+
+```python
+def append_item(item, bucket=[]):   # BUG
+    bucket.append(item)
+    return bucket
+
+append_item(1)   # [1]
+append_item(2)   # [1, 2]  <- same list object reused across every call!
+```
+
+Fix with a `None` sentinel:
+
+```python
+def append_item(item, bucket=None):
+    if bucket is None:
+        bucket = []
+    bucket.append(item)
+    return bucket
+```
+
+**2. Aliasing.** `b = a` does not copy — both names point at the same object:
+
+```python
+a = [1, 2, 3]
+b = a
+b.append(4)
+print(a)   # [1, 2, 3, 4]  -- a changed too
+```
+
+Get an actual copy with `.copy()`, `list(a)`, or `a[:]`. But those are **shallow**:
+
+```python
+import copy
+matrix = [[1, 2], [3, 4]]
+shallow = matrix.copy()
+shallow[0].append(99)
+print(matrix)   # [[1, 2, 99], [3, 4]]  -- inner lists still shared!
+
+deep = copy.deepcopy(matrix)   # actually independent
+```
+
+**3. Tuples are shallow-immutable too.** The tuple itself can't be reassigned, but a mutable object inside it can still change:
+
+```python
+t = (1, [2, 3])
+t[1].append(4)
+print(t)   # (1, [2, 3, 4])  -- no error, the list inside mutated
+```
+
+**JS parallel** — identical reference semantics, identical shallow-copy trap:
+
+```javascript
+const a = [1, 2, 3];
+const b = a;
+b.push(4);
+console.log(a);            // [1, 2, 3, 4]
+
+const c = [...a];          // shallow copy via spread
+const matrix = [[1, 2], [3, 4]];
+const shallowCopy = [...matrix];
+shallowCopy[0].push(99);
+console.log(matrix);       // [[1, 2, 99], [3, 4]] -- same gotcha
+
+const frozen = Object.freeze({list: [1, 2]});
+frozen.list.push(3);       // works! freeze() is shallow, same as tuple immutability
+```
+
+If you've been bitten by `Object.freeze` only protecting the top level, you already understand tuple immutability.
+
+### Spread vs unpacking
+
+```python
+a, b, *rest = [1, 2, 3, 4, 5]      # a=1, b=2, rest=[3, 4, 5]
+first, *_, last = [1, 2, 3, 4, 5]  # first=1, last=5, middle discarded
+
+def total(*args, **kwargs):
+    print(args, kwargs)
+total(1, 2, x=3)                    # (1, 2) {'x': 3}
+
+nums = [1, 2, 3]
+more = [0, *nums, 4]                # [0, 1, 2, 3, 4]
+
+d1 = {"a": 1}
+d2 = {**d1, "b": 2}                 # merge, later keys win
+```
+
+**JS parallel:**
+
+```javascript
+const [a, b, ...rest] = [1, 2, 3, 4, 5];
+function total(...args) { console.log(args); }
+const more = [0, ...nums, 4];
+const d2 = {...d1, b: 2};           // later spread wins, same rule as Python
+```
+
+One thing Python's `*_, last` does cleanly that JS can't match without knowing the array length: grab the *last* element while discarding an unknown number of middle ones in a single destructure. JS needs `arr.at(-1)` instead.
+
+### Exercise
+
+You're given a list of web request logs:
+
+```python
+logs = [
+    {"user": "alice", "status": 200, "path": "/home"},
+    {"user": "bob",   "status": 404, "path": "/missing"},
+    {"user": "alice", "status": 500, "path": "/api/data"},
+    {"user": "carol", "status": 200, "path": "/about"},
+    {"user": "bob",   "status": 200, "path": "/home"},
+]
+```
+
+Using comprehensions and slicing (no manual `for`/`append` loops), write code that:
+
+1. Builds a dict mapping each user to how many of *their* entries have `status >= 400`.
+2. Builds a set of every `path` visited by a user who has at least one error (status >= 400).
+3. Returns the last 3 log entries, in reverse order, using slice syntax only.
+
+**Hint:** for part 2, first build the set of usernames with at least one error using a comprehension over `logs`, then use that set inside a second comprehension's `if` clause to filter paths. Don't try to do it in one pass — two comprehensions is the idiomatic, readable answer here.
+</mdx_body>
+<quiz_questions>
+[]
+</quiz_questions>

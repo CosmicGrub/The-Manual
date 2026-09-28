@@ -1,9 +1,10 @@
 ---
 trackId: cs-foundations
 tier: 5
-title: The Frontier: Algorithms Underneath Modern AI
+title: "The Frontier: Algorithms Underneath Modern AI"
 order: 5
 estimatedHours: 12
+slug: the-frontier-algorithms-underneath-modern-ai
 ---
 
 Module 1 left you with an uncomfortable fact you measured yourself: `scores = Q @ Kᵀ` is O(n²) in both time and memory, in every attention head, in every transformer layer, and that quadratic term is not a footnote — it's the reason a 128k-token context costs vastly more than 8x a 16k one. The headline story of the last five years of AI progress is "bigger models, bigger GPU clusters," but that story is incomplete: FlashAttention alone made GPT-3.5/4-class context lengths practical on the same hardware, and it contains zero new floating-point operations — it computes the identical mathematical result as naive attention, just without ever materializing the O(n²) matrix in slow memory. This module is where the whole tier's argument closes: the frontier of AI capability right now runs at least as much through algorithms research as through silicon, and you're about to read the papers that prove it, benchmark the improvement yourself, and turn that into the checkpoint's written research note.

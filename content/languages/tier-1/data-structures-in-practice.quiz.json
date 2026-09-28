@@ -1,0 +1,98 @@
+[
+  {
+    "id": "languages/tier-1/data-structures-in-practice/q1",
+    "type": "multiple_choice",
+    "prompt": "What does `[x for x in range(5) if x % 2]` evaluate to?",
+    "choices": [
+      "[0, 2, 4]",
+      "[1, 3]",
+      "[1, 3, 5]",
+      "[0, 1, 2, 3, 4]"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-1/data-structures-in-practice/q2",
+    "type": "multiple_choice",
+    "prompt": "What gets printed?\n\n```python\ndef add(x, lst=[]):\n    lst.append(x)\n    return lst\n\nprint(add(1))\nprint(add(2))\n```",
+    "choices": [
+      "[1] then [2]",
+      "[1] then [1, 2]",
+      "[1] then [1]",
+      "Raises a TypeError on the second call"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-1/data-structures-in-practice/q3",
+    "type": "multiple_choice",
+    "prompt": "What does this print?\n\n```python\noriginal = [[1, 2], [3, 4]]\ncopy_list = original.copy()\ncopy_list[0][0] = 99\nprint(original[0][0])\n```",
+    "choices": [
+      "1",
+      "99",
+      "Raises an error",
+      "None"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-1/data-structures-in-practice/q4",
+    "type": "multiple_choice",
+    "prompt": "In JavaScript, which expression merges objects `a` and `b` such that `b`'s keys take priority over `a`'s on any overlapping key?",
+    "choices": [
+      "{...a, ...b}",
+      "{...b, ...a}",
+      "Object.assign({}, a, b, a)",
+      "a.concat(b)"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-1/data-structures-in-practice/q5",
+    "type": "multiple_choice",
+    "prompt": "What does this print?\n\n```python\ns = \"python\"\nprint(s[::-1][:3])\n```",
+    "choices": [
+      "\"pyt\"",
+      "\"noh\"",
+      "\"nof\"",
+      "\"hty\""
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-1/data-structures-in-practice/q6",
+    "type": "multiple_choice",
+    "prompt": "Which of these does NOT build the full sequence of a million squared values in memory before summing?",
+    "choices": [
+      "sum([n * n for n in range(10**6)])",
+      "sum(n * n for n in range(10**6))",
+      "total = 0\nfor n in [n * n for n in range(10**6)]:\n    total += n",
+      "list comprehension assigned to a variable, then summed separately"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-1/data-structures-in-practice/q7",
+    "type": "multiple_choice",
+    "prompt": "What does this print in JavaScript?\n\n```javascript\nconst original = [[1, 2], [3, 4]];\nconst copy = [...original];\ncopy[0].push(99);\nconsole.log(original[0]);\n```",
+    "choices": [
+      "[1, 2]",
+      "[1, 2, 99]",
+      "[3, 4]",
+      "undefined"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-1/data-structures-in-practice/q8",
+    "type": "multiple_choice",
+    "prompt": "What does this print?\n\n```python\nt = (1, [2, 3])\nt[1].append(4)\nprint(t)\n```",
+    "choices": [
+      "Raises a TypeError because tuples are immutable",
+      "(1, [2, 3, 4])",
+      "(1, [2, 3])",
+      "(1, 4, [2, 3])"
+    ],
+    "correctIndex": 1
+  }
+]

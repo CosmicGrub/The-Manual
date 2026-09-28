@@ -1,0 +1,98 @@
+[
+  {
+    "id": "languages/tier-1/bash-scripting-basics/q1",
+    "type": "multiple_choice",
+    "prompt": "What happens when you run `name = \"Ada\"` in a Bash script?",
+    "choices": [
+      "It assigns the string \"Ada\" to the variable name, same as Python",
+      "It throws a syntax error at parse time before anything runs",
+      "Bash tries to run a command called `name` with arguments `=` and `Ada`, producing a 'command not found' error",
+      "It creates an empty variable named name and silently ignores the rest of the line"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "languages/tier-1/bash-scripting-basics/q2",
+    "type": "multiple_choice",
+    "prompt": "Given `count=3`, what does `echo $((count + 1))` print, and why?",
+    "choices": [
+      "'3 + 1' because Bash variables are always strings and can't be added",
+      "4, because $(( )) is arithmetic expansion that evaluates count as a number",
+      "An error, because count was never declared as an integer",
+      "31, because + concatenates the strings '3' and '1'"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-1/bash-scripting-basics/q3",
+    "type": "multiple_choice",
+    "prompt": "A script has `file=\"my file.txt\"` followed by `rm $file` (unquoted). What actually happens?",
+    "choices": [
+      "rm removes the file 'my file.txt' correctly",
+      "Bash throws a syntax error before running rm",
+      "rm receives two separate arguments, 'my' and 'file.txt', and tries to remove both",
+      "The unquoted variable is ignored and rm runs with no arguments"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "languages/tier-1/bash-scripting-basics/q4",
+    "type": "multiple_choice",
+    "prompt": "Inside `[ ]` (test), which pair correctly compares two numbers for 'greater than' and 'equal to'?",
+    "choices": [
+      "> and ==",
+      "-gt and -eq",
+      "gt and eq (no dashes)",
+      ".gt. and .eq."
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-1/bash-scripting-basics/q5",
+    "type": "multiple_choice",
+    "prompt": "What does `if some_command; then ... fi` actually check?",
+    "choices": [
+      "Whether some_command printed any output to stdout",
+      "Whether some_command's exit code was 0 (success)",
+      "Whether some_command is a defined variable",
+      "Whether some_command took less than 1 second to run"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-1/bash-scripting-basics/q6",
+    "type": "multiple_choice",
+    "prompt": "In a script called as `./deploy.sh staging --force`, what does `$#` equal, and what is `$1`?",
+    "choices": [
+      "$# is 3 (including the script name), $1 is './deploy.sh'",
+      "$# is 2, $1 is 'staging'",
+      "$# is 2, $1 is '--force'",
+      "$# is 1, $1 is 'staging --force' as one string"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-1/bash-scripting-basics/q7",
+    "type": "multiple_choice",
+    "prompt": "Why does `while read -r line; do ... done < input.txt` process a file more safely than `for line in $(cat input.txt)`?",
+    "choices": [
+      "The while loop is faster because it uses less memory",
+      "The for loop only works on files under 1KB",
+      "for line in $(cat input.txt) word-splits on any whitespace, breaking lines that contain spaces into multiple 'lines'; while read -r preserves each line intact",
+      "There is no real difference; both are equally safe"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "languages/tier-1/bash-scripting-basics/q8",
+    "type": "multiple_choice",
+    "prompt": "What does `mkdir backup && cp *.log backup/ || echo \"failed\"` do if `mkdir backup` fails because the directory already exists?",
+    "choices": [
+      "It still runs cp because && and || are ignored when a directory already exists",
+      "mkdir's failure causes cp to be skipped, and since the overall chain failed, 'failed' is printed",
+      "It prints 'failed' immediately without ever attempting mkdir",
+      "It silently does nothing at all"
+    ],
+    "correctIndex": 1
+  }
+]

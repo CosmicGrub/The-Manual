@@ -4,6 +4,7 @@ tier: 4
 title: Concurrency & Parallelism Fundamentals
 order: 4
 estimatedHours: 10
+slug: concurrency-and-parallelism-fundamentals
 ---
 
 Herb Sutter's 2005 essay "The Free Lunch Is Over" made a prediction that turned out to be exactly right: clock speeds stopped climbing, chipmakers pivoted to putting more cores on a die instead, and every "free" speedup from waiting a year for faster hardware ended — from then on, your code only gets faster if you rewrite it to use more than one core. Two decades later that prediction has a second act nobody in 2005 fully saw coming: the most parallelism-hungry programs ever written are matrix multiplies inside neural networks, spread across thousands of GPU cores and, for the largest models, thousands of GPUs. Everything in this lesson — threads, processes, locks, and the math of how much speedup you can actually expect — is the same machinery whether you're speeding up a Python script on 8 CPU cores or explaining why doubling your GPU count doesn't double your training throughput.

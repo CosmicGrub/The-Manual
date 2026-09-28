@@ -1,9 +1,10 @@
 ---
 trackId: cs-foundations
 tier: 3
-title: Math Primer II: Linear Algebra & Calculus Basics for ML-Readiness
+title: "Math Primer II: Linear Algebra & Calculus Basics for ML-Readiness"
 order: 8
 estimatedHours: 14
+slug: math-primer-ii-linear-algebra-calculus
 ---
 
 Every model you'll build starting in AI/ML's Tier 1 — linear regression, logistic regression, a neural network's forward pass — is, underneath the framework code, doing exactly three things over and over: multiplying vectors and matrices together, computing how a loss function changes as you nudge its parameters, and nudging those parameters a little in the direction that shrinks it. That's the whole trick. A "layer" is a matrix multiply. "Training" is gradient descent. This module builds all three of those primitives from scratch, by hand, so that when they reappear wrapped in `torch.nn.Linear` or `model.fit()`, you recognize old friends instead of taking someone's word for how they work.

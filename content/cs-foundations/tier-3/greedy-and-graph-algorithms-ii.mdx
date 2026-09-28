@@ -4,6 +4,7 @@ tier: 3
 title: Greedy Algorithms & Graph Algorithms II
 order: 3
 estimatedHours: 10
+slug: greedy-and-graph-algorithms-ii
 ---
 
 A greedy algorithm makes the choice that looks best *right now* and never revisits it — no backtracking, no trying alternatives, no lookahead. That should terrify you: how can ignoring the future ever produce a globally optimal answer? Sometimes it provably can't, which is exactly why Tier 3's Module 2 gave you dynamic programming as the tool that actually explores the alternatives greedy throws away. But sometimes greedy is not just "good enough" — it's *provably, exactly* optimal, and Dijkstra's algorithm and the classic minimum-spanning-tree algorithms are the two most important cases of that in all of computer science. This module builds both from scratch, gives you the actual proof technique (the exchange argument) that tells you *why* they're correct, and then deliberately breaks greedy on problems where that same instinct fails — including a version of Dijkstra itself, on a graph it was never designed to handle.

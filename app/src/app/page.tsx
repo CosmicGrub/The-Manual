@@ -3,6 +3,12 @@ import { TRACKS } from '@/lib/tracks'
 import { SkillTree, type TrackSummary } from '@/components/SkillTree'
 import { getOrCreateDefaultUser } from '@/lib/user'
 
+// Dynamic by nature (per-user progress, read live) — must not be statically
+// prerendered. Without this, `next build` tries to prerender it at build
+// time (before a DB exists, e.g. in the Docker build stage — see
+// docker-entrypoint.sh) and fails outright. See MASTERFILE.md §3.8.
+export const dynamic = 'force-dynamic'
+
 export default async function DashboardPage() {
   const user = await getOrCreateDefaultUser()
   const progress = await db.progress.findMany({ where: { userId: user.id } })

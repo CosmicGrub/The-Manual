@@ -1,0 +1,98 @@
+[
+  {
+    "id": "languages/tier-1/javascript-foundations-in-parallel/q1",
+    "type": "multiple_choice",
+    "prompt": "What does this log?\n\nconsole.log(x);\nvar x = 5;",
+    "choices": [
+      "5",
+      "undefined",
+      "ReferenceError: Cannot access 'x' before initialization",
+      "SyntaxError: Unexpected token"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-1/javascript-foundations-in-parallel/q2",
+    "type": "multiple_choice",
+    "prompt": "What does this log?\n\nconsole.log(y);\nlet y = 5;",
+    "choices": [
+      "5",
+      "undefined",
+      "ReferenceError: Cannot access 'y' before initialization",
+      "null"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "languages/tier-1/javascript-foundations-in-parallel/q3",
+    "type": "multiple_choice",
+    "prompt": "What does this log (predict the output)?\n\nfor (var i = 0; i < 3; i++) {\n  setTimeout(() => console.log(i), 0);\n}",
+    "choices": [
+      "0 1 2",
+      "3 3 3",
+      "0 0 0",
+      "undefined undefined undefined"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-1/javascript-foundations-in-parallel/q4",
+    "type": "multiple_choice",
+    "prompt": "Which of these values is falsy in JavaScript?",
+    "choices": [
+      "[]",
+      "{}",
+      "'0'",
+      "0"
+    ],
+    "correctIndex": 3
+  },
+  {
+    "id": "languages/tier-1/javascript-foundations-in-parallel/q5",
+    "type": "multiple_choice",
+    "prompt": "Predict the output:\n\nconsole.log([] == false);\nconsole.log([] === false);",
+    "choices": [
+      "true true",
+      "false false",
+      "true false",
+      "false true"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "languages/tier-1/javascript-foundations-in-parallel/q6",
+    "type": "multiple_choice",
+    "prompt": "In this code, this.name logs undefined instead of 'Alice'. What's the simplest fix?\n\nconst obj = {\n  name: 'Alice',\n  greet: function() {\n    setTimeout(function() {\n      console.log(this.name);\n    }, 100);\n  }\n};",
+    "choices": [
+      "Change 'let name' to 'const name'",
+      "Replace the inner function() {...} with an arrow function () => {...}",
+      "Add 'var self = this;' inside greet and the bug fixes itself automatically",
+      "Change setTimeout to setInterval"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-1/javascript-foundations-in-parallel/q7",
+    "type": "multiple_choice",
+    "prompt": "What does this log?\n\nconsole.log({a: 1} === {a: 1});",
+    "choices": [
+      "true",
+      "false",
+      "TypeError",
+      "It depends on the Node version"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-1/javascript-foundations-in-parallel/q8",
+    "type": "multiple_choice",
+    "prompt": "In a Node script run as `node args.js foo bar`, what does process.argv[0] contain, compared to Python's sys.argv[0] for `python3 args.py foo bar`?",
+    "choices": [
+      "The path to the Node executable itself \u2014 in Python, sys.argv[0] is the script path instead",
+      "The path to the script file, same as Python's sys.argv[0]",
+      "The first user-supplied argument, 'foo'",
+      "undefined, unless explicitly set by the script"
+    ],
+    "correctIndex": 0
+  }
+]

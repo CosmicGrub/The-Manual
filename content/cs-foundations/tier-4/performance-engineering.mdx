@@ -4,6 +4,7 @@ tier: 4
 title: Performance Engineering
 order: 1
 estimatedHours: 10
+slug: performance-engineering
 ---
 
 Big-O tells you how a program's cost grows as input gets bigger, but it says nothing about the constant sitting in front of the growth term — and that constant is exactly what separates code that merely works from code that's fast. Two O(n²) programs can differ by 50x in wall-clock time depending on how many Python-level function calls they make and how their data sits in memory, and Big-O is structurally blind to both. This module is about closing that gap with evidence instead of intuition: profile before you guess, measure the memory and cache effects Big-O can't see, benchmark with enough statistical rigor to trust the number, and — just as important — know when the honest answer is to stop.

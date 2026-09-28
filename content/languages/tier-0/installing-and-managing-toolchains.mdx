@@ -4,6 +4,7 @@ tier: 0
 title: Installing & Managing Toolchains
 order: 5
 estimatedHours: 4
+slug: installing-and-managing-toolchains
 ---
 
 Right now you probably have one Python, maybe one Node, maybe a Rust install from a tutorial you half-finished. That's fine for a single project. It stops being fine the moment you have three: one pinned to an old Python because a library hasn't caught up yet, one that wants the latest Node LTS, one Rust crate that needs a nightly compiler feature. Module 1 already told you *what* PATH does and why "command not found" happens when a language's binary isn't on it. This module is where you actually build the machinery that puts those binaries on PATH in the first place — and, just as importantly, the machinery for having *several versions* of the same language coexist without them fighting each other.

@@ -4,6 +4,7 @@ tier: 3
 title: Multi-File Project Architecture
 order: 5
 estimatedHours: 10
+slug: multi-file-project-architecture
 ---
 
 Every project you've built in this curriculum so far has lived in one file, or close to it — and that's been the right call, because the point was learning the algorithm, not managing a codebase around it. That stops being the right call the moment a program has more than one reason to change. A script that parses command-line flags, runs Dijkstra, and prints the result is three separate responsibilities wearing one trenchcoat: touch the output formatting and you risk breaking the algorithm underneath it, want to unit-test the algorithm and you first have to fight past `argparse` and `stdout` to reach it, want a second strategy (an unweighted BFS instead of weighted Dijkstra, say) and you're editing the same file that also owns your CLI's flags. This module is about the actual decisions that keep a real, multi-file project sane: how you split files by responsibility, how you manage a project's dependencies so it installs identically on your machine and someone else's, and which of the classic design patterns — Strategy, Factory — genuinely earn their keep in Python, versus which ones get cargo-culted in from Java for no real reason. You'll build all of it firsthand: a real, installable, tested, CLI-driven route-planner package, reusing the Dijkstra implementation you already built and hand-verified in Module 3 — which also happens to be close to the exact shape your Tier 3 checkpoint project needs.

@@ -1,9 +1,10 @@
 ---
 trackId: languages
 tier: 0
-title: What Code Actually Is: Interpreters vs Compilers vs VMs
+title: "What Code Actually Is: Interpreters vs Compilers vs VMs"
 order: 3
 estimatedHours: 4
+slug: what-code-actually-is-interpreters-vs-compilers-vs-vms
 ---
 
 You already know from CS Foundations' "What Even Is a Computer" that a CPU is a dumb loop — fetch an instruction, execute it, repeat, billions of times a second — and that it only ever understands raw machine code, not English-like source text. What that lesson didn't cover is *who* turns your source code into those instructions, *when* they do it, and why that one design choice is the biggest reason `print("hello")` in Python and `printf("hello\n");` in C feel, install, and run completely differently, even though both end up flipping the exact same kind of bits on the exact same kind of CPU.
