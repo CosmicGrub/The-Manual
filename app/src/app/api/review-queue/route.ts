@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { nextReviewState } from '@/lib/srs'
+import { ensureUser } from '@/lib/user'
 
 // GET /api/review-queue?userId=xxx — items due for spaced-repetition review right now
 export async function GET(req: NextRequest) {
@@ -28,6 +29,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'userId, itemId, itemType, and grade are required' }, { status: 400 })
   }
 
+  await ensureUser(userId)
   const existing = await db.reviewState.findUnique({
     where: { userId_itemId_itemType: { userId, itemId, itemType } },
   })

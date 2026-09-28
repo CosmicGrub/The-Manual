@@ -23,7 +23,12 @@ export default defineConfig({
           order: s.number(),
           estimatedHours: s.number(),
           slug: s.slug('lessons'),
-          body: s.mdx(),
+          // Compiled to an HTML string (remark/rehype), not an MDX component function —
+          // lesson content is plain Markdown (no embedded JSX), and this avoids pulling
+          // in an MDX component runtime just to render text. Rendered via
+          // dangerouslySetInnerHTML in the lesson page; safe because this is our own
+          // authored content, not user input.
+          body: s.markdown(),
         })
         .transform((data) => ({ ...data, moduleId: `${data.trackId}/tier-${data.tier}/${data.slug}` })),
     },

@@ -13,3 +13,16 @@ export const TRACKS = [
 ] as const
 
 export type TrackId = (typeof TRACKS)[number]['id']
+
+export const TIER_LABELS = [
+  'Orientation & Literacy',
+  'Foundations',
+  'Builder',
+  'Practitioner',
+  'Advanced / Specialist',
+  'Expert / Innovator',
+] as const
+
+export function getTrackName(trackId: string): string {
+  return TRACKS.find((t) => t.id === trackId)?.name ?? trackId
+}

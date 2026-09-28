@@ -21,6 +21,10 @@ app/prisma/*.db-journal
 # Velite generated content cache
 app/.velite/
 
+# Generated at build time from .velite/lessons.json (scripts/gen-precache-manifest.mjs) —
+# regenerate via `npm run build`, never hand-edit or commit a stale copy.
+app/public/precache-manifest.json
+
 # Logs
 npm-debug.log*
 yarn-debug.log*

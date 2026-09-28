@@ -128,3 +128,29 @@ All notable changes to The Manual (curriculum + app) are logged here. This file 
 **Caught and fixed before shipping:** the first Dockerfile draft used `app/` as the build context, which would have silently failed at build time — `velite.config.ts`'s `root: '../content'` needs the repo-root `content/` directory, which lives *outside* an `app/`-scoped build context and Docker cannot reach files outside its context. Fixed by moving the build context to the repo root (`docker-compose.yml`'s `context: .`, `dockerfile: app/Dockerfile`) and adjusting the Dockerfile's `COPY` paths accordingly.
 
 **Status:** MASTERFILE.md §3.7 documents this as a standing architectural section, not a one-off note — it's the reference for what "multi-device" means for this app going forward.
+
+## [0.8.0] — 2026-09-28 — Standing rule: totally functional offline, always up to date
+
+**Context:** New standing rule: "this app must be totally functional offline while having the most up to date terms and curriculums." The previous PWA work (0.7.0) only cached the app shell — there was no way to even *view* a lesson through the app yet (those pages were still marked "not yet built" in MASTERFILE §3.5), so genuine offline functionality required building that UI first, not just expanding the service worker.
+
+**Added**
+- `app/src/app/tracks/[trackId]/page.tsx` and `app/src/app/tracks/[trackId]/[tier]/[slug]/page.tsx` — statically generated (`generateStaticParams`) tier-ladder and lesson pages. Lesson pages embed their quiz questions directly (read server-side via the new `app/src/lib/quizzes.ts`) so a cached lesson page needs zero extra requests to be fully functional offline, quiz included.
+- `app/src/app/review/page.tsx` + `app/src/components/ReviewQueueItem.tsx` — the spaced-repetition review queue (linked from the dashboard since 0.1.0 but never built), resolving each due `ReviewState` back to its source question via `resolveQuizQuestionItem()`.
+- `app/scripts/gen-precache-manifest.mjs` — runs after every `velite build`, writes `public/precache-manifest.json` listing every track/lesson URL plus a content-hash `version` (changes only when the curriculum actually changes).
+- `app/public/sw.js` rewritten: precaches every URL in that manifest individually (not `cache.addAll`, which would abort the whole precache on one bad URL), versioned cache naming tied to the content hash, network-first navigation with cache/offline fallback.
+- `app/src/lib/offlineOutbox.ts` (IndexedDB write queue) + `app/src/components/OfflineOutboxFlusher.tsx` — quiz attempts, progress, and review grades made offline are queued and replayed automatically on reconnect, never silently lost. `QuizRunner` and the new `LessonProgressButton` both surface "saved offline" in the UI.
+- `app/src/lib/content.ts` — typed accessors over Velite's compiled lesson index, used by the new pages and the manifest script.
+- MASTERFILE.md §3.8 — the standing offline-first architecture as a permanent reference, not a changelog-only note.
+
+**Changed**
+- `app/velite.config.ts` — lesson `body` switched from `s.mdx()` to `s.markdown()` (compiled HTML string, not an MDX component function): content has no embedded JSX, and this avoids pulling in an MDX component runtime just to render text. Rendered via `dangerouslySetInnerHTML` (safe — this is our own authored content).
+- `app/tailwind.config.ts` / `package.json` — added `@tailwindcss/typography` to style that rendered HTML; removed the now-unused `next-mdx-remote` dependency.
+- `app/src/lib/user.ts` — the default learner now has a fixed id (`LOCAL_USER_ID = 'local-learner'`) instead of a random `cuid()`, and a new `ensureUser()` is called from every mutating API route before it writes.
+
+**Caught and fixed before shipping (three separate real bugs):**
+1. A workflow-writing race from earlier work (Tier 4 lessons) resurfaced here: the assembly script had no protection against a completed workflow's structured output silently overwriting a better version of a file its own agent had already written directly to disk. Hardened `assemble_tier.py` (session scratchpad tooling) to refuse an overwrite that would shrink a file by more than 50%, or replace a non-empty quiz file with zero questions, and flag it for manual review instead.
+2. The new lesson page initially set `userId` to the raw `DEFAULT_USER_NAME` env value instead of the actual database `User.id` — since these pages are statically generated with no DB access, there was no server-side lookup to get the real id from. Fixed by giving the default learner a fixed, well-known id instead of a random one, so static pages can reference it directly with zero database dependency.
+3. `docker-entrypoint.sh` ran `prisma db push` but never `db:seed` — meaning every quiz-attempt/progress write in the Docker deployment would have failed its foreign-key check against a `Module` row that was never created. Fixed by adding the seed step to the entrypoint.
+4. `OfflineOutboxFlusher` was written but never mounted in `layout.tsx` — the entire offline write-queue would have been dead code, silently never replaying queued requests on reconnect. Fixed by mounting it alongside `RegisterServiceWorker`.
+
+**Deliberately not attempted:** a full bidirectional multi-device sync engine (conflict resolution if the same lesson is completed offline on two devices before either syncs) — last-write-wins via the existing upsert semantics is the honest current behavior, appropriate for a single-learner app; see MASTERFILE.md §3.8's own "what this doesn't attempt" note.

@@ -1,14 +1,7 @@
 import { db } from '@/lib/db'
 import { TRACKS } from '@/lib/tracks'
 import { SkillTree, type TrackSummary } from '@/components/SkillTree'
-
-// Single-user local default (see .env.example). Multi-user auth is a phase-2
-// addition on top of the existing userId-scoped schema — see MASTERFILE.md.
-async function getOrCreateDefaultUser() {
-  const name = process.env.DEFAULT_USER_NAME ?? 'Learner'
-  const existing = await db.user.findFirst({ where: { name } })
-  return existing ?? db.user.create({ data: { name } })
-}
+import { getOrCreateDefaultUser } from '@/lib/user'
 
 export default async function DashboardPage() {
   const user = await getOrCreateDefaultUser()
@@ -28,7 +21,7 @@ export default async function DashboardPage() {
     <main className="space-y-8">
       <header>
         <h1 className="text-2xl font-semibold">The Manual</h1>
-        <p className="text-neutral-500">Welcome back, {user.name}. Here's where you stand across all 8 tracks.</p>
+        <p className="text-neutral-500">Welcome back, {user.name}. Here's where you stand across all 9 tracks.</p>
       </header>
 
       <SkillTree tracks={tracks} />

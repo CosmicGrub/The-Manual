@@ -65,7 +65,7 @@ Once the page loads in Chrome on either device:
 - Tap the Chrome menu (⋮) → **Install app** (or **Add to Home screen** on older Chrome versions).
 - It installs with its own icon and opens in a standalone window (no address bar), per the manifest in `app/public/manifest.json`.
 - The layout is responsive and safe-area-aware (`app/src/app/layout.tsx`) specifically so it works whether the **Z Fold 5 is folded** (phone-width) or **unfolded** (tablet-width, where the layout gets more breathing room), and on the **Tab S9 FE's** larger fixed screen — nothing assumes one fixed width.
-- A minimal service worker (`app/public/sw.js`) caches the app shell so the icon/manifest/static assets still load if you briefly lose signal; live content (lessons, progress) still needs a real connection to the PC, since this is a server-rendered app talking to a database on that PC, not an offline-first sync engine.
+- The service worker (`app/public/sw.js`) precaches the **entire written curriculum** — every track page and every lesson (quiz included), not just the app shell — per the standing offline-first rule in MASTERFILE.md §3.8. Once you've opened the app online at least once (so the first precache can run), every lesson you've had built works fully with no connection at all: reading it, taking its quiz, marking it complete. Quiz attempts and progress writes made offline are queued locally and sync automatically the moment you're back online — nothing is lost to a dropped connection. The dashboard and `/review` page (which reflect live, per-moment state) show your last-synced snapshot when offline and refresh the instant you're reconnected.
 
 ## 4. The HTTPS caveat (read this if "Install app" doesn't show up)
 

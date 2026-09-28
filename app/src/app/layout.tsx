@@ -2,6 +2,7 @@ import './globals.css'
 import type { Metadata, Viewport } from 'next'
 import type { ReactNode } from 'react'
 import { RegisterServiceWorker } from '@/components/RegisterServiceWorker'
+import { OfflineOutboxFlusher } from '@/components/OfflineOutboxFlusher'
 
 export const metadata: Metadata = {
   title: 'The Manual',
@@ -15,9 +16,10 @@ export const metadata: Metadata = {
 }
 
 // Separate from `metadata` per Next.js App Router convention (themeColor/viewport
-// warn if left inside `metadata`). `viewportFit: 'cover'` plus the safe-area CSS in
-// globals.css is what keeps content clear of a foldable's hinge/notch and a phone's
-// system bars — see docs/running-on-your-devices.md for the devices this targets.
+// warn if left inside `metadata`). `viewportFit: 'cover'` plus the inline
+// `env(safe-area-inset-*)` padding below is what keeps content clear of a
+// foldable's hinge/notch and a phone's system bars — see
+// docs/running-on-your-devices.md for the devices this targets.
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
@@ -36,6 +38,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           {children}
         </div>
         <RegisterServiceWorker />
+        <OfflineOutboxFlusher />
       </body>
     </html>
   )

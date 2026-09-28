@@ -1,3 +1,5 @@
+import Link from 'next/link'
+
 const TIERS = [0, 1, 2, 3, 4, 5] as const
 const TIER_LABELS = ['Orientation', 'Foundations', 'Builder', 'Practitioner', 'Advanced', 'Expert']
 
@@ -17,7 +19,7 @@ const STATUS_STYLE: Record<TrackSummary['tierStatus'][number], string> = {
 /**
  * The dashboard's tracks x tiers grid — one cell per (track, tier), colored by
  * mastery status. This is the "visual representation" of overall progress
- * through The Manual: 8 tracks wide, 6 tiers tall.
+ * through The Manual: 9 tracks wide, 6 tiers tall.
  */
 export function SkillTree({ tracks }: { tracks: TrackSummary[] }) {
   return (
@@ -37,7 +39,11 @@ export function SkillTree({ tracks }: { tracks: TrackSummary[] }) {
         <tbody>
           {tracks.map((track) => (
             <tr key={track.id}>
-              <td className="text-sm font-medium p-2 whitespace-nowrap">{track.name}</td>
+              <td className="text-sm font-medium p-2 whitespace-nowrap">
+                <Link href={`/tracks/${track.id}`} className="hover:underline">
+                  {track.name}
+                </Link>
+              </td>
               {TIERS.map((tier) => {
                 const status = track.tierStatus[tier] ?? 'locked'
                 return (

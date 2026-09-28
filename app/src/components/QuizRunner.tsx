@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { postWithOfflineFallback } from '@/lib/offlineOutbox'
 
 export type QuizQuestion =
   | { id: string; type: 'multiple_choice'; prompt: string; choices: string[]; correctIndex: number }
@@ -25,6 +26,7 @@ export function QuizRunner({ moduleId, userId, questions, onComplete }: Props) {
   const [answers, setAnswers] = useState<Record<string, string | number>>({})
   const [submitted, setSubmitted] = useState(false)
   const [score, setScore] = useState<number | null>(null)
+  const [savedOffline, setSavedOffline] = useState(false)
 
   function isCorrect(q: QuizQuestion): boolean {
     const a = answers[q.id]
@@ -48,11 +50,18 @@ export function QuizRunner({ moduleId, userId, questions, onComplete }: Props) {
     setScore(finalScore)
     setSubmitted(true)
 
-    await fetch('/api/quiz-attempts', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, moduleId, score: finalScore, answers, missedQuestionIds }),
+    // No network round-trip required to grade or to keep the attempt: it's
+    // queued locally (IndexedDB) and replayed automatically once the device
+    // — or the PC it talks to over LAN — is reachable again. See
+    // app/src/lib/offlineOutbox.ts and MASTERFILE.md §3.8.
+    const { queued } = await postWithOfflineFallback('/api/quiz-attempts', {
+      userId,
+      moduleId,
+      score: finalScore,
+      answers,
+      missedQuestionIds,
     })
+    setSavedOffline(queued)
 
     onComplete?.(finalScore)
   }
@@ -107,6 +116,7 @@ export function QuizRunner({ moduleId, userId, questions, onComplete }: Props) {
       ) : (
         <p className="font-medium">
           {score !== null && `Score: ${Math.round(score * 100)}%`} — missed items will resurface for spaced review.
+          {savedOffline && ' (Saved offline — will sync automatically once you\'re back online.)'}
         </p>
       )}
     </div>

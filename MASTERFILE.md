@@ -85,12 +85,20 @@ The-Manual/
 └── app/                         ← the delivery app
     ├── package.json / tsconfig.json / next.config.mjs / velite.config.ts
     ├── Dockerfile / docker-entrypoint.sh / .dockerignore
-    ├── public/manifest.json, sw.js, offline.html, icons/   ← PWA: installable on Android home screens
+    ├── scripts/gen-precache-manifest.mjs   ← writes public/precache-manifest.json (content-hash versioned) after every `velite build`
+    ├── public/manifest.json, sw.js, offline.html, icons/   ← PWA + full-curriculum offline precaching (§3.8)
     ├── prisma/schema.prisma, seed.ts
     └── src/
-        ├── app/                 (dashboard `page.tsx`, `layout.tsx`, `api/*`)
-        ├── components/          (SkillTree, QuizRunner, RegisterServiceWorker, ...)
-        └── lib/                 (db.ts — Prisma client, srs.ts — SM-2, tracks.ts)
+        ├── app/
+        │   ├── page.tsx (dashboard), layout.tsx, api/*
+        │   ├── tracks/[trackId]/page.tsx                    ← statically generated tier ladder
+        │   ├── tracks/[trackId]/[tier]/[slug]/page.tsx      ← statically generated lesson + embedded quiz
+        │   └── review/page.tsx                              ← spaced-repetition queue
+        ├── components/          (SkillTree, QuizRunner, LessonProgressButton, ReviewQueueItem,
+        │                         RegisterServiceWorker, OfflineOutboxFlusher, ...)
+        └── lib/                 (db.ts — Prisma client, srs.ts — SM-2, tracks.ts, content.ts — Velite
+                                   lesson accessors, quizzes.ts — server-side quiz reads, user.ts,
+                                   offlineOutbox.ts — IndexedDB write queue)
 ```
 
 ### 3.3 Database schema
@@ -114,16 +122,18 @@ See `app/prisma/schema.prisma` (source of truth for exact fields). Summary:
 | `/api/review-queue` | GET | Items due for spaced-repetition review right now. |
 | `/api/review-queue` | POST | Grade a review item (0-5 recall quality); reschedules via SM-2. |
 
-Not yet implemented (documented for the next build pass): `/api/checkpoints/:id/submit`, `/api/tracks` (static track/tier listing for client-side nav).
+Not yet implemented: `/api/checkpoints/:id/submit`, `/api/tracks` (a static track/tier listing endpoint — not currently needed since `getAllLessonParams()`/`getLessonsByTrack()` in `app/src/lib/content.ts` serve that purpose directly to server components at build time).
+
+Every mutating endpoint above is called through `app/src/lib/offlineOutbox.ts`'s `postWithOfflineFallback()` from the client, not a raw `fetch` — see §3.8.
 
 ### 3.5 UI architecture
 
-- `/` — **Dashboard**: skill-tree grid (`SkillTree.tsx`, 9 tracks × 6 tiers, color-coded by status), "continue where you left off."
-- `/tracks/[trackId]` — tier ladder for one track *(not yet built)*.
-- `/tracks/[trackId]/[tier]/[slug]` — lesson content (MDX) + inline `QuizRunner` *(not yet built)*.
-- `/review` — spaced-repetition queue *(linked from dashboard; page not yet built)*.
+- `/` — **Dashboard**: skill-tree grid (`SkillTree.tsx`, 9 tracks × 6 tiers, color-coded by status, each track name links to its `/tracks/[trackId]` page). Dynamic (per-request Prisma read) — offline behavior via SW cache fallback, see §3.8.
+- `/tracks/[trackId]` — tier ladder for one track: all 6 tiers, every written lesson linked, with a note pointing to `docs/curriculum/<trackId>.md` where a tier has no lessons yet. **Statically generated** (`generateStaticParams` over every track).
+- `/tracks/[trackId]/[tier]/[slug]` — the lesson itself: rendered Markdown body (`dangerouslySetInnerHTML` from Velite's `s.markdown()` output — safe, this is our own authored content) + a "mark complete" button + an inline `QuizRunner` fed the matching `.quiz.json`, read server-side via `app/src/lib/quizzes.ts`. **Statically generated** (`generateStaticParams` over every lesson) — this is what makes a lesson's content *and* its quiz fully available offline with zero extra network request once cached.
+- `/review` — today's spaced-repetition queue: due `ReviewState` rows resolved back to their source quiz question via `resolveQuizQuestionItem()`, graded 0-5 through `ReviewQueueItem.tsx`. Dynamic (today's due set is per-moment) — offline behavior via SW cache fallback, see §3.8.
 - `/checkpoints/[id]` — checkpoint brief + submission form *(not yet built)*.
-- `/resources` — curated resource library, filterable by track/tier *(not yet built)*.
+- `/resources` — curated resource library, filterable by track/tier *(not yet built — `docs/curriculum/<track>.md`'s per-tier resource lists are the source for this when it's built)*.
 
 ### 3.6 Phase 2 (deliberately deferred, schema-ready)
 
@@ -143,6 +153,20 @@ Target devices: a **Galaxy Z Fold 5** and **Galaxy Tab S9 FE** (connected over t
 - **Known limitation, documented rather than silently ignored:** full PWA install criteria technically want a secure context (HTTPS or `localhost`); a LAN IP is neither. Chrome on Android is lenient about this in practice, but `docs/running-on-your-devices.md` §4 gives the `mkcert`-based fix for anyone who hits it, plus the always-works fallback (use it as a normal browser tab — full functionality, just no home-screen icon).
 
 Full setup, per-OS commands, and troubleshooting: **[`docs/running-on-your-devices.md`](./docs/running-on-your-devices.md)**.
+
+### 3.8 Offline-first architecture (standing rule, added 2026-09-28)
+
+**Standing rule: the app must be totally functional offline while always serving the most up-to-date curriculum content it can reach.** Not just an app-shell/icon that opens with no content — every written lesson, its quiz, and progress-tracking must work with zero network connection, and must refresh automatically the moment a connection is available again. This superseded §3.7's original, weaker claim ("live content still needs a real connection") and required building the lesson-viewing UI that §3.5 had deferred — you can't make offline content functional that the app can't display at all yet.
+
+**How "totally offline" is actually achieved, not just claimed:**
+
+- **Content is static, not server-rendered.** `/tracks/[trackId]` and every `/tracks/[trackId]/[tier]/[slug]` lesson page is generated at *build time* (`generateStaticParams`), with the lesson's quiz questions read server-side (`app/src/lib/quizzes.ts`) and baked directly into that static page. Once the service worker has a lesson page cached, reading it and taking its quiz needs no server at all — not "the PC's server is fast," genuinely zero network requests.
+- **The service worker precaches the whole curriculum, not just the shell.** `app/scripts/gen-precache-manifest.mjs` runs after every `velite build` and lists every track/lesson URL in `public/precache-manifest.json`, keyed by a hash of the actual lesson content. `app/public/sw.js` fetches that manifest on install and caches every URL individually (not `cache.addAll`, which aborts the *entire* precache if even one URL fails) — one bad route can't silently take down offline access to everything else.
+- **"Most up to date" is the cache-versioning strategy, not a one-time snapshot.** The precache-manifest's `version` is a content hash — it changes exactly when the curriculum genuinely changes (a rebuild with no content edits produces the same version, no wasted re-fetch). The service worker's `activate` handler deletes every cache except the current version's, and navigations are **network-first** (always try for the freshest page when online) with a cache fallback only when the network is unreachable — so the learner always sees live content when connected, and their last-synced snapshot when not.
+- **Writes (quiz attempts, progress, review grades) are never lost to a dropped connection.** `app/src/lib/offlineOutbox.ts` is a small IndexedDB-backed outbox: every mutating call goes through `postWithOfflineFallback()`, which tries the network first and queues the request locally on failure. `OfflineOutboxFlusher.tsx` (mounted in the root layout) replays the queue on load and on the browser's `online` event. `QuizRunner` and `LessonProgressButton` both surface "saved offline — will sync" in the UI rather than silently succeeding or erroring.
+- **Dynamic, per-user pages (`/`, `/review`) can't be statically generated** (they read live DB state), so their offline behavior is one tier down from lesson pages: the service worker serves the last cached snapshot when the network is unreachable, refreshed on every successful online visit — honest "last-known-state" behavior, not a crash or blank page.
+
+**What this deliberately does not attempt:** a full bidirectional multi-device sync engine (if progress is recorded offline on the phone and separately offline on the PC before either syncs, last-write-wins per the existing `Progress`/`ReviewState` upsert semantics — there's no conflict-merge logic). That's a reasonable phase-2 addition (§3.6) once multi-user/multi-device usage is a real pattern, not a single learner's local-first app.
 
 ---
 

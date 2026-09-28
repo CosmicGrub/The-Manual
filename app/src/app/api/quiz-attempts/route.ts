@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { ensureUser } from '@/lib/user'
 
 // POST /api/quiz-attempts — { userId, moduleId, score, answers, missedQuestionIds }
 // Records one attempt at a module's whole quiz set, rolls it into the module's
@@ -19,6 +20,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'userId, moduleId, and score are required' }, { status: 400 })
   }
 
+  await ensureUser(userId)
   const attempt = await db.quizAttempt.create({
     data: { userId, moduleId, score, answers: JSON.stringify(answers ?? {}) },
   })

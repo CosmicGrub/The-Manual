@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { ensureUser } from '@/lib/user'
 
 // GET /api/progress?userId=xxx — this learner's status across every module
 export async function GET(req: NextRequest) {
@@ -22,6 +23,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'invalid status' }, { status: 400 })
   }
 
+  await ensureUser(userId)
   const progress = await db.progress.upsert({
     where: { userId_moduleId: { userId, moduleId } },
     create: { userId, moduleId, status },
