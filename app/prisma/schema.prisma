@@ -1,0 +1,125 @@
+// The Manual — data model
+//
+// Design intent: content itself (tracks, tiers, modules, lesson text) lives as
+// git-versioned MDX in /content, NOT in this database — that keeps the curriculum
+// diffable, reviewable, and portable. This schema only holds what MUST be mutable
+// at runtime: who's using the app, what they've done, and what's due for review.
+//
+// Local-first default: sqlite. Point DATABASE_URL at Postgres and flip `provider`
+// below to move to a hosted/multi-user deployment; every model already carries a
+// `userId` so that move needs no shape changes.
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+
+  progress              Progress[]
+  quizAttempts          QuizAttempt[]
+  reviewStates          ReviewState[]
+  checkpointSubmissions CheckpointSubmission[]
+}
+
+// One row per content/<trackId>/tier-N-*.mdx module. Populated by `db:seed`
+// from the Velite-built content index — this table is a queryable mirror of
+// the filesystem content, not a second source of truth for lesson text.
+model Module {
+  id             String   @id // stable slug, e.g. "cs-foundations/tier-1/big-o-notation"
+  trackId        String
+  tier           Int
+  title          String
+  estimatedHours Float
+  order          Int
+
+  quizAttempts QuizAttempt[]
+  progress     Progress[]
+
+  @@index([trackId, tier])
+}
+
+// Quiz QUESTIONS themselves are content, not data — they live in
+// content/**/*.quiz.json right next to the lesson MDX (see content/README.md)
+// and are read by the client at render time, never through this table.
+// One QuizAttempt row is one submission of a whole module's quiz set; per-question
+// detail (which question ids were missed) lives in `answers` and drives ReviewState below.
+model QuizAttempt {
+  id        String   @id @default(cuid())
+  userId    String
+  moduleId  String
+  score     Float // 0..1, aggregate across the module's gradable questions
+  answers   String // JSON-encoded { [questionId]: answer }
+  createdAt DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  module Module @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+
+  @@index([userId, moduleId])
+}
+
+// Gate to move from tier N to tier N+1 within a track (soft gate — the app
+// nudges, it doesn't hard-lock, since this is a self-study tool).
+model Checkpoint {
+  id      String @id // e.g. "cs-foundations/tier-1/checkpoint"
+  trackId String
+  tier    Int
+  title   String
+  rubric  String // JSON-encoded checklist of pass criteria
+
+  submissions CheckpointSubmission[]
+}
+
+model CheckpointSubmission {
+  id           String   @id @default(cuid())
+  userId       String
+  checkpointId String
+  artifactUrl  String // link to the learner's repo/portfolio artifact for this checkpoint
+  selfRubric   String // JSON-encoded self-graded checklist
+  status       String // "submitted" | "passed" | "needs_revision"
+  createdAt    DateTime @default(now())
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  checkpoint Checkpoint @relation(fields: [checkpointId], references: [id], onDelete: Cascade)
+
+  @@index([userId, checkpointId])
+}
+
+model Progress {
+  id           String   @id @default(cuid())
+  userId       String
+  moduleId     String
+  status       String // "not_started" | "in_progress" | "completed"
+  masteryScore Float? // rolling average of related quiz scores, 0..1
+  updatedAt    DateTime @updatedAt
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  module Module @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, moduleId])
+}
+
+// SM-2 spaced-repetition scheduling state, generic over any reviewable item
+// (a missed quiz question, a flashcard, a "explain it back" prompt).
+model ReviewState {
+  id           String   @id @default(cuid())
+  userId       String
+  itemId       String // a quiz question id from a .quiz.json file, or a flashcard id from lesson frontmatter
+  itemType     String // "quiz_question" | "flashcard"
+  easeFactor   Float    @default(2.5)
+  intervalDays Int      @default(0)
+  repetitions  Int      @default(0)
+  dueAt        DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, itemId, itemType])
+  @@index([userId, dueAt])
+}

@@ -1,0 +1,36 @@
+{
+  "name": "the-manual-app",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Delivery app for The Manual — a self-taught, multi-tier coding/AI/hardware curriculum. Reads lesson content from ../content, tracks progress and spaced-repetition review locally.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "velite build && next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "db:push": "prisma db push",
+    "db:studio": "prisma studio",
+    "db:seed": "tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.20.0",
+    "next": "^14.2.0",
+    "next-mdx-remote": "^5.0.0",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "gray-matter": "^4.0.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "autoprefixer": "^10.4.19",
+    "postcss": "^8.4.38",
+    "prisma": "^5.20.0",
+    "tailwindcss": "^3.4.4",
+    "tsx": "^4.16.0",
+    "typescript": "^5.5.0",
+    "velite": "^0.1.2"
+  }
+}

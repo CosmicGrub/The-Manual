@@ -1,0 +1,16 @@
+%% The Manual — app data flow: content pipeline, DB, API, UI.
+flowchart LR
+    subgraph Source["Git-versioned source of truth"]
+        MDX["content/**/*.mdx\n(lessons)"]
+        QUIZ["content/**/*.quiz.json"]
+    end
+
+    MDX --> VELITE["velite build\n(typed content index)"]
+    VELITE --> SEED["prisma/seed.ts"]
+    SEED --> DB[("SQLite / Postgres\nUser, Module, Progress,\nQuiz, QuizAttempt,\nCheckpoint, ReviewState")]
+
+    QUIZ --> UI
+    VELITE --> UI["Next.js App Router\npages + components"]
+    DB <--> API["Next.js API routes\n/api/progress\n/api/quiz-attempts\n/api/review-queue"]
+    API <--> UI
+    UI --> Learner(("Learner"))

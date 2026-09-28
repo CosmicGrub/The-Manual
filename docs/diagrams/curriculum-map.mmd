@@ -1,0 +1,32 @@
+%% The Manual — curriculum map: 8 tracks x 6 tiers.
+%% Render with any Mermaid viewer (GitHub renders .mmd inline; mermaid.live for a quick check).
+flowchart TB
+    subgraph Tiers["Skill Tiers (apply to every track below)"]
+        direction LR
+        T0["Tier 0\nOrientation & Literacy"] --> T1["Tier 1\nFoundations"]
+        T1 --> T2["Tier 2\nBuilder"]
+        T2 --> T3["Tier 3\nPractitioner"]
+        T3 --> T4["Tier 4\nAdvanced / Specialist"]
+        T4 --> T5["Tier 5\nExpert / Innovator"]
+    end
+
+    subgraph Tracks["8 Tracks"]
+        direction TB
+        TR1["1. CS & Programming Foundations"]
+        TR2["2. Language Mastery"]
+        TR3["3. Software Engineering & Architecture"]
+        TR4["4. Hardware & Computer Systems"]
+        TR5["5. AI, ML & Prompt Engineering"]
+        TR6["6. Platform & Cross-Platform Dev"]
+        TR7["7. DevOps, Tooling & Practice"]
+        TR8["8. Capstones & Career Launch"]
+    end
+
+    Tiers -.every track climbs.-> Tracks
+    TR8 -.draws capstone projects from.-> TR1
+    TR8 -.-> TR2
+    TR8 -.-> TR3
+    TR8 -.-> TR4
+    TR8 -.-> TR5
+    TR8 -.-> TR6
+    TR8 -.-> TR7
