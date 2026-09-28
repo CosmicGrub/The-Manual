@@ -1,0 +1,183 @@
+---
+trackId: languages
+tier: 2
+title: "Calling SQL From Your Language"
+order: 4
+estimatedHours: 3
+slug: calling-sql-from-your-language
+---
+
+SQL syntax, schema design, and query technique are Software Engineering Tier 1's territory — this module assumes you can already write a `SELECT` and design a table, and focuses purely on how your code talks to the database: two approaches in Python, two in Node.
+
+## Python: `sqlite3`, no install required
+
+`sqlite3` ships in the standard library — no `pip install` needed, and it talks to a real (if lightweight) SQL database stored in a single file. You get a `Connection`, and from it `Cursor` objects that execute SQL and hand back rows.
+
+```python
+import sqlite3
+
+conn = sqlite3.connect("app.db")
+conn.execute("""
+    CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        email TEXT UNIQUE NOT NULL
+    )
+""")
+
+conn.execute(
+    "INSERT INTO users (name, email) VALUES (?, ?)",
+    ("Ada Lovelace", "ada@example.com"),
+)
+conn.commit()
+
+cursor = conn.execute(
+    "SELECT id, name, email FROM users WHERE name = ?", ("Ada Lovelace",)
+)
+row = cursor.fetchone()
+print(row)  # (1, 'Ada Lovelace', 'ada@example.com')
+
+conn.close()
+```
+
+Three things worth locking in:
+
+- **`?` is a placeholder, not string formatting.** `conn.execute("... WHERE name = ?", (name,))` sends `name` as data, separately from the SQL text, so the driver can't be tricked by a value like `"'; DROP TABLE users; --"`. Building the query with an f-string instead — `f"... WHERE name = '{name}'"` — is a real SQL-injection hole, not a style nitpick.
+- **Nothing hits disk until you call `.commit()`.** Every `execute()` runs inside an open transaction; forget `commit()` and your insert vanishes when the connection closes.
+- **`with sqlite3.connect(...) as conn:` is not a file-close context manager.** It commits on success and rolls back on an exception, but it does *not* close the connection — you still need `conn.close()` (or a `with conn:` block used only for the transaction, then close separately). This trips up almost everyone the first time.
+
+Want dict-like rows instead of plain tuples? Set `conn.row_factory = sqlite3.Row` before querying, then access `row["name"]` alongside `row[1]`. For bulk inserts, `conn.executemany("INSERT INTO users (name, email) VALUES (?, ?)", list_of_tuples)` is both shorter and faster than looping over `execute()`.
+
+## Python: SQLAlchemy — engine, session, model
+
+SQLAlchemy's ORM lets you describe a table as a Python class and work with rows as objects instead of tuples. Three pieces, every time: an **engine** (how to connect), a **model** (what a row looks like), and a **session** (a unit of work — a transaction plus an in-memory map of the objects you're tracking).
+
+```python
+from sqlalchemy import create_engine, Column, Integer, String
+from sqlalchemy.orm import declarative_base, sessionmaker
+
+engine = create_engine("sqlite:///app.db", echo=False)
+Base = declarative_base()
+
+class User(Base):
+    __tablename__ = "users"
+    id = Column(Integer, primary_key=True)
+    name = Column(String, nullable=False)
+    email = Column(String, unique=True, nullable=False)
+
+Base.metadata.create_all(engine)  # creates the table if it doesn't exist
+
+Session = sessionmaker(bind=engine)
+session = Session()
+
+ada = User(name="Ada Lovelace", email="ada@example.com")
+session.add(ada)
+session.commit()
+
+found = session.query(User).filter_by(name="Ada Lovelace").first()
+print(found.id, found.name, found.email)
+
+session.close()
+```
+
+The `engine` is the same idea as a connection pool: it doesn't open a connection until something needs one, and it reuses connections across queries. Swap `"sqlite:///app.db"` for `"postgresql://user:pass@localhost/app"` or `"mysql://..."` and every line below it — the model, the session, the queries — stays identical. That portability is the entire pitch of an ORM: your Python code stops caring which database engine is on the other end.
+
+`session.add(ada)` doesn't hit the database by itself — it stages the object. `session.commit()` is what actually issues the `INSERT` and ends the transaction. `session.query(User).filter_by(...)` builds and runs a `SELECT` and hands back `User` instances, not tuples, with attribute access instead of index access.
+
+## Node.js: the `pg` driver
+
+`pg` is Node's equivalent of `sqlite3` — a thin driver, no object mapping. Install it with `npm install pg`. It exposes a `Pool`, which — like SQLAlchemy's engine — manages a set of reusable connections for you.
+
+```javascript
+// npm install pg
+const { Pool } = require("pg");
+
+const pool = new Pool({
+  connectionString: "postgresql://user:password@localhost:5432/app",
+});
+
+async function main() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      email TEXT UNIQUE NOT NULL
+    )
+  `);
+
+  await pool.query(
+    "INSERT INTO users (name, email) VALUES ($1, $2)",
+    ["Ada Lovelace", "ada@example.com"]
+  );
+
+  const { rows } = await pool.query(
+    "SELECT id, name, email FROM users WHERE name = $1",
+    ["Ada Lovelace"]
+  );
+  console.log(rows[0]);
+
+  await pool.end();
+}
+
+main();
+```
+
+The parameterization idea is identical to `sqlite3`'s, but the placeholder syntax isn't — Postgres uses positional `$1`, `$2`, not `?`. Every `pool.query(...)` call transparently checks out a connection from the pool and returns it when done, which is fine for one-off statements. If you need several statements to run as one atomic transaction, you must grab a dedicated connection yourself with `const client = await pool.connect()`, run `BEGIN` / your statements / `COMMIT` (or `ROLLBACK` in a `catch`) on that `client`, then call `client.release()` — the pool won't do that coordination for you.
+
+## Node.js: Prisma, briefly
+
+Where `pg` is a thin wire-level driver, Prisma is schema-first: you declare your tables in a `schema.prisma` file, and tooling generates both the SQL migration and a fully-typed client from it.
+
+```prisma
+// schema.prisma
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id    Int    @id @default(autoincrement())
+  name  String
+  email String @unique
+}
+```
+
+```bash
+npx prisma migrate dev --name init   # generates + applies the SQL migration, then regenerates the client
+```
+
+```typescript
+import { PrismaClient } from "@prisma/client";
+const prisma = new PrismaClient();
+
+async function main() {
+  const ada = await prisma.user.create({
+    data: { name: "Ada Lovelace", email: "ada@example.com" },
+  });
+
+  const found = await prisma.user.findFirst({ where: { name: "Ada Lovelace" } });
+  console.log(found);
+}
+
+main().finally(() => prisma.$disconnect());
+```
+
+Notice the inversion from SQLAlchemy: SQLAlchemy is code-first (your Python `class` is the source of truth, and `create_all` derives the schema from it); Prisma is schema-first (the `.prisma` file is the source of truth, and `migrate dev` derives a real, reviewable SQL migration file from it, then regenerates a TypeScript client whose methods and return types match your schema exactly — rename a column in `schema.prisma` and your editor will flag every call site that still uses the old name).
+
+## Picking a layer
+
+Raw drivers (`sqlite3`, `pg`) give you full control over the exact SQL that runs and add nothing between you and the database — reach for them when the queries are simple, performance-critical, or you just want to see precisely what's being sent. ORMs (SQLAlchemy, Prisma) trade some of that directness for objects instead of rows, migration tooling, and — in Prisma's case — compile-time-checked queries; they earn their keep once a codebase has enough models and relationships that hand-writing every `INSERT`/`SELECT` becomes repetitive and error-prone. Most real projects end up using an ORM for everyday CRUD and dropping to raw SQL (SQLAlchemy's `session.execute(text(...))`, or a plain `pool.query(...)`) for the handful of queries that are awkward to express through the object layer.
+
+## Exercise
+
+Pick a two-column table of your choosing (a `users` table like the one above is fine). Do the following, in order:
+
+1. In Python, using `sqlite3` directly: create the table, insert three rows with `executemany`, then fetch and print all rows with `row_factory = sqlite3.Row` so you can print `row["name"]` instead of `row[1]`.
+2. Rewrite step 1's insert-and-fetch against the *same* `app.db` file, but this time through a SQLAlchemy model and `Session` — no raw SQL strings in this version.
+3. Confirm both versions see the same data: run the SQLAlchemy version, then reopen the file with plain `sqlite3` and `SELECT * FROM users` — you should see all three rows either script inserted, since they're the same file.
+
+**Hint:** step 3 only works if both scripts use the exact same `__tablename__` (or `CREATE TABLE`) column names and types — a mismatch there is the single most common reason this exercise "fails" with a confusing error instead of a clean one.

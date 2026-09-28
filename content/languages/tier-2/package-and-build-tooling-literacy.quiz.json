@@ -1,0 +1,98 @@
+[
+  {
+    "id": "languages/tier-2/package-and-build-tooling-literacy/q1",
+    "type": "multiple_choice",
+    "prompt": "Which command creates an isolated Python virtual environment in a folder named .venv?",
+    "choices": [
+      "python3 -m venv .venv",
+      "pip install venv .venv",
+      "python3 venv create .venv",
+      "npm init .venv"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-2/package-and-build-tooling-literacy/q2",
+    "type": "multiple_choice",
+    "prompt": "In semantic versioning MAJOR.MINOR.PATCH, incrementing which number signals a backwards-incompatible (breaking) change?",
+    "choices": [
+      "PATCH",
+      "MINOR",
+      "MAJOR",
+      "BUILD"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "languages/tier-2/package-and-build-tooling-literacy/q3",
+    "type": "multiple_choice",
+    "prompt": "A package.json lists \"axios\": \"^1.6.0\". Which of these versions is npm install allowed to install?",
+    "choices": [
+      "1.9.3",
+      "2.0.0",
+      "1.5.9",
+      "0.9.0"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-2/package-and-build-tooling-literacy/q4",
+    "type": "multiple_choice",
+    "prompt": "A package.json lists \"commander\": \"~11.1.0\". Which version satisfies that range?",
+    "choices": [
+      "11.1.7",
+      "11.2.0",
+      "12.0.0",
+      "10.1.0"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-2/package-and-build-tooling-literacy/q5",
+    "type": "multiple_choice",
+    "prompt": "A dependency is pinned as \"^0.4.2\" (a pre-1.0 package). What range does npm actually allow, given the 0.x.y exception to caret ranges?",
+    "choices": [
+      ">=0.4.2 <0.5.0",
+      ">=0.4.2 <1.0.0",
+      ">=0.4.2 <0.4.3",
+      "any 0.x.x version"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-2/package-and-build-tooling-literacy/q6",
+    "type": "multiple_choice",
+    "prompt": "A teammate's Makefile fails immediately with a \"missing separator\" error. What's the most likely cause?",
+    "choices": [
+      "The recipe lines are indented with spaces instead of a tab character",
+      "A target name contains a hyphen",
+      "The Makefile is missing a .PHONY declaration",
+      "There are too many prerequisites listed for one target"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-2/package-and-build-tooling-literacy/q7",
+    "type": "multiple_choice",
+    "prompt": "Given a Makefile where `app` depends on `main.o` and `utils.o`, and each .o file depends on its matching .c file, you edit only utils.c and run `make`. What happens?",
+    "choices": [
+      "Only utils.o recompiles, then app relinks; main.o is left untouched",
+      "Everything recompiles from scratch, including main.o",
+      "Nothing happens because app already exists on disk",
+      "make throws an error because main.c wasn't modified"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-2/package-and-build-tooling-literacy/q8",
+    "type": "multiple_choice",
+    "prompt": "Which file is becoming the modern, tool-agnostic standard for declaring a Python project's metadata and dependencies, largely superseding a bare setup.py?",
+    "choices": [
+      "pyproject.toml",
+      "Pipfile",
+      "package.json",
+      "environment.yml"
+    ],
+    "correctIndex": 0
+  }
+]

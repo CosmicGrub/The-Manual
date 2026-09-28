@@ -1,0 +1,323 @@
+---
+trackId: languages
+tier: 2
+title: "Introduction to C: Memory & Pointers"
+order: 3
+estimatedHours: 14
+slug: introduction-to-c-memory-and-pointers
+---
+
+## The stack and the heap
+
+Every C program gets two very different pools of memory, and confusing them is the single most common source of bugs going forward.
+
+**The stack** holds local variables and function call frames. When you call a function, C pushes a new frame onto the stack for its parameters and locals; when the function returns, that frame is popped and the memory is immediately reusable. Stack allocation is essentially free — it's just moving a pointer — but the stack is small (often 1-8 MB) and every frame on it lives only as long as the function call that created it.
+
+```c
+#include <stdio.h>
+
+void show_address(int depth) {
+    int local = depth;          // a fresh `local` on each call's frame
+    printf("depth %d: local is at %p\n", depth, (void *)&local);
+    if (depth < 5) show_address(depth + 1);
+}
+
+int main(void) {
+    show_address(0);
+    return 0;
+}
+```
+
+Run this and the addresses move in a predictable direction (down, on most platforms) with each recursive call — that's the stack growing. Recurse too deep, or declare a huge local array (`int buf[10000000];`), and you get a **stack overflow**: a crash, because you've run off the end of the reserved region.
+
+**The heap** is a much larger pool you manage explicitly with `malloc` and `free` (below). Heap memory outlives the function that allocated it, which is exactly what makes it useful for data that needs to survive past a single call — and exactly what makes it dangerous, since nothing frees it for you.
+
+| | Stack | Heap |
+|---|---|---|
+| Allocated by | Entering a scope | `malloc`/`calloc`/`realloc` |
+| Freed by | Leaving the scope | `free` (you, explicitly) |
+| Speed | Very fast | Slower, has bookkeeping overhead |
+| Size | Small, fixed at thread start | Large, limited by system RAM |
+| Lifetime | Tied to the call frame | Until you free it |
+
+## Pointers: declaration and dereferencing
+
+A pointer is a variable that holds a memory address. The pointer's type tells the compiler what lives *at* that address — which matters both for how many bytes a dereference reads or writes, and for how far pointer arithmetic moves.
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int x = 42;
+    int *p = &x;      // p holds the address of x
+
+    printf("x = %d\n", x);
+    printf("&x = %p\n", (void *)&x);
+    printf("p = %p\n", (void *)p);
+    printf("*p = %d\n", *p);    // dereference: "the int at address p"
+
+    *p = 100;          // write through the pointer
+    printf("x is now %d\n", x); // x changed, even though we never wrote `x = 100`
+    return 0;
+}
+```
+
+Read `int *p` as "`*p` is an `int`" — that's the declaration-mirrors-use rule C uses throughout. `&` takes a variable's address; `*` in a declaration marks a pointer type, and `*` on a pointer value in an expression dereferences it.
+
+Two pointer bugs to internalize now, because you'll write both before this module is over:
+
+```c
+int *p;             // uninitialized — points at garbage, not NULL
+*p = 5;              // undefined behavior: could crash, could corrupt unrelated memory
+
+int *q = NULL;       // explicit "points at nothing"
+*q = 5;               // also undefined behavior, but at least a checkable, predictable state
+```
+
+Always initialize pointers, even if just to `NULL`, and check for `NULL` before dereferencing one that a function might have failed to set.
+
+## Pointer arithmetic
+
+Adding an integer to a pointer moves it by that many *elements*, not bytes — the compiler scales by `sizeof(*p)` for you.
+
+```c
+#include <stdio.h>
+
+int main(void) {
+    int arr[5] = {10, 20, 30, 40, 50};
+    int *p = arr;
+
+    printf("%d\n", *p);         // 10
+    printf("%d\n", *(p + 2));   // 30 -- p advanced 2 ints, i.e. 8 bytes on most systems
+    p++;                         // now points at arr[1]
+    printf("%d\n", *p);         // 20
+
+    for (int *q = arr; q < arr + 5; q++) {
+        printf("%d ", *q);
+    }
+    printf("\n");
+    return 0;
+}
+```
+
+`arr + 5` (one past the last element) is a legal pointer value to compute and compare against — that's exactly why the idiomatic loop bound is `arr + n`, not `arr + n - 1`. Dereferencing it, or going further, is undefined behavior.
+
+## Arrays and pointers
+
+An array and a pointer are different types, but in almost every expression an array's name **decays** into a pointer to its first element. This is the source of one of the most common bugs in C.
+
+```c
+#include <stdio.h>
+
+void print_size(int arr[]) {           // parameter is really `int *arr`
+    printf("inside function: %zu bytes\n", sizeof(arr));
+}
+
+int main(void) {
+    int nums[10];
+    printf("in main:       %zu bytes\n", sizeof(nums));   // 40 (10 ints * 4 bytes)
+    print_size(nums);                                      // 8 (one pointer, 64-bit)
+    return 0;
+}
+```
+
+`sizeof(nums)` in `main` knows the real array size because the array is still in scope there. Pass `nums` to a function and it decays to `int *`; `sizeof` on that pointer just gives the pointer's own size, and the function has no idea how many elements it points to. **This is why every C function taking a raw array also takes an explicit length parameter:**
+
+```c
+void print_all(int *arr, size_t len) {
+    for (size_t i = 0; i < len; i++) {
+        printf("%d ", arr[i]);
+    }
+    printf("\n");
+}
+```
+
+Indexing is itself sugar for pointer arithmetic: `arr[i]` is defined as `*(arr + i)`. That's also why `3[arr]` legally compiles to exactly what `arr[3]` does — a fun fact, not a style to actually use.
+
+## Structs
+
+A `struct` groups related values into one record. Unlike the classes you'll meet formally in the CS Foundations track, a plain C struct has no methods and no inheritance — it's just a labeled block of memory.
+
+```c
+#include <stdio.h>
+
+struct Point {
+    int x;
+    int y;
+};
+
+int main(void) {
+    struct Point p = {3, 4};
+    printf("(%d, %d)\n", p.x, p.y);        // dot: access through a value
+
+    struct Point *pp = &p;
+    printf("(%d, %d)\n", pp->x, pp->y);    // arrow: access through a pointer
+    // pp->x is shorthand for (*pp).x -- you'll see both spellings in older code
+
+    pp->x = 10;
+    printf("p.x is now %d\n", p.x);        // 10 -- pp points at p, not a copy
+    return 0;
+}
+```
+
+`typedef` is the usual way to avoid writing `struct` everywhere:
+
+```c
+typedef struct {
+    double real;
+    double imag;
+} Complex;
+
+Complex c = {1.0, -2.0};
+```
+
+Member order and type affect a struct's total size because of **padding** — the compiler inserts gaps so each member sits at an address aligned to its own size. `struct { char c; int i; }` is usually 8 bytes on a 64-bit system, not 5, because the `int` needs 4-byte alignment. You don't need to hand-calculate this yet, but `sizeof(struct Foo)` is how you'd check it when it matters — packing binary file formats, network protocols.
+
+## Manual memory management: malloc and free
+
+`malloc` reserves a block of heap memory and returns a `void *` pointer to it, or `NULL` if allocation fails. You are responsible for calling `free` on that exact pointer exactly once, when you're done with it.
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+
+int main(void) {
+    int *p = malloc(sizeof(int));    // request enough bytes for one int
+    if (p == NULL) {
+        fprintf(stderr, "allocation failed\n");
+        return 1;
+    }
+    *p = 42;
+    printf("%d\n", *p);
+    free(p);                          // return the memory to the heap
+    return 0;
+}
+```
+
+For arrays, `malloc(n * sizeof(type))`, or the equivalent `calloc(n, sizeof(type))`, which also zero-initializes:
+
+```c
+int n = 5;
+int *arr = calloc(n, sizeof(int));    // 5 ints, all set to 0
+if (arr == NULL) { /* handle failure */ }
+
+for (int i = 0; i < n; i++) arr[i] = i * i;
+for (int i = 0; i < n; i++) printf("%d ", arr[i]);
+printf("\n");
+
+free(arr);
+```
+
+`realloc(ptr, new_size)` grows or shrinks an existing allocation, possibly moving it — always assign the result to a new variable first, because a failed call returns `NULL` and reassigning `arr` directly would leak the original block:
+
+```c
+int *tmp = realloc(arr, 10 * sizeof(int));
+if (tmp == NULL) { /* arr is still valid; handle the failure */ }
+else { arr = tmp; }
+```
+
+Every `malloc`/`calloc`/`realloc` needs exactly one matching `free`. Three ways to get this wrong, all of which compile and run without any error message:
+
+**Leak** — you lose the only pointer to a block before freeing it:
+
+```c
+void leaky(void) {
+    int *p = malloc(sizeof(int));
+    *p = 5;
+}    // p goes out of scope; the 4 bytes it pointed to are now unreachable forever
+```
+
+**Dangling pointer / use-after-free** — you keep using a pointer after freeing what it points to:
+
+```c
+int *p = malloc(sizeof(int));
+*p = 7;
+free(p);
+printf("%d\n", *p);    // undefined behavior -- p is now "dangling"
+```
+
+**Double free** — you call `free` twice on the same pointer:
+
+```c
+int *p = malloc(sizeof(int));
+free(p);
+free(p);                // undefined behavior -- usually corrupts the heap's bookkeeping
+```
+
+A cheap defense against the last two: set a pointer to `NULL` right after freeing it. `free(NULL)` is explicitly defined to do nothing, so `free(p); p = NULL;` makes a second accidental `free(p)` harmless, and a use-after-free crashes immediately (dereferencing NULL) instead of silently corrupting memory.
+
+The best tools for catching all three are **Valgrind** (`valgrind ./your_program` on Linux) or **AddressSanitizer** (`gcc -fsanitize=address -g prog.c -o prog`). You don't need to master either today — just know they exist, and reach for one the first time a C program of yours crashes for no visible reason.
+
+## Compiling with gcc/clang
+
+A single file:
+
+```shell
+gcc -Wall -Wextra -g -o prog prog.c
+./prog
+```
+
+- `-Wall -Wextra` turns on warnings that catch real bugs (uninitialized variables, mismatched types, unused results) — treat every warning as a bug report, not noise.
+- `-g` embeds debug symbols so a debugger (`gdb`, `lldb`) or a sanitizer can point you at the exact line of a crash.
+- `-o prog` names the output binary; without it you get `a.out`.
+- `clang` accepts the same flags — the two compilers are close to drop-in replacements for each other.
+
+For more than one source file, compile each `.c` to an object file, then link the objects — this is what lets you recompile only what changed:
+
+```shell
+gcc -Wall -Wextra -g -c vector.c -o vector.o    # -c: compile only, don't link
+gcc -Wall -Wextra -g -c main.c -o main.o
+gcc -o prog main.o vector.o                      # link the objects into one binary
+```
+
+## A basic Makefile
+
+Typing those commands by hand gets old fast, and re-linking everything after touching one file wastes time on a larger project. `make` reads a `Makefile` and rebuilds only what's out of date, based on file timestamps.
+
+```makefile
+CC = gcc
+CFLAGS = -Wall -Wextra -g
+TARGET = prog
+OBJS = main.o vector.o
+
+$(TARGET): $(OBJS)
+	$(CC) $(CFLAGS) -o $(TARGET) $(OBJS)
+
+main.o: main.c vector.h
+	$(CC) $(CFLAGS) -c main.c
+
+vector.o: vector.c vector.h
+	$(CC) $(CFLAGS) -c vector.c
+
+clean:
+	rm -f $(TARGET) $(OBJS)
+
+.PHONY: clean
+```
+
+Each rule is `target: prerequisites`, followed by a recipe line that **must start with a literal tab**, not spaces — this trips up everyone the first time. `make` builds the first target by default (`prog` here), recompiling only the `.o` files whose `.c`/`.h` prerequisites are newer than the existing object file. `clean` has no real output file, so it's marked `.PHONY` — that tells `make` to always run its recipe instead of checking for a file literally named `clean`.
+
+```shell
+make          # builds prog, recompiling only what changed
+make clean    # removes build artifacts
+```
+
+## Exercise: a growable integer vector
+
+Put pointers, structs, and `malloc`/`realloc` together. In a file `vector.c`, define:
+
+```c
+typedef struct {
+    int *data;
+    size_t len;         // elements currently stored
+    size_t capacity;     // elements allocated
+} IntVector;
+
+void iv_init(IntVector *v);
+void iv_push(IntVector *v, int value);    // grows capacity when full
+void iv_free(IntVector *v);
+```
+
+`iv_init` should start with `data = NULL`, `len = 0`, `capacity = 0`. `iv_push` should check whether `len == capacity`; if so, grow the buffer (doubling capacity, or starting at 4 if it was 0) with `realloc` before appending the new value. Write a `main` that pushes 20 values in a loop, prints them all, then calls `iv_free`. Compile with `gcc -Wall -Wextra -fsanitize=address -g` and confirm it runs clean — no warnings, no sanitizer output.
+
+**Hint:** the trickiest part is the doubling logic. Before writing code, work out on paper what `len`, `capacity`, and `data` should be immediately after pushing a 5th element into a vector that started at capacity 4 — get that transition right and the rest of the loop follows the same pattern.

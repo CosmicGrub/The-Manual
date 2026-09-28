@@ -1,0 +1,98 @@
+[
+  {
+    "id": "languages/tier-2/typescript-fundamentals/q1",
+    "type": "multiple_choice",
+    "prompt": "In plain JavaScript, applyDiscount(100, \"10\") using `price - (price * percent / 100)` produces wrong output silently. What does TypeScript do differently for the equivalent typed function `applyDiscount(price: number, percent: number)`?",
+    "choices": [
+      "It automatically converts the string \"10\" to a number at runtime",
+      "It refuses to compile the call site, reporting a type error before the program ever runs",
+      "It throws a runtime TypeError when the function is called",
+      "It logs a warning to the console but still compiles and runs"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-2/typescript-fundamentals/q2",
+    "type": "multiple_choice",
+    "prompt": "Which type should you prefer over `any` when a value's type isn't known yet, because it forces you to narrow the type before using it?",
+    "choices": [
+      "never",
+      "void",
+      "unknown",
+      "object"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "languages/tier-2/typescript-fundamentals/q3",
+    "type": "multiple_choice",
+    "prompt": "What is a key difference between `interface` and `type` in TypeScript?",
+    "choices": [
+      "`type` aliases can be extended with `extends`, but `interface` cannot",
+      "`interface` can name union types like `string | number`, but `type` cannot",
+      "Two `interface` declarations with the same name merge automatically; `type` aliases cannot be redeclared this way",
+      "`interface` is erased at compile time but `type` aliases remain in the emitted JS"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "languages/tier-2/typescript-fundamentals/q4",
+    "type": "multiple_choice",
+    "prompt": "Predict the compiler behavior:\n\nfunction formatId(id: string | number): string {\n  return id.toUpperCase();\n}",
+    "choices": [
+      "Compiles fine \u2014 TypeScript infers id is always a string",
+      "Compiles fine \u2014 toUpperCase() works on both strings and numbers",
+      "Error: Property 'toUpperCase' does not exist on type 'number', because id hasn't been narrowed",
+      "Compiles fine but throws at runtime if a number is passed"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "languages/tier-2/typescript-fundamentals/q5",
+    "type": "multiple_choice",
+    "prompt": "function firstElement<T>(arr: T[]): T { return arr[0]; }\n\nconst s = firstElement([\"a\", \"b\", \"c\"]);\n\nWhat is the inferred type of `s`?",
+    "choices": [
+      "any",
+      "T",
+      "string",
+      "string[]"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "languages/tier-2/typescript-fundamentals/q6",
+    "type": "multiple_choice",
+    "prompt": "In tsconfig.json, which single compilerOption enables the full set of strict checks (strictNullChecks, noImplicitAny, etc.) that make TypeScript actually catch null/undefined bugs at compile time?",
+    "choices": [
+      "\"esModuleInterop\": true",
+      "\"skipLibCheck\": true",
+      "\"strict\": true",
+      "\"noEmit\": true"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "languages/tier-2/typescript-fundamentals/q7",
+    "type": "multiple_choice",
+    "prompt": "With strictNullChecks enabled, what happens when you compile:\n\nfunction getLength(s: string): number {\n  return s.length;\n}\ngetLength(null);",
+    "choices": [
+      "Compiles and runs fine \u2014 null is coerced to an empty string",
+      "Compiles fine, but throws 'Cannot read properties of null' at runtime",
+      "Compile error: 'null' is not assignable to parameter of type 'string'",
+      "Compiles with a warning only, no error"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "languages/tier-2/typescript-fundamentals/q8",
+    "type": "multiple_choice",
+    "prompt": "What does running `npx tsc` (with no arguments, in a project with a tsconfig.json) actually do?",
+    "choices": [
+      "Bundles and minifies all TypeScript files into a single JS file",
+      "Type-checks and transpiles every file matched by \"include\" into the configured outDir, without bundling or minifying",
+      "Runs the TypeScript files directly without producing any .js output",
+      "Installs the TypeScript compiler as a dev dependency"
+    ],
+    "correctIndex": 1
+  }
+]

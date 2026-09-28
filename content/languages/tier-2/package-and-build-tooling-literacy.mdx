@@ -1,0 +1,196 @@
+---
+trackId: languages
+tier: 2
+title: "Package & Build Tooling Literacy"
+order: 6
+estimatedHours: 5
+slug: package-and-build-tooling-literacy
+---
+
+## The problem every package manager solves
+
+The moment a project has more than one dependency, you have two problems: getting the right versions of those dependencies onto a machine, and making sure "it works on my machine" also means "it works on everyone else's machine." Python and JavaScript solve this with different tools, but the underlying pattern — a manifest file that lists what you need, a lockfile or resolver that pins exact versions, and an isolated install location — is the same shape you'll see again in Cargo (Rust), Go modules, and Bundler (Ruby). Learn the pattern once here and you'll recognize it everywhere.
+
+## Python: pip, venv, and requirements.txt
+
+### Isolating a project with venv
+
+Without isolation, every Python project on your machine shares one global set of installed packages. Install `django==4.2` for one project and `django==5.0` for another, and one of them breaks. `venv` (built into the standard library since Python 3.3) fixes this by creating a private copy of the Python interpreter and its package directory per project:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate      # macOS/Linux
+.venv\Scripts\activate         # Windows (PowerShell/cmd)
+```
+
+Once activated, `python` and `pip` inside that shell point at `.venv/`, not your system Python. You'll see `(.venv)` prefixed to your prompt. Run `deactivate` to leave it. Nothing here modifies your system Python — that's the entire point.
+
+### Installing and freezing dependencies
+
+```bash
+python -m pip install requests click
+pip freeze > requirements.txt
+```
+
+`pip freeze` prints every installed package with its exact resolved version, which is how `requirements.txt` gets written. A real one looks like this:
+
+```text
+requests==2.31.0
+click==8.1.7
+urllib3==2.1.0
+idna==3.6
+```
+
+Notice it includes *transitive* dependencies (`urllib3`, `idna`) that `requests` pulled in — `pip freeze` captures the whole resolved graph, not just what you typed. Anyone cloning the repo reproduces your exact environment with:
+
+```bash
+pip install -r requirements.txt
+```
+
+For hand-authored files (as opposed to `pip freeze` output), version specifiers support ranges too: `click>=8.1,<9.0` means "8.1 or newer, but not 9.0."
+
+### Where Python is heading: pyproject.toml
+
+`requirements.txt` only lists dependencies — it says nothing about your project's name, entry points, or build instructions, so historically you also needed a `setup.py`. Modern Python consolidates all of that into a single `pyproject.toml`, which tools like Poetry (and increasingly pip itself) read directly:
+
+```toml
+[tool.poetry]
+name = "weather-cli"
+version = "0.1.0"
+description = "Fetch weather from the command line"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+requests = "^2.31.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+```
+
+`poetry install` creates the venv *and* installs dependencies in one step; `poetry add requests` updates the file for you. You don't need to master Poetry for this module — just recognize `pyproject.toml` on sight and know it's the direction the ecosystem is converging on. `pip` + `venv` + `requirements.txt` remains the lowest-common-denominator toolchain you'll find in most existing codebases, which is why you learned it first.
+
+## npm, package.json, and semantic versioning
+
+### package.json anatomy
+
+`npm init` (or `npm init -y` for defaults) generates a `package.json`. A filled-out one:
+
+```json
+{
+  "name": "weather-cli",
+  "version": "1.4.2",
+  "scripts": {
+    "start": "node index.js",
+    "test": "jest",
+    "build": "tsc"
+  },
+  "dependencies": {
+    "axios": "^1.6.0",
+    "commander": "~11.1.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
+  }
+}
+```
+
+`dependencies` ship with your app; `devDependencies` (test runners, bundlers, linters) don't. `npm run build` executes whatever string is under `scripts.build` — this is how JS projects standardize their commands regardless of what's actually running underneath (`tsc`, `webpack`, `vite`, anything).
+
+### Semantic versioning
+
+`1.4.2` decomposes as `MAJOR.MINOR.PATCH`:
+
+- **PATCH** (`1.4.2` → `1.4.3`): bug fixes, no API changes.
+- **MINOR** (`1.4.2` → `1.5.0`): new functionality, backwards-compatible.
+- **MAJOR** (`1.4.2` → `2.0.0`): breaking changes.
+
+That's a *promise*, not something npm enforces — a maintainer can violate it — but the entire ecosystem's automatic-update tooling depends on everyone honoring it.
+
+### ^ and ~ ranges
+
+The prefix in front of a version in `package.json` controls how much `npm install` is allowed to upgrade automatically:
+
+| Range | Meaning | Example allows |
+|---|---|---|
+| `^1.4.2` | Compatible within the same major version | `1.4.2` up to (not including) `2.0.0` |
+| `~1.4.2` | Compatible within the same minor version | `1.4.2` up to (not including) `1.5.0` |
+| `1.4.2` (no prefix) | Exact version only | `1.4.2` |
+
+`^` is the npm default and is looser — it trusts semver's "minor and patch are safe" promise. `~` is stricter — it only accepts bug fixes. There's one sharp edge worth internalizing: for a `0.x.y` version, npm treats the minor number as the effective "major" — `^0.4.2` only allows `>=0.4.2 <0.5.0`, *not* up to `1.0.0`. Pre-1.0 packages are assumed unstable, so caret is deliberately conservative there.
+
+### package-lock.json
+
+`package.json` describes a *range*; `package-lock.json` (auto-generated, and you should commit it) freezes the *exact* resolved tree — every transitive dependency's exact version and integrity hash. `npm install` will update it as needed; `npm ci` refuses to deviate from it at all, deleting `node_modules` and installing exactly what the lockfile says. Use `npm ci` in CI pipelines and Docker builds for reproducibility; use `npm install` locally during day-to-day development.
+
+## Makefiles: build automation you'll see again
+
+A Makefile automates multi-step commands behind short names, and — unlike `npm run` scripts — it understands file dependencies, which is why it survives in C, C++, and Go toolchains long after JavaScript moved on to other build tools.
+
+### Basic syntax
+
+```makefile
+target: prerequisites
+	recipe
+```
+
+The recipe line **must** start with a literal tab character, not spaces — this trips up almost everyone once. A practical Python project Makefile:
+
+```makefile
+PYTHON := .venv/bin/python
+PIP := .venv/bin/pip
+
+.PHONY: install test lint clean
+
+install:
+	python3 -m venv .venv
+	$(PIP) install -r requirements.txt
+
+test:
+	$(PYTHON) -m pytest tests/
+
+lint:
+	$(PYTHON) -m flake8 src/
+
+clean:
+	rm -rf .venv __pycache__ *.pyc
+```
+
+Run `make test` and it executes exactly the `pytest` line. `$(PYTHON)` and `$(PIP)` are variables defined at the top — change the interpreter path once, and every target picks it up.
+
+### Why .PHONY matters
+
+`make` was originally built to avoid recompiling files that haven't changed, using filesystem timestamps. If you had a file literally named `test` sitting in your project directory, `make test` would see a target named `test` already "exists" and do nothing. `.PHONY` tells `make`: "this target doesn't correspond to a real file, always run its recipe."
+
+### The dependency graph is the real feature
+
+Where Makefiles earn their keep is compiled languages, where rebuilding everything on every change wastes real time:
+
+```makefile
+app: main.o utils.o
+	gcc -o app main.o utils.o
+
+main.o: main.c
+	gcc -c main.c
+
+utils.o: utils.c
+	gcc -c utils.c
+```
+
+If you edit only `utils.c` and run `make`, it recompiles `utils.o` (because its prerequisite `utils.c` is newer than it), then relinks `app` (because `utils.o` changed) — but it leaves `main.o` alone entirely, since `main.c` didn't change. That's a real incremental build driven by file modification times and a dependency graph, not a script that reruns everything every time. You'll write Makefiles that look almost exactly like this again when you get to C.
+
+## Exercise
+
+Write a `Makefile` for a small Python CLI project with these targets:
+
+- `install` — creates `.venv` and installs from `requirements.txt`
+- `test` — runs `pytest`
+- `freeze` — regenerates `requirements.txt` from whatever's currently installed in `.venv`
+- `clean` — removes `.venv` and any `__pycache__` directories
+
+Mark the appropriate targets `.PHONY`, and use a variable for the path to the venv's `pip` so you don't repeat `.venv/bin/pip` four times.
+
+**Hint:** `freeze` is a one-liner using shell redirection with the same `$(PIP)` variable you used in `install` — think about what `pip freeze` writes to and where.

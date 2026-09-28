@@ -1,0 +1,264 @@
+---
+trackId: languages
+tier: 2
+title: "Test-Runner Mechanics"
+order: 5
+estimatedHours: 4
+slug: test-runner-mechanics
+---
+
+Software Engineering's TDD track covers *why* you write tests and *when* — red-green-refactor, the discipline. That's assumed here. This module is pure mechanics: how to write and run a test in pytest, and how to write and run one in Jest, so the syntax is in your hands when you need it.
+
+## pytest: discovery and your first tests
+
+pytest finds tests by convention, not configuration. It collects files named `test_*.py` or `*_test.py`, and inside them, functions named `test_*` (or methods on a class named `Test*`, with methods named `test_*`). No imports of a test framework class required — a plain `assert` is a complete test:
+
+```python
+# cart.py
+class Cart:
+    def __init__(self):
+        self.items = []
+
+    def add_item(self, name, price, qty=1):
+        self.items.append({"name": name, "price": price, "qty": qty})
+
+    def total(self):
+        return sum(item["price"] * item["qty"] for item in self.items)
+
+    def apply_discount(self, code):
+        discounts = {"SAVE10": 0.10, "SAVE20": 0.20}
+        if code not in discounts:
+            raise ValueError(f"Unknown discount code: {code}")
+        return self.total() * (1 - discounts[code])
+```
+
+```python
+# test_cart.py
+import pytest
+from cart import Cart
+
+def test_empty_cart_total_is_zero():
+    cart = Cart()
+    assert cart.total() == 0
+
+def test_add_item_updates_total():
+    cart = Cart()
+    cart.add_item("widget", 9.99, qty=2)
+    assert cart.total() == pytest.approx(19.98)
+```
+
+`pytest.approx()` matters for floats — `9.99 * 2` doesn't land on an exact binary representation of `19.98`, so a plain `==` can fail even when the math is "right." Use `approx` whenever you're comparing floats.
+
+Run it from the terminal:
+
+```bash
+pytest                    # discover and run everything under the cwd
+pytest test_cart.py       # one file
+pytest test_cart.py::test_add_item_updates_total   # one test
+pytest -v                 # verbose: print each test's name and result
+pytest -k "discount"      # run only tests whose name matches this substring
+pytest -x                 # stop after the first failure
+pytest --lf               # re-run only what failed last time
+```
+
+pytest rewrites `assert` at import time, which is why a failing `assert cart.total() == 5` prints the actual left- and right-hand values in the failure output instead of a bare `AssertionError` — you never write `assertEqual`.
+
+## Fixtures: shared setup with `@pytest.fixture`
+
+A fixture is a function decorated with `@pytest.fixture` whose return value gets injected into any test that names it as a parameter — pytest matches by name, not by import:
+
+```python
+@pytest.fixture
+def cart_with_items():
+    cart = Cart()
+    cart.add_item("widget", 10.00, qty=2)
+    cart.add_item("gadget", 25.00)
+    return cart
+
+def test_total_with_fixture(cart_with_items):
+    assert cart_with_items.total() == 45.00
+
+def test_discount_with_fixture(cart_with_items):
+    assert cart_with_items.apply_discount("SAVE10") == 40.50
+```
+
+Both tests get a *fresh* cart — fixtures re-run per test by default, so state from one test never leaks into another.
+
+Swap `return` for `yield` to add teardown: everything after `yield` runs after the test finishes, pass or fail.
+
+```python
+@pytest.fixture
+def cart_with_items():
+    cart = Cart()
+    cart.add_item("widget", 10.00, qty=2)
+    print("setup: cart built")
+    yield cart
+    print("teardown: cart discarded")
+```
+
+`@pytest.fixture(scope="module")` builds the fixture once and reuses it for every test in that file, instead of per-test (valid scopes: `function` (default), `class`, `module`, `session`). Use a wider scope only for genuinely expensive setup — a database connection, not an in-memory `Cart`.
+
+Fixtures used across multiple test files don't need re-importing: define them in a `conftest.py` in the same directory (or a parent one), and pytest auto-discovers it for every test file underneath.
+
+## `parametrize`: one test, many inputs
+
+Instead of copy-pasting a test body for each input, parametrize it:
+
+```python
+@pytest.mark.parametrize("code,expected", [
+    ("SAVE10", 90.0),
+    ("SAVE20", 80.0),
+])
+def test_apply_discount(code, expected):
+    cart = Cart()
+    cart.add_item("widget", 100.00)
+    assert cart.apply_discount(code) == expected
+```
+
+This runs as two independent tests — `test_apply_discount[SAVE10-90.0]` and `test_apply_discount[SAVE20-80.0]` — each showing up separately in `-v` output and failing independently. Stack two `@pytest.mark.parametrize` decorators and pytest runs the *cartesian product* of both: three values against two values produces six test runs, not five.
+
+## Asserting on exceptions: `pytest.raises`
+
+Testing that something *should* fail uses a context manager, not a return-value check:
+
+```python
+def test_unknown_discount_code_raises():
+    cart = Cart()
+    cart.add_item("widget", 100.00)
+    with pytest.raises(ValueError, match="Unknown discount code"):
+        cart.apply_discount("FAKE50")
+```
+
+The code that's supposed to raise has to go *inside* the `with` block, unevaluated until pytest is watching for it. `pytest.raises(ValueError, cart.apply_discount("FAKE50"))` — calling the function directly as an argument — is a common mistake: Python evaluates `cart.apply_discount("FAKE50")` immediately, the exception fires before `pytest.raises` is even entered, and the test errors out instead of passing. `match` takes a regex checked against `str(exception)`.
+
+## Jest: `describe`, `it`, `expect`
+
+Jest groups tests in `describe` blocks and defines individual cases with `it` (or its alias `test`). Files are typically named `*.test.js`:
+
+```javascript
+// retry.js
+async function retryFetch(fetchFn, retries = 3) {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      return await fetchFn();
+    } catch (err) {
+      if (attempt === retries) throw err;
+    }
+  }
+}
+module.exports = { retryFetch };
+```
+
+```javascript
+// retry.test.js
+const { retryFetch } = require("./retry");
+
+describe("retryFetch", () => {
+  let fetchFn;
+
+  beforeEach(() => {
+    fetchFn = jest.fn();
+  });
+
+  it("returns the result on first success", async () => {
+    fetchFn.mockResolvedValue("data");
+    const result = await retryFetch(fetchFn);
+    expect(result).toBe("data");
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+  });
+
+  it("throws after exhausting retries", async () => {
+    fetchFn.mockRejectedValue(new Error("down"));
+    await expect(retryFetch(fetchFn, 2)).rejects.toThrow("down");
+  });
+});
+```
+
+`beforeEach`/`afterEach` (and their `All` variants, scoped to the whole `describe` block) run around every `it`, same role as a `function`-scoped pytest fixture. `toBe` checks strict `===` equality — fine for primitives, wrong for objects and arrays, where you want `toEqual` for deep structural comparison. `expect(...).rejects.toThrow(...)` is the async-exception equivalent of `pytest.raises` — note the `await` in front of `expect`, not around the promise inside it.
+
+Run it:
+
+```bash
+npx jest                    # everything
+npx jest retry.test.js      # one file
+npx jest -t "exhausting"    # only tests whose name matches this string
+npx jest --watch            # re-run on file changes
+```
+
+## Mocking: `jest.fn`, `jest.mock`, `jest.spyOn`
+
+`jest.fn()` creates a bare mock function you control directly — chain `.mockResolvedValueOnce`, `.mockRejectedValueOnce`, or `.mockReturnValue` to script its behavior per call, and inspect `.mock.calls` to see what it was invoked with:
+
+```javascript
+it("retries until it succeeds", async () => {
+  const fetchFn = jest.fn()
+    .mockRejectedValueOnce(new Error("timeout"))
+    .mockResolvedValueOnce("data");
+
+  const result = await retryFetch(fetchFn, 3);
+
+  expect(result).toBe("data");
+  expect(fetchFn).toHaveBeenCalledTimes(2);
+});
+```
+
+`jest.mock("./module-path")` replaces an entire module's exports with auto-mocked versions — every exported function becomes a `jest.fn()` returning `undefined` until you configure it. Use it when the code under test imports something you don't want to actually run (sending a real email, hitting a real API):
+
+```javascript
+jest.mock("./emailer");
+const { sendEmail } = require("./emailer");
+
+test("checkout sends a confirmation email", () => {
+  checkout(order);
+  expect(sendEmail).toHaveBeenCalledWith(
+    order.customerEmail,
+    expect.stringContaining("confirmed")
+  );
+});
+```
+
+`jest.spyOn(object, "method")` is narrower: it wraps one existing method on a real object, tracking calls while — by default — still calling through to the real implementation. Add `.mockImplementation(...)` to override the behavior too, and call `.mockRestore()` afterward to put the original method back:
+
+```javascript
+const logger = require("./logger");
+const spy = jest.spyOn(logger, "warn").mockImplementation(() => {});
+
+doSomethingRisky();
+
+expect(spy).toHaveBeenCalledWith(expect.stringContaining("risky"));
+spy.mockRestore();
+```
+
+Reach for `jest.fn()` when you own the function being passed in (like `fetchFn` above), `jest.mock` when you need to neutralize an entire imported module, and `jest.spyOn` when you want to observe or override one method on something that otherwise still behaves normally.
+
+## Exercise
+
+Given this function:
+
+```python
+def format_duration(seconds):
+    if seconds < 0:
+        raise ValueError("duration cannot be negative")
+    minutes, secs = divmod(int(seconds), 60)
+    return f"{minutes}:{secs:02d}"
+```
+
+Write a `test_format_duration.py` that:
+1. Uses `@pytest.mark.parametrize` to check at least four input/output pairs, including `0` seconds and something over a minute (e.g. `125` → `"2:05"`).
+2. Uses `pytest.raises` to confirm a negative input raises `ValueError`.
+
+Then write the Jest equivalent for this port of the same logic:
+
+```javascript
+function formatDuration(seconds) {
+  if (seconds < 0) throw new Error("duration cannot be negative");
+  const minutes = Math.floor(seconds / 60);
+  const secs = String(seconds % 60).padStart(2, "0");
+  return `${minutes}:${secs}`;
+}
+module.exports = { formatDuration };
+```
+
+Use `describe`/`it` with a handful of `it` cases instead of parametrize (Jest has no direct equivalent — `it.each` is the closest, worth looking up on your own), and `expect(...).toThrow(...)` for the negative case.
+
+**Hint:** for the `ValueError`/`Error` cases, remember both assertions require the failing call to happen *inside* the assertion machinery — `pytest.raises(...)` as a `with` block wrapping the call, and `expect(() => formatDuration(-5))` wrapping the call in a function so Jest can invoke it itself and catch the throw, rather than you invoking it directly inside `expect(...)`.

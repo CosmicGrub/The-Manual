@@ -191,3 +191,15 @@ All notable changes to The Manual (curriculum + app) are logged here. This file 
 7. **This entry's own new quiz files used the wrong schema** (`question`/`options`/`explanation` with bare `q1`-style ids) instead of the established `prompt`/`choices` fields and fully-qualified `trackId/tier-N/slug/qN` ids every other quiz file in the repo uses — `QuizRunner.tsx`'s `choices.map(...)` crashed at static-generation time for all 6 new lesson pages, and the wrong id format would have silently broken spaced-repetition resolution for any missed question. Caught by the same build run, not by inspection; fixed by rewriting all 6 new `.quiz.json` files to the canonical shape.
 
 **Status:** Language Mastery Tier 1 complete (45h, 6 lessons). `npm run build` now passes cleanly end to end (0 errors, 71/71 static pages generated) — this is the new bar every future tier's content must clear before being considered done, not just assembled.
+
+## [0.12.0] — 2026-09-28 — Language Mastery Tier 2: complete, build passed clean on the first try
+
+**Context:** Continuing the tier-by-tier pattern, now with 0.11.0's build-validation bar and hardened assembly tooling in place from the start. The syllabus (`docs/curriculum/languages.md`) already carried explicit de-duplication annotations for this tier from the original design pass — OOP concepts owned by CS Foundations Tier 2, SQL query/schema and TDD philosophy owned by Software Engineering — so no separate syllabus-fix commit was needed this time, unlike Tier 1.
+
+**Added**
+- `content/languages/tier-2/*.mdx` (6 files) + matching quizzes: Intermediate Python (OOP syntax & stdlib — dunders, decorators, context managers, itertools/collections/dataclasses), TypeScript Fundamentals, Introduction to C: Memory & Pointers (the track's first real systems-language module), Calling SQL From Your Language (driver/ORM layer only), Test-Runner Mechanics (pytest/Jest syntax only), Package & Build Tooling Literacy.
+- `assemble_tier_v2.py` (session scratchpad tooling) — folds 0.11.0's fixes directly into the assembly step instead of relying on a later cleanup pass: quotes every YAML title automatically, always writes the `slug` frontmatter field, and always writes quiz questions in the canonical `{id, type, prompt, choices, correctIndex}` shape with a correctly numbered, fully-qualified `id` (`trackId/tier-N/slug/qN`) regardless of what field names a workflow's structured output happens to use. Retains the Tier-4-era shrink-ratio safety check.
+
+**Result:** `npm run build` passed with zero errors on the first attempt — no bugs caught this round, confirming 0.11.0's fixes actually closed the gaps rather than just papering over that one run.
+
+**Status:** Language Mastery Tier 2 complete (41h, 6 lessons). Language Mastery is now 3/6 tiers content-complete (Tiers 0-2, 109h); Tiers 3-5 remain.

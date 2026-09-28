@@ -1,0 +1,297 @@
+---
+trackId: languages
+tier: 2
+title: "TypeScript Fundamentals"
+order: 2
+estimatedHours: 8
+slug: typescript-fundamentals
+---
+
+You already know JavaScript from Tier 1. TypeScript is JavaScript with a type checker bolted on top — same runtime semantics, same `undefined`, same event loop, but a compiler (`tsc`) that reads your code before it runs and refuses to compile programs that are provably wrong. Every `.ts` file compiles down to plain `.js`; nothing in TypeScript survives to runtime except the values you actually wrote.
+
+## The Concrete Case: A Bug TS Catches and JS Doesn't
+
+Start with the payoff before the mechanics. Here's a plain JS function:
+
+```js
+// discount.js
+function applyDiscount(price, percent) {
+  return price - (price * percent / 100);
+}
+
+console.log(applyDiscount(100, "10"));   // "0-1000100" — string concatenation, not math
+console.log(applyDiscount("100", 10));   // "1001000-1000" — same problem
+```
+
+Nothing crashes. The bug — passing a string where a number was intended — surfaces as silently wrong output, maybe in production, maybe in a customer-facing invoice.
+
+The same function in TypeScript:
+
+```ts
+// discount.ts
+function applyDiscount(price: number, percent: number): number {
+  return price - (price * percent / 100);
+}
+
+applyDiscount(100, "10");
+// error TS2345: Argument of type 'string' is not assignable to parameter of type 'number'.
+```
+
+`tsc` refuses to emit JS at all until you fix the call site. The mistake is caught the moment you write it — in your editor, before you ever run the program — instead of being caught (or not caught) by a human reading weird output later. That's the entire value proposition of static types: shifting error discovery from runtime to compile time.
+
+## Basic Types
+
+TypeScript infers types from initializers, so you don't need to annotate everything:
+
+```ts
+let age = 30;          // inferred: number
+let name = "Ada";      // inferred: string
+let active = true;     // inferred: boolean
+
+age = "thirty";        // error TS2322: Type 'string' is not assignable to type 'number'.
+```
+
+Explicit annotations matter most on function signatures and empty containers, where there's nothing to infer from:
+
+```ts
+let scores: number[] = [];
+let tags: Array<string> = [];        // equivalent syntax, generic form
+let coords: [number, number] = [1, 2]; // tuple: fixed length, fixed types per slot
+
+function greet(who: string): string {
+  return `Hello, ${who}`;
+}
+
+// Special types
+let id: string | number;             // union, covered below
+let anything: unknown;               // safer "I don't know yet" than `any`
+let nothing: void;                   // function returns nothing meaningful
+let never_returns: never;            // function never returns (throws or loops forever)
+```
+
+Avoid `any` — it turns off type checking for that value entirely, which defeats the purpose. Prefer `unknown` when you genuinely don't know the type yet; TypeScript then forces you to narrow it (with `typeof`, `instanceof`, etc.) before you can use it for anything.
+
+```ts
+function process(input: unknown) {
+  input.toUpperCase();               // error: 'input' is of type 'unknown'
+  if (typeof input === "string") {
+    input.toUpperCase();             // fine — narrowed to string here
+  }
+}
+```
+
+## Type Inference
+
+TypeScript infers return types too, and infers through control flow:
+
+```ts
+function double(x: number) {         // inferred return type: number
+  return x * 2;
+}
+
+let value = Math.random() > 0.5 ? "yes" : 42;
+// inferred type: string | number
+```
+
+Let inference do the work for local variables and simple returns; reserve explicit annotations for function parameters (which can't be inferred from nothing) and for public API boundaries, where writing the type out documents intent for callers.
+
+## Interfaces vs. Type Aliases
+
+Both describe the shape of an object. For most everyday shapes they're interchangeable:
+
+```ts
+interface User {
+  id: number;
+  name: string;
+  email?: string;      // optional property
+}
+
+type UserAlias = {
+  id: number;
+  name: string;
+  email?: string;
+};
+
+const u: User = { id: 1, name: "Grace" };  // email omitted — fine, it's optional
+```
+
+The practical differences:
+
+**Interfaces can be extended and merged.**
+
+```ts
+interface Animal {
+  name: string;
+}
+interface Dog extends Animal {
+  breed: string;
+}
+
+// Declaration merging: two `interface Animal` blocks combine automatically
+interface Animal {
+  age: number;
+}
+const rex: Dog = { name: "Rex", breed: "Lab", age: 3 };
+```
+
+**Type aliases can name anything** — unions, tuples, primitives, mapped types — not just object shapes:
+
+```ts
+type ID = string | number;           // interfaces can't do this
+type Point = [number, number];
+type Handler = (event: string) => void;
+```
+
+Rule of thumb: use `interface` for object/class shapes that might be extended later; use `type` for unions, tuples, function signatures, or anything that isn't a plain object shape. Both compile to nothing — they're erased entirely at compile time.
+
+## Union and Intersection Types
+
+A union (`|`) means "one of these types." An intersection (`&`) means "all of these types at once."
+
+```ts
+type Status = "pending" | "active" | "closed";   // union of string literals
+
+function setStatus(s: Status) { /* ... */ }
+setStatus("active");     // fine
+setStatus("done");       // error: not assignable to type 'Status'
+
+type Timestamped = { createdAt: Date };
+type Named = { name: string };
+type Record = Timestamped & Named;               // intersection: has both
+
+const r: Record = { name: "log entry", createdAt: new Date() };
+```
+
+Unions force you to narrow before using type-specific operations:
+
+```ts
+function formatId(id: string | number): string {
+  if (typeof id === "string") {
+    return id.toUpperCase();   // TS knows id is string here
+  }
+  return id.toFixed(0);        // TS knows id is number here
+}
+```
+
+Without the `typeof` checks, `tsc` rejects `id.toUpperCase()` outright, because `number` doesn't have that method — this is the same class of bug as the discount example, caught the same way.
+
+## Basic Generics
+
+A generic function or type is parameterized over a type, so you get type safety without duplicating code per type:
+
+```ts
+function firstElement<T>(arr: T[]): T {
+  return arr[0];
+}
+
+const n = firstElement([1, 2, 3]);          // inferred: number
+const s = firstElement(["a", "b"]);         // inferred: string
+
+interface Box<T> {
+  value: T;
+}
+const boxedNumber: Box<number> = { value: 42 };
+const boxedString: Box<string> = { value: "hi" };
+```
+
+Compare to the alternative — writing `firstElement` untyped (returns `any`, no safety) or writing it once per type (duplication). Generics give you one implementation and full type checking at every call site:
+
+```ts
+function wrapInArray<T>(value: T): T[] {
+  return [value];
+}
+
+const arr = wrapInArray(5);      // T inferred as number, arr: number[]
+arr.push("oops");                // error: Argument of type 'string' is not assignable to parameter of type 'number'.
+```
+
+## tsconfig.json Essentials
+
+`tsc --init` generates a `tsconfig.json`. The options that matter day to day:
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true
+  },
+  "include": ["src/**/*"]
+}
+```
+
+- **`target`** — which JS version `tsc` emits (e.g. `ES2020` lets you use `async/await` in the output without transpiling it away).
+- **`module`** — module system for the emitted JS (`CommonJS` for Node's `require`, `ESNext` for `import`/`export`).
+- **`outDir`** / **`rootDir`** — where compiled `.js` files land, and where source `.ts` files live.
+- **`strict`** — turns on the full set of strict checks (`strictNullChecks`, `noImplicitAny`, etc.) in one flag. Always turn this on for new projects; it's what makes TypeScript actually catch bugs instead of just documenting types.
+- **`esModuleInterop`** — lets you `import express from 'express'` instead of `import * as express from 'express'` for CommonJS packages.
+
+With `strict` off, `null` and `undefined` are assignable to everything, silently, which reintroduces the exact class of bug TypeScript exists to prevent:
+
+```ts
+// strictNullChecks: false (bad)
+function getLength(s: string): number {
+  return s.length;
+}
+getLength(null);   // compiles fine, crashes at runtime: Cannot read properties of null
+
+// strictNullChecks: true (good)
+getLength(null);   // error TS2345: Argument of type 'null' is not assignable to parameter of type 'string'.
+```
+
+## Compiling TS to JS
+
+```bash
+npm install -D typescript
+npx tsc --init              # generate tsconfig.json
+npx tsc                     # compile every file in "include" to outDir
+npx tsc --watch             # recompile on save
+npx tsc app.ts              # compile a single file, ignoring tsconfig
+```
+
+`tsc` only type-checks and transpiles — it does not bundle or minify. A typical `package.json` wires it into your workflow:
+
+```json
+{
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/app.js",
+    "dev": "tsc --watch"
+  }
+}
+```
+
+For quick scripts without a build step, `ts-node` runs `.ts` files directly (type-checking, then executing in memory) — useful for development, not for production builds, where you still want a plain compiled `dist/` folder.
+
+## Exercise
+
+Take this untyped JS module and add types until `tsc --strict` accepts it with zero errors:
+
+```js
+// cart.js
+function addItem(cart, item) {
+  cart.push(item);
+  return cart;
+}
+
+function total(cart) {
+  return cart.reduce((sum, item) => sum + item.price * item.qty, 0);
+}
+
+function findItem(cart, name) {
+  return cart.find(i => i.name === name);   // returns undefined if not found
+}
+
+const cart = [];
+addItem(cart, { name: "Mug", price: 9.5, qty: 2 });
+console.log(total(cart));
+console.log(findItem(cart, "Mug").price);   // works today, but only because you got lucky
+```
+
+Define an `Item` interface, type `Cart` as `Item[]`, and give every function a signature. Then try changing `findItem(cart, "Nonexistent").price` — with `strictNullChecks` on and the return type written honestly as `Item | undefined`, does `tsc` let that line compile? What does that tell you about the runtime bug it just prevented?
+
+*Hint: `Array.prototype.find`'s real return type is `T | undefined`, not `T` — TypeScript's built-in lib types already know this even before you write anything.*

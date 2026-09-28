@@ -1,0 +1,98 @@
+[
+  {
+    "id": "languages/tier-2/intermediate-python-oop-and-standard-library/q1",
+    "type": "multiple_choice",
+    "prompt": "You define __eq__ on a class but don't define __hash__. What happens when you try to put an instance in a set?",
+    "choices": [
+      "It works fine \u2014 Python derives a hash from the fields used in __eq__",
+      "TypeError: unhashable type \u2014 defining __eq__ sets __hash__ to None unless you define it yourself",
+      "It works, but every instance gets the same hash value",
+      "Python raises a SyntaxError at class definition time"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-2/intermediate-python-oop-and-standard-library/q2",
+    "type": "multiple_choice",
+    "prompt": "class Box:\n    def __init__(self, items):\n        self.items = items\n    def __len__(self):\n        return len(self.items)\n\nb = Box([])\nprint(\"empty\" if not b else \"not empty\")\n\nWhat does this print?",
+    "choices": [
+      "empty",
+      "not empty",
+      "TypeError: object of type 'Box' has no len()",
+      "None"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-2/intermediate-python-oop-and-standard-library/q3",
+    "type": "multiple_choice",
+    "prompt": "def logged(func):\n    def wrapper(*args, **kwargs):\n        return func(*args, **kwargs)\n    return wrapper\n\n@logged\ndef greet():\n    \"\"\"Say hello.\"\"\"\n    pass\n\nprint(greet.__name__)\n\nWhat prints, given that functools.wraps was NOT used?",
+    "choices": [
+      "greet",
+      "wrapper",
+      "Say hello.",
+      "AttributeError"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-2/intermediate-python-oop-and-standard-library/q4",
+    "type": "multiple_choice",
+    "prompt": "def bold(func):\n    def wrapper():\n        return f\"<b>{func()}</b>\"\n    return wrapper\n\ndef italic(func):\n    def wrapper():\n        return f\"<i>{func()}</i>\"\n    return wrapper\n\n@bold\n@italic\ndef text():\n    return \"hi\"\n\nprint(text())\n\nWhat prints?",
+    "choices": [
+      "<b><i>hi</i></b>",
+      "<i><b>hi</b></i>",
+      "<b>hi</b><i>hi</i>",
+      "hi"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-2/intermediate-python-oop-and-standard-library/q5",
+    "type": "multiple_choice",
+    "prompt": "class Suppressor:\n    def __enter__(self):\n        return self\n    def __exit__(self, exc_type, exc_val, exc_tb):\n        return True\n\nwith Suppressor():\n    raise ValueError(\"boom\")\nprint(\"after\")\n\nWhat happens when this code runs?",
+    "choices": [
+      "ValueError: boom propagates and the program crashes",
+      "\"after\" is printed, and the ValueError is silently suppressed",
+      "Nothing is printed at all",
+      "SyntaxError, because __exit__ can't return True"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-2/intermediate-python-oop-and-standard-library/q6",
+    "type": "multiple_choice",
+    "prompt": "from itertools import groupby\n\ndata = [\"a\", \"b\", \"a\", \"a\", \"b\"]\ngroups = {key: list(g) for key, g in groupby(data)}\nprint(len(groups))\n\nWhat does this print, and why?",
+    "choices": [
+      "2 \u2014 the dict comprehension keeps only the last consecutive run for each repeated key, silently dropping earlier groups (the classic groupby-without-sorting bug)",
+      "2 \u2014 groupby scans the whole list and merges every matching key regardless of position",
+      "5 \u2014 groupby treats every element as its own group",
+      "4 \u2014 one dict entry per consecutive run, with duplicates preserved"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-2/intermediate-python-oop-and-standard-library/q7",
+    "type": "multiple_choice",
+    "prompt": "from collections import Counter\nc = Counter(\"banana\")\nprint(c.most_common(1))\n\nWhat does this print?",
+    "choices": [
+      "[('a', 3)]",
+      "[('b', 1)]",
+      "[('n', 2)]",
+      "[('banana', 1)]"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-2/intermediate-python-oop-and-standard-library/q8",
+    "type": "multiple_choice",
+    "prompt": "from dataclasses import dataclass\n\n@dataclass(frozen=True)\nclass Point:\n    x: int\n    y: int\n\np = Point(1, 2)\np.x = 5\n\nWhat happens on the last line?",
+    "choices": [
+      "p.x is silently reassigned to 5",
+      "dataclasses.FrozenInstanceError is raised, and the assignment does not happen",
+      "AttributeError: 'Point' object has no attribute 'x'",
+      "Nothing happens \u2014 frozen only prevents adding new attributes, not changing existing ones"
+    ],
+    "correctIndex": 1
+  }
+]

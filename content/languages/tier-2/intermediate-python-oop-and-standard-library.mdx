@@ -1,0 +1,280 @@
+---
+trackId: languages
+tier: 2
+title: "Intermediate Python: OOP & Standard Library"
+order: 1
+estimatedHours: 10
+slug: intermediate-python-oop-and-standard-library
+---
+
+You already know what a class, an instance, inheritance, and composition are — CS Foundations Tier 2 covered the concepts. This module is about Python's specific vocabulary for them: the dunder methods that hook your objects into the language's own syntax, decorators and context managers (two features with essentially no CS-Foundations analog), and the standard-library tools (`itertools`, `collections`, `dataclasses`) that make idiomatic Python look the way it does. Everything here is real, runnable code.
+
+## Dunder Methods: Speaking Python's Protocols
+
+Python doesn't have interfaces in the Java sense. Instead, built-in functions and operators look for "dunder" (double-underscore) methods on your class and call them automatically. Implement the right dunders and your object works with `len()`, `==`, `print()`, `for`, `[]`, and more, without any special-casing.
+
+```python
+class Point:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+
+    def __repr__(self):
+        return f"Point(x={self.x!r}, y={self.y!r})"
+
+    def __eq__(self, other):
+        if not isinstance(other, Point):
+            return NotImplemented
+        return (self.x, self.y) == (other.x, other.y)
+
+    def __hash__(self):
+        return hash((self.x, self.y))
+```
+
+A few things that trip up people coming from other languages:
+
+- **`__repr__` vs `__str__`.** `__repr__` should be unambiguous — ideally code that could recreate the object. It's what you see in a REPL, in a list (`[p1, p2]`), and in a debugger. `__str__` is for human-facing output and *falls back to `__repr__`* if you don't define it. In practice, define `__repr__` first; only add `__str__` if you genuinely want different output for `print(obj)`.
+- **`__eq__` and the `NotImplemented` protocol.** Returning `NotImplemented` (not `False`, not raising) tells Python "I don't know how to compare against this type — ask the other object." Python then tries `other.__eq__(self)` before giving up and falling back to identity comparison.
+- **Overriding `__eq__` kills the default `__hash__`.** Python assumes objects that compare equal must hash equal, so as soon as you define `__eq__`, Python sets `__hash__` to `None` unless you define it yourself. Skip `__hash__` and your objects become unusable in sets or as dict keys — you'll get `TypeError: unhashable type`.
+
+`__len__` is what makes `len(obj)` and truthiness checks work:
+
+```python
+class Deck:
+    def __init__(self, cards):
+        self._cards = list(cards)
+
+    def __len__(self):
+        return len(self._cards)
+
+    def __getitem__(self, index):
+        return self._cards[index]
+
+deck = Deck(["2H", "3H", "4H"])
+len(deck)          # 3
+deck[0]            # "2H"
+bool(Deck([]))     # False — an empty __len__ makes an object falsy
+```
+
+Any object with `__len__` returning `0` is falsy, even without defining `__bool__`. This is why `if my_list:` is idiomatic instead of `if len(my_list) > 0:`.
+
+## Decorators: Writing Your Own
+
+A decorator is a function that takes a function and returns a (usually different) function. `@decorator` above a `def` is just sugar for `func = decorator(func)`.
+
+```python
+import time
+from functools import wraps
+
+def timed(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        start = time.perf_counter()
+        result = func(*args, **kwargs)
+        elapsed = time.perf_counter() - start
+        print(f"{func.__name__} took {elapsed:.4f}s")
+        return result
+    return wrapper
+
+@timed
+def slow_sum(n):
+    return sum(range(n))
+
+slow_sum(10_000_000)
+# slow_sum took 0.1823s
+```
+
+`@wraps(func)` copies `__name__`, `__doc__`, and other metadata from the original function onto `wrapper`. Skip it and `slow_sum.__name__` becomes `"wrapper"` — annoying for debugging, and it breaks any tooling that introspects functions (documentation generators, some testing frameworks).
+
+To make a decorator that takes its *own* arguments, add one more layer of nesting — a function that returns a decorator:
+
+```python
+def retry(times=3, exceptions=(Exception,)):
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            last_exc = None
+            for attempt in range(1, times + 1):
+                try:
+                    return func(*args, **kwargs)
+                except exceptions as exc:
+                    last_exc = exc
+                    print(f"attempt {attempt} failed: {exc}")
+            raise last_exc
+        return wrapper
+    return decorator
+
+@retry(times=3, exceptions=(ValueError,))
+def parse_int(s):
+    return int(s)
+```
+
+`@retry(times=3, ...)` first calls `retry(...)`, which returns `decorator`, which is then applied to `parse_int`. Stacking decorators applies bottom-up: `@a` then `@b` on the same function means `func = a(b(func))` — the one closest to the `def` runs first at call time, but wraps innermost.
+
+## Context Managers: `with`, `__enter__`/`__exit__`, and `contextlib`
+
+The `with` statement guarantees cleanup runs even if the block raises. You write your own by defining `__enter__` and `__exit__`:
+
+```python
+class ManagedFile:
+    def __init__(self, path, mode):
+        self.path = path
+        self.mode = mode
+
+    def __enter__(self):
+        self.file = open(self.path, self.mode)
+        return self.file          # bound to the `as` variable
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.file.close()
+        return False               # False/None: don't suppress the exception
+
+with ManagedFile("out.txt", "w") as f:
+    f.write("hello\n")
+```
+
+`__exit__` receives the exception type, value, and traceback if the block raised. Returning `True` suppresses the exception; returning `False` or `None` lets it propagate after cleanup still runs.
+
+For simple cases, `contextlib.contextmanager` turns a generator into a context manager — no class needed:
+
+```python
+from contextlib import contextmanager
+
+@contextmanager
+def managed_file(path, mode):
+    f = open(path, mode)
+    try:
+        yield f
+    finally:
+        f.close()
+
+with managed_file("out.txt", "w") as f:
+    f.write("hello\n")
+```
+
+Everything before `yield` is `__enter__`; everything after (in the `finally`) is `__exit__`. If the caller's block raises, the exception surfaces at the `yield` line inside your generator, so wrap it in `try/finally` (or `try/except/finally` if you want to inspect or suppress it).
+
+Two more `contextlib` tools worth knowing:
+
+```python
+from contextlib import suppress
+
+with suppress(FileNotFoundError):
+    os.remove("maybe_missing.txt")   # no error if it's already gone
+```
+
+`suppress(*exceptions)` is a one-liner replacement for `try/except: pass` when you genuinely want to ignore specific errors.
+
+## `itertools`: Lazy Iterator Building Blocks
+
+`itertools` functions return lazy iterators — nothing is computed until you consume them. That makes them memory-efficient for large or infinite sequences.
+
+```python
+from itertools import chain, groupby, islice, product, count
+
+# chain: flatten multiple iterables into one pass
+list(chain([1, 2], [3, 4]))                  # [1, 2, 3, 4]
+
+# product: cartesian product, like nested for loops
+list(product([1, 2], ["a", "b"]))
+# [(1, 'a'), (1, 'b'), (2, 'a'), (2, 'b')]
+
+# islice: slice a lazy iterator without materializing it
+list(islice(count(10), 5))                   # [10, 11, 12, 13, 14]
+
+# groupby: groups CONSECUTIVE equal keys — sort first if you want global grouping
+data = [("a", 1), ("a", 2), ("b", 3), ("a", 4)]
+for key, group in groupby(sorted(data), key=lambda pair: pair[0]):
+    print(key, list(group))
+# a [('a', 1), ('a', 2), ('a', 4)]
+# b [('b', 3)]
+```
+
+`groupby` is the one everyone gets bitten by: it does **not** scan the whole sequence looking for matching keys. It only groups runs of adjacent equal keys, so unsorted input silently produces multiple groups with the same key. Sort by the grouping key first, or the results are usually wrong.
+
+## `collections`: Purpose-Built Containers
+
+Three types cover a huge fraction of everyday data-wrangling code.
+
+**`defaultdict`** auto-creates a default value for missing keys, killing the `if key not in dict: dict[key] = ...` boilerplate:
+
+```python
+from collections import defaultdict
+
+by_length = defaultdict(list)
+for word in ["cat", "dog", "ant", "cow", "eel"]:
+    by_length[len(word)].append(word)
+# defaultdict(<class 'list'>, {3: ['cat', 'dog', 'ant', 'cow', 'eel']})
+```
+
+The argument is any zero-arg callable — `list`, `int` (defaults to `0`, handy for counters), `set`, or your own function.
+
+**`Counter`** is a `dict` subclass specialized for counting:
+
+```python
+from collections import Counter
+
+counts = Counter("mississippi")
+counts.most_common(2)           # [('i', 4), ('s', 4)]
+counts["z"]                     # 0 — missing keys don't raise, unlike a plain dict
+counts + Counter("mint")        # Counters support + and - like multisets
+```
+
+**`namedtuple`** gives you a lightweight, immutable, attribute-accessible tuple — useful when a full class feels like overkill:
+
+```python
+from collections import namedtuple
+
+Point = namedtuple("Point", ["x", "y"])
+p = Point(1, 2)
+p.x, p.y            # 1, 2
+p[0], p[1]          # 1, 2 — still a tuple under the hood
+x, y = p            # unpacks like a normal tuple
+```
+
+## `dataclasses`: Dunder Methods, Generated for You
+
+Notice how much of the `Point` class from section one — `__init__`, `__repr__`, `__eq__` — is pure boilerplate that follows mechanically from the field list. `dataclasses` generates it:
+
+```python
+from dataclasses import dataclass, field
+
+@dataclass
+class Point:
+    x: float
+    y: float
+
+p1 = Point(1, 2)
+p2 = Point(1, 2)
+p1 == p2              # True — __eq__ generated automatically
+repr(p1)              # 'Point(x=1, y=2)'
+```
+
+That single decorator produced the same `__init__`, `__repr__`, and `__eq__` you'd otherwise write by hand. Useful options:
+
+```python
+@dataclass(frozen=True, order=True)
+class Money:
+    amount: int
+    currency: str = "USD"     # default value, like a normal parameter
+
+@dataclass
+class Inventory:
+    items: list[str] = field(default_factory=list)   # mutable defaults need default_factory
+```
+
+- `frozen=True` makes instances immutable — attempting `money.amount = 5` raises `dataclasses.FrozenInstanceError`. It also makes the generated `__hash__` usable (a plain `@dataclass` with `eq=True`, the default, sets `__hash__` to `None`, same rule as section one).
+- `order=True` generates `__lt__`, `__le__`, `__gt__`, `__ge__` by comparing fields in declaration order — instant sortability.
+- Mutable defaults (`list`, `dict`, `set`) can't be written as `items: list = []` — that shares one list across every instance. `field(default_factory=list)` calls `list()` fresh for each instance, the same fix as the classic "mutable default argument" pitfall applied to fields.
+
+Dataclasses don't replace regular classes — add methods, `__post_init__` for validation, or override any generated dunder by defining it yourself (your version wins).
+
+## Exercise
+
+Build a small in-memory transaction ledger:
+
+1. Define a frozen `Transaction` dataclass with fields `item: str`, `qty: int`, `price: float`.
+2. Write a context manager `ledger_session()` (using `@contextmanager`) that yields a plain list. Inside the `with` block, the caller appends `Transaction` objects to it. On clean exit, the context manager should print a summary: total quantity per item (using `Counter`, fed by `itertools.groupby` or a simple loop — try the `groupby` version, but remember what you just learned about sorting first) and the total revenue (`sum(t.qty * t.price for t in transactions)`). If an exception occurs inside the `with` block, print `"session rolled back, no summary"` instead and re-raise.
+3. Prove it works: run one `with ledger_session() as txns:` block that adds a few transactions and completes normally, and a second that raises partway through and confirms no summary prints.
+
+**Hint:** the rollback behavior is exactly what `__exit__`'s `exc_type` parameter (or the `try/except/finally` around your `yield`) is for — check whether an exception occurred before deciding whether to print the summary, then decide whether to suppress or re-raise it.

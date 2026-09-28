@@ -1,0 +1,98 @@
+[
+  {
+    "id": "languages/tier-2/introduction-to-c-memory-and-pointers/q1",
+    "type": "multiple_choice",
+    "prompt": "Where are local variables with automatic storage duration (ordinary locals declared inside a function) typically allocated?",
+    "choices": [
+      "The stack",
+      "The heap",
+      "The static/global data segment",
+      "A dedicated register bank guaranteed by the language"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-2/introduction-to-c-memory-and-pointers/q2",
+    "type": "multiple_choice",
+    "prompt": "What does this program print?\n\nint x = 42;\nint *p = &x;\n*p = 100;\nprintf(\"%d\\n\", x);",
+    "choices": [
+      "42",
+      "100",
+      "The address of x",
+      "Compile error"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-2/introduction-to-c-memory-and-pointers/q3",
+    "type": "multiple_choice",
+    "prompt": "What does this program print?\n\nint arr[5] = {10, 20, 30, 40, 50};\nint *p = arr;\nprintf(\"%d\\n\", *(p + 2));",
+    "choices": [
+      "10",
+      "20",
+      "30",
+      "40"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "languages/tier-2/introduction-to-c-memory-and-pointers/q4",
+    "type": "multiple_choice",
+    "prompt": "void print_size(int arr[]) {\n    printf(\"%zu\\n\", sizeof(arr));\n}\nint main(void) {\n    int nums[10];\n    print_size(nums);\n}\n\nWhat does this print on a typical 64-bit system, and why?",
+    "choices": [
+      "40, because sizeof(nums) is preserved across the function call",
+      "8, because arr decays to a pointer and sizeof(arr) is the pointer's size",
+      "10, because C tracks array length automatically for every array",
+      "A compile error, because arrays cannot be passed to functions"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-2/introduction-to-c-memory-and-pointers/q5",
+    "type": "multiple_choice",
+    "prompt": "struct Point { int x; int y; };\nstruct Point p = {1, 2};\nstruct Point *pp = &p;\nprintf(\"%d\\n\", pp->x);\n\nWhat does this print?",
+    "choices": [
+      "1",
+      "2",
+      "A garbage/undefined value",
+      "Compile error -- must write (*pp).x instead"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-2/introduction-to-c-memory-and-pointers/q6",
+    "type": "multiple_choice",
+    "prompt": "int *p = malloc(sizeof(int));\n*p = 5;\nfree(p);\nfree(p);\n\nWhat is the primary problem with this code?",
+    "choices": [
+      "Nothing -- freeing a pointer a second time safely does nothing",
+      "It's a memory leak because p was never set to NULL after malloc",
+      "It's a double-free bug: undefined behavior, likely heap corruption or a crash",
+      "It fails to compile because free() can only be called once per program"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "languages/tier-2/introduction-to-c-memory-and-pointers/q7",
+    "type": "multiple_choice",
+    "prompt": "int *p = malloc(sizeof(int));\n*p = 7;\nfree(p);\nprintf(\"%d\\n\", *p);\n\nWhich best describes this program's behavior?",
+    "choices": [
+      "It reliably prints 7",
+      "It prints 0, because free() zeroes out the memory it releases",
+      "It has undefined behavior -- it may print 7, print garbage, or crash, since p is now dangling",
+      "It fails to compile because *p cannot appear after free(p)"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "languages/tier-2/introduction-to-c-memory-and-pointers/q8",
+    "type": "multiple_choice",
+    "prompt": "Which best describes the purpose of marking a Makefile target like `clean` as `.PHONY`?",
+    "choices": [
+      "It tells make the target doesn't correspond to a real file, so its recipe always runs even if a file named \"clean\" exists",
+      "It marks the target as the default one that make builds when run with no arguments",
+      "It tells make to compile that target's recipe with optimizations enabled",
+      "It prevents the target from ever being rebuilt once it has run successfully"
+    ],
+    "correctIndex": 0
+  }
+]

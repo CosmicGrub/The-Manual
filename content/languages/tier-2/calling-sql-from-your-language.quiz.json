@@ -1,0 +1,98 @@
+[
+  {
+    "id": "languages/tier-2/calling-sql-from-your-language/q1",
+    "type": "multiple_choice",
+    "prompt": "In Python's `sqlite3` module, what placeholder do you write inside a query string to safely pass in a value like a name or email?",
+    "choices": [
+      "A `?` character",
+      "A `$1`-style positional marker",
+      "A Python f-string `{value}`",
+      "A `%s` printf-style marker"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-2/calling-sql-from-your-language/q2",
+    "type": "multiple_choice",
+    "prompt": "What is wrong with this code?\n\n```python\nname = get_user_input()\nconn.execute(f\"SELECT * FROM users WHERE name = '{name}'\")\n```",
+    "choices": [
+      "Nothing \u2014 f-strings and parameterized queries are equally safe",
+      "It's vulnerable to SQL injection because user input is spliced directly into the SQL text instead of passed as a parameter",
+      "It will raise a syntax error because sqlite3 doesn't support f-strings",
+      "It's fine as long as `conn.commit()` is called afterward"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-2/calling-sql-from-your-language/q3",
+    "type": "multiple_choice",
+    "prompt": "You run:\n\n```python\nwith sqlite3.connect(\"app.db\") as conn:\n    conn.execute(\"INSERT INTO users (name, email) VALUES (?, ?)\", (\"Grace\", \"g@example.com\"))\n# more code here, still using conn\n```\n\nWhat actually happens when the `with` block exits normally?",
+    "choices": [
+      "The insert is committed, and the connection is also automatically closed",
+      "The insert is committed, but the connection stays open \u2014 you must still call `conn.close()` yourself",
+      "Nothing is committed until `conn.close()` is called",
+      "The `with` block raises an error because sqlite3 connections aren't context managers"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-2/calling-sql-from-your-language/q4",
+    "type": "multiple_choice",
+    "prompt": "In SQLAlchemy's ORM, what does calling `session.add(new_user)` do by itself, before `session.commit()` runs?",
+    "choices": [
+      "It immediately issues an INSERT and the row is in the database",
+      "It stages the object in the session's unit of work; no SQL has been sent to the database yet",
+      "It raises an error because `new_user` isn't bound to an engine yet",
+      "It only works if `Base.metadata.create_all(engine)` was called in the same function"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-2/calling-sql-from-your-language/q5",
+    "type": "multiple_choice",
+    "prompt": "In Node's `pg` driver, what placeholder syntax does a parameterized query use?",
+    "choices": [
+      "`?`",
+      "`:name`",
+      "`$1`, `$2`, ... (positional)",
+      "`{{value}}`"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "languages/tier-2/calling-sql-from-your-language/q6",
+    "type": "multiple_choice",
+    "prompt": "You need to run three related SQL statements as a single atomic transaction using the `pg` driver's `Pool`. What's the correct approach?",
+    "choices": [
+      "Call `pool.query(...)` three times in a row \u2014 the pool automatically groups sequential calls into one transaction",
+      "Check out a dedicated connection with `pool.connect()`, run BEGIN/your statements/COMMIT on that client, then release it",
+      "Wrap the three `pool.query()` calls in a JavaScript `try { } catch { }` block \u2014 that alone makes them atomic",
+      "Transactions aren't supported by `pg`; you'd need to switch to Prisma"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-2/calling-sql-from-your-language/q7",
+    "type": "multiple_choice",
+    "prompt": "What best describes the difference between how SQLAlchemy and Prisma treat the database schema?",
+    "choices": [
+      "They work identically \u2014 both generate the schema from a `schema.prisma` file",
+      "SQLAlchemy is schema-first (a `.sql` file is the source of truth); Prisma is code-first (a TypeScript class is the source of truth)",
+      "SQLAlchemy is code-first \u2014 your Python model class is the source of truth and can generate the table; Prisma is schema-first \u2014 your `schema.prisma` file is the source of truth and `migrate dev` generates the SQL migration and a typed client from it",
+      "Neither tool manages schema or migrations; that's left entirely to raw SQL scripts"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "languages/tier-2/calling-sql-from-your-language/q8",
+    "type": "multiple_choice",
+    "prompt": "Which pairing correctly matches each tool to what it primarily gives you beyond a bare driver?",
+    "choices": [
+      "sqlite3 and pg are ORMs; SQLAlchemy and Prisma are raw drivers",
+      "SQLAlchemy and Prisma map rows to typed/object models and offer schema-management tooling; sqlite3 and pg send SQL text and hand back raw rows with no mapping",
+      "All four tools are functionally interchangeable with no meaningful differences",
+      "Prisma and sqlite3 require a running server process; SQLAlchemy and pg do not"
+    ],
+    "correctIndex": 1
+  }
+]

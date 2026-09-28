@@ -1,0 +1,98 @@
+[
+  {
+    "id": "languages/tier-2/test-runner-mechanics/q1",
+    "type": "multiple_choice",
+    "prompt": "By default, which files and functions does pytest collect as tests without any extra configuration?",
+    "choices": [
+      "Only a single file named tests.py, with functions named run_test",
+      "Files named test_*.py or *_test.py, containing functions named test_*",
+      "Any .py file in the project, as long as it imports pytest",
+      "Only classes that subclass unittest.TestCase"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-2/test-runner-mechanics/q2",
+    "type": "multiple_choice",
+    "prompt": "Running `pytest -s -v` against this single test, what gets printed, in order?\n\n@pytest.fixture\ndef resource():\n    print(\"setup\")\n    yield \"R\"\n    print(\"teardown\")\n\ndef test_use(resource):\n    print(\"test running\")\n    assert resource == \"R\"",
+    "choices": [
+      "setup, then test running, then teardown",
+      "teardown, then test running, then setup",
+      "test running, then setup, then teardown",
+      "setup, then teardown, then test running"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-2/test-runner-mechanics/q3",
+    "type": "multiple_choice",
+    "prompt": "How many individual test runs does this produce?\n\n@pytest.mark.parametrize(\"x\", [1, 2, 3])\n@pytest.mark.parametrize(\"y\", [\"a\", \"b\"])\ndef test_combo(x, y):\n    assert True",
+    "choices": [
+      "5 (the two lists concatenated)",
+      "6 (the cartesian product of both lists)",
+      "3 (only the first parametrize decorator applies)",
+      "1 (stacked parametrize decorators overwrite each other)"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-2/test-runner-mechanics/q4",
+    "type": "multiple_choice",
+    "prompt": "What's wrong with this test?\n\ndef test_raises_bug():\n    pytest.raises(ValueError, cart.apply_discount(\"FAKE\"))",
+    "choices": [
+      "Nothing \u2014 this correctly asserts that ValueError is raised",
+      "cart.apply_discount(\"FAKE\") is called and evaluated immediately as an argument, raising before pytest.raises can catch it, instead of being placed inside a `with pytest.raises(ValueError):` block",
+      "pytest.raises requires the exception message as a mandatory second argument",
+      "ValueError can only be tested with unittest's assertRaises, not pytest.raises"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-2/test-runner-mechanics/q5",
+    "type": "multiple_choice",
+    "prompt": "In Jest, which matcher checks deep structural equality of an object or array (rather than strict `===` reference equality)?",
+    "choices": [
+      "toBe",
+      "toEqual",
+      "toMatchReference",
+      "toBe and toEqual behave identically on objects"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-2/test-runner-mechanics/q6",
+    "type": "multiple_choice",
+    "prompt": "Given retryFetch(fetchFn, 3) (retries up to `retries` times on rejection), how many times is fetchFn called before this test's assertions pass?\n\nconst fetchFn = jest.fn()\n  .mockRejectedValueOnce(new Error(\"timeout\"))\n  .mockResolvedValueOnce(\"ok\");\n\nconst result = await retryFetch(fetchFn, 3);\nexpect(result).toBe(\"ok\");",
+    "choices": [
+      "1",
+      "2",
+      "3",
+      "4"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-2/test-runner-mechanics/q7",
+    "type": "multiple_choice",
+    "prompt": "Which statement correctly distinguishes jest.mock(\"./module\") from jest.spyOn(obj, \"method\")?",
+    "choices": [
+      "jest.mock replaces an entire module's exports (auto-mocked by default), while jest.spyOn wraps one existing method on a real object, calling through to the original implementation unless you override it",
+      "They are fully interchangeable in every situation",
+      "jest.spyOn only works on async functions, jest.mock only works on sync functions",
+      "jest.mock can target a single named export only, never a whole module"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-2/test-runner-mechanics/q8",
+    "type": "multiple_choice",
+    "prompt": "Which pytest command runs only the tests whose name contains the substring \"discount\", leaving everything else uncollected-or-skipped in the report?",
+    "choices": [
+      "pytest --only discount",
+      "pytest -k \"discount\"",
+      "pytest --filter=discount",
+      "pytest discount/"
+    ],
+    "correctIndex": 1
+  }
+]
