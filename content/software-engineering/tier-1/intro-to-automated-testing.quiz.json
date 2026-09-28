@@ -1,0 +1,98 @@
+[
+  {
+    "id": "software-engineering/tier-1/intro-to-automated-testing/q1",
+    "type": "multiple_choice",
+    "prompt": "Why does manual testing stop working as a codebase grows, according to the lesson?",
+    "choices": [
+      "Manual testing is fine at any size as long as you have a checklist",
+      "A change in one place can silently break behavior elsewhere, and there isn't time to re-click through the whole app after every change",
+      "Manual testing is only a problem when there is more than one developer on the team",
+      "Automated tests are required by most programming languages"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-1/intro-to-automated-testing/q2",
+    "type": "multiple_choice",
+    "prompt": "Which three properties does the lesson say a good unit test should have?",
+    "choices": [
+      "Slow, isolated, and randomized",
+      "Fast, isolated, and deterministic",
+      "Fast, dependent on other tests' order, and exhaustive",
+      "Comprehensive, manual, and reproducible"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-1/intro-to-automated-testing/q3",
+    "type": "multiple_choice",
+    "prompt": "In the Arrange-Act-Assert pattern, what happens in the 'Act' step?",
+    "choices": [
+      "You set up the inputs and any objects the test needs",
+      "You check that the result matches what you expected",
+      "You call the one function or method actually being tested",
+      "You clean up any resources the test created"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "software-engineering/tier-1/intro-to-automated-testing/q4",
+    "type": "multiple_choice",
+    "prompt": "Given `StubInventoryClient` from the lesson, which always returns the `stock_level` it was constructed with regardless of the sku argument, what does the following print?\n\n```python\ninventory = StubInventoryClient(stock_level=5)\nprint(inventory.get_stock(\"SKU-1\"))\nprint(inventory.get_stock(\"SKU-9\"))\n```",
+    "choices": [
+      "5 then 5",
+      "5 then 9",
+      "SKU-1 then SKU-9",
+      "It raises an error because get_stock requires two arguments"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "software-engineering/tier-1/intro-to-automated-testing/q5",
+    "type": "multiple_choice",
+    "prompt": "What is wrong with this test?\n\n```python\ndef test_order_sends_confirmation():\n    order = Order(sku=\"A\", quantity=1)\n    inventory = StubInventoryClient(stock_level=10)\n    email = MockEmailClient()\n\n    assert email.sent == []\n```",
+    "choices": [
+      "Nothing \u2014 it correctly verifies no email was sent for a small order",
+      "It never calls place_order, so the assertion is vacuous: it always passes, even if place_order is completely broken",
+      "MockEmailClient should be a stub instead",
+      "The Arrange section is missing"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-1/intro-to-automated-testing/q6",
+    "type": "multiple_choice",
+    "prompt": "You're testing a function that looks up a currency conversion rate from a collaborator and then just returns a converted amount \u2014 it has no other side effects. Which kind of test double fits the currency-rate collaborator, and why?",
+    "choices": [
+      "A mock, because you need to verify the rate lookup happened",
+      "A stub, because the function only needs data back from it, not an effect verified about it",
+      "Neither \u2014 you should call the real currency service in the unit test",
+      "A mock, because stubs cannot return numeric values"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-1/intro-to-automated-testing/q7",
+    "type": "multiple_choice",
+    "prompt": "By default, which files and functions does pytest treat as tests, with no registration or base class required?",
+    "choices": [
+      "Any file at all, as long as it imports the pytest module",
+      "Files named test_*.py (or *_test.py) containing functions named test_*",
+      "Only files inside a folder literally named 'tests_pytest'",
+      "Files ending in .test.py containing functions decorated with @test"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-1/intro-to-automated-testing/q8",
+    "type": "multiple_choice",
+    "prompt": "What is the correct order of the TDD red-green-refactor cycle as described in the lesson?",
+    "choices": [
+      "Write the code, write the test, refactor the test",
+      "Write a failing test, write the minimum code to make it pass, then clean up the code while the test still passes",
+      "Refactor the code, write the test, run the test once",
+      "Write the test, delete the test, write the code"
+    ],
+    "correctIndex": 1
+  }
+]

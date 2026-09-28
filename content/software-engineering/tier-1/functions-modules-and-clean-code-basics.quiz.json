@@ -1,0 +1,98 @@
+[
+  {
+    "id": "software-engineering/tier-1/functions-modules-and-clean-code-basics/q1",
+    "type": "multiple_choice",
+    "prompt": "What is the best test, from this lesson, for whether a function violates Single Responsibility at the function level?",
+    "choices": [
+      "Whether it is longer than 10 lines",
+      "Whether you can describe what it does without using the word \"and\"",
+      "Whether it takes more than two parameters",
+      "Whether it returns a value"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-1/functions-modules-and-clean-code-basics/q2",
+    "type": "multiple_choice",
+    "prompt": "In the tax-rate example, refund_amount silently became wrong after the rate changed and only two of three call sites were updated. Which principle, applied correctly, would have prevented this?",
+    "choices": [
+      "Adding a comment above each literal explaining what it means",
+      "DRY -- representing the tax rate once as a single named constant used everywhere it applies",
+      "Renaming refund_amount to a more descriptive function name",
+      "Splitting refund_amount into two smaller functions"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-1/functions-modules-and-clean-code-basics/q3",
+    "type": "multiple_choice",
+    "prompt": "Which of these function signatures best follows the naming guidance in this lesson?",
+    "choices": [
+      "def calc(a, b, t):",
+      "def calculate_total_with_tax(price, quantity, tax_rate):",
+      "def do_stuff(data):",
+      "def f(x, y, z):"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-1/functions-modules-and-clean-code-basics/q4",
+    "type": "multiple_choice",
+    "prompt": "What's the main problem with this line of code: if retries < 3:",
+    "choices": [
+      "It's a magic number -- whether 3 means max retries, retries remaining, or something else isn't clear from context",
+      "It will cause an infinite loop",
+      "It is syntactically invalid Python",
+      "Comparison operators should not be used inside if statements"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "software-engineering/tier-1/functions-modules-and-clean-code-basics/q5",
+    "type": "multiple_choice",
+    "prompt": "Given this guard-clause version of get_discount, what does get_discount(None) return?\n\ndef get_discount(user):\n    if user is None or not user.is_active or user.membership is None:\n        return 0\n    if user.membership.tier == \"gold\":\n        return 0.20\n    return 0.05",
+    "choices": [
+      "0",
+      "0.05",
+      "0.20",
+      "It raises an AttributeError because user is None"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "software-engineering/tier-1/functions-modules-and-clean-code-basics/q6",
+    "type": "multiple_choice",
+    "prompt": "Which code smell does this function most clearly exhibit?\n\ndef handle_signup(name, email, password):\n    if name:\n        if email:\n            if \"@\" in email:\n                if password:\n                    if len(password) >= 8:\n                        return create_user(name, email, password)\n                    else:\n                        return \"Password too short\"\n                else:\n                    return \"Password required\"\n            else:\n                return \"Invalid email\"\n        else:\n            return \"Email required\"\n    else:\n        return \"Name required\"",
+    "choices": [
+      "Duplicated logic",
+      "Deep nesting",
+      "A magic number",
+      "A DRY violation on the tax rate"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-1/functions-modules-and-clean-code-basics/q7",
+    "type": "multiple_choice",
+    "prompt": "A teammate says: \"this function does one thing -- it processes the user.\" The function validates input, hashes the password, saves the user to the database, and sends a welcome email. Under the Single Responsibility guidance in this lesson, is \"processes the user\" an accurate description?",
+    "choices": [
+      "Yes, because every step is related to \"the user\"",
+      "No -- it has four distinct responsibilities, each with its own reason to change, and should be split into separate functions",
+      "Yes, as long as the whole function is under 20 lines",
+      "No, because the function doesn't return a value"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-1/functions-modules-and-clean-code-basics/q8",
+    "type": "multiple_choice",
+    "prompt": "Which of the following best describes what a \"code smell\" means, as used in this lesson?",
+    "choices": [
+      "A syntax error that prevents the code from running",
+      "A pattern that doesn't break the code today but predicts harder testing, riskier changes, and more time spent reading it later",
+      "Any use of the word \"data\" or \"info\" in a variable name",
+      "A function that has more than one parameter"
+    ],
+    "correctIndex": 1
+  }
+]

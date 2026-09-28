@@ -1,0 +1,252 @@
+---
+trackId: software-engineering
+tier: 1
+title: "Functions, Modules & Clean Code Basics"
+order: 3
+estimatedHours: 5
+slug: functions-modules-and-clean-code-basics
+---
+
+## One Job Per Function: A Before/After Refactor
+
+Take a function that handles submitting an order in an e-commerce app. Before:
+
+```python
+def process_order(order):
+    # validate
+    if not order.get("items"):
+        raise ValueError("Order has no items")
+    if order.get("customer_email") is None or "@" not in order["customer_email"]:
+        raise ValueError("Invalid email")
+
+    # calculate total
+    total = 0
+    for item in order["items"]:
+        total += item["price"] * item["quantity"]
+    if total > 100:
+        total = total * 0.9  # 10% discount over $100
+    total = total * 1.0825  # add tax
+
+    # save to "database"
+    order["total"] = total
+    order["status"] = "confirmed"
+    database.save(order)
+
+    # send email
+    message = f"Thanks for your order! Total: ${total:.2f}"
+    email_client.send(order["customer_email"], "Order Confirmed", message)
+
+    return total
+```
+
+This function validates, prices, persists, and emails — four unrelated jobs stitched together. To test that a $30 discount computes correctly, you need a live-ish database and email client just to reach the math. Change the discount rule and you risk touching persistence code by accident. There's no single sentence that describes what this function does.
+
+Split by responsibility:
+
+```python
+TAX_RATE = 0.0825
+BULK_DISCOUNT_THRESHOLD = 100
+BULK_DISCOUNT_RATE = 0.10
+
+def validate_order(order):
+    if not order.get("items"):
+        raise ValueError("Order has no items")
+    if order.get("customer_email") is None or "@" not in order["customer_email"]:
+        raise ValueError("Invalid email")
+
+def calculate_total(items):
+    subtotal = sum(item["price"] * item["quantity"] for item in items)
+    if subtotal > BULK_DISCOUNT_THRESHOLD:
+        subtotal *= (1 - BULK_DISCOUNT_RATE)
+    return subtotal * (1 + TAX_RATE)
+
+def save_order(order, total):
+    order["total"] = total
+    order["status"] = "confirmed"
+    database.save(order)
+
+def send_confirmation_email(order, total):
+    message = f"Thanks for your order! Total: ${total:.2f}"
+    email_client.send(order["customer_email"], "Order Confirmed", message)
+
+def process_order(order):
+    validate_order(order)
+    total = calculate_total(order["items"])
+    save_order(order, total)
+    send_confirmation_email(order, total)
+    return total
+```
+
+Now `calculate_total` is testable with a plain list of dicts — no database, no email client:
+
+```python
+def test_calculate_total_applies_bulk_discount_and_tax():
+    items = [{"price": 60, "quantity": 2}]  # subtotal = 120, over the threshold
+    assert calculate_total(items) == pytest.approx(120 * 0.9 * 1.0825)
+```
+
+`process_order` still reads as the story of what happens — it just now names each step instead of burying it in a paragraph of mixed concerns. That's Single Responsibility at the function level: not "one line per function," but **one reason to change per function**. `calculate_total` changes only if pricing rules change. `send_confirmation_email` changes only if the email copy or provider changes.
+
+A fast test you can apply to your own code: try to describe what a function does without using the word "and." *"Validates the order and calculates the total and saves it and emails the customer"* is your signal to split it.
+
+## Naming: The Comment You Don't Have to Write
+
+A good name carries enough information that you don't need a comment next to it. Compare:
+
+```python
+# bad
+d = 5  # elapsed time in days
+
+def calc(a, b, t):
+    return a * b * (1 + t)
+```
+
+```python
+# good
+elapsed_days = 5
+
+def calculate_total_with_tax(price, quantity, tax_rate):
+    return price * quantity * (1 + tax_rate)
+```
+
+`calc(a, b, t)` forces every reader to either trust a comment (which rots the first time someone edits the code without updating it) or trace every call site to figure out what `a`, `b`, and `t` are. `calculate_total_with_tax(price, quantity, tax_rate)` answers the question without opening the function body.
+
+Rules that hold in nearly every language:
+
+- **Reveal intent.** `is_valid`, not `flag`. `user_count`, not `n`.
+- **Don't lie.** If a variable holds a list, don't call it `user` (singular) — call it `users`. If `order_list` is actually a dict, the name is now actively misleading.
+- **Cut noise words.** `data`, `info`, `manager`, `object`, `thing` rarely add information. `UserData` usually says nothing more than `User`.
+- **Be consistent.** Pick `get` or `fetch` for "retrieve" and use it everywhere — not both, scattered arbitrarily.
+- **Booleans read as yes/no questions.** `is_active`, `has_permission`, `can_edit` — not `active` or `permission`.
+- **Length should match scope.** A loop index used for two lines can be `i`. A field that lives on a class for the app's lifetime should be spelled out: `retry_count`, not `rc`.
+
+One real before/after, a login check:
+
+```python
+# bad
+def check(u, p):
+    return u.pw == hash(p)
+
+# good
+def password_matches(user, submitted_password):
+    return user.password_hash == hash_password(submitted_password)
+```
+
+The rename does more than improve readability — `u.pw` suggests a raw password might be stored on the user object, and writing out `password_hash` forces you to notice (and fix) that before you can even finish naming the function.
+
+## DRY and Magic Numbers
+
+DRY — Don't Repeat Yourself — means every piece of *knowledge* in a system should have one authoritative representation. It's not "never write two similar-looking lines"; it's about not letting the same rule live in two places, because the two copies will eventually drift apart.
+
+```python
+# the tax rate is a single fact, repeated as three separate literals
+def price_with_tax(price):
+    return price * 1.0825
+
+def invoice_total(subtotal):
+    return subtotal * 1.0825
+
+def refund_amount(price):
+    return price / 1.0825  # nobody remembered to touch this one
+```
+
+Six months later the tax rate changes to 0.07. Two of the three call sites get updated during the change. `refund_amount` is now silently wrong — a real bug, not a hypothetical, caused directly by the DRY violation. Fix: one constant, one function, called everywhere the rule applies.
+
+```python
+TAX_RATE = 0.0825
+
+def apply_tax(amount):
+    return amount * (1 + TAX_RATE)
+
+def remove_tax(amount):
+    return amount / (1 + TAX_RATE)
+```
+
+Magic numbers are DRY's close cousin: any literal number in code whose meaning isn't obvious from context and isn't given a name.
+
+```python
+# magic numbers
+if user.age >= 18 and len(password) >= 8 and retries < 3:
+    ...
+```
+
+Which `18`? Which `8`? Is `3` a retry count or attempts *remaining*? Six months from now you're guessing — or worse, editing the wrong one.
+
+```python
+MINIMUM_AGE = 18
+MINIMUM_PASSWORD_LENGTH = 8
+MAX_LOGIN_RETRIES = 3
+
+if user.age >= MINIMUM_AGE and len(password) >= MINIMUM_PASSWORD_LENGTH and retries < MAX_LOGIN_RETRIES:
+    ...
+```
+
+Same logic, but now the code documents the business rule instead of hiding it inside an integer, and changing the rule later is a one-line edit instead of a codebase-wide guessing game.
+
+## Code Smells: Naming the Symptoms
+
+A code smell isn't a bug — the code still runs correctly. It's a pattern that predicts future pain: harder tests, riskier changes, more time spent reading the code than writing it. Three to recognize on sight.
+
+**Long function.** If a function scrolls past one screen, or you have to scroll back up to remember its own first line, it's doing too much. `process_order`, before its refactor, was a long function even at twenty lines — the problem isn't line count itself, it's how many *responsibilities* got packed into one block. The fix is the same extraction shown above: pull each cohesive chunk into its own named function.
+
+**Deep nesting.** Each extra `if`/`for` level doubles the number of paths a reader has to hold in their head at once.
+
+```python
+# deeply nested
+def get_discount(user):
+    if user is not None:
+        if user.is_active:
+            if user.membership is not None:
+                if user.membership.tier == "gold":
+                    return 0.20
+                else:
+                    return 0.05
+            else:
+                return 0
+        else:
+            return 0
+    else:
+        return 0
+```
+
+Guard clauses flatten it: handle the exceptional cases first and return early, so the normal path isn't buried four levels deep.
+
+```python
+def get_discount(user):
+    if user is None or not user.is_active or user.membership is None:
+        return 0
+    if user.membership.tier == "gold":
+        return 0.20
+    return 0.05
+```
+
+Same behavior, one level of nesting, and the exceptional cases are handled up top where you can't miss them.
+
+**Duplicated logic.** The same *block of behavior* (not just the same literal value) copy-pasted across the codebase, usually because copy-paste was faster than figuring out where a shared function should live. It's DRY's violation at the scale of whole chunks of logic rather than single numbers — and the fix is identical: extract it once, call it from both places.
+
+Spotting these three by name, in your own code, is most of the skill at this stage. Fixing them is mostly mechanical once you've named what's wrong — that's why this lesson stops at "notice and name it," not deeper architectural theory. That comes once you've got more code under your belt to practice recognizing patterns in.
+
+## Exercise
+
+Refactor the function below. It has at least one violation of everything covered in this lesson: a magic number, bad names, a responsibility mash-up, and nesting deeper than it needs to be.
+
+```python
+def proc(u, o):
+    if u is not None:
+        if u["active"] == True:
+            t = 0
+            for i in o:
+                t = t + i["p"] * i["q"]
+            if t > 50:
+                t = t - (t * 0.15)
+            log = open("orders.log", "a")
+            log.write(f"{u['email']}: {t}\n")
+            log.close()
+            return t
+        else:
+            return 0
+    else:
+        return 0
+```
+
+**Hint:** start by naming things — what is `u`, `o`, `t`, `i["p"]`, and `50`, really? Once every name says what it holds, the responsibility split (validating the user, computing a total, logging it) and the nesting fix (guard clauses) tend to fall out on their own.

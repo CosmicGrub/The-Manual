@@ -1,0 +1,264 @@
+---
+trackId: software-engineering
+tier: 1
+title: "Relational Databases & SQL Fundamentals"
+order: 4
+estimatedHours: 8
+slug: relational-databases-and-sql-fundamentals
+---
+
+## Why SQL, and which client to use
+
+Almost every backend system you will ever touch stores its important data in a relational database: rows organized into tables, with explicit relationships between tables. SQL (Structured Query Language) is how you create those tables, insert data, and ask questions of it. This module is the one place in this curriculum where you learn SQL itself — schema design, joins, aggregation — in depth. Later modules that touch databases (ORMs, backend frameworks) assume you already know what a `JOIN` and a foreign key are.
+
+You need a real client talking to a real local database, not a GUI that hides the SQL from you. Two good options:
+
+**SQLite CLI** (`sqlite3`) — a single binary, no server to install or configure. Perfect for learning. A SQLite database is just a file on disk.
+
+**psql** — the PostgreSQL client. Requires a running Postgres server, but the SQL you write in psql is closer to what you'll use in production.
+
+Everything in this lesson uses `sqlite3` because it needs zero setup. The SQL is standard enough to transfer directly to psql; where the two diverge (auto-incrementing keys, CLI commands) it's called out.
+
+Open a terminal and start a fresh database:
+
+```bash
+sqlite3 store.db
+```
+
+You're now inside an interactive SQL shell against the file `store.db`. Dot-commands (no semicolon) control the shell itself; everything else is SQL (semicolon-terminated) sent to the database.
+
+| Task | sqlite3 | psql |
+|---|---|---|
+| List tables | `.tables` | `\dt` |
+| Show a table's schema | `.schema orders` | `\d orders` |
+| Format query output as a table | `.mode column` `.headers on` | (default) |
+| Run a `.sql` file | `.read setup.sql` | `\i setup.sql` |
+| Exit | `.quit` | `\q` |
+
+Type `.mode column` and `.headers on` now — it makes query results readable.
+
+## Primary keys and foreign keys
+
+A **primary key** is the column (or columns) that uniquely identifies a row in a table. No two rows share a primary key value, and it can never be null.
+
+A **foreign key** is a column in one table that holds the primary key value of a row in another table. It's how one row *points to* another, and the database can enforce that the pointer is never dangling (you can't reference a customer that doesn't exist).
+
+```sql
+CREATE TABLE customers (
+  customer_id INTEGER PRIMARY KEY,
+  name        TEXT NOT NULL,
+  email       TEXT NOT NULL UNIQUE
+);
+
+CREATE TABLE orders (
+  order_id    INTEGER PRIMARY KEY,
+  customer_id INTEGER NOT NULL REFERENCES customers(customer_id),
+  order_date  TEXT NOT NULL
+);
+```
+
+`orders.customer_id` is a foreign key referencing `customers.customer_id`. With foreign keys enforced (`PRAGMA foreign_keys = ON;` in sqlite3 — off by default, on by default in Postgres), inserting an order with `customer_id = 999` fails unless customer 999 exists. That constraint is the database protecting you from orphaned data.
+
+## Normalization: from one messy table to a real schema
+
+Normalization is the process of structuring tables so each fact is stored in exactly one place. Here's the anti-pattern almost every beginner starts with — one flat table for an online store's orders:
+
+```sql
+CREATE TABLE orders_flat (
+  order_id            INTEGER,
+  order_date          TEXT,
+  customer_name       TEXT,
+  customer_email      TEXT,
+  product_name        TEXT,
+  product_price_cents INTEGER,
+  quantity            INTEGER
+);
+```
+
+Sample rows:
+
+```
+order_id | order_date | customer_name | customer_email      | product_name       | product_price_cents | quantity
+101      | 2026-01-05 | Ava Chen      | ava@example.com     | Wireless Mouse      | 2500                | 2
+101      | 2026-01-05 | Ava Chen      | ava@example.com     | USB-C Hub           | 3400                | 1
+102      | 2026-02-14 | Ava Chen      | ava@example.com     | Mechanical Keyboard | 8900                | 1
+```
+
+This is **1NF-broken if** a column ever holds multiple values (say, a `products` column of `"Mouse, Hub"`). Here every column is atomic, so it's already in 1NF. The real problems show up next:
+
+**2NF violation** — think of the natural key of a line item as `(order_id, product_name)`. But `customer_name` and `customer_email` depend only on `order_id`, not on the full key (they don't change per product). That's a *partial dependency* on part of the key — a 2NF violation. Fix: pull order-level facts out of the line-item table.
+
+**3NF violation** — even after that split, an `orders` table with `(order_id, order_date, customer_name, customer_email)` has a problem: `customer_email` depends on `customer_name`, which is a non-key attribute, not on `order_id` directly. That's a *transitive dependency* — a 3NF violation. Fix: give customers their own table with their own key, and reference it.
+
+Apply both fixes and you land on this schema — the "after":
+
+```sql
+CREATE TABLE customers (
+  customer_id INTEGER PRIMARY KEY,
+  name        TEXT NOT NULL,
+  email       TEXT NOT NULL UNIQUE
+);
+
+CREATE TABLE products (
+  product_id  INTEGER PRIMARY KEY,
+  name        TEXT NOT NULL,
+  price_cents INTEGER NOT NULL
+);
+
+CREATE TABLE orders (
+  order_id    INTEGER PRIMARY KEY,
+  customer_id INTEGER NOT NULL REFERENCES customers(customer_id),
+  order_date  TEXT NOT NULL
+);
+
+CREATE TABLE order_items (
+  order_id   INTEGER NOT NULL REFERENCES orders(order_id),
+  product_id INTEGER NOT NULL REFERENCES products(product_id),
+  quantity   INTEGER NOT NULL,
+  PRIMARY KEY (order_id, product_id)
+);
+```
+
+Notice `order_items` has a **composite primary key**: `(order_id, product_id)`. That's not arbitrary — it directly enforces the real-world rule "a given product appears at most once per order." No separate surrogate ID needed; the natural uniqueness constraint *is* the key.
+
+Now a customer's email lives in exactly one row. Update it once, and every order automatically reflects the change — there's nothing to keep in sync, because there's nothing duplicated.
+
+## Loading data through the CLI, end to end
+
+Still inside `sqlite3 store.db` (or piping a `.sql` file with `.read`), run the `CREATE TABLE` statements above, then populate them:
+
+```sql
+INSERT INTO customers (customer_id, name, email) VALUES
+  (1, 'Ava Chen',   'ava@example.com'),
+  (2, 'Marcus Lee', 'marcus@example.com'),
+  (3, 'Priya Singh','priya@example.com');
+
+INSERT INTO products (product_id, name, price_cents) VALUES
+  (1, 'Wireless Mouse',      2500),
+  (2, 'Mechanical Keyboard', 8900),
+  (3, 'USB-C Hub',           3400),
+  (4, 'Webcam 1080p',        4200);
+
+INSERT INTO orders (order_id, customer_id, order_date) VALUES
+  (101, 1, '2026-01-05'),
+  (102, 1, '2026-02-14'),
+  (103, 2, '2026-02-20');
+
+INSERT INTO order_items (order_id, product_id, quantity) VALUES
+  (101, 1, 2),
+  (101, 3, 1),
+  (102, 2, 1),
+  (103, 2, 1),
+  (103, 4, 1);
+```
+
+Priya (customer 3) deliberately has no orders — you'll need her for `LEFT JOIN` below. Verify with `.tables` and `SELECT * FROM customers;`.
+
+## SELECT, WHERE, ORDER BY
+
+```sql
+SELECT name, price_cents
+FROM products
+WHERE price_cents < 4000
+ORDER BY price_cents DESC;
+```
+
+```
+name            price_cents
+--------------  -----------
+USB-C Hub       3400
+Wireless Mouse  2500
+```
+
+`WHERE` filters rows before anything else happens; `ORDER BY` sorts the final result set. `ORDER BY price_cents DESC` means highest price first.
+
+## JOIN across multiple tables
+
+A `JOIN` combines rows from two tables based on a matching condition — almost always a foreign key matching a primary key. To answer "show every order line with the customer's name and the product's name," you need three tables:
+
+```sql
+SELECT
+  c.name        AS customer,
+  o.order_date,
+  p.name        AS product,
+  oi.quantity,
+  oi.quantity * p.price_cents AS line_total_cents
+FROM orders o
+JOIN customers c   ON c.customer_id = o.customer_id
+JOIN order_items oi ON oi.order_id = o.order_id
+JOIN products p    ON p.product_id = oi.product_id
+ORDER BY o.order_id, p.name;
+```
+
+```
+customer   order_date  product               quantity  line_total_cents
+---------  ----------  --------------------  --------  ----------------
+Ava Chen   2026-01-05  USB-C Hub             1         3400
+Ava Chen   2026-01-05  Wireless Mouse        2         5000
+Ava Chen   2026-02-14  Mechanical Keyboard   1         8900
+Marcus Lee 2026-02-20  Mechanical Keyboard   1         8900
+Marcus Lee 2026-02-20  Webcam 1080p          1         4200
+```
+
+Four tables, one query, because a real order needs the order, the customer, the line items, and the products — none of that data lives in one table anymore, by design.
+
+## GROUP BY and aggregates
+
+`GROUP BY` collapses many rows into one row per group, computed with an aggregate function (`SUM`, `COUNT`, `AVG`, `MAX`, `MIN`). Total revenue per customer:
+
+```sql
+SELECT
+  c.name,
+  SUM(oi.quantity * p.price_cents) AS total_cents
+FROM customers c
+JOIN orders o        ON o.customer_id = c.customer_id
+JOIN order_items oi  ON oi.order_id = o.order_id
+JOIN products p      ON p.product_id = oi.product_id
+GROUP BY c.customer_id
+ORDER BY total_cents DESC;
+```
+
+```
+name        total_cents
+----------  -----------
+Ava Chen    17300
+Marcus Lee  13100
+```
+
+Priya is missing — every `JOIN` here is an `INNER JOIN` (the default), which only keeps rows with a match on *both* sides. Priya has no orders, so she never matches, so she's dropped.
+
+To include her (customers with zero orders shown as zero), switch the first join to `LEFT JOIN`, which keeps every row from the left table even without a match, filling unmatched columns with `NULL`:
+
+```sql
+SELECT
+  c.name,
+  COALESCE(SUM(oi.quantity * p.price_cents), 0) AS total_cents
+FROM customers c
+LEFT JOIN orders o       ON o.customer_id = c.customer_id
+LEFT JOIN order_items oi ON oi.order_id = o.order_id
+LEFT JOIN products p     ON p.product_id = oi.product_id
+GROUP BY c.customer_id
+ORDER BY total_cents DESC;
+```
+
+Now Priya appears with `0`. `COALESCE` swaps a `NULL` (what `SUM` returns over zero rows) for `0`.
+
+`HAVING` filters *after* grouping, the way `WHERE` filters before it — "only customers who spent over 15000 cents":
+
+```sql
+SELECT c.name, SUM(oi.quantity * p.price_cents) AS total_cents
+FROM customers c
+JOIN orders o        ON o.customer_id = c.customer_id
+JOIN order_items oi  ON oi.order_id = o.order_id
+JOIN products p      ON p.product_id = oi.product_id
+GROUP BY c.customer_id
+HAVING SUM(oi.quantity * p.price_cents) > 15000;
+```
+
+You can't write `WHERE SUM(...) > 15000` — `WHERE` runs before aggregates exist. That's exactly what `HAVING` is for.
+
+## Exercise
+
+Using the `store.db` schema and data above, write one query that lists every product's name alongside the **total quantity sold across all orders**, including products that have never been ordered at all (they should show `0`), ordered from best-selling to worst.
+
+Hint: you're joining *from* `products`, not from `orders` — the direction of a `LEFT JOIN` matters, because it's the table on the left whose rows are all preserved. You'll need `LEFT JOIN`, `GROUP BY`, and either `COALESCE` or `SUM(COALESCE(oi.quantity, 0))`.

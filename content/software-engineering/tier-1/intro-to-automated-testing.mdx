@@ -1,0 +1,236 @@
+---
+trackId: software-engineering
+tier: 1
+title: "Intro to Automated Testing"
+order: 2
+estimatedHours: 6
+slug: intro-to-automated-testing
+---
+
+## Why Manual Testing Stops Working
+
+When your program is 40 lines long, you can "test" it by running it and looking at the output. When it's 4,000 lines long, spread across a dozen files, and three other people are also changing it, manual testing breaks down in a specific, predictable way: every change you make can silently break something far away from the line you edited. You changed how `calculate_discount` rounds cents, and three weeks later someone discovers the invoice totals are wrong — but nobody connects it back to your commit, because nobody re-checked invoices by hand after every change. They can't; there isn't time.
+
+This is the core problem automated testing solves: **it lets you re-verify old behavior at the cost of a few seconds, instead of the cost of a human re-clicking through the app.** A test you wrote six months ago still runs today, still checks the same thing, and still costs nothing but CPU time. That's the whole value proposition. Everything else in this lesson is mechanics in service of that one idea.
+
+## What a Unit Test Actually Is
+
+A **unit test** is a small, automated piece of code that calls one unit of your program — typically a single function or method — and checks that it behaves correctly for a specific input, in isolation from the rest of the system (no real database, no real network call, no real filesystem). Three properties matter:
+
+- **Fast.** A suite of hundreds of unit tests should run in seconds, not minutes, so you run it constantly.
+- **Isolated.** Each test should be independent — running test A shouldn't affect whether test B passes, and a test shouldn't depend on the order tests run in.
+- **Deterministic.** The same code, run twice, gives the same pass/fail result. A test that sometimes passes and sometimes fails ("flaky") is worse than no test — it trains you to ignore red.
+
+Contrast this with **integration tests** (which exercise several units together, sometimes with a real database) and **end-to-end tests** (which drive the whole system, like a browser clicking through your UI). Those have their place, but they're slower and harder to isolate, so a healthy test suite has far more unit tests than either — this is often drawn as a pyramid, with unit tests as the wide base.
+
+## Arrange-Act-Assert
+
+Nearly every well-written test follows the same three-part shape, called **Arrange-Act-Assert (AAA)**:
+
+1. **Arrange** — set up the inputs and any objects you need.
+2. **Act** — call the one thing you're testing.
+3. **Assert** — check that the result is what you expected.
+
+Here's a pure function and a test for it, in Python:
+
+```python
+# discounts.py
+def calculate_discount(price_cents: int, percent_off: int) -> int:
+    if not 0 <= percent_off <= 100:
+        raise ValueError("percent_off must be between 0 and 100")
+    return price_cents - (price_cents * percent_off // 100)
+```
+
+```python
+# test_discounts.py
+from discounts import calculate_discount
+
+def test_calculate_discount_applies_percentage():
+    # Arrange
+    price_cents = 2000
+    percent_off = 25
+
+    # Act
+    result = calculate_discount(price_cents, percent_off)
+
+    # Assert
+    assert result == 1500
+```
+
+Keep these three sections visually separate, even with blank lines or comments, in every test you write. When a test is hard to split into AAA, that's usually a sign the function under test is doing too many things at once — the test is telling you something about your design, not just about correctness.
+
+**Test-Driven Development (TDD)** flips the usual order: you write the failing test *first* (red), write the minimum code to make it pass (green), then clean the code up while the test keeps you honest (refactor). You'll practice this red-green-refactor loop directly in later modules; for now, just recognize the cycle — writing the test first forces you to decide what "correct" means before you're biased by whatever code you already wrote.
+
+## pytest, End to End
+
+`pytest` is the standard Python test runner. Install it and set up a project like this:
+
+```bash
+pip install pytest
+```
+
+```
+project/
+  discounts.py
+  test_discounts.py
+```
+
+pytest discovers tests automatically using two rules: files named `test_*.py` (or `*_test.py`), and functions inside them named `test_*`. No test class, no registration, no imports of a testing framework beyond `pytest` itself for helpers like `pytest.raises`. Plain `assert` is all you need — pytest rewrites it to show you exactly which values didn't match on failure.
+
+Run the suite from the project root:
+
+```bash
+pytest -v
+```
+
+```
+test_discounts.py::test_calculate_discount_applies_percentage PASSED
+```
+
+Break the function on purpose (change `//` to `/`) and rerun — pytest shows you the expected value, the actual value, and the exact line, without you writing any of that reporting yourself:
+
+```
+    def test_calculate_discount_applies_percentage():
+        ...
+>       assert result == 1500
+E       assert 1500.0 == 1500
+
+test_discounts.py:8: AssertionError
+```
+
+Two features you'll use constantly:
+
+**`pytest.mark.parametrize`** runs the same test body against a table of inputs, so you don't copy-paste near-identical tests:
+
+```python
+import pytest
+from discounts import calculate_discount
+
+@pytest.mark.parametrize("price,percent,expected", [
+    (2000, 25, 1500),
+    (2000, 0, 2000),
+    (2000, 100, 0),
+    (999, 10, 900),
+])
+def test_calculate_discount(price, percent, expected):
+    assert calculate_discount(price, percent) == expected
+
+def test_calculate_discount_rejects_invalid_percent():
+    with pytest.raises(ValueError):
+        calculate_discount(2000, 150)
+```
+
+**Fixtures** (`@pytest.fixture`) build shared setup once and hand it to any test that asks for it by parameter name, instead of repeating Arrange code everywhere:
+
+```python
+import pytest
+
+@pytest.fixture
+def sample_cart():
+    return {"WIDGET-1": 3, "GADGET-2": 1}
+
+def test_cart_has_two_line_items(sample_cart):
+    assert len(sample_cart) == 2
+```
+
+pytest exits with status 0 if every test passes and non-zero otherwise — that's the exit code your CI pipeline checks to decide whether a build is green.
+
+## Test Doubles: Stubs vs. Mocks
+
+Real code depends on things that are slow, unreliable, or have side effects in the real world: databases, payment APIs, email servers, clocks. You don't want your unit tests hitting a real email server — that's slow, it costs money, and it fails in CI when there's no network. Instead, you substitute a fake, controlled version: a **test double**.
+
+Two kinds matter most at this stage, and they're not interchangeable:
+
+- **A stub** is a double that returns canned answers. You use it when your code *depends on data* from a collaborator and you just need that data to be predictable. You never assert anything about the stub itself — it's a prop.
+- **A mock** is a double that records how it was called, so you can assert on that afterward. You use it when your code's job is to *cause an effect* (send an email, write a log, charge a card) and the whole point of the test is verifying that the call happened with the right arguments.
+
+Consider order placement: it needs to check inventory (a question — needs data back) and send a confirmation email (an effect — needs to happen with the right arguments). That difference decides which kind of double each collaborator gets:
+
+```python
+# orders.py
+class InsufficientStockError(Exception):
+    pass
+
+class Order:
+    def __init__(self, sku, quantity):
+        self.sku = sku
+        self.quantity = quantity
+
+def place_order(order, inventory_client, email_client):
+    stock = inventory_client.get_stock(order.sku)
+    if stock < order.quantity:
+        raise InsufficientStockError(f"Only {stock} left of {order.sku}")
+    email_client.send_confirmation(order.sku, order.quantity)
+    return True
+```
+
+```python
+# test_orders.py
+import pytest
+from orders import Order, place_order, InsufficientStockError
+
+class StubInventoryClient:
+    """Returns a canned stock level. We never assert on this object."""
+    def __init__(self, stock_level):
+        self.stock_level = stock_level
+
+    def get_stock(self, sku):
+        return self.stock_level
+
+class MockEmailClient:
+    """Records every call so the test can verify behavior afterward."""
+    def __init__(self):
+        self.sent = []
+
+    def send_confirmation(self, sku, quantity):
+        self.sent.append((sku, quantity))
+
+def test_place_order_succeeds_and_emails_confirmation():
+    order = Order(sku="WIDGET-1", quantity=3)
+    inventory = StubInventoryClient(stock_level=10)
+    email = MockEmailClient()
+
+    result = place_order(order, inventory, email)
+
+    assert result is True
+    assert email.sent == [("WIDGET-1", 3)]
+
+def test_place_order_raises_when_stock_too_low_and_sends_no_email():
+    order = Order(sku="WIDGET-1", quantity=5)
+    inventory = StubInventoryClient(stock_level=2)
+    email = MockEmailClient()
+
+    with pytest.raises(InsufficientStockError):
+        place_order(order, inventory, email)
+
+    assert email.sent == []
+```
+
+Notice what each double is doing. `StubInventoryClient` never appears in an assertion — it exists only so `place_order` has *something* to call `get_stock` on, and we control what number comes back to steer the test down the branch we want (enough stock vs. not enough). `MockEmailClient` is the opposite: the entire second half of the first test is an assertion *about the mock* — did `send_confirmation` get called, and with what arguments? If you swapped the roles — made inventory a mock and email a stub — you'd be asserting on the wrong thing: checking whether `get_stock` was "called correctly" tells you nothing useful (of course it was called, that's how the function got its answer), while failing to check whether the email actually went out would let a real bug (customers never get confirmed) sail through green.
+
+This is why the choice isn't stylistic. Ask "does my code need data *from* this collaborator, or does my code need to *cause something* through this collaborator?" Data-in gets a stub. Effect-out gets a mock.
+
+## Exercise
+
+You're building a `PasswordResetService` with this signature:
+
+```python
+def request_password_reset(email, user_lookup, mailer):
+    user = user_lookup.find_by_email(email)
+    if user is None:
+        return False
+    token = "reset-" + str(user["id"])
+    mailer.send_reset_link(email, token)
+    return True
+```
+
+Write a `test_password_reset.py` with pytest that covers:
+
+1. A successful reset: the user exists, and the mailer gets called with the correct email and a token containing that user's id.
+2. A failed lookup: no user with that email exists, the function returns `False`, and — critically — the mailer is never called.
+
+Decide which collaborator (`user_lookup`, `mailer`) needs a stub and which needs a mock, and justify it in a code comment above each fake class before you write it. **Hint:** ask the same question this lesson used for `place_order` — which one hands data *into* the function, and which one is there to cause a side effect the test needs to verify happened (or didn't)?
+
+## Summary
+
+Automated tests replace "run the app and eyeball it" with a cheap, repeatable check that survives every future change. Arrange-Act-Assert gives every test a consistent, readable shape. pytest finds `test_*.py` files and `test_*` functions automatically, runs on a plain `assert`, and gives you `parametrize` and fixtures to avoid repeating setup. When a unit under test depends on something external, replace it with a test double — a stub when you need controlled data back, a mock when you need to verify an effect happened — and choosing the wrong one for the job is itself a bug in your test, not just a style slip.

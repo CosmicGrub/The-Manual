@@ -1,0 +1,216 @@
+---
+trackId: software-engineering
+tier: 1
+title: "Intro to NoSQL"
+order: 6
+estimatedHours: 4
+slug: intro-to-nosql
+---
+
+## Same Data, Two Shapes
+
+Take a blog platform: posts, authors, comments, tags. Here's the relational model, normalized into four tables.
+
+```sql
+CREATE TABLE authors (
+  id SERIAL PRIMARY KEY,
+  name TEXT NOT NULL,
+  email TEXT UNIQUE NOT NULL
+);
+
+CREATE TABLE posts (
+  id SERIAL PRIMARY KEY,
+  author_id INTEGER REFERENCES authors(id),
+  title TEXT NOT NULL,
+  body TEXT NOT NULL,
+  published_at TIMESTAMP
+);
+
+CREATE TABLE comments (
+  id SERIAL PRIMARY KEY,
+  post_id INTEGER REFERENCES posts(id),
+  commenter_name TEXT NOT NULL,
+  body TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT now()
+);
+
+CREATE TABLE tags (
+  id SERIAL PRIMARY KEY,
+  name TEXT UNIQUE NOT NULL
+);
+
+CREATE TABLE post_tags (
+  post_id INTEGER REFERENCES posts(id),
+  tag_id INTEGER REFERENCES tags(id),
+  PRIMARY KEY (post_id, tag_id)
+);
+```
+
+To render one post page you join four tables:
+
+```sql
+SELECT p.title, p.body, a.name AS author,
+       c.commenter_name, c.body AS comment_body,
+       t.name AS tag
+FROM posts p
+JOIN authors a ON a.id = p.author_id
+LEFT JOIN comments c ON c.post_id = p.id
+LEFT JOIN post_tags pt ON pt.post_id = p.id
+LEFT JOIN tags t ON t.id = pt.tag_id
+WHERE p.id = 42;
+```
+
+That query returns a ragged result set (one row per comment/tag combination) that your app code has to reassemble into a single "post" object.
+
+Now the same domain as a MongoDB document. Instead of normalizing, you embed the things that are always read together with the post:
+
+```javascript
+db.posts.insertOne({
+  _id: 42,
+  title: "Why We Switched Build Tools",
+  body: "...",
+  author: { name: "Priya Shah", email: "priya@example.com" },
+  publishedAt: ISODate("2026-03-01T00:00:00Z"),
+  tags: ["engineering", "tooling"],
+  comments: [
+    { commenterName: "Dev", body: "Great writeup!", createdAt: ISODate("2026-03-02T00:00:00Z") },
+    { commenterName: "Sam", body: "Curious about vite vs esbuild.", createdAt: ISODate("2026-03-02T10:00:00Z") }
+  ]
+})
+```
+
+One `findOne({ _id: 42 })` returns the whole page, already shaped the way the app will render it. No joins, no reassembly.
+
+The cost is duplication: the author's name is copied into every post they write. Rename the author and you must update every embedded copy (or accept staleness). The relational model pays that cost the opposite way — normalized once, but reconstructing the page costs a four-way join every single read. Neither model is "right." You're choosing which operation gets to be cheap: writes-with-integrity, or reads-with-no-assembly.
+
+## When NoSQL Actually Earns Its Place
+
+"NoSQL is for big data" is not a real reason. A properly indexed PostgreSQL table handles billions of rows without blinking — plenty of the largest systems in the world run on it. And a single, unsharded MongoDB instance isn't inherently faster than Postgres at the same job. Scale is not the deciding factor. Shape and access pattern are.
+
+Reach for a document store when:
+
+- **Your data is naturally read/written as one nested object**, and that object's shape varies instance to instance. A product catalog is the classic case: a laptop has RAM and screen size, a t-shirt has size and color, a book has ISBN and page count. In SQL you'd either build an EAV (entity-attribute-value) table, litter the products table with dozens of nullable columns, or split into per-category tables. In MongoDB each product document just has the fields relevant to it.
+- **You don't need cross-entity transactional integrity.** If "delete this post" doesn't need to atomically reconcile balances across five other tables, you don't need the guarantees SQL exists to provide.
+- **Your schema will keep changing during active development**, and stopping to write and run a migration for every new field is real friction you want to avoid short-term.
+
+Reach for (or stay with) a relational database when:
+
+- **Correctness under concurrent writes matters.** A bank transfer that debits one account and credits another must happen atomically, or money disappears. That's a multi-table `BEGIN...COMMIT` transaction with real isolation guarantees — exactly what SQL databases are built for.
+- **You need ad hoc, cross-entity queries** — reporting, analytics joins across many normalized tables, "give me every customer who bought X and later returned Y." Relational engines and SQL's query planner are built for exactly this; recreating it in application code over denormalized documents is painful.
+- **Data integrity rules span entities** — foreign keys, uniqueness across tables, check constraints. The database enforces these for you instead of every code path having to remember to.
+
+In practice, most real systems use both: Postgres for orders, inventory, and billing; MongoDB or Redis for session data, product catalogs, or activity feeds. This is called polyglot persistence, and it's the normal, boring answer — not a compromise.
+
+## CRUD in MongoDB
+
+Using `mongosh` (the Mongo shell) against a `products` collection:
+
+```javascript
+// Create
+db.products.insertOne({
+  name: "Wireless Mouse",
+  price: 24.99,
+  category: "electronics",
+  specs: { wireless: true, battery: "AA x2" },
+  tags: ["accessories"]
+})
+
+db.products.insertMany([
+  { name: "Desk Lamp", price: 19.50, category: "home", specs: { wattage: 9 } },
+  { name: "Notebook", price: 3.25, category: "office", specs: { pages: 120 } }
+])
+
+// Read
+db.products.find({ category: "electronics" })
+db.products.findOne({ name: "Wireless Mouse" })
+db.products.find({ price: { $lt: 20 } }).sort({ price: 1 })
+db.products.find({}, { name: 1, price: 1, _id: 0 })  // projection
+
+// Update
+db.products.updateOne(
+  { name: "Wireless Mouse" },
+  { $set: { price: 19.99 }, $push: { tags: "sale" } }
+)
+
+db.products.updateMany(
+  { category: "electronics" },
+  { $inc: { price: -2 } }  // price cut across the category
+)
+
+// Delete
+db.products.deleteOne({ name: "Notebook" })
+db.products.deleteMany({ category: "discontinued" })
+```
+
+From an Express app, the same operations go through the official driver:
+
+```javascript
+const { MongoClient } = require("mongodb");
+const client = new MongoClient(process.env.MONGO_URL);
+const db = client.db("shop");
+
+app.get("/products/:id", async (req, res) => {
+  const product = await db.collection("products")
+    .findOne({ _id: new ObjectId(req.params.id) });
+  if (!product) return res.status(404).json({ error: "not found" });
+  res.json(product);
+});
+
+app.patch("/products/:id", async (req, res) => {
+  await db.collection("products").updateOne(
+    { _id: new ObjectId(req.params.id) },
+    { $set: req.body }
+  );
+  res.sendStatus(204);
+});
+```
+
+## Schema-on-Write vs. Schema-on-Read
+
+A relational table is **schema-on-write**: you declare columns and types before any row exists, and the database rejects anything that doesn't fit at insert time. A document collection is **schema-on-read**: MongoDB will happily store whatever shape of document you hand it, and the "schema" only exists as an agreement your application code enforces when it reads the data back.
+
+Concrete scenario: you're logging product-page analytics events. Early on, every event looks like this:
+
+```javascript
+{ type: "page_view", userId: 501, url: "/products/42", ts: ISODate() }
+```
+
+Three months later, product asks for purchase and signup events too:
+
+```javascript
+{ type: "purchase", userId: 501, orderId: "ORD-9981", amount: 42.50, ts: ISODate() }
+{ type: "signup", email: "new@user.com", referrer: "twitter", ts: ISODate() }
+```
+
+In schema-on-read (Mongo), you just start inserting these — no migration, no downtime, no coordinating a deploy with a DBA. That's the entire appeal.
+
+The bill comes due on the read side. Every piece of code that queries this collection now has to branch on `type` and defensively check which fields exist:
+
+```javascript
+const events = await db.collection("events").find({ userId: 501 }).toArray();
+for (const e of events) {
+  if (e.type === "purchase" && typeof e.amount === "number") {
+    total += e.amount;
+  }
+  // what if a future event misspells "amount" as "amout"? Nothing stops it.
+  // what if an old event has no "type" field at all because it predates this scheme?
+}
+```
+
+In schema-on-write, the equivalent would force you to decide up front: separate `purchases` and `signups` tables, or one `events` table with a fixed set of nullable columns and a `CHECK` constraint on `type`. Adding a new event type means a migration — slower, but the database now guarantees every row matches the shape your code assumes, and a typo'd column name fails immediately at write time instead of silently producing `undefined` months later in a report.
+
+Neither approach removes the need for structure — it only decides when the structure is enforced, and who pays the cost of getting it wrong. Schema-on-write pays it early and loudly (failed inserts, migration overhead). Schema-on-read pays it late and quietly (defensive read code, silent data drift) in exchange for faster iteration up front.
+
+## Exercise
+
+Model a `course_enrollments` feature for an online learning platform, two ways:
+
+1. As relational tables (`students`, `courses`, `enrollments`, and however you represent per-lesson progress).
+2. As a single MongoDB document shape for one student's enrollment in one course, embedding what belongs together.
+
+Then write:
+- The SQL query that fetches a student's progress across all their enrolled courses.
+- The equivalent `find` in MongoDB.
+- One `updateOne` that marks a specific lesson complete inside the embedded progress array.
+
+**Hint:** for the MongoDB update, you'll need the positional `$` operator or `$elemMatch` in your filter to update one element inside an array without touching the others — a plain `$set` on the whole array will overwrite everything.

@@ -1,0 +1,98 @@
+[
+  {
+    "id": "software-engineering/tier-1/git-deep-dive-branching-merging-and-collaboration/q1",
+    "type": "multiple_choice",
+    "prompt": "You run `git merge feature/x` while on `main`. What does this do to the commit graph, assuming there is no conflict?",
+    "choices": [
+      "It creates a new commit with two parents, joining the tip of main and the tip of feature/x, and leaves all existing commit hashes unchanged",
+      "It rewrites every commit on feature/x with a new hash and places them directly after the tip of main",
+      "It deletes feature/x and copies its file contents into main as a single new commit",
+      "It does nothing until you also run git commit --merge"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "software-engineering/tier-1/git-deep-dive-branching-merging-and-collaboration/q2",
+    "type": "multiple_choice",
+    "prompt": "You're on feature/x, which branched from main three commits ago. You run `git rebase main`. What happens to commits D, E, F (your feature/x commits)?",
+    "choices": [
+      "They are replayed on top of the current tip of main as new commits (D', E', F') with new hashes; feature/x now points at F'",
+      "They are merged into main using a single merge commit, and their original hashes are preserved",
+      "They are deleted, and main's changes are copied into feature/x instead",
+      "Nothing changes until you also run git merge --continue"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "software-engineering/tier-1/git-deep-dive-branching-merging-and-collaboration/q3",
+    "type": "multiple_choice",
+    "prompt": "What is the core reason you should not rebase a branch that other people have already pulled a copy of?",
+    "choices": [
+      "Rebase gives those commits new hashes, so your rebased branch and their existing copy no longer share history, causing duplicated commits when reconciled",
+      "Rebase permanently deletes the affected files from the remote repository",
+      "Rebase requires admin permissions that most collaborators don't have",
+      "Rebase only works on branches with zero commits ahead of main"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "software-engineering/tier-1/git-deep-dive-branching-merging-and-collaboration/q4",
+    "type": "multiple_choice",
+    "prompt": "Mid-merge-conflict, a file contains:\n\n<<<<<<< HEAD\nport = 8080\n=======\nport = 3000\n>>>>>>> feature/ports\n\nYou are currently on the main branch. Which value does `port = 8080` represent?",
+    "choices": [
+      "main's current value (the branch you have checked out, i.e. HEAD)",
+      "feature/ports' value",
+      "The value from the most recent common ancestor commit",
+      "An automatically merged average of both branches"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "software-engineering/tier-1/git-deep-dive-branching-merging-and-collaboration/q5",
+    "type": "multiple_choice",
+    "prompt": "After manually editing a conflicted file to resolve the conflict, what is the correct next step before running `git commit`?",
+    "choices": [
+      "git add <the resolved file>",
+      "git merge --abort",
+      "git rebase --continue",
+      "Nothing \u2014 git commit alone will detect the resolution automatically"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "software-engineering/tier-1/git-deep-dive-branching-merging-and-collaboration/q6",
+    "type": "multiple_choice",
+    "prompt": "A PR reviewer writes a comment prefixed with \"nit:\". What is this conventionally signaling to the author?",
+    "choices": [
+      "This is a minor, non-blocking suggestion the author can address or skip without holding up the merge",
+      "This issue must be fixed before the PR can be approved",
+      "The reviewer is requesting the entire PR be closed",
+      "The comment applies to a different PR and was posted by mistake"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "software-engineering/tier-1/git-deep-dive-branching-merging-and-collaboration/q7",
+    "type": "multiple_choice",
+    "prompt": "A commit message ends with the line \"Refs #88\". What happens to issue #88 when this commit merges into the default branch?",
+    "choices": [
+      "Nothing \u2014 the issue stays open; the commit is just linked to it for traceability",
+      "Issue #88 is automatically closed",
+      "Issue #88 is automatically reassigned to the commit author",
+      "A new issue is automatically created as a duplicate of #88"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "software-engineering/tier-1/git-deep-dive-branching-merging-and-collaboration/q8",
+    "type": "multiple_choice",
+    "prompt": "You're about to open a PR and want to incorporate teammates' recent changes to main into your feature branch first, keeping history linear with no merge commit. What should you run?",
+    "choices": [
+      "git checkout feature/x, then git rebase main",
+      "git checkout main, then git merge feature/x",
+      "git push --force origin main",
+      "git commit --amend main"
+    ],
+    "correctIndex": 0
+  }
+]

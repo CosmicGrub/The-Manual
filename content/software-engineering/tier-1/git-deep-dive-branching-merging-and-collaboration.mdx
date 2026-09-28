@@ -1,0 +1,188 @@
+---
+trackId: software-engineering
+tier: 1
+title: "Git Deep Dive: Branching, Merging & Collaboration"
+order: 1
+estimatedHours: 6
+slug: git-deep-dive-branching-merging-and-collaboration
+---
+
+## Feature Branches: Isolating Work
+
+Tier 0 had you doing `git add` / `git commit` / `git push` on a single branch. Real projects don't work that way — nobody commits directly to `main`. Instead, every unit of work gets its own **feature branch**, built off the latest `main`, developed in isolation, and merged back in only after review.
+
+```bash
+git checkout main
+git pull origin main          # make sure your main is current before branching
+git checkout -b feature/user-avatar-upload
+```
+
+`checkout -b` creates the branch and switches to it in one step. The modern equivalent is `git switch -c feature/user-avatar-upload` — same result, newer command, use whichever your team prefers.
+
+A good feature branch is small and single-purpose. `feature/user-avatar-upload` is a good name — it says exactly what's in it. `feature/fixes` is not. If you can't summarize a branch's purpose in five words, it's probably doing too much and should be split.
+
+Once you're done:
+
+```bash
+git push -u origin feature/user-avatar-upload
+```
+
+`-u` (`--set-upstream`) links your local branch to a remote branch of the same name, so future `git push` and `git pull` on this branch don't need arguments.
+
+Branches are cheap — creating one costs nothing but a pointer. Cutting a new branch for every piece of work, however small, costs you nothing and buys you the ability to abandon or restart without touching `main`.
+
+## Merge vs Rebase: What Each One Actually Does
+
+This is the part people memorize commands for without understanding, and then get burned by. So: what literally happens to the commit graph.
+
+Say `main` and your branch `feature/x` diverged three commits ago:
+
+```
+main:     A---B---C
+               \
+feature/x:      D---E---F
+```
+
+**`git merge`** (run from `main`: `git merge feature/x`) creates a new commit with **two parents** — the tip of `main` and the tip of `feature/x` — that ties the two histories together:
+
+```
+main:     A---B---C-------G   (G is the merge commit)
+               \         /
+feature/x:      D---E---F
+```
+
+Nothing is rewritten. Every commit keeps its original hash. The graph shows, truthfully, that this work happened on a separate branch and was joined at a specific point. That's valuable information — it's an honest record of what happened.
+
+**`git rebase`** (run from `feature/x`: `git rebase main`) takes your commits `D`, `E`, `F` and **replays them one at a time** on top of the current tip of `main`, as if you'd started your branch just now instead of three commits ago:
+
+```
+main:     A---B---C
+                    \
+feature/x:           D'---E'---F'
+```
+
+`D'`, `E'`, `F'` are *new commits* — same changes, same messages, but new hashes, because their parent changed. The original `D`, `E`, `F` still technically exist until garbage collected, but your branch no longer points at them. History is now linear — it reads as if you wrote `D`, `E`, `F` directly on top of `C`, with no fork at all.
+
+**When to reach for which:**
+
+- **Rebase your own feature branch onto `main` before opening a PR**, to pick up teammates' changes without a merge commit cluttering the log: `git checkout feature/x && git rebase main`.
+- **Merge when integrating a finished, reviewed feature into `main`.** This is usually done by clicking "Merge pull request" on GitHub, which runs the equivalent of `git merge --no-ff`.
+- **Never rebase commits that have been pushed and that anyone else might have based work on.** Rebasing rewrites hashes. If someone else pulled your branch before you rebase it, their copy and your new copy no longer share history, and reconciling the two is a mess of duplicate commits. This is *the* rule: rebase freely on branches only you touch; merge (never rebase) anything shared.
+
+A practical corollary: `git pull` by default does a fetch + merge, which creates a merge commit if `main` moved while you were working. Many teams instead run `git pull --rebase`, which fetches and replays your unpushed local commits on top — cleaner history, same "only rewrites commits nobody else has" safety, because those commits were never pushed.
+
+## Resolving a Merge Conflict By Hand
+
+Conflicts happen when two branches change the *same lines* of the *same file* differently. `git mergetool` launches a GUI, which is fine, but you need to be able to do this with a text editor, because that's what actually teaches you what a conflict *is*.
+
+Set up the scenario. `main` has this in `config.py`:
+
+```python
+TIMEOUT_SECONDS = 30
+```
+
+On `feature/x`, you changed it to `60`. Meanwhile someone merged a change straight to `main` that set it to `45`. Now you try to bring `main` into your branch:
+
+```bash
+git checkout feature/x
+git merge main
+```
+
+Git stops and tells you:
+
+```
+Auto-merging config.py
+CONFLICT (content): Merge conflict in config.py
+Automatic merge failed; fix conflicts and then commit the result.
+```
+
+Run `git status` — it lists `config.py` under "Unmerged paths". Open the file. Git has inserted conflict markers directly into it:
+
+```python
+<<<<<<< HEAD
+TIMEOUT_SECONDS = 60
+=======
+TIMEOUT_SECONDS = 45
+>>>>>>> main
+```
+
+Read this literally: everything between `<<<<<<< HEAD` and `=======` is **your current branch's version** (`HEAD`, i.e. `feature/x`). Everything between `=======` and `>>>>>>> main` is **the incoming branch's version**. Git could not decide which one you want, so it gives you both and steps back.
+
+You resolve it by editing the file to what it *should* say — deleting the markers and picking, combining, or rewriting the content:
+
+```python
+TIMEOUT_SECONDS = 45  # picked main's value after checking with the author
+```
+
+Then tell Git the conflict is resolved and finish the merge:
+
+```bash
+git add config.py
+git status                # confirms config.py now shows as "to be committed"
+git commit                # opens an editor pre-filled with "Merge branch 'main' into feature/x"
+```
+
+You do **not** write a new commit message from scratch — accept Git's generated merge message unless you have a good reason to add detail about how the conflict was resolved.
+
+If a conflict spans multiple files, resolve and `git add` each one before committing; `git status` always tells you what's left. If you get partway through and want out entirely, `git merge --abort` puts you back to exactly where you were before running `git merge`.
+
+Conflicts in real projects are almost always this same pattern: locate the markers, understand which side is "yours" (`HEAD`) and which is "theirs" (the branch name after `>>>>>>>`), decide the correct final content, delete the markers, stage, commit.
+
+## Pull Requests: Opening and Reviewing
+
+A pull request (PR) is a request to merge one branch into another, plus a place to discuss the change before it happens. Workflow:
+
+```bash
+git push -u origin feature/user-avatar-upload
+```
+
+Then, on GitHub, open a PR from `feature/user-avatar-upload` into `main`. Write a description that answers three questions: **what** changed, **why**, and **how to verify it**. A PR titled "fix stuff" with no body forces every reviewer to reverse-engineer your intent from a diff — that's disrespectful of their time.
+
+```markdown
+## What
+Adds avatar upload to the user profile page (drag-and-drop + file picker).
+
+## Why
+Closes #142 — users have been asking for this since the redesign.
+
+## How to test
+1. Go to /profile, click the avatar
+2. Drag a PNG under 5MB onto the dropzone
+3. Confirm it saves and persists on reload
+```
+
+**Review etiquette**, both directions:
+
+As the *author*: keep PRs small — a 40-line diff gets a careful review, an 800-line diff gets a skim and a rubber-stamp approval, which defeats the point. Respond to every comment, even just "done" or "good catch, fixed in a1b2c3d". If you disagree, say why instead of silently ignoring it. If you push more commits after review has started, don't force-push over them without saying so — reviewers rely on being able to see what changed since their last pass (`git push` normal, non-force, appends new commits so the diff-since-last-review stays intact).
+
+As the *reviewer*: comment on the diff line the issue is on, not in a general "PR comment." Distinguish blocking issues from taste — many teams prefix optional/minor suggestions with `nit:` so the author knows they can ignore it without pushback. Ask questions instead of issuing commands: "what happens if this list is empty?" invites explanation; "this will break on empty lists" invites defensiveness — often the same underlying concern. Use **Approve** when the PR is mergeable as-is (nits aside), **Request changes** when something must be fixed first, and plain **Comment** when you're not blocking but want to flag something. Once concerns are addressed, resolve the conversation thread so the PR view stays readable for the next person.
+
+## Issues, Labels, and Linking Commits to Issues
+
+An **issue** tracks a piece of work — a bug report, a feature request, a task — independent of any specific branch or PR. **Labels** categorize issues so they're filterable: `bug`, `enhancement`, `good-first-issue`, `blocked`, `priority:high`. A well-labeled issue tracker lets you answer "what's left before we ship" without reading every issue's body.
+
+The traceability piece is *linking* — connecting commits and PRs back to the issue they address, so anyone reading history later can find the discussion behind a change. GitHub recognizes specific keywords in commit messages and PR descriptions:
+
+```bash
+git commit -m "Add drag-and-drop avatar upload
+
+Fixes #142"
+```
+
+`Fixes #142`, `Closes #142`, and `Resolves #142` are interchangeable — when this commit (or a PR containing it) merges into the repo's default branch, issue #142 is automatically closed. Use `Refs #142` or `See #142` instead when the commit relates to the issue but shouldn't close it — for example, a partial fix, or an unrelated change that happened to touch the same code.
+
+This matters more than it looks like it does. Six months from now, someone hits a bug, runs `git log` or `git blame` on the offending line, finds the commit — and if that commit says `Fixes #142`, they get the entire original discussion (why the change was made, what was considered, who reviewed it) for free. Without the link, they get a commit message and nothing else.
+
+## Exercise
+
+Set up a local scenario to practice all of this end to end:
+
+1. Initialize a repo with one file, `README.md`, containing a single line, and commit it on `main`.
+2. Create two branches from `main`: `feature/add-title` and `feature/add-description`.
+3. On `feature/add-title`, add a `# Project Name` heading as the *first* line of `README.md` and commit.
+4. On `feature/add-description`, add a one-sentence description as the *first* line of `README.md` (before switching branches — start both from the original `main`) and commit.
+5. Merge `feature/add-title` into `main` cleanly.
+6. Now merge `feature/add-description` into `main` — this should conflict, because both branches touched the first line. Resolve it by hand so the final file has the title *and* the description, in a sensible order.
+7. Write a commit message for the merge that references a fictional issue number with `Closes #1`.
+
+**Hint:** step 6 is the real test. Before resolving, run `git diff` (with no arguments, mid-conflict) — Git will show you a three-way diff that's harder to read than just opening the file directly in an editor and looking at the `<<<<<<<` / `=======` / `>>>>>>>` blocks. Resolve by hand in the editor, don't reach for `--ours` or `--theirs` shortcuts — those discard one side entirely, which is not what you want here since you need content from both.

@@ -1,0 +1,98 @@
+[
+  {
+    "id": "software-engineering/tier-1/relational-databases-and-sql-fundamentals/q1",
+    "type": "multiple_choice",
+    "prompt": "What is the primary purpose of a foreign key column?",
+    "choices": [
+      "To force every value in that column to be unique across the table",
+      "To reference a primary key in another table and let the database enforce that the reference always points to a real row",
+      "To automatically generate a unique ID for each new row",
+      "To make SELECT queries against that table run faster"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-1/relational-databases-and-sql-fundamentals/q2",
+    "type": "multiple_choice",
+    "prompt": "A table keyed on order_id alone has a product_price column whose value depends on a product_name column in that same table, not on order_id directly. This is a textbook violation of which normal form?",
+    "choices": [
+      "1NF",
+      "2NF",
+      "3NF",
+      "There is no violation here"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "software-engineering/tier-1/relational-databases-and-sql-fundamentals/q3",
+    "type": "multiple_choice",
+    "prompt": "Using the customers/products/orders/order_items schema and sample data from this lesson (Ava Chen: order 101 has 2 Wireless Mice at 2500 cents and 1 USB-C Hub at 3400 cents; order 102 has 1 Mechanical Keyboard at 8900 cents), what does the total-revenue-per-customer query return for Ava Chen's total_cents?",
+    "choices": [
+      "8400",
+      "8900",
+      "13100",
+      "17300"
+    ],
+    "correctIndex": 3
+  },
+  {
+    "id": "software-engineering/tier-1/relational-databases-and-sql-fundamentals/q4",
+    "type": "multiple_choice",
+    "prompt": "This query is run against a standard SQL engine:\n\nSELECT c.name, o.order_date, SUM(oi.quantity)\nFROM customers c\nJOIN orders o ON o.customer_id = c.customer_id\nJOIN order_items oi ON oi.order_id = o.order_id\nGROUP BY c.name;\n\nWhat is wrong with it?",
+    "choices": [
+      "JOIN cannot be combined with GROUP BY in the same query",
+      "o.order_date appears in SELECT but is neither in GROUP BY nor wrapped in an aggregate function, so the engine can't determine which order_date to show per group",
+      "SUM cannot be applied to an integer column like quantity",
+      "Nothing is wrong; the query runs and returns correct results"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-1/relational-databases-and-sql-fundamentals/q5",
+    "type": "multiple_choice",
+    "prompt": "You want a report listing every product, including ones that have never appeared in any order_items row, alongside how many times each was ordered (0 for never-ordered products). Starting FROM products, which join to order_items should you use?",
+    "choices": [
+      "INNER JOIN",
+      "LEFT JOIN",
+      "CROSS JOIN with no ON condition",
+      "You cannot get never-ordered products from a join; you need a separate query"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-1/relational-databases-and-sql-fundamentals/q6",
+    "type": "multiple_choice",
+    "prompt": "Given this query, run against the lesson's data where Priya Singh has zero orders:\n\nSELECT c.name, COUNT(*) AS order_count\nFROM customers c\nLEFT JOIN orders o ON o.customer_id = c.customer_id\nGROUP BY c.customer_id;\n\nWhat value does order_count show for Priya Singh, and why?",
+    "choices": [
+      "0, because COUNT(*) skips rows where the joined columns are all NULL",
+      "1, because the LEFT JOIN still produces one row for Priya with NULL order columns, and COUNT(*) counts rows regardless of NULLs",
+      "NULL, because COUNT(*) over an empty group returns NULL",
+      "The query fails with an error because Priya has no matching order"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-1/relational-databases-and-sql-fundamentals/q7",
+    "type": "multiple_choice",
+    "prompt": "Inside an open sqlite3 shell, which dot-command lists the tables in the current database?",
+    "choices": [
+      ".tables",
+      "SHOW TABLES;",
+      "\\dt",
+      ".schema all"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "software-engineering/tier-1/relational-databases-and-sql-fundamentals/q8",
+    "type": "multiple_choice",
+    "prompt": "In the order_items table, the primary key is defined as the composite (order_id, product_id) rather than a separate auto-incrementing id column. Why is that the right choice here?",
+    "choices": [
+      "SQLite does not allow single-column primary keys on tables that have foreign keys",
+      "The real-world rule is 'a product appears at most once per order,' and the composite key enforces exactly that constraint directly",
+      "Composite primary keys are always required on any table referenced by a foreign key",
+      "It makes JOIN queries against order_items run without needing an ON clause"
+    ],
+    "correctIndex": 1
+  }
+]

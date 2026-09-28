@@ -1,0 +1,284 @@
+---
+trackId: software-engineering
+tier: 1
+title: "Building & Consuming a Basic REST API"
+order: 5
+estimatedHours: 8
+slug: building-and-consuming-a-basic-rest-api
+---
+
+## Scope note
+
+This module is about *using* HTTP as an API developer, not about how HTTP moves over a network. TCP/IP, sockets, and DNS resolution are covered in the Hardware & Computer Systems track. Here you only need to know: what a request looks like, what a response looks like, and how to write code that produces and consumes both correctly.
+
+## HTTP verbs: the contract
+
+Every REST API call is a verb plus a resource path. The verb tells the server (and every developer reading the code) what kind of operation this is:
+
+| Verb | Meaning | Idempotent? | Typical body |
+|---|---|---|---|
+| `GET` | Read a resource, no side effects | Yes | none |
+| `POST` | Create a new resource, or trigger an action | No | yes |
+| `PUT` | Replace a resource entirely | Yes | yes |
+| `PATCH` | Partially update a resource | Not guaranteed | yes |
+| `DELETE` | Remove a resource | Yes | usually none |
+
+"Idempotent" means calling it once has the same effect as calling it five times in a row. `DELETE /tasks/7` five times still leaves task 7 gone — the first call deletes it, the rest are no-ops (they'll 404, but the *state* doesn't change further). `POST /tasks` five times creates five tasks. That distinction drives real decisions: browsers and proxies will silently retry idempotent requests on network failure; they won't retry `POST` for you, because retrying could double-create something.
+
+`PUT` vs `PATCH` trips people up: `PUT /tasks/7` with `{"title": "Buy milk"}` should mean "this is now the *entire* task" — anything you don't send is expected to reset to a default. `PATCH /tasks/7` with the same body means "change only `title`, leave everything else alone." Most real-world APIs implement `PUT` loosely (as an upsert-or-patch), but know the distinction — you'll be asked about it.
+
+## Status codes: what to return and why
+
+A status code is not decoration — client code branches on it. Get it wrong and callers can't tell "this failed because you sent bad data" from "this failed because our server is on fire."
+
+| Code | Name | When you return it |
+|---|---|---|
+| 200 | OK | Successful `GET`, `PUT`, `PATCH` |
+| 201 | Created | Successful `POST` that created a resource |
+| 204 | No Content | Successful `DELETE`, or any success with no body |
+| 400 | Bad Request | The request itself is malformed (invalid JSON, wrong type entirely) |
+| 401 | Unauthorized | No valid credentials were provided at all |
+| 403 | Forbidden | Credentials are valid, but this identity can't do this |
+| 404 | Not Found | The resource (or the route) doesn't exist |
+| 405 | Method Not Allowed | The route exists, but not for this verb |
+| 409 | Conflict | The request conflicts with current state (e.g. duplicate unique field) |
+| 422 | Unprocessable Entity | The request is well-formed JSON but fails validation rules |
+| 500 | Internal Server Error | Your code threw an unhandled exception |
+
+The 400 vs 422 line matters for this module specifically: `{title: "no quotes"}` is a 400 (it isn't even valid JSON). `{"title": ""}` is valid JSON but violates "title must be non-empty" — that's a 422. Keeping that distinction lets a client know whether the fix is "parse your JSON correctly" or "check your data."
+
+## Headers you'll actually touch
+
+You don't need the full HTTP spec. You need these:
+
+- **`Content-Type`** — set by the *sender* to say what format the body is in. `application/json` is what you'll use almost everywhere here.
+- **`Accept`** — set by the *client* to say what format it wants back. APIs that support multiple formats read this; most JSON APIs ignore it and always return JSON.
+- **`Authorization`** — carries credentials, typically `Authorization: Bearer <token>` for API keys/tokens, or `Authorization: Basic <base64>` for basic auth.
+- **`User-Agent`** — identifies the calling client. Some public APIs (GitHub included) reject requests with no `User-Agent` at all; most HTTP client libraries set a sane default for you.
+
+If you forget `Content-Type: application/json` on a request with a JSON body, plenty of servers (including the Flask code below) will not parse the body — this is a real, common bug, not a technicality.
+
+## Calling a real API from code
+
+Let's call GitHub's public API — no key needed for basic reads — and handle both the happy path and the failure path.
+
+```python
+import requests
+
+response = requests.get("https://api.github.com/repos/psf/requests")
+response.raise_for_status()  # raises requests.exceptions.HTTPError on 4xx/5xx
+data = response.json()
+
+print(data["full_name"])
+print("stars:", data["stargazers_count"])
+print("open issues:", data["open_issues_count"])
+```
+
+`response.json()` parses the response body as JSON and gives you a Python `dict`/`list`. `raise_for_status()` is the important habit: it turns a 404 or 500 into a Python exception instead of letting you silently work with garbage data.
+
+Here's the failure path, deliberately hitting a repo that doesn't exist:
+
+```python
+import requests
+
+url = "https://api.github.com/repos/doesnotexist/doesnotexist123456"
+response = requests.get(url, headers={"Accept": "application/vnd.github+json"})
+
+try:
+    response.raise_for_status()
+except requests.exceptions.HTTPError:
+    print(f"Request failed with status {response.status_code}")
+    print(response.json())  # GitHub still sends a JSON body: {"message": "Not Found", ...}
+```
+
+Note two things: the status code check happens *before* you trust the body, and even error responses often have a parseable JSON body worth reading (that's where the useful error message usually is).
+
+## Building a minimal CRUD API with Flask
+
+We'll build a `/tasks` resource: list, fetch one, create, update, delete. In-memory storage — no database, that's a later module — but everything else is production-shaped: consistent error envelope, real validation, correct status codes.
+
+```python
+from flask import Flask, request, jsonify
+
+app = Flask(__name__)
+
+tasks = {}
+next_id = 1
+VALID_PRIORITIES = {"low", "medium", "high"}
+
+
+def error_response(status_code, message, details=None):
+    body = {"error": {"code": status_code, "message": message}}
+    if details:
+        body["error"]["details"] = details
+    return jsonify(body), status_code
+
+
+@app.errorhandler(404)
+def not_found(e):
+    return error_response(404, "Resource not found")
+
+
+@app.errorhandler(405)
+def method_not_allowed(e):
+    return error_response(405, "Method not allowed")
+
+
+def validate_task_payload(data, partial=False):
+    if not isinstance(data, dict):
+        return {"_body": "Request body must be a JSON object"}
+
+    errors = {}
+    if not partial or "title" in data:
+        title = data.get("title")
+        if not isinstance(title, str) or not title.strip():
+            errors["title"] = "title is required and must be a non-empty string"
+
+    if "done" in data and not isinstance(data["done"], bool):
+        errors["done"] = "done must be a boolean"
+
+    if "priority" in data and data["priority"] not in VALID_PRIORITIES:
+        errors["priority"] = f"priority must be one of {sorted(VALID_PRIORITIES)}"
+
+    return errors
+
+
+@app.route("/tasks", methods=["GET"])
+def list_tasks():
+    return jsonify(list(tasks.values())), 200
+
+
+@app.route("/tasks/<int:task_id>", methods=["GET"])
+def get_task(task_id):
+    task = tasks.get(task_id)
+    if task is None:
+        return error_response(404, f"Task {task_id} not found")
+    return jsonify(task), 200
+
+
+@app.route("/tasks", methods=["POST"])
+def create_task():
+    global next_id
+    data = request.get_json(silent=True)
+    if data is None:
+        return error_response(400, "Request body must be valid JSON")
+
+    errors = validate_task_payload(data)
+    if errors:
+        return error_response(422, "Validation failed", errors)
+
+    task = {
+        "id": next_id,
+        "title": data["title"].strip(),
+        "done": data.get("done", False),
+        "priority": data.get("priority", "medium"),
+    }
+    tasks[next_id] = task
+    next_id += 1
+    return jsonify(task), 201
+
+
+@app.route("/tasks/<int:task_id>", methods=["PUT", "PATCH"])
+def update_task(task_id):
+    task = tasks.get(task_id)
+    if task is None:
+        return error_response(404, f"Task {task_id} not found")
+
+    data = request.get_json(silent=True)
+    if data is None:
+        return error_response(400, "Request body must be valid JSON")
+
+    partial = request.method == "PATCH"
+    errors = validate_task_payload(data, partial=partial)
+    if errors:
+        return error_response(422, "Validation failed", errors)
+
+    if "title" in data:
+        task["title"] = data["title"].strip()
+    if "done" in data:
+        task["done"] = data["done"]
+    if "priority" in data:
+        task["priority"] = data["priority"]
+
+    return jsonify(task), 200
+
+
+@app.route("/tasks/<int:task_id>", methods=["DELETE"])
+def delete_task(task_id):
+    if task_id not in tasks:
+        return error_response(404, f"Task {task_id} not found")
+    del tasks[task_id]
+    return "", 204
+
+
+if __name__ == "__main__":
+    app.run(debug=True, port=5000)
+```
+
+Three design decisions worth noticing:
+
+1. **Every error, everywhere, has the same JSON shape**: `{"error": {"code", "message", "details"}}`. A client only ever has to write one error-handling function, not one per endpoint.
+2. **The existence check comes before the validation check.** `update_task` looks up the task first, and 404s immediately if it's missing, *before* it even tries to parse or validate the body. Checking things in the wrong order is a real source of bugs (see the quiz).
+3. **`PATCH` and `PUT` share a handler**, distinguished only by `partial`, which changes whether `title` is required. That's the practical difference between the two verbs, expressed as one line of logic instead of two duplicated handlers.
+
+Run it (`python app.py`), then exercise it from the command line:
+
+```bash
+# Create a task
+curl -X POST http://localhost:5000/tasks \
+  -H "Content-Type: application/json" \
+  -d '{"title": "Write lesson notes", "priority": "high"}'
+# -> 201, {"id": 1, "title": "Write lesson notes", "done": false, "priority": "high"}
+
+# Validation failure — empty title
+curl -X POST http://localhost:5000/tasks \
+  -H "Content-Type: application/json" \
+  -d '{"title": ""}'
+# -> 422, {"error": {"code": 422, "message": "Validation failed", "details": {"title": "..."}}}
+
+# Partial update
+curl -X PATCH http://localhost:5000/tasks/1 \
+  -H "Content-Type: application/json" \
+  -d '{"done": true}'
+# -> 200, {"id": 1, "title": "Write lesson notes", "done": true, "priority": "high"}
+
+# Not found
+curl http://localhost:5000/tasks/999
+# -> 404, {"error": {"code": 404, "message": "Task 999 not found"}}
+
+# Delete
+curl -X DELETE http://localhost:5000/tasks/1 -i
+# -> 204, empty body
+```
+
+And you can drive it from Python exactly like you drove GitHub's API earlier — a REST API is a REST API, whether you wrote it or Microsoft did:
+
+```python
+import requests
+
+BASE = "http://localhost:5000"
+
+r = requests.post(BASE + "/tasks", json={"title": "Review PR", "priority": "high"})
+r.raise_for_status()
+task = r.json()
+print("created:", task)
+
+r = requests.get(f"{BASE}/tasks/{task['id']}")
+print("fetched:", r.json())
+```
+
+Note `json=...` instead of `data=...` — `requests` will serialize the dict to JSON *and* set `Content-Type: application/json` for you. That's the header rule from earlier, just handled by the library.
+
+## Exercise
+
+Extend the `/tasks` API with filtering and pagination on `GET /tasks`:
+
+- `GET /tasks?done=true` returns only completed tasks; `?done=false` only incomplete ones.
+- `GET /tasks?limit=2&offset=1` returns 2 tasks starting at index 1 in the current list.
+- Invalid query params (e.g. `?done=maybe`, `?limit=-5`, `?limit=abc`) should return a 400 with the same `{"error": {...}}` shape used everywhere else in this API — don't invent a new error format for query-string problems.
+
+**Hint:** `request.args.get("limit")` always returns a string or `None`. You'll need to explicitly convert and validate it (a bare `int("abc")` will raise `ValueError` — catch it or check `.isdigit()` before converting), rather than trusting it's already the right type the way you can trust a parsed JSON body.
+
+## Recap
+
+An API developer's job with HTTP is narrower than it looks: pick the right verb, return the status code that actually matches what happened, read and write consistent JSON, and validate input before you trust it. Everything in this module — the GitHub calls, the Flask app, the curl tests — is the same four moves repeated on both sides of the wire.

@@ -1,0 +1,98 @@
+[
+  {
+    "id": "software-engineering/tier-1/building-and-consuming-a-basic-rest-api/q1",
+    "type": "multiple_choice",
+    "prompt": "Which of these HTTP methods is NOT guaranteed to be idempotent (calling it repeatedly is not guaranteed to leave the server in the same state as calling it once)?",
+    "choices": [
+      "GET",
+      "PUT",
+      "DELETE",
+      "POST"
+    ],
+    "correctIndex": 3
+  },
+  {
+    "id": "software-engineering/tier-1/building-and-consuming-a-basic-rest-api/q2",
+    "type": "multiple_choice",
+    "prompt": "A client sends a POST request that successfully creates a new resource on the server. Which status code should the API return?",
+    "choices": [
+      "200 OK",
+      "201 Created",
+      "204 No Content",
+      "400 Bad Request"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-1/building-and-consuming-a-basic-rest-api/q3",
+    "type": "multiple_choice",
+    "prompt": "A DELETE request successfully removes a resource, and the response has no body. Which status code fits best?",
+    "choices": [
+      "200 OK",
+      "202 Accepted",
+      "204 No Content",
+      "404 Not Found"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "software-engineering/tier-1/building-and-consuming-a-basic-rest-api/q4",
+    "type": "multiple_choice",
+    "prompt": "In the Flask app from this lesson, a client sends `POST /tasks` with the body `{\"title\": \"Buy milk\"}` but forgets to set the `Content-Type: application/json` header (it defaults to `text/plain`). The handler calls `request.get_json(silent=True)` and checks `if data is None`. What happens?",
+    "choices": [
+      "The task is created normally, since Flask parses the body regardless of Content-Type",
+      "The server returns a 400 error saying the request body must be valid JSON, even though the JSON text itself was well-formed",
+      "The server crashes with an unhandled 500 error",
+      "The task is created with title set to null"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-1/building-and-consuming-a-basic-rest-api/q5",
+    "type": "multiple_choice",
+    "prompt": "Predict the output:\n\n```python\nresponse = requests.get(\"https://api.github.com/repos/octocat/doesnotexist999\")\nprint(response.status_code)\nresponse.raise_for_status()\nprint(\"done\")\n```\n\nAssume the repo genuinely does not exist (GitHub returns 404).",
+    "choices": [
+      "Prints 404, then raises an HTTPError \u2014 \"done\" is never printed",
+      "Prints 404, then prints \"done\", since raise_for_status only raises on 5xx server errors",
+      "Raises an exception immediately, before status_code can even be printed",
+      "Prints 200, since GitHub redirects unknown repos to a default page"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "software-engineering/tier-1/building-and-consuming-a-basic-rest-api/q6",
+    "type": "multiple_choice",
+    "prompt": "A client sends `POST /tasks` with the body `{\"title\": \"\"}` \u2014 syntactically valid JSON, but the title is an empty string, which the API's validation rules reject. Following the convention used in this lesson, which status code should the API return?",
+    "choices": [
+      "400 Bad Request",
+      "404 Not Found",
+      "422 Unprocessable Entity",
+      "500 Internal Server Error"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "software-engineering/tier-1/building-and-consuming-a-basic-rest-api/q7",
+    "type": "multiple_choice",
+    "prompt": "Which header does a client set to tell the server what format the request body is encoded in?",
+    "choices": [
+      "Accept",
+      "Content-Type",
+      "Authorization",
+      "User-Agent"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-1/building-and-consuming-a-basic-rest-api/q8",
+    "type": "multiple_choice",
+    "prompt": "Spot the bug. A developer rewrites `update_task` like this, removing the early existence check:\n\n```python\n@app.route(\"/tasks/<int:task_id>\", methods=[\"PUT\", \"PATCH\"])\ndef update_task(task_id):\n    task = tasks.get(task_id)\n    data = request.get_json(silent=True)\n    errors = validate_task_payload(data, partial=(request.method == \"PATCH\"))\n    if errors:\n        return error_response(422, \"Validation failed\", errors)\n    if \"title\" in data:\n        task[\"title\"] = data[\"title\"].strip()\n    return jsonify(task), 200\n```\n\nWhat happens when a client sends `PATCH /tasks/999` for a task ID that doesn't exist and a valid body like `{\"title\": \"x\"}`?",
+    "choices": [
+      "It correctly returns a 404 response",
+      "It raises an unhandled exception, because `task` is `None` and the code tries to assign into it with `task[\"title\"] = ...`",
+      "It silently creates a new task with id 999",
+      "It returns 422 automatically because `task` is `None`"
+    ],
+    "correctIndex": 1
+  }
+]
