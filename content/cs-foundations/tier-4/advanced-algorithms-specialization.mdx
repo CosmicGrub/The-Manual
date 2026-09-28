@@ -1,0 +1,401 @@
+---
+trackId: cs-foundations
+tier: 4
+title: Advanced Algorithms Specialization
+order: 3
+estimatedHours: 20
+---
+
+Every specialist eventually stops being a generalist on purpose: a competitive programmer, a compiler engineer, and a theoretical computer scientist all started exactly where you are now, and then picked a direction to go deep instead of wide. This module is the first place in The Manual where you make that choice yourself — pick **one** of the three paths below, not all three, and go all the way through it.
+
+## How to choose a path
+
+All three paths assume everything through Tier 3 (recursion, Big-O, graphs, DP, greedy, P vs NP basics) plus this tier's first two modules (profiling discipline and the from-scratch data structures — heaps, tries, union-find — you just built). They diverge from there:
+
+- **Path A — Competitive-programming algorithms.** Pick this if you want interview-ready fluency fast, enjoy the puzzle-under-time-pressure format, or are aiming at Codeforces/ICPC-style problem solving. It's the most "more of what you already like from Tiers 2-3," pushed harder: segment trees, binary lifting, and KMP string matching.
+- **Path B — Compilers and programming-language basics.** Pick this if you're curious how the code you write turns into something that runs at all, want to eventually build a DSL, linter, or your own toy language, or you like the archaeology of "what is Python's `ast` module actually doing." You'll build a real lexer → parser → tree-walking interpreter from scratch.
+- **Path C — Theory of computation.** Pick this if you're drawn to proofs more than code, want the deepest possible grounding before Module 6's NP-hardness work, or you're the kind of person who finds it unsettling (in a good way) that some questions about programs are *provably* unanswerable by any algorithm, ever. You'll build a working Turing machine simulator and then write real undecidability proofs.
+
+There's no wrong choice, and nothing stops you from coming back and doing a second path later out of curiosity — but for this module's checkpoint, one path, done properly, beats all three done shallowly. Full compiler construction and deep systems work each get their own dedicated tracks elsewhere in The Manual; Path B here is a real, complete taste of that world, not a shortcut around it.
+
+## What you'll leave this lesson knowing
+
+- How to decide, for yourself, which of three legitimate specializations (competitive algorithms, PL/compilers, theory of computation) fits how you think — and be able to justify that choice concretely
+- **(Path A)** How a segment tree turns O(n) range queries into O(log n), why binary lifting turns "walk up the tree" into O(log n) per LCA query after O(n log n) preprocessing, and how KMP's prefix function avoids ever re-examining a character of the text
+- **(Path B)** How raw source text becomes tokens, tokens become an AST via recursive-descent parsing, and an AST becomes a computed result via tree-walking evaluation — end to end, in code you wrote yourself
+- **(Path C)** How to build a working Turing machine simulator and encode a real decision procedure as an explicit transition table, and how to write a rigorous reduction proof showing a problem is undecidable — not just recite that undecidability exists
+
+## Do this
+
+Read the "How to choose" section above, commit to **one** path, then complete that path's section in full. Each path is self-contained — you don't need to read the other two to finish yours.
+
+### Path A: Competitive-programming algorithms
+
+1. **Segment tree: from O(n) range sum to O(log n), with a real problem to submit.** A segment tree stores an array's elements at the leaves of a complete binary tree and each internal node's aggregate (here, sum) of its subtree — a plain array beats it for reading a single element, but rebuilding a running sum after every mutation is O(n) per update. Here's the classic *iterative*, bottom-up segment tree (no recursion, no pointers — just a flat array of size `2n`), the version you'll find in [cp-algorithms.com's Segment Tree article](https://cp-algorithms.com/data_structures/segment_tree.html):
+
+   ```python
+   class SegmentTree:
+       def __init__(self, data):
+           self.n = len(data)
+           self.tree = [0] * (2 * self.n)
+           for i in range(self.n):
+               self.tree[self.n + i] = data[i]
+           for i in range(self.n - 1, 0, -1):
+               self.tree[i] = self.tree[2 * i] + self.tree[2 * i + 1]
+
+       def update(self, i, value):
+           i += self.n
+           self.tree[i] = value
+           while i > 1:
+               i //= 2
+               self.tree[i] = self.tree[2 * i] + self.tree[2 * i + 1]
+
+       def query(self, l, r):        # sum over the half-open range [l, r)
+           result = 0
+           l += self.n
+           r += self.n
+           while l < r:
+               if l & 1:
+                   result += self.tree[l]
+                   l += 1
+               if r & 1:
+                   r -= 1
+                   result += self.tree[r]
+               l //= 2
+               r //= 2
+           return result
+   ```
+
+   Wire this straight into [LeetCode 307, "Range Sum Query - Mutable"](https://leetcode.com/problems/range-sum-query-mutable/) — the problem's `NumArray` class is a one-to-one mapping onto `SegmentTree.__init__`, `.update`, and `.query`, so submit it once you've confirmed correctness locally. Then measure the claim instead of trusting it: benchmark 20,000 random updates interleaved with 20,000 random range queries against a naive `list` where every `update` is O(1) but every `query` re-sums the slice with `sum(arr[l:r])` (O(n) each). Run both at `n = 2_000, 4_000, 8_000, 16_000` (the doubling test from Module 1) and confirm the naive version's total time roughly doubles with `n` while the segment tree's barely moves. For a production-grade reference implementation of the exact same idea generalized to any associative operation (not just sum), read `segtree.hpp` in the official [AtCoder Library](https://github.com/atcoder/ac-library) (`atcoder/ac-library` on GitHub) — it's the same recursive structure, genericized over a monoid.
+
+   One more comparison worth doing: a **Fenwick tree** (binary indexed tree) solves the exact same point-update/range-sum problem in about a third of the code, using a single array and bit tricks (`i & -i`) instead of an explicit tree shape — but it only works for invertible operations (sum, xor) because range queries are computed as a difference of two prefix sums, whereas a segment tree works for *any* associative operation (min, max, gcd — none of which you can "subtract out"). Implement a Fenwick tree for the same range-sum problem, confirm it passes the same stress test, and time it against your segment tree — expect it to be faster in practice (smaller constant factor) despite matching Big-O, which is itself a useful lesson: Big-O ties, constant factors decide.
+
+   **Optional but recommended — put a clock on it for real:** browse [Codeforces problems tagged "data structures," rated 1500-1700](https://codeforces.com/problemset?tags=data+structures), pick two, and solve them under a 30-minute timer each using your own segment tree or Fenwick tree directly (not a library). This is the actual "CTF-style algorithmic war-game" this tier's syllabus calls for — it's meant to be done as an ongoing habit, not a one-off, so keep doing this after this module is finished.
+
+2. **Binary lifting: precompute ancestors at every power-of-two distance, then answer LCA in O(log n).** Given a rooted tree, "who is the lowest common ancestor of nodes u and v" naively costs O(depth) by walking both nodes up to the root together — fine until the tree is a long chain and depth is O(n). Binary lifting fixes this the same way fast exponentiation fixes repeated multiplication: precompute, for every node, its 2⁰-th, 2¹-th, 2²-th, ... ancestor.
+
+   ```python
+   import math
+
+   def build_lca(n, adj, root=0):
+       LOG = max(1, math.ceil(math.log2(n + 1)))
+       depth = [0] * n
+       parent = [root] * n
+       visited = [False] * n
+       stack, visited[root] = [root], True
+       while stack:
+           u = stack.pop()
+           for v in adj[u]:
+               if not visited[v]:
+                   visited[v] = True
+                   parent[v] = u
+                   depth[v] = depth[u] + 1
+                   stack.append(v)
+
+       up = [parent[:]]
+       for k in range(1, LOG):
+           up.append([up[k - 1][up[k - 1][v]] for v in range(n)])
+
+       def lca(u, v):
+           if depth[u] < depth[v]:
+               u, v = v, u
+           diff = depth[u] - depth[v]
+           for k in range(LOG):
+               if (diff >> k) & 1:
+                   u = up[k][u]
+           if u == v:
+               return u
+           for k in range(LOG - 1, -1, -1):
+               if up[k][u] != up[k][v]:
+                   u, v = up[k][u], up[k][v]
+           return up[0][u]
+
+       return lca
+   ```
+
+   Build a random tree with 50,000 nodes (e.g., attach node `i` to a random earlier node `random.randrange(i)` for `i` in `1..49999` — this deliberately produces skewed, non-balanced trees sometimes), run 20,000 random-pair LCA queries through `build_lca`, and separately time a naive "walk both nodes up to equal depth, then up together" version. Confirm the naive version's per-query cost scales with the tree's actual depth (which can be close to `n` for a skewed random-attachment tree) while binary lifting's stays flat. [CSES Problem Set](https://cses.fi/problemset/)'s Tree Algorithms section has a problem asking for exactly this (an LCA query judge) — solve it there once your implementation is fast enough to pass the time limit on their largest test cases (n and q up to 2·10⁵). Antti Laaksonen's free textbook *Competitive Programmer's Handbook* (available at [cses.fi/book/book.pdf](https://cses.fi/book/book.pdf)) has the companion chapter if you get stuck.
+
+3. **KMP string matching: never re-examine a character of the text.** The naive substring search re-scans the text from scratch on every mismatch, which is O(n·m) worst case (pattern `"aaaa...ab"` against text `"aaaa...a"` is the textbook pathological input). Knuth-Morris-Pratt fixes this by precomputing, for the pattern itself, "if I mismatch here, how much of my own prefix can I reuse" — the *prefix function*.
+
+   ```python
+   def build_prefix_function(pattern):
+       n = len(pattern)
+       pi = [0] * n
+       k = 0
+       for i in range(1, n):
+           while k > 0 and pattern[i] != pattern[k]:
+               k = pi[k - 1]
+           if pattern[i] == pattern[k]:
+               k += 1
+           pi[i] = k
+       return pi
+
+   def kmp_search(text, pattern):
+       if not pattern:
+           return []
+       pi = build_prefix_function(pattern)
+       matches, k = [], 0
+       for i, ch in enumerate(text):
+           while k > 0 and ch != pattern[k]:
+               k = pi[k - 1]
+           if ch == pattern[k]:
+               k += 1
+           if k == len(pattern):
+               matches.append(i - k + 1)
+               k = pi[k - 1]
+       return matches
+   ```
+
+   Confirm correctness against `str.find` in a loop on ordinary text first. Then construct the pathological case on purpose — `text = "a" * 50_000`, `pattern = "a" * 5_000 + "b"` — and time both `kmp_search` and a hand-written naive O(n·m) double-loop matcher against it. The naive matcher's time should blow up (it's doing ~50,000 × 5,000 character comparisons); KMP's should stay linear in `len(text) + len(pattern)` regardless. Read [cp-algorithms.com's "Prefix function — Knuth-Morris-Pratt" article](https://cp-algorithms.com/string/prefix-function.html) to see the same code with a different variable-naming convention, then solve the String Matching problem in CSES's String Algorithms section with it. For the source: D. Knuth, J. Morris, and V. Pratt, ["Fast Pattern Matching in Strings,"](https://doi.org/10.1137/0206024) *SIAM Journal on Computing*, 1977 — the algorithm is almost 50 years old and still the baseline every later string-matching algorithm (Z-function, Aho-Corasick) is explained relative to.
+
+**Path A checkpoint:** all three implementations pass correctness tests, all three have a measured doubling-test benchmark against a naive alternative showing the predicted Big-O gap, and you've submitted at least the LeetCode 307 and one CSES problem above to a real judge.
+
+### Path B: Compilers and programming-language basics
+
+You're building a tiny language — call it **plox** — with variables, arithmetic, and `print`, through the classic three-stage pipeline every real language (including the CPython interpreter running this Python) uses in some form: lexer → parser → evaluator.
+
+1. **Lexer: turn characters into tokens.** A lexer's only job is pattern-matching raw text into a flat list of typed tokens — it knows nothing about grammar.
+
+   ```python
+   import re
+
+   TOKEN_SPEC = [
+       ("NUMBER",  r"\d+(\.\d+)?"),
+       ("IDENT",   r"[A-Za-z_][A-Za-z0-9_]*"),
+       ("ASSIGN",  r"="),
+       ("PLUS",    r"\+"),
+       ("MINUS",   r"-"),
+       ("STAR",    r"\*"),
+       ("SLASH",   r"/"),
+       ("LPAREN",  r"\("),
+       ("RPAREN",  r"\)"),
+       ("SEMI",    r";"),
+       ("SKIP",    r"[ \t]+"),
+       ("NEWLINE", r"\n"),
+   ]
+   TOKEN_RE = re.compile("|".join(f"(?P<{name}>{pat})" for name, pat in TOKEN_SPEC))
+
+   class Token:
+       def __init__(self, kind, value):
+           self.kind, self.value = kind, value
+       def __repr__(self):
+           return f"Token({self.kind!r}, {self.value!r})"
+
+   def tokenize(code):
+       tokens = []
+       for m in TOKEN_RE.finditer(code):
+           kind, value = m.lastgroup, m.group()
+           if kind in ("SKIP", "NEWLINE"):
+               continue
+           if kind == "IDENT" and value == "print":
+               kind = "PRINT"
+           tokens.append(Token(kind, value))
+       tokens.append(Token("EOF", None))
+       return tokens
+   ```
+
+   Run `tokenize("x = 3 + 4 * 2; print x;")` and print the result — confirm you get exactly the token stream you'd expect by hand-tracing the grammar.
+
+2. **Parser: turn tokens into an AST via recursive descent.** The grammar (deliberately small, but real — it correctly encodes operator precedence, which is the actual hard part of parsing):
+
+   ```text
+   program    := statement*
+   statement  := IDENT '=' expr ';'  |  'print' expr ';'
+   expr       := term (('+' | '-') term)*
+   term       := factor (('*' | '/') factor)*
+   factor     := NUMBER | IDENT | '(' expr ')' | '-' factor
+   ```
+
+   ```python
+   class Parser:
+       def __init__(self, tokens):
+           self.tokens, self.pos = tokens, 0
+
+       def peek(self):
+           return self.tokens[self.pos]
+
+       def advance(self):
+           tok = self.tokens[self.pos]; self.pos += 1; return tok
+
+       def expect(self, kind):
+           tok = self.advance()
+           if tok.kind != kind:
+               raise SyntaxError(f"expected {kind}, got {tok.kind}")
+           return tok
+
+       def parse_program(self):
+           stmts = []
+           while self.peek().kind != "EOF":
+               stmts.append(self.parse_statement())
+           return stmts
+
+       def parse_statement(self):
+           if self.peek().kind == "PRINT":
+               self.advance()
+               expr = self.parse_expr()
+               self.expect("SEMI")
+               return ("print", expr)
+           name = self.expect("IDENT").value
+           self.expect("ASSIGN")
+           expr = self.parse_expr()
+           self.expect("SEMI")
+           return ("assign", name, expr)
+
+       def parse_expr(self):
+           node = self.parse_term()
+           while self.peek().kind in ("PLUS", "MINUS"):
+               op = self.advance().kind
+               node = ("binop", op, node, self.parse_term())
+           return node
+
+       def parse_term(self):
+           node = self.parse_factor()
+           while self.peek().kind in ("STAR", "SLASH"):
+               op = self.advance().kind
+               node = ("binop", op, node, self.parse_factor())
+           return node
+
+       def parse_factor(self):
+           tok = self.peek()
+           if tok.kind == "NUMBER":
+               self.advance(); return ("num", float(tok.value))
+           if tok.kind == "IDENT":
+               self.advance(); return ("var", tok.value)
+           if tok.kind == "MINUS":
+               self.advance(); return ("neg", self.parse_factor())
+           if tok.kind == "LPAREN":
+               self.advance()
+               node = self.parse_expr()
+               self.expect("RPAREN")
+               return node
+           raise SyntaxError(f"unexpected token {tok}")
+   ```
+
+   Trace `parse_expr` by hand on `3 + 4 * 2` before running it: `term()` should consume `3`, then the loop sees `+`, calls `term()` again which consumes `4 * 2` as one nested `("binop", "STAR", ...)` node *before* the outer `+` wraps it — that nesting is precedence, implemented purely through which function calls which, with zero explicit precedence numbers anywhere.
+
+3. **Evaluator: walk the AST and compute a result.**
+
+   ```python
+   def evaluate(node, env):
+       kind = node[0]
+       if kind == "num":
+           return node[1]
+       if kind == "var":
+           return env[node[1]]
+       if kind == "neg":
+           return -evaluate(node[1], env)
+       if kind == "binop":
+           op, left, right = node[1], node[2], node[3]
+           l, r = evaluate(left, env), evaluate(right, env)
+           return {"PLUS": l + r, "MINUS": l - r, "STAR": l * r, "SLASH": l / r}[op]
+       raise RuntimeError(f"unknown node {node}")
+
+   def run(code):
+       env = {}
+       for stmt in Parser(tokenize(code)).parse_program():
+           if stmt[0] == "assign":
+               env[stmt[1]] = evaluate(stmt[2], env)
+           elif stmt[0] == "print":
+               print(evaluate(stmt[1], env))
+
+   run("""
+   x = 3 + 4 * 2;
+   y = (x - 1) / 2;
+   print y;
+   print x + y;
+   """)
+   ```
+
+   Predict the output by hand before running it (`x = 11.0`, `y = 5.0`), then confirm.
+
+4. **Extend it: `if`, `while`, and real scoping — this is the actual hands-on deliverable, not the scaffolding above.** Add an `if` statement and comparison operators (`==`, `<`) to the grammar and all three stages yourself, then add a `while` loop the same way. The moment plox has variables, arithmetic, a conditional, and a loop that can run a variable number of times, it's Turing-complete — it can simulate any Turing machine, given enough memory and time, the same claim your Path C peers are proving formally about the machine model itself. Then push further on `env`: right now every variable lives in one flat `dict`, which means a variable assigned inside an `if` block leaks out of it. Add a second interpreter mode with per-block scoping (a chain of dicts, checked from innermost outward, the same way Python's own local → enclosing → global lookup works) and write a test program that would behave differently under flat scoping versus block scoping to prove the distinction actually changes program behavior, not just internal bookkeeping.
+
+5. **Tree-walking vs. bytecode: know which one you built, and why it matters.** `evaluate` re-walks the AST from scratch every time a loop body runs — for a `while` loop executing 10,000 times, that's 10,000 re-traversals of the same tree. A bytecode VM instead compiles the AST *once* into a flat sequence of simple instructions (`LOAD_CONST 3`, `LOAD_CONST 4`, `MUL`, `ADD`, `STORE x`, ...) and then runs a tight dispatch loop over that array — no tree pointers, no repeated recursive calls, much better cache behavior (Module 1's memory-layout lesson, applied to language runtimes). This isn't a hypothetical trade-off: CPython itself is a bytecode VM (run `python3 -m dis` on any function and you're looking at exactly this kind of instruction stream), and Robert Nystrom's *Crafting Interpreters* deliberately builds the *same* language twice — once as the tree-walking `jlox` you just built a cousin of, once as the bytecode-compiled `clox` — specifically to make this performance gap undeniable rather than theoretical. You don't have to build the VM here; state, in a paragraph, what you'd need to change about `evaluate` to turn it into a compile-then-run-bytecode design instead, and why that would matter more for a `while` loop than for a straight-line program with no loops at all.
+
+6. **Compare against real systems.** Run `python3 -c "import ast; print(ast.dump(ast.parse('x = 3 + 4 * 2')))"` and `python3 -m dis` on the same snippet to see CPython's own AST and bytecode for a structurally identical program. Then install [Lark](https://github.com/lark-parser/lark) (`pip install lark`) and re-express your plox grammar declaratively in Lark's EBNF-like syntax, and compare how many lines your hand-written recursive-descent parser took versus Lark's grammar string for equivalent coverage.
+
+**Path B checkpoint:** plox runs a program combining arithmetic, variables, `print`, `if`/comparisons, and `while` correctly; you have a written paragraph on flat vs. block scoping backed by a program that demonstrates the difference; you can explain precedence purely in terms of which parse function calls which; and you've compared your AST/pipeline against both CPython's real `ast`/`dis` output and a Lark-based version. For the deeper version of everything above, work through Robert Nystrom's [*Crafting Interpreters*](https://craftinginterpreters.com/) (free online) — plox is a compressed one-file taste of exactly the tree-walking interpreter ("jlox") the first half of that book builds, before the second half rebuilds the same language as the bytecode-compiled `clox` — or Ruslan Spivak's ["Let's Build A Simple Interpreter"](https://ruslanspivak.com/lsbasi-part1/) blog series, which builds up an almost identical pipeline incrementally with more narration per step.
+
+### Path C: Theory of computation deep-dive
+
+1. **Build a real, generic Turing machine simulator.** A Turing machine is a state, a two-way-infinite tape, and a transition function `(state, symbol) → (new_state, write_symbol, direction)`. That's the entire model — and it's provably as powerful as any computer that has ever been or ever will be built (the Church-Turing thesis).
+
+   ```python
+   class TuringMachine:
+       def __init__(self, transitions, start_state, accept_state="ACCEPT", blank="_"):
+           self.transitions = transitions
+           self.start_state = start_state
+           self.accept_state = accept_state
+           self.blank = blank
+
+       def run(self, input_str, max_steps=1_000_000):
+           tape = {i: ch for i, ch in enumerate(input_str)}
+           head, state, steps = 0, self.start_state, 0
+           while state != self.accept_state:
+               if steps >= max_steps:
+                   return "TIMEOUT"
+               symbol = tape.get(head, self.blank)
+               key = (state, symbol)
+               if key not in self.transitions:
+                   return "REJECT"
+               new_state, write_symbol, move = self.transitions[key]
+               tape[head] = write_symbol
+               head += 1 if move == "R" else -1
+               state = new_state
+               steps += 1
+           return "ACCEPT"
+   ```
+
+   Now encode a real decider for the classic non-regular language `{0ⁿ1ⁿ : n ≥ 0}` — a good target precisely because no finite-state machine can recognize it (it needs unbounded memory to count), so building it forces you to actually use the tape as memory. The standard algorithm (Sipser, *Introduction to the Theory of Computation*, the decider for this exact language): first verify the string has the shape `0*1*` with no `0` to the right of a `1`; then repeatedly cross off one leftmost unmarked `0` and one matching `1`, using `X`/`Y` as "already matched" markers, until nothing unmarked remains.
+
+   ```python
+   def make_0n1n_transitions():
+       T = {}
+       T[("p1_zeros", "0")] = ("p1_zeros", "0", "R")
+       T[("p1_zeros", "1")] = ("p1_ones", "1", "R")
+       T[("p1_zeros", "_")] = ("rewind1", "_", "L")
+       T[("p1_ones", "1")] = ("p1_ones", "1", "R")
+       T[("p1_ones", "_")] = ("rewind1", "_", "L")
+       # (p1_ones, "0") is deliberately absent -> REJECT: a 0 right of a 1
+
+       for state, next_state in (("rewind1", "find0"), ("rewind2", "find0")):
+           for sym in ("0", "1", "X", "Y"):
+               T[(state, sym)] = (state, sym, "L")
+           T[(state, "_")] = (next_state, "_", "R")
+
+       T[("find0", "X")] = ("find0", "X", "R")
+       T[("find0", "Y")] = ("find0", "Y", "R")
+       T[("find0", "0")] = ("find1", "X", "R")
+       T[("find0", "_")] = ("ACCEPT", "_", "R")
+       # (find0, "1") absent -> REJECT: an unmatched 1 with no 0 left to pair
+
+       T[("find1", "X")] = ("find1", "X", "R")
+       T[("find1", "Y")] = ("find1", "Y", "R")
+       T[("find1", "0")] = ("find1", "0", "R")
+       T[("find1", "1")] = ("rewind2", "Y", "L")
+       # (find1, "_") absent -> REJECT: an unmatched 0 with no 1 left to pair
+       return T
+
+   tm = TuringMachine(make_0n1n_transitions(), start_state="p1_zeros")
+   for s in ("", "0", "1", "01", "0011", "000111", "0101", "011", "10"):
+       print(f"{s!r:>10} -> {tm.run(s)}")
+   ```
+
+   Trace at least three of these by hand on paper (head position, state, tape contents at each step) before trusting the printed output — `""`, `"01"`, and `"0101"` are the most instructive: the first two should `ACCEPT`, and `"0101"` should `REJECT` specifically during the phase-1 order check (interleaved `0`s and `1`s, not a real `0ⁿ1ⁿ` shape), not during the pairing phase. For a visual, interactive alternative to build intuition before or after this exercise, build and step through the same machine in [JFLAP](https://www.jflap.org/) (a real, widely used free automata/Turing-machine teaching tool).
+
+2. **Prove the Halting Problem is undecidable — the actual diagonalization argument, in your own words, on paper.** State it precisely: no program `H(P, x)` can exist that always halts and correctly outputs whether program `P` halts on input `x`, for *every* possible `P` and `x`. Write out Turing's proof (the same style Cantor used to show the reals are uncountable): assume `H` exists, construct a program `D(P)` that runs `H(P, P)` and does the opposite of what `H` predicts (loops forever if `H` says "halts," halts immediately if `H` says "loops forever"), then run `D(D)` and derive the contradiction. Write this out as an actual proof — 10-15 lines is enough — not a paraphrase of this paragraph. This is the original result: A. Turing, ["On Computable Numbers, with an Application to the Entscheidungsproblem,"](https://doi.org/10.1112/plms/s2-42.1.230) *Proceedings of the London Mathematical Society*, 1936.
+
+3. **Use a reduction to show a *second*, different problem is also undecidable.** This is the technique you'll reuse constantly (and see again, in its NP-hardness form, in Module 6): to prove problem `X` is undecidable, assume a decider for `X` exists and use it to build a decider for the Halting Problem — a contradiction, since you already proved that's impossible. Do this concretely for `PRINTS-HELLO = {⟨P⟩ : program P, run with no input, ever prints "hello"}`. Sketch: assume `DECIDES-PRINTS-HELLO(P)` exists. Given any `⟨M, w⟩` (the Halting Problem's input), construct a new program `P_{M,w}` that simulates `M` on `w`, and prints `"hello"` if and only if that simulation halts. Then `DECIDES-PRINTS-HELLO(P_{M,w})` answers "does `M` halt on `w`" — a Halting Problem decider, contradiction. Write this reduction out in full, matching the level of rigor of step 2. Note explicitly, in a sentence, why this reduction is a *computability* reduction (mapping one undecidable yes/no question onto another, with no runtime bound) rather than the *polynomial-time* reduction used to prove NP-hardness in Module 6 — same word ("reduction"), genuinely different tool, and conflating them is the single most common mistake at this stage.
+
+4. **See uncomputability produce an actual number.** The Busy Beaver function `BB(n)` — the most steps an `n`-state Turing machine can take on a blank tape before halting, maximized over all `n`-state machines that halt at all — is provably not computable by any algorithm (if it were, you could use it to solve the Halting Problem: run any machine for `BB(n)` steps, and if it hasn't halted by then, it never will). Small values are still concrete, hard-won facts: `BB(4) = 107` steps was established decades ago, and `BB(5) = 47,176,870` was only *proved* in 2024 by the collaborative, Coq-verified [Busy Beaver Challenge](https://bbchallenge.org/) project — `BB(6)` remains unknown today. Read the project's own explanation of what "proved" means here (a finite case analysis over all 5-state machines, each shown to either halt within a known bound or provably never halt). This is your concrete answer to "undecidable in theory, so what" — a well-defined, single-integer question that took a global research effort to answer for `n = 5`.
+
+5. **Generalize your reduction: read Rice's theorem, then use it to explain a tool you already own.** Step 3's `PRINTS-HELLO` proof isn't a one-off curiosity — H. Rice proved, in ["Classes of Recursively Enumerable Sets and Their Decision Problems,"](https://doi.org/10.2307/1990888) *Transactions of the American Mathematical Society*, 1953, that *every* nontrivial semantic property of a program's behavior (does it halt on this input, does it ever print X, does it ever return `None`, is its output always positive) is undecidable — "nontrivial" meaning some programs have the property and some don't, and "semantic" meaning it's about what the program *does*, not how it's *written* (syntactic properties, like "does this file contain the string `def`," are trivially decidable). Read the statement of Rice's theorem, then write two or three sentences applying it directly to something concrete: name a real static-analysis tool you've used or heard of (a linter, a null-pointer checker, a "this function might not return" warning in an IDE) and explain, using Rice's theorem, why that tool is necessarily either incomplete (misses real bugs) or unsound (flags correct code as buggy) — it cannot be both complete and sound for a nontrivial semantic property, because that would be a decision procedure for something Rice's theorem already ruled out. This is the direct theoretical reason "the linter didn't catch it" and "the linter gave a false positive" are both permanent facts of life, not engineering failures waiting to be fixed.
+
+**Path C checkpoint:** your Turing machine simulator correctly decides `{0ⁿ1ⁿ}` on at least the 9 test strings above (verified by hand-trace on 3 of them); you have two complete, rigorous written proofs (Halting Problem undecidability via diagonalization, and `PRINTS-HELLO` undecidability via reduction) that would survive a skeptical reader looking for the specific gap in the logic; and you've applied Rice's theorem to a real tool you use.
+
+## Check on learning
+
+- State, in one or two sentences, which path you picked and the concrete reason it fit how you think — not "it seemed easier."
+- **(Path A)** Segment trees, binary lifting, and KMP all trade preprocessing time for cheaper repeated queries. Name the preprocessing cost and the per-query cost for each of the three, and identify the one thing all three preprocessing steps have in common structurally.
+- **(Path B)** Explain-back: walk through, step by step, what happens to the string `"y = (x - 1) / 2;"` from the moment `tokenize` sees it to the moment `evaluate` returns a number — naming which function is responsible for each transformation, and why operator precedence falls out of the *parser's* structure rather than needing an explicit precedence table anywhere in the code.
+- **(Path C)** A friend says "the Halting Problem being undecidable just means nobody's found the algorithm yet." Correct them precisely: what does the diagonalization proof actually rule out, and how is that different from "hard" or "not yet solved"?

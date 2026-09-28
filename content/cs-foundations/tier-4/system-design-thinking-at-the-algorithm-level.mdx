@@ -1,0 +1,191 @@
+---
+trackId: cs-foundations
+tier: 4
+title: System Design Thinking at the Algorithm Level
+order: 5
+estimatedHours: 8
+---
+
+Every "design a URL shortener" or "design a leaderboard" interview question is a data-structure question wearing an architecture diagram as a costume: pick the right underlying structure and half the diagram — whether you need a cache tier, how concurrent writes stay race-free, how you'd shard at 10x scale — falls out almost for free; pick the wrong one and you spend the next two years patching the gap with infrastructure. This lesson is about training the specific skill of seeing that seam: given a real system's design doc, or its actual source code, correctly naming the one data-structure decision that quietly determined most of what's on the page, and being able to say — with algorithmic reasoning, not vibes — what would have to change elsewhere if you swapped it.
+
+## What you'll leave this lesson knowing
+
+- How to trace one specific, real data-structure decision (Redis's skip-list-backed sorted set) forward into its concrete architectural consequences — what it removes the need to build, and what it costs you the moment you shard — backed by a benchmark you ran yourself, not an assertion
+- The RUM conjecture (Read / Update / Memory-overhead) as a named framework for why B-trees and LSM-trees are genuinely different points on a trade-off frontier rather than "one is just better," demonstrated with a measured, deterministic write-amplification experiment
+- How to read a real system design document (SQLite's official architecture doc, and the Raft consensus paper) and produce a structured critique using a real, named review template instead of free-form opinion
+- How to cross-check a design doc's claims against the system's actual source code — treating documentation as a claim to verify, the same discipline Tier 3's "Reading Real Codebases" module built for implementation code, now applied one level up
+- How to write your own short "ripple" memo, reasoning forward from a data-structure choice to its concrete architectural consequences for a system you didn't design
+
+## Do this
+
+1. **Redis's sorted set is a skip list — trace that one fact upward into a whole leaderboard's architecture, not just its internals.** In Advanced Data Structures you built a skip list from scratch and confirmed that Redis's real sorted-set type (`t_zset.c` in the [redis/redis](https://github.com/redis/redis) repo) is exactly that structure, with a source comment citing William Pugh's 1990 paper directly. This lesson asks a different question about the same fact: not "how does a skip list work" but "what does choosing one, instead of a B-tree-backed SQL index, let you *skip building* everywhere else in the system." Go reread that comment block in a fresh clone — the actual reasoning, not a paraphrase — before continuing.
+
+   The structural fact that matters here: a skip list's bottom level is literally an ordered singly-linked list. Once you've located a position, walking a contiguous range forward is a straight pointer-chase with no parent pointers, no stack, no extra bookkeeping — which is exactly the operation `ZRANGE` and `ZRANGEBYSCORE` need. Contrast that with a hash table (O(1) point lookup, but zero ordering — can't range-query at all) and a red-black tree (ordered, but an in-order range scan needs either parent pointers or an explicit stack — not simpler, just differently shaped). Confirm the two structures are still algorithmically comparable for the query itself, so the difference you're about to reason through isn't "one is faster":
+
+   ```python
+   # pip install redis  — and have a real Redis running (redis-server, or:
+   #   docker run --rm -p 6379:6379 redis)
+   import random
+   import time
+
+   import redis
+
+   r = redis.Redis()
+   r.flushdb()
+
+   N = 200_000
+   pipe = r.pipeline()
+   for i in range(N):
+       pipe.zadd("leaderboard", {f"player:{i}": random.random() * 1_000_000})
+   pipe.execute()
+
+   start = time.perf_counter()
+   r.zrevrange("leaderboard", 0, 99, withscores=True)
+   print(f"Redis ZREVRANGE top 100 of {N}: {time.perf_counter() - start:.6f}s")
+
+   start = time.perf_counter()
+   r.zrangebyscore("leaderboard", 500_000, 500_100)
+   print(f"Redis ZRANGEBYSCORE 100-wide window: {time.perf_counter() - start:.6f}s")
+   ```
+
+   ```python
+   import os
+   import random
+   import sqlite3
+   import time
+
+   path = "/tmp/leaderboard.db"
+   if os.path.exists(path):
+       os.remove(path)
+   conn = sqlite3.connect(path)
+   conn.execute("CREATE TABLE leaderboard (player TEXT, score REAL)")
+   conn.execute("CREATE INDEX idx_score ON leaderboard(score)")   # a B-tree index
+   conn.executemany(
+       "INSERT INTO leaderboard VALUES (?, ?)",
+       ((f"player:{i}", random.random() * 1_000_000) for i in range(N)),
+   )
+   conn.commit()
+
+   start = time.perf_counter()
+   conn.execute("SELECT player, score FROM leaderboard ORDER BY score DESC LIMIT 100").fetchall()
+   print(f"SQLite ORDER BY ... LIMIT 100: {time.perf_counter() - start:.6f}s")
+   ```
+
+   Both should come back in low single-digit milliseconds — SQLite's index is *also* a balanced tree (specifically a B-tree), so both are genuinely `O(log n + k)` for this query. That's the point: the benchmark isn't where the real difference lives. The ripple shows up in what you'd have to build *around* each one. Write down, concretely, answers to both of these:
+
+   - **Concurrent writes.** `ZINCRBY leaderboard 10 player:42` is a single atomic command — Redis executes commands single-threaded to completion, so there is no read-modify-write race to guard against. The SQL equivalent, `UPDATE leaderboard SET score = score + 10 WHERE player = ?`, is race-free under concurrent writers only if you wrap it in a transaction (or rely on the row lock the `UPDATE` itself takes) — a mechanism that has to exist *because* the underlying structure doesn't give you single-command atomicity for free.
+   - **Scaling past one node.** A Redis sorted set lives entirely in one node's memory, so scaling a Redis leaderboard past one instance means Redis Cluster's hash-slot sharding — and hash-slot sharding by key breaks a *global* rank query, because "who's in 50th place overall" now requires merging partial results from every shard. A SQL table can be range-partitioned by score and still answer a global `ORDER BY`, at the cost of a distributed merge-sort across partitions. Same underlying problem (rank at scale), two structurally different answers, because of the data structure each side started from.
+
+   Write a 5-8 sentence note answering: what does the SQL version have to build that the Redis version gets for free, and what does the Redis version give up the moment you need more than one node's worth of memory?
+
+2. **B-trees vs. LSM-trees: measure write amplification instead of asserting it.** SQLite, PostgreSQL, and MySQL's InnoDB engine all default to a **B-tree** for their indexes: writes update pages in place, and a page that overflows splits into two. RocksDB, LevelDB, Cassandra, and HBase are built on the **LSM-tree** (log-structured merge-tree) instead: every write lands in an in-memory table (the *memtable*) plus a write-ahead log, and once the memtable fills up it's flushed as an immutable, already-sorted file on disk; a background *compaction* process periodically merges those files. The original design is Patrick O'Neil, Edward Cheng, Dieter Gawlick, and Elizabeth O'Neil's 1996 paper "The Log-Structured Merge-Tree (LSM-Tree)" (*Acta Informatica* 33(4)) — read at least its abstract and problem statement before continuing. The framework for *why* both structures still coexist, rather than one having simply won, is the **RUM conjecture** (Athanassoulis, Kester, Maas, Stoica, Idreos, Ailamaki, and Callaghan, "Designing Access Methods: The RUM Conjecture," EDBT 2016): any access method can be optimized for at most two of **R**ead performance, **U**pdate performance, and **M**emory/space overhead — improving one costs you at least one of the other two. B-trees lean toward fast reads (one `O(log n)` path, nothing else to check); LSM-trees lean toward fast, predictable writes, at the cost of reads possibly having to check several sorted files.
+
+   First, measure the B-tree's actual sensitivity to *insertion order* — a real, mechanistic effect, not folklore: random-order inserts scatter page splits across the whole key range, leaving pages less full on average, while sequential-order inserts append to the current rightmost leaf and split cleanly at the edge.
+
+   ```python
+   import os
+   import random
+   import sqlite3
+   import time
+
+   def build_btree_db(path, keys):
+       if os.path.exists(path):
+           os.remove(path)
+       conn = sqlite3.connect(path)
+       conn.execute("CREATE TABLE t (k INTEGER PRIMARY KEY, v TEXT)")
+       start = time.perf_counter()
+       conn.executemany("INSERT INTO t VALUES (?, ?)", ((k, "x" * 100) for k in keys))
+       conn.commit()
+       elapsed = time.perf_counter() - start
+       conn.close()
+       return elapsed, os.path.getsize(path)   # no VACUUM — we want the fragmentation, not to erase it
+
+   N = 300_000
+   sequential_keys = list(range(N))
+   random_keys = list(range(N))
+   random.shuffle(random_keys)
+
+   seq_time, seq_size = build_btree_db("/tmp/seq.db", sequential_keys)
+   rand_time, rand_size = build_btree_db("/tmp/rand.db", random_keys)
+
+   print(f"sequential insert: {seq_time:.2f}s, file size {seq_size / 1e6:.1f} MB")
+   print(f"random insert:     {rand_time:.2f}s, file size {rand_size / 1e6:.1f} MB")
+   ```
+
+   The file-size gap is the reliable signal — it's a purely logical fill-factor effect, independent of your machine's disk. The timing gap is noisier (page-cache effects vary), but should still lean toward random insert being slower; if it's not obvious at `N = 300_000`, push `N` up until the working set exceeds your OS page cache. This exact mechanism is *why* production systems that need high write throughput deliberately generate roughly time-ordered (and therefore roughly sequential) primary keys instead of random ones — Twitter's 2010 engineering blog post "Announcing Snowflake" and Instagram's 2012 post "Sharding & IDs at Instagram" both describe custom ID schemes chosen partly for exactly this reason, over a plain random UUID.
+
+   Now build a minimal LSM-tree and show the opposite property — that its write cost genuinely does not depend on key order, deterministically, not just "usually":
+
+   ```python
+   class MiniLSM:
+       """A minimal LSM-tree: an in-memory memtable plus immutable, flushed sorted runs.
+       Real engines add a write-ahead log for crash safety and a background compaction
+       thread that merges runs — both omitted here to isolate one property: the write
+       path never inspects key order."""
+
+       def __init__(self, memtable_limit=2_000):
+           self.memtable_limit = memtable_limit
+           self.memtable = {}
+           self.bytes_flushed = 0
+           self.num_flushes = 0
+
+       def put(self, key, value):
+           self.memtable[key] = value
+           if len(self.memtable) >= self.memtable_limit:
+               self._flush()
+
+       def _flush(self):
+           run = sorted(self.memtable.items())            # sorting happens in memory, once
+           payload = "".join(f"{k}{v}" for k, v in run).encode()
+           self.bytes_flushed += len(payload)              # stands in for the real disk write
+           self.num_flushes += 1
+           self.memtable = {}
+
+   def run_lsm(keys):
+       lsm = MiniLSM()
+       for k in keys:
+           lsm.put(k, "x" * 100)
+       return lsm.bytes_flushed, lsm.num_flushes
+
+   seq_bytes, seq_flushes = run_lsm(sequential_keys)
+   rand_bytes, rand_flushes = run_lsm(random_keys)
+   print(f"sequential: {seq_bytes} bytes flushed across {seq_flushes} runs")
+   print(f"random:     {rand_bytes} bytes flushed across {rand_flushes} runs")
+   ```
+
+   These two lines should be identical (same total puts, same `memtable_limit`, so the same number of flushes and the same total payload bytes) regardless of key order — the opposite of what you just measured for the B-tree. Real LSM engines aren't free of write cost, of course — compaction re-writes bytes as it merges runs, which is what "write amplification" technically refers to (total bytes physically written over an item's lifetime, divided by its logical size). Read the [RocksDB wiki's "Compaction" page](https://github.com/facebook/rocksdb/wiki/Compaction) for how a real engine schedules that work. The RUM-conjecture cost on the *other* side is reads: a point lookup in an LSM-tree may have to check the memtable and then several on-disk runs before it can say "not found" — which is exactly why real LSM engines attach a Bloom filter to every on-disk run, the same structure you built from scratch in Advanced Data Structures, specifically to let a lookup skip a run it can cheaply prove doesn't contain the key.
+
+3. **Read a real system design doc and critique it with a real template, not a vibe.** Read Malte Ubl's widely cited post ["Design Docs at Google"](https://www.industrialempathy.com/posts/design-docs-at-google/) for the section headers real engineering design docs actually use: *Context and Scope*, *Goals and Non-Goals*, *The Design* (with a system-context diagram, APIs, data storage, and — critically — a *Degree of Constraint* on each major decision), and *Alternatives Considered*. You're going to apply that exact template to a document that predates it by decades: [SQLite's official "Architecture of SQLite" document](https://www.sqlite.org/arch.html).
+
+   Read the whole page, then write a structured critique memo with these sections:
+
+   - **Context/Goals, as you infer them** — SQLite's actual goals (embeddable, zero-configuration, a single file, ACID transactions on ordinary filesystems) aren't stated as a bulleted list in the doc the way a modern design doc would; extract them from the prose and diagram anyway.
+   - **Central data structure.** Name the one structure the whole diagram is organized around (the B-tree module — every table and every index is a B-tree). Everything above it (the SQL compiler, the virtual machine) and below it (the pager, the OS interface / VFS) exists to serve that module.
+   - **The ripple test.** Answer, using algorithmic reasoning, not guesswork: if the B-tree module were replaced with an LSM-tree, what *else* in this diagram would have to change, and why? Work through it structurally: SQLite's pager is built around fixed-size pages read and written at arbitrary offsets — in-place random writes are the pager's whole job. An LSM-tree wants the opposite: append-only sequential writes and background compaction. That's not a local swap; it forces a rewrite of the pager and of the VFS's assumptions about the filesystem access pattern. It also changes *why* Write-Ahead Logging exists at all: read [SQLite's WAL documentation](https://www.sqlite.org/wal.html) and notice that WAL mode exists to make the *existing* B-tree's in-place writes crash-safe without doubling random I/O — an LSM-tree wouldn't need the same mechanism for the same reason, because its writes are already sequential and append-only.
+   - **What the doc doesn't address.** Name at least one thing a modern design doc's template would force into the open that this document leaves implicit (for example: exact concurrency guarantees under multiple connections, or how `VACUUM` interacts with in-flight readers).
+   - **Verify one claim against real code.** Clone the official read-only mirror ([sqlite/sqlite](https://github.com/sqlite/sqlite)) and open `src/btree.c`. Confirm that what the architecture doc calls "the B-tree module" is a real, identifiable unit in the source — not a diagram-only abstraction — the same "trust but verify against the actual code" discipline Tier 3's "Reading Real Codebases" module built, now aimed at a design document instead of an implementation.
+
+4. **A second, larger-scale doc: the Raft paper's log, and a cross-check against real production code.** Read Diego Ongaro and John Ousterhout's "In Search of an Understandable Consensus Algorithm (Extended Version)" ([raft.github.io/raft.pdf](https://raft.github.io/raft.pdf)), focusing on the sections that define the replicated log and Raft's five safety properties (Election Safety, Leader Append-Only, Log Matching, Leader Completeness, State Machine Safety).
+
+   Notice, and write down, that nearly every one of those properties reduces to an invariant about one specific, simple data structure: an append-only sequence of `(index, term, command)` entries. The Log Matching Property, for instance, is provable cheaply *because* the log is a plain ordered sequence — comparing two entries' `(index, term)` pairs is all it takes to conclude the entire prefix up to that point is identical. That cheap, local check is only possible because the designers chose a linear log instead of, say, a general DAG of operations (which is exactly the harder structure a CRDT-based or vector-clock-based system has to reason about instead).
+
+   Apply the same Google design-doc template from step 3 to this paper:
+
+   - **Context/Goals** — Raft's paper states an explicit, unusual goal for a consensus algorithm: *understandability*, not just correctness (the paper directly frames this as its motivation for existing at all, given that Paxos already existed and is provably correct).
+   - **Alternatives Considered** — the paper spends real space contrasting itself with Paxos on exactly this axis; summarize the contrast in your own words.
+   - **What it doesn't fully address** — note that log compaction/snapshotting is handled in its own later section, separate from the core algorithm, and that interaction with real disk `fsync` semantics is comparatively thin.
+
+   Then cross-check the abstract log against real code: [etcd's Raft implementation](https://github.com/etcd-io/raft) (split out from the main etcd-io/etcd repository into its own module). Find the type that concretely *is* "the log" — an in-memory slice of unstable entries plus a `Storage` interface for the durable portion — and confirm the paper's abstract array maps onto a real, working struct in production code, not just a diagram in a PDF.
+
+5. **Synthesis: write your own ripple memo.** Pick one of these two systems — both deliberately reuse a data structure you already built by hand in Advanced Data Structures, so the reasoning connects all the way down:
+
+   - A "has this URL already been shortened" check in front of a database, using a **Bloom filter** vs. a plain unique-index lookup.
+   - A real-time leaderboard, using a **Redis sorted set (skip list)** vs. a SQL table with a B-tree index — reuse your notes from step 1.
+
+   Write a one-page memo using the same headers as steps 3 and 4 (*Context and Goals*, *The Design*, *Alternatives Considered*, *What This Doesn't Solve*), reasoning forward from the data structure to its architectural consequences: for the Bloom filter, cover what a false positive costs you operationally (you still hit the database — a Bloom filter only ever saves you a lookup on the *true-negative* path, never changes correctness) and what happens to the filter's memory footprint and false-positive rate at 1 billion URLs; for the leaderboard, cover the concurrent-write and sharding trade-offs you already reasoned about in step 1. The point of this exercise is the same one the whole lesson has been building: given a data structure, you should now be able to write down its architectural consequences *before* anyone builds the system, not discover them after it's in production.
+
+## Check on learning
+
+- A colleague argues "LSM-trees are strictly better than B-trees for write-heavy workloads — just use RocksDB for everything." Using the RUM conjecture and your own write-amplification measurements from step 2, explain what that claim leaves out.
+- In your own words, explain why Redis's choice of a skip list for sorted sets — rather than, say, a hash table or a red-black tree — is what makes `ZRANGEBYSCORE` a simple, cheap operation, and name one concrete thing a SQL-based leaderboard has to build explicitly that this gets for free.
+- Explain-back: pick either the SQLite architecture doc or the Raft paper from steps 3-4. Walk through (1) the single data structure the whole design centers on, (2) one concrete thing elsewhere in the system that would have to change if that structure were swapped for a fundamentally different one, and (3) one thing the document leaves unaddressed that you'd want answered before trusting the design in production.

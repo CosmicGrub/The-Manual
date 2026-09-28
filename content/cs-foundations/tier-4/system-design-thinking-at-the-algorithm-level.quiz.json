@@ -1,0 +1,43 @@
+[
+  {
+    "id": "cs-foundations/tier-4/system-design-thinking-at-the-algorithm-level/q1",
+    "type": "multiple_choice",
+    "prompt": "A team needs an index for extremely high write volume where keys arrive in random order. Structurally, which is the better fit and why?",
+    "choices": [
+      "A B-tree, because B-trees always guarantee O(log n) worst-case time regardless of insertion order",
+      "An LSM-tree, because writes always land in an append-only memtable/log regardless of key order, while a B-tree's page-fill efficiency and write cost depend on the order keys arrive in",
+      "Neither — a plain hash table always outperforms both for high write volume",
+      "A B-tree, because LSM-trees require every read to scan the entire dataset"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cs-foundations/tier-4/system-design-thinking-at-the-algorithm-level/q2",
+    "type": "short_answer",
+    "prompt": "What three-letter acronym names the conjecture stating that a data access method can be optimized for at most two of Read performance, Update performance, and Memory/space overhead, but not all three simultaneously?",
+    "acceptedAnswers": ["RUM", "RUM conjecture", "the RUM conjecture"]
+  },
+  {
+    "id": "cs-foundations/tier-4/system-design-thinking-at-the-algorithm-level/q3",
+    "type": "multiple_choice",
+    "prompt": "Redis implements its sorted-set type as a skip list rather than a balanced tree. Which architectural consequence follows most directly from that specific choice?",
+    "choices": [
+      "Sorted sets require a dedicated background compaction thread to stay balanced",
+      "Ordered range queries (ZRANGE / ZRANGEBYSCORE) can be served by a simple forward pointer-chase at the bottom level, with none of the parent-pointer or explicit-stack bookkeeping a tree-based in-order traversal needs",
+      "Skip lists guarantee strictly better worst-case complexity than any balanced tree, which is the only reason Redis chose one",
+      "Skip lists remove the need for atomic single-command updates, since Redis runs commands across many threads at once"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cs-foundations/tier-4/system-design-thinking-at-the-algorithm-level/q4",
+    "type": "short_answer",
+    "prompt": "In the Raft consensus paper, what single-word data structure is nearly every safety property (Election Safety, Log Matching, Leader Completeness, State Machine Safety) ultimately defined in terms of?",
+    "acceptedAnswers": ["log", "the log", "replicated log", "the replicated log"]
+  },
+  {
+    "id": "cs-foundations/tier-4/system-design-thinking-at-the-algorithm-level/q5",
+    "type": "explain_back",
+    "prompt": "Pick either the SQLite architecture doc or the Raft paper you read this lesson. Explain: (1) the single data structure the whole design centers on, (2) one concrete thing elsewhere in the system that would have to change if that structure were swapped for a fundamentally different one, and (3) one thing the document leaves unaddressed that you'd want answered before trusting the design in production."
+  }
+]

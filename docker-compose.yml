@@ -1,0 +1,24 @@
+# One command, identical result on Windows/macOS/any Linux distro:
+#   docker compose up --build
+# Then open http://localhost:3000 on this machine, or http://<this-machine's-LAN-IP>:3000
+# from a phone/tablet on the same Wi-Fi — see docs/running-on-your-devices.md
+# for how to find that IP on each OS and how to install it as an app on Android.
+services:
+  the-manual:
+    build:
+      context: .
+      dockerfile: app/Dockerfile
+    ports:
+      - '3000:3000'
+    environment:
+      DATABASE_URL: 'file:./dev.db'
+      DEFAULT_USER_NAME: 'Learner'
+    volumes:
+      # Named volume so the SQLite file (and your progress) survives
+      # `docker compose down` / image rebuilds. First run seeds it from the
+      # image's prisma/ directory (schema.prisma + a freshly-pushed dev.db).
+      - manual_data:/app/prisma
+    restart: unless-stopped
+
+volumes:
+  manual_data:

@@ -64,7 +64,10 @@ The-Manual/
 ├── MASTERFILE.md              ← this file (canonical)
 ├── CHANGELOG.md                ← canonical changelog
 ├── README.md
+├── docker-compose.yml           ← `docker compose up --build` — identical on Windows/macOS/any Linux distro
 ├── docs/
+│   ├── running-on-your-devices.md   ← per-OS setup + Android (phone/tablet) LAN + PWA install guide
+│   ├── curriculum/              ← full tier-by-tier syllabus per track
 │   └── diagrams/
 │       ├── curriculum-map.mmd       ← 9 tracks x 6 tiers
 │       └── app-architecture.mmd     ← content → DB → API → UI data flow
@@ -77,13 +80,16 @@ The-Manual/
 │   ├── ai-ml-prompting/...
 │   ├── platforms/...
 │   ├── devops-tooling/...
+│   ├── cybersecurity-ethical-hacking/...
 │   └── capstones-career/...
 └── app/                         ← the delivery app
     ├── package.json / tsconfig.json / next.config.mjs / velite.config.ts
+    ├── Dockerfile / docker-entrypoint.sh / .dockerignore
+    ├── public/manifest.json, sw.js, offline.html, icons/   ← PWA: installable on Android home screens
     ├── prisma/schema.prisma, seed.ts
     └── src/
         ├── app/                 (dashboard `page.tsx`, `layout.tsx`, `api/*`)
-        ├── components/          (SkillTree, QuizRunner, ...)
+        ├── components/          (SkillTree, QuizRunner, RegisterServiceWorker, ...)
         └── lib/                 (db.ts — Prisma client, srs.ts — SM-2, tracks.ts)
 ```
 
@@ -125,6 +131,18 @@ Not yet implemented (documented for the next build pass): `/api/checkpoints/:id/
 - **Postgres migration** — one-line `provider` change in `schema.prisma`.
 - **AI-graded "explain it back"** — currently self-graded; could pipe the answer to an LLM rubric grader.
 - **Adaptive sequencing** — use `masteryScore` + `ReviewState` history to reorder what's suggested next, not just gate tiers linearly.
+
+### 3.7 Multi-device delivery (added 2026-09-28, per explicit request)
+
+Target devices: a **Galaxy Z Fold 5** and **Galaxy Tab S9 FE** (connected over the same Wi-Fi as whichever PC runs the server), plus the PC itself across **Windows**, **macOS**, and **any Linux distro**. Nothing here changes the single-learner/local-first architecture (§3.1) — it makes that one server reachable and installable from more places, not multi-tenant.
+
+- **PC, any OS:** `docker compose up --build` (repo-root `docker-compose.yml` → `app/Dockerfile`, Debian-based so Prisma's glibc-built engines behave identically regardless of host OS or Linux distro) — or run Node.js natively per `docs/running-on-your-devices.md`'s per-OS instructions.
+- **LAN reachability:** `next dev`/`next start` now bind `0.0.0.0` (`app/package.json`), so any device on the same Wi-Fi — not just the host machine — can reach `http://<host-LAN-IP>:3000`.
+- **Android install (PWA):** `app/public/manifest.json` + `app/public/sw.js` (minimal service worker: cache-first for static assets, network-first-with-offline-fallback for page navigations) + SVG icons make the app installable from Chrome ("Install app") on both target devices, with a standalone window and its own home-screen icon.
+- **Foldable/tablet-aware layout:** `app/src/app/layout.tsx` exports `viewport` with `viewportFit: 'cover'` and safe-area-inset padding, so content stays clear of a foldable's hinge/system-bar area whether the Z Fold 5 is folded (phone-width) or unfolded (tablet-width); nothing in the existing Tailwind layout assumed a fixed width to begin with.
+- **Known limitation, documented rather than silently ignored:** full PWA install criteria technically want a secure context (HTTPS or `localhost`); a LAN IP is neither. Chrome on Android is lenient about this in practice, but `docs/running-on-your-devices.md` §4 gives the `mkcert`-based fix for anyone who hits it, plus the always-works fallback (use it as a normal browser tab — full functionality, just no home-screen icon).
+
+Full setup, per-OS commands, and troubleshooting: **[`docs/running-on-your-devices.md`](./docs/running-on-your-devices.md)**.
 
 ---
 

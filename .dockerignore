@@ -1,0 +1,13 @@
+# Build context is the repo root (see docker-compose.yml) — exclude everything
+# the image doesn't need, especially anything under app/ that would otherwise
+# shadow what the Dockerfile installs/builds fresh inside the image.
+app/node_modules
+app/.next
+app/.velite
+app/prisma/*.db
+app/prisma/*.db-journal
+app/.env
+app/.env.local
+.git
+.DS_Store
+npm-debug.log*

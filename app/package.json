@@ -4,9 +4,10 @@
   "private": true,
   "description": "Delivery app for The Manual — a self-taught, multi-tier coding/AI/hardware curriculum. Reads lesson content from ../content, tracks progress and spaced-repetition review locally.",
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -H 0.0.0.0",
+    "dev:local-only": "next dev",
     "build": "velite build && next build",
-    "start": "next start",
+    "start": "next start -H 0.0.0.0",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "db:push": "prisma db push",

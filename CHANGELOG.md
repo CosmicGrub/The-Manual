@@ -111,3 +111,20 @@ All notable changes to The Manual (curriculum + app) are logged here. This file 
 - `app/src/lib/tracks.ts` and `docs/diagrams/curriculum-map.mmd` updated to list all 9 tracks.
 
 **Not yet done:** lesson prose for this track (only the syllabus exists, same as the other 7 non-CS-Foundations tracks).
+
+## [0.7.0] — 2026-09-28 — Multi-device delivery: Android (PWA) + Windows/macOS/Linux (Docker)
+
+**Context:** Explicit request: make the GitHub repo's app usable on a Galaxy Z Fold 5 and Galaxy Tab S9 FE (both connected over the same network), plus PC across Windows, multiple Linux distros, and macOS. The app was already a local-first Next.js server; this makes that one server reachable, installable, and identically buildable everywhere, without changing the single-learner architecture.
+
+**Added**
+- `app/public/manifest.json`, `app/public/sw.js`, `app/public/offline.html`, `app/public/icons/{icon,icon-maskable}.svg` — a minimal, honest PWA layer: installable home-screen icon on Android, a service worker that's cache-first for static build assets and network-first-with-offline-fallback for page navigations (not a full offline-first sync engine — this app is server-rendered against a live DB).
+- `app/src/components/RegisterServiceWorker.tsx`, mounted from `app/src/app/layout.tsx`, which also now exports `viewport` (`viewportFit: 'cover'` + safe-area-inset padding) so content stays clear of a foldable's hinge/system-bar area on both the Z Fold 5's folded (phone-width) and unfolded (tablet-width) states, and on the Tab S9 FE.
+- `app/Dockerfile` (Debian-slim/glibc, not Alpine — avoids Prisma engine/musl mismatches), `app/docker-entrypoint.sh` (runs `prisma db push` before every start so a fresh volume just works), root `docker-compose.yml`, root `.dockerignore` — `docker compose up --build` gives identical behavior on Windows, macOS, and any Linux distro with Docker installed.
+- `docs/running-on-your-devices.md` — per-OS native setup (Windows/macOS/any Linux distro via nvm or distro package managers), the Docker path, finding your PC's LAN IP on each OS, installing as a PWA on Android, and an honestly-documented caveat: full PWA install criteria want a secure context (HTTPS/localhost), a LAN IP is neither, so the doc gives both the always-works fallback (use it as a plain browser tab) and the proper fix (`mkcert` for a locally-trusted cert).
+
+**Changed**
+- `app/package.json` — `dev` and `start` now bind `0.0.0.0` instead of the default, so other devices on the same Wi-Fi can reach the server (`dev:local-only` added for anyone who wants the old localhost-only behavior back).
+
+**Caught and fixed before shipping:** the first Dockerfile draft used `app/` as the build context, which would have silently failed at build time — `velite.config.ts`'s `root: '../content'` needs the repo-root `content/` directory, which lives *outside* an `app/`-scoped build context and Docker cannot reach files outside its context. Fixed by moving the build context to the repo root (`docker-compose.yml`'s `context: .`, `dockerfile: app/Dockerfile`) and adjusting the Dockerfile's `COPY` paths accordingly.
+
+**Status:** MASTERFILE.md §3.7 documents this as a standing architectural section, not a one-off note — it's the reference for what "multi-device" means for this app going forward.
