@@ -1,0 +1,28 @@
+[
+  {
+    "id": "cs-foundations/tier-5/original-problem-solving-and-research-methodology/q1",
+    "type": "explain_back",
+    "prompt": "Have a peer or mentor evaluate your hypothesis.md file against this rubric \u2014 before they see any results: does it state a null hypothesis, a specific numeric effect-size threshold, and a stopping rule, and was it committed to git before your benchmark script was written? Could they state, from reading only the file, the exact observation that would have proven you wrong?"
+  },
+  {
+    "id": "cs-foundations/tier-5/original-problem-solving-and-research-methodology/q2",
+    "type": "explain_back",
+    "prompt": "Have a peer or mentor review your benchmark harness and results write-up against this rubric: process-level isolation (not a bare timeit loop), a statistical test suited to the shape of your runtime data, a reported effect size with a confidence interval, and a conclusion that matches what the interval actually supports rather than rounding a marginal or straddles-zero result up to a real effect."
+  },
+  {
+    "id": "cs-foundations/tier-5/original-problem-solving-and-research-methodology/q3",
+    "type": "short_answer",
+    "prompt": "Name the ASPLOS 2009 paper (Mytkowicz, Diwan, Hauswirth, and Sweeney) that showed how something as innocuous as shell environment size can bias measured program performance by double digits with zero code changes.",
+    "acceptedAnswers": [
+      "Producing Wrong Data Without Doing Anything Obviously Wrong!",
+      "Producing Wrong Data Without Doing Anything Obviously Wrong",
+      "Producing wrong data without doing anything obviously wrong!",
+      "Mytkowicz et al."
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-5/original-problem-solving-and-research-methodology/q4",
+    "type": "explain_back",
+    "prompt": "Walk a peer or mentor through your full experiment end to end: the under-explored question and where you found it, the hypothesis you pre-registered before running anything, your benchmark methodology, and your actual result including whether it was positive or null. Have them evaluate whether your written conclusion honestly matches what your data supports."
+  }
+]

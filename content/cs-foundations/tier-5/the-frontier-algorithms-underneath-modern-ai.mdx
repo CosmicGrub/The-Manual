@@ -1,0 +1,145 @@
+---
+trackId: cs-foundations
+tier: 5
+title: The Frontier: Algorithms Underneath Modern AI
+order: 5
+estimatedHours: 12
+---
+
+Module 1 left you with an uncomfortable fact you measured yourself: `scores = Q @ Kᵀ` is O(n²) in both time and memory, in every attention head, in every transformer layer, and that quadratic term is not a footnote — it's the reason a 128k-token context costs vastly more than 8x a 16k one. The headline story of the last five years of AI progress is "bigger models, bigger GPU clusters," but that story is incomplete: FlashAttention alone made GPT-3.5/4-class context lengths practical on the same hardware, and it contains zero new floating-point operations — it computes the identical mathematical result as naive attention, just without ever materializing the O(n²) matrix in slow memory. This module is where the whole tier's argument closes: the frontier of AI capability right now runs at least as much through algorithms research as through silicon, and you're about to read the papers that prove it, benchmark the improvement yourself, and turn that into the checkpoint's written research note.
+
+## What you'll leave this lesson knowing
+
+- How to state precisely why self-attention is O(n²) in sequence length for both compute and memory, and why that specific term — not model size — is the binding constraint on long-context transformers
+- What "I/O-aware" means as an algorithmic idea: that an algorithm's real-world speed is often bounded by data movement between GPU HBM and SRAM, not by FLOP count, and why this makes attention a memory-bandwidth problem in disguise
+- How FlashAttention (Dao et al., 2022) uses tiling and online softmax to compute exact attention without ever forming the full n×n score matrix, and how to explain its complexity claim (O(n²) time, but O(n) memory) in your own words with the mechanism, not just the headline
+- How to read and place a second, more recent efficient-ML-systems paper (of three real options given here) in the same lineage, using the citation-tracing skill Module 1 already gave you
+- How to benchmark naive versus I/O-aware attention yourself, on real hardware, and report the result the way Module 2 taught you to — with multiple trials and honest variance, not a single flattering number
+
+## Do this
+
+1. **Reconstruct precisely why attention is quadratic, in writing, before reading anyone's proposed fix.** Pull up the NumPy `scaled_dot_product_attention` you built and validated in Module 1. For a batch of 1, `h` heads, sequence length `n`, and per-head dimension `d_k`, trace the shapes through the function by hand: `Q` and `K` are each `(h, n, d_k)`, so `scores = Q @ Kᵀ` is `(h, n, n)` — that's `h·n²` floats that have to exist somewhere in memory simultaneously, and computing each of the `n²` entries costs `O(d_k)` work, for `O(n²·d_k)` time per head. Confirm this isn't an artifact of your specific implementation by running the growth check for real:
+
+   ```python
+   import numpy as np
+
+   def scores_bytes(n, d_k=64, heads=8, dtype=np.float32):
+       # one (heads, n, n) score tensor, the object every attention variant must
+       # either fully materialize (naive) or avoid materializing (I/O-aware)
+       return heads * n * n * np.dtype(dtype).itemsize
+
+   for n in (1_024, 2_048, 4_096, 8_192, 16_384, 32_768):
+       gb = scores_bytes(n) / 1e9
+       print(f"n={n:>6}: score tensor = {gb:8.3f} GB")
+   ```
+
+   Run it and watch the number roughly quadruple every time `n` doubles — at `n=32,768` you should be well past what fits in a single consumer GPU's memory for the score tensor alone, before you've stored a single activation from the rest of the model. Write two or three sentences stating, in your own words and without hedging, exactly which term in the complexity expression is the problem (it's the `n²` factor from `QKᵀ`, not the linear `n·d_model` cost of the projections `Wq`/`Wk`/`Wv`/`Wo` you also implemented in Module 1) — you'll need this precision in step 4, when you have to distinguish "attention is O(n²)" (true, and unavoidable for exact softmax attention) from "attention has to use O(n²) memory" (false, and the entire point of this module).
+
+2. **Learn the I/O-aware framing before opening the FlashAttention paper itself.** The core idea predates the paper: GPU compute (FLOPs) has grown much faster than GPU memory bandwidth, so on modern hardware the real bottleneck for many kernels is how much data moves between slow, large HBM (high-bandwidth memory, tens of GB) and fast, tiny on-chip SRAM (tens of MB), not how many arithmetic operations you issue. This is the **roofline model** of performance: a kernel is either compute-bound or memory-bound depending on its *arithmetic intensity* (FLOPs performed per byte moved), and naive attention is memory-bound — it moves the entire `n×n` score matrix to HBM and back multiple times (once to write it after `QKᵀ`, again to read it for the softmax, again to write the normalized weights, again to read them for the final `@ V`) for comparatively little arithmetic per byte. Read the abstract and Section 1 of Dao, Fu, Ermon, Rudra & Ré's ["FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness"](https://arxiv.org/abs/2205.14135) (arXiv:2205.14135, NeurIPS 2022) using Module 1's pass-one method, and specifically locate where the paper states its own thesis: that it treats attention as an **I/O-bound** problem and optimizes for HBM accesses, not FLOP count — this is a genuinely different objective function than most algorithms coursework trains you to optimize for, and naming that shift explicitly is the actual "aha" this step is for.
+
+3. **Do a real pass two and reconstruct the mechanism — tiling and online softmax — well enough to explain it without the paper open.** Read Section 3 of the FlashAttention paper carefully. The mechanism has two parts, and you should be able to state both from memory afterward:
+
+   - **Tiling:** instead of computing the full `(n, n)` score matrix at once, split `Q`, `K`, and `V` into blocks small enough that a block of each fits in SRAM together, and compute attention block-by-block, keeping each block's intermediate results on-chip instead of round-tripping them through HBM.
+   - **Online (running) softmax:** the obstacle to tiling naively is that softmax needs the max and the sum over the *entire* row before it can normalize any single entry — you can't just softmax each block independently and concatenate. FlashAttention solves this with a running rescaling trick: as each new key/value block is processed, it updates a running max and a running (correctly rescaled) sum for each query row, so the final output is mathematically identical to computing softmax over the whole row at once, without ever holding the whole row in memory simultaneously.
+
+   Implement the *algorithmic shape* of this yourself in plain Python — not a CUDA kernel, but code that makes the tiling and rescaling logic real instead of a paragraph you're taking on faith:
+
+   ```python
+   import numpy as np
+
+   def flash_attention_reference(Q, K, V, block_size=128):
+       """Single-head, single-batch. Produces the same output as full softmax
+       attention, but never materializes the full (n, n) score matrix — it
+       processes K/V in blocks and maintains a running max + running sum,
+       exactly as FlashAttention's Algorithm 1 describes."""
+       n, d_k = Q.shape
+       O = np.zeros((n, d_k))
+       row_max = np.full(n, -np.inf)      # running max per query row
+       row_sum = np.zeros(n)              # running (rescaled) softmax denominator
+
+       for start in range(0, n, block_size):
+           end = min(start + block_size, n)
+           K_blk, V_blk = K[start:end], V[start:end]
+
+           scores_blk = (Q @ K_blk.T) / np.sqrt(d_k)          # (n, block) — small!
+           blk_max = scores_blk.max(axis=1)
+           new_max = np.maximum(row_max, blk_max)
+
+           # rescale the running output and sum to the new max before adding this block
+           correction = np.exp(row_max - new_max)
+           row_sum = row_sum * correction
+           O = O * correction[:, None]
+
+           p = np.exp(scores_blk - new_max[:, None])
+           row_sum += p.sum(axis=1)
+           O += p @ V_blk
+           row_max = new_max
+
+       return O / row_sum[:, None]
+
+   # verify against Module 1's naive reference — same result, different memory profile
+   def naive_attention(Q, K, V):
+       d_k = Q.shape[-1]
+       scores = Q @ K.T / np.sqrt(d_k)
+       w = np.exp(scores - scores.max(axis=-1, keepdims=True))
+       w /= w.sum(axis=-1, keepdims=True)
+       return w @ V
+
+   np.random.seed(0)
+   n, d_k = 2_000, 64
+   Q, K, V = (np.random.randn(n, d_k) for _ in range(3))
+   out_naive = naive_attention(Q, K, V)
+   out_flash = flash_attention_reference(Q, K, V, block_size=128)
+   assert np.allclose(out_naive, out_flash, atol=1e-6), "block-wise reconstruction disagrees with naive softmax"
+   print("flash-style tiled/online-softmax attention matches naive attention to within 1e-6")
+   ```
+
+   This is a correctness reference for the *algorithm*, not a performance reproduction — real FlashAttention's speed comes from a fused CUDA kernel that keeps blocks in SRAM, which pure NumPy can't demonstrate since NumPy has no concept of the GPU memory hierarchy the paper is optimizing for. State that limitation explicitly when you write this up in step 6; conflating "I reproduced the algorithm's numerical output" with "I reproduced the paper's speedup" is exactly the kind of overclaim Module 1's Lipton-and-Steinhardt reading trained you to catch in *other people's* papers — don't commit it in your own.
+
+4. **State the complexity claim precisely, in the form the paper actually makes it.** FlashAttention does not reduce attention's asymptotic time complexity — it's still `O(n²·d_k)` floating-point operations, same as naive attention, because it still computes the same `n×n` matrix of pairwise scores (just never all at once). What it changes is **HBM I/O complexity**: naive attention requires `O(n²)` HBM accesses (writing and re-reading the full score matrix), while FlashAttention requires `O(n²·d_k²/M)` HBM accesses, where `M` is SRAM size — asymptotically less data movement for typical `d_k` and `M`, and it's that reduction in memory *traffic*, not in FLOP count, that produces the paper's reported wall-clock speedups (the paper reports up to 3x on GPT-2 training) and the memory reduction from `O(n²)` to `O(n)` that makes long context windows tractable at all. Write this distinction down in your own words — time complexity unchanged, I/O complexity and peak memory reduced — because it's the single most commonly garbled fact about this paper, and getting it right is the difference between understanding the contribution and just repeating its marketing.
+
+5. **Benchmark naive versus tiled attention yourself, using Module 2's benchmarking discipline.** Reuse your `naive_attention` and `flash_attention_reference` functions (or, for a real hardware signal instead of a pure-Python one, `torch.nn.functional.scaled_dot_product_attention` with `torch.backends.cuda.sdp_kernel` context managers to force the naive "math" backend versus the fused "flash" backend, if you have CUDA available — check with `torch.cuda.is_available()`):
+
+   ```python
+   import time
+   import numpy as np
+
+   def bench(fn, *args, trials=7, warmup=2):
+       for _ in range(warmup):
+           fn(*args)
+       times = []
+       for _ in range(trials):
+           t0 = time.perf_counter()
+           fn(*args)
+           times.append(time.perf_counter() - t0)
+       times = np.array(times)
+       return times.mean(), times.std()
+
+   np.random.seed(0)
+   for n in (512, 1_024, 2_048, 4_096):
+       Q, K, V = (np.random.randn(n, 64) for _ in range(3))
+       mean_naive, std_naive = bench(naive_attention, Q, K, V)
+       mean_flash, std_flash = bench(flash_attention_reference, Q, K, V, 128)
+       print(f"n={n:>5}: naive={mean_naive*1e3:7.2f}±{std_naive*1e3:.2f}ms  "
+             f"tiled={mean_flash*1e3:7.2f}±{std_flash*1e3:.2f}ms")
+   ```
+
+   Report both mean and standard deviation across trials, not a single run — a single number is exactly the unattributed, non-reproducible claim Module 2's statistical-significance material told you to distrust in other people's benchmark tables. If you don't have GPU access, that's fine and expected: the honest result of a pure-NumPy tiled implementation is often *slower* than the naive version at moderate `n` (Python-level loop overhead dominates at the sizes where a fused kernel would win), and reporting that faithfully — plus explaining precisely why the real GPU kernel doesn't have this problem (it fuses the whole block loop into one kernel launch with data resident in SRAM, with none of NumPy's per-block Python overhead) — is a better research note than a fabricated speedup.
+
+6. **Read a second, more recent efficient-ML-systems paper and place it in the lineage, citation graph and all.** Pick one:
+
+   - Kwon et al., ["Efficient Memory Management for Large Language Model Serving with PagedAttention"](https://arxiv.org/abs/2309.06180) (arXiv:2309.06180, SOSP 2023) — the vLLM paper. It applies an idea from a completely different subfield of CS — OS-style virtual memory paging — to LLM inference, to eliminate KV-cache memory fragmentation. It's a clean example of "efficient algorithms research directly speeding up AI systems" from an *entirely different angle* than FlashAttention's memory-hierarchy focus.
+   - Dao, ["FlashAttention-2: Faster Attention with Better Parallelism and Work Partitioning"](https://arxiv.org/abs/2307.08691) (arXiv:2307.08691, 2023) — the direct sequel, if you want to go deeper on the same mechanism rather than a different one. It's explicit and readable about *why* the original left performance on the table (imperfect GPU occupancy from suboptimal work partitioning across thread blocks and warps) and exactly what it changed to fix it.
+   - Chen et al., ["Speculative Decoding"](https://arxiv.org/abs/2211.17192) — the same speculative-decoding paper (arXiv:2211.17192) you may have triaged in Module 1's pass-one exercise; if so, this is your chance to go back and give it the full pass-two-and-three treatment now that you have more machinery. It attacks inference latency from yet another angle: using a small draft model to propose multiple tokens that the large model verifies in parallel, trading extra (cheap) compute for fewer expensive sequential large-model calls.
+
+   Whichever you pick, run the same Semantic Scholar Graph API query from Module 1 against it (`curl "https://api.semanticscholar.org/graph/v1/paper/arXiv:<id>?fields=title,year,citationCount,references.title,references.year"`), and confirm two things concretely: that it cites "Attention Is All You Need" or FlashAttention (or both) in its own reference list, and — using the `/citations` endpoint — name at least one real, identifiable downstream system or paper that cites it. You're not just reading three isolated papers across this tier; you're tracing one continuous, real research lineage from the original 2017 mechanism through to systems shipping in production inference stacks today (PagedAttention specifically underlies vLLM, which is widely deployed for real LLM serving).
+
+7. **Write the checkpoint's research note.** This tier's checkpoint requires "a short (2-4 page) written research note that engages with a real arXiv/Semantic Scholar paper on algorithmic efficiency in ML systems and proposes a small original experiment or extension." Use whichever paper you went deepest on in this module — FlashAttention, FlashAttention-2, PagedAttention, or speculative decoding — as your anchor. The note needs four things, and skipping any one of them is the difference between a book report and a research note: (1) a precise restatement of the paper's core algorithmic claim, in your own words, at the level of rigor step 4 modeled (not "it makes attention faster" — the specific mechanism and the specific complexity measure it improves); (2) your own benchmark data from step 5 (or a benchmark of your second paper's claim, if you can construct one), reported with variance, as real evidence you engaged with the mechanism rather than just the abstract; (3) one concrete, falsifiable extension or follow-up experiment you did *not* run — stated precisely enough that someone else could actually run it and get a yes/no answer (for example: "does online softmax's numerical-stability rescaling introduce measurably more floating-point error than global softmax at fp16 precision, at long sequence lengths?" is falsifiable; "I wonder if this could be even faster" is not); and (4) an honest statement of what you didn't or couldn't verify (GPU kernel-level speedup, if you only had CPU access; the paper's specific reported numbers, if you didn't reproduce their exact hardware setup). Keep this note — it's the third and final piece of this tier's checkpoint portfolio, alongside your Module 3 upstream contribution and your Module 4 teaching artifact.
+
+## Check on learning
+
+Quizzes are retired at this tier — every check below is peer- or mentor-reviewed, not self-graded.
+
+- Have a peer or mentor read your step-4 write-up (FlashAttention's time complexity is unchanged; its HBM I/O complexity and peak memory are what improve, from O(n²) to O(n)) and confirm you can defend it under a direct follow-up question: "if it's not asymptotically faster in FLOPs, why does the paper report a 2-3x wall-clock speedup?" If your answer doesn't clearly separate FLOP count from memory-traffic cost, it isn't precise enough yet.
+- Explain-back, live and without notes: walk a peer through tiling and online softmax using your own `flash_attention_reference` code as the reference — specifically, why softmax can't simply be computed block-by-block and concatenated, and how the running-max rescaling term fixes that. Have them try to trip you up by asking what would go wrong if you skipped the rescaling step (`row_sum` and `O` staying unscaled relative to the new max) and confirm your answer identifies the actual numerical failure, not just "it would be wrong."
+- Have a peer or mentor evaluate your checkpoint research note (step 7) against this rubric: (1) it restates the anchor paper's algorithmic claim with real technical precision, not a summary of the abstract; (2) it includes your own benchmark data, with variance across multiple trials, not a single number; (3) it proposes one experiment that is genuinely falsifiable — they should be able to tell you, from the text alone, what result would prove it wrong; (4) it's honest about what it didn't verify. A note that would pass this rubric with a stranger's paper standing in for yours is the actual bar — not "my mentor already knows what I meant."

@@ -1,0 +1,148 @@
+---
+trackId: cs-foundations
+tier: 5
+title: Original Problem-Solving & Research Methodology
+order: 2
+estimatedHours: 15
+---
+
+You've spent four tiers solving problems with a known right answer — a test suite, a proof, a diff against reference output. This module has none of that: you pick the question yourself, commit in writing to what observation would prove you wrong before you look at any data, then measure carefully enough that a stranger re-running your numbers gets the same answer. That gap — between "I tried something and it seemed faster" and a result someone else can actually trust — is the entire subject of this lesson, and it's the discipline every real paper you'll read in this tier is quietly built on.
+
+## What you'll leave this lesson knowing
+
+- How to find a genuinely under-explored efficiency question — from a paper's own unaddressed "future work," traced through Semantic Scholar's citation graph, or from a real, currently-open performance idea in a project like the `faster-cpython/ideas` repository — instead of inventing a toy problem nobody needs answered
+- How to write a falsifiable, pre-registered hypothesis (a stated null, an explicit effect-size threshold, and a stopping rule, all fixed before you run anything) and why writing your hypothesis after looking at results quietly invalidates the whole exercise
+- Why naive `timeit`-loop benchmarking lies to you, per the classic Mytkowicz et al. ASPLOS 2009 measurement-bias findings, and how process-level tools like `pyperf` and `hyperfine` correct for it
+- How to tell whether a measured difference is real using statistics suited to skewed runtime data (Mann-Whitney U, bootstrap confidence intervals) instead of eyeballing two averages
+- How to write up a result — positive or null — with enough method detail and honesty that a peer or maintainer checking your work reaches the same conclusion you did
+
+## Do this
+
+1. **Find a real, narrow question nobody has actually answered yet.** Two reliable places to look, both real and current:
+
+   - **A paper's own gap.** Open a paper from this tier's Module 1 reading list (or anything recent from arXiv's [cs.DS](https://arxiv.org/list/cs.DS/recent) or [cs.PF](https://arxiv.org/list/cs.PF/recent) listings) and read its "Limitations" or "Future Work" section specifically — that's where authors admit what they didn't check. Then use the Semantic Scholar Graph API to see whether anyone actually followed up on that specific limitation:
+
+     ```bash
+     curl -s "https://api.semanticscholar.org/graph/v1/paper/search?query=<paper title>&fields=paperId,title,citationCount"
+     curl -s "https://api.semanticscholar.org/graph/v1/paper/<paperId>/citations?fields=title,abstract&limit=100"
+     ```
+
+     Skim the citing titles and abstracts for whether any of them actually engages with the specific gap you found, rather than just citing the paper in passing. A paper cited 200 times with none of those citations addressing its own stated limitation is a real, still-open question — not because nobody is smart enough, but because most citations are drive-by references, not follow-through.
+
+   - **A real project's unverified performance idea.** [`faster-cpython/ideas`](https://github.com/faster-cpython/ideas) is the actual repository the CPython performance team — the effort behind the Specializing Adaptive Interpreter (PEP 659), shipped starting in Python 3.11 — uses to park optimization ideas that don't yet have an implementation or a benchmark attached. Browse its open issues for one with no linked PR and no benchmark numbers in the thread. Or search a real numeric/ML-infra project directly for an unverified performance claim sitting in an open issue:
+
+     ```text
+     repo:numpy/numpy is:issue is:open performance in:title,body comments:0..2 sort:updated-asc
+     ```
+
+   Whichever source you use, compress it to one sentence with a measurable verb — not "make X faster" but "does using a `frozenset` instead of a `set` for read-only membership checks measurably reduce lookup time at 10M+ elements on CPython 3.12" — a question you could actually turn out to be wrong about.
+
+2. **Write the hypothesis down — fully, and before you benchmark anything.** Karl Popper's falsifiability criterion is the one-line test: a claim only counts as scientific if you can state, in advance, an observation that would prove it false. "X might be faster" isn't falsifiable; "X reduces median wall-clock time by at least 5% at n=10,000,000, and if the 95% CI on that difference includes zero I'll report the null" is.
+
+   Write a short `hypothesis.md` file with four fields, filled in before a single timer runs:
+
+   ```markdown
+   ## Hypothesis: frozenset membership vs set membership at scale
+
+   - H0 (null): median lookup time for `in` on a `frozenset` of 10M ints is not
+     more than 5% different from a `set` of the same contents, on CPython 3.12.
+   - H1 (alternative): frozenset lookup is faster by more than 5% (median).
+   - Effect size threshold: 5% median difference, reported with a bootstrap 95% CI.
+   - Stopping rule: exactly 30 independent pyperf processes per variant, fixed
+     in advance — no "run a few more until it's significant."
+   ```
+
+   Commit this file to git *before* you write the benchmark script:
+
+   ```bash
+   git add hypothesis.md && git commit -m "Pre-register hypothesis before benchmarking"
+   ```
+
+   The commit timestamp is your evidence the hypothesis wasn't quietly reshaped to fit whatever numbers came out later — the same discipline behind pre-registration on the [Open Science Framework](https://osf.io/prereg/), used across real experimental science specifically to stop HARKing (Hypothesizing After Results are Known).
+
+3. **Read the paper that explains why your gut instinct about benchmarking is probably wrong.** Todd Mytkowicz, Amer Diwan, Matthias Hauswirth, and Peter F. Sweeney's ["Producing Wrong Data Without Doing Anything Obviously Wrong!"](https://dl.acm.org/doi/10.1145/1508284.1508275) (ASPLOS 2009) is the canonical paper on hidden measurement bias in systems benchmarking: they show that something as innocuous as the *size of your shell's environment variables* — which shifts memory alignment and therefore cache/TLB behavior — can swing a program's measured performance by double digits with zero code changes, and can even flip which of two "optimizations" looks faster depending on your `$PATH` length. Read it end to end (it's ten pages); then apply at least two of its concrete lessons to your own setup:
+
+   - Vary something you'd normally consider irrelevant — run your benchmark under `env -i` (a minimal environment) and again under your normal shell environment — and confirm your result holds under both.
+   - Never trust a single run or a single machine as the whole story; if you have access to a second machine (even a cheap cloud VM), rerun there and check the direction of the effect agrees.
+
+4. **Build a benchmark harness that isolates real signal from process noise — not a bare `timeit` loop.** Use [`pyperf`](https://pyperf.readthedocs.io/) (Victor Stinner's library, and the engine behind [`pyperformance`](https://github.com/python/pyperformance), the official suite CPython core developers use to check that a release didn't regress speed) instead of hand-rolled timing: it runs your function across multiple independent *processes*, not just loop iterations sharing one warmed-up cache and GC state, with automatic warmup, and hands you a real distribution instead of one number.
+
+   ```bash
+   pip install pyperf
+   ```
+
+   ```python
+   # bench_set.py
+   import pyperf
+
+   DATA = list(range(10_000_000))
+
+   def build_set():
+       return set(DATA)
+
+   runner = pyperf.Runner()
+   runner.bench_func('set_from_list', build_set)
+   ```
+
+   ```python
+   # bench_frozenset.py — identical harness; only the variant under test changes
+   import pyperf
+
+   DATA = frozenset(range(10_000_000))
+
+   def lookup():
+       return 9_999_999 in DATA
+
+   runner = pyperf.Runner()
+   runner.bench_func('frozenset_lookup', lookup)
+   ```
+
+   Run each to its own result file, then let the tool do the comparison instead of diffing two numbers by eye:
+
+   ```bash
+   python bench_set.py -o set.json
+   python bench_frozenset.py -o frozenset.json
+   pyperf compare_to set.json frozenset.json
+   ```
+
+   `pyperf compare_to` explicitly prints `Not significant!` when the two distributions overlap too much to trust a difference — that's the tool doing your significance testing for you; don't override it because you want your hypothesis to be true. If you're comparing whole CLI invocations rather than in-process functions — two full script runs, two compiled binaries — reach for [`hyperfine`](https://github.com/sharkdp/hyperfine) instead, which handles warmup and outlier flagging automatically:
+
+   ```bash
+   hyperfine --warmup 5 --min-runs 30 'python variant.py' 'python baseline.py'
+   ```
+
+5. **Check the statistics yourself — don't just believe the tool's first line of output.** Runtime distributions are usually right-skewed, not normal: GC pauses, OS scheduler preemption, and thermal throttling create a long tail on the slow side, exactly the shape a Student's t-test's assumptions don't fit well. The Mann-Whitney U test — nonparametric, no assumption about either distribution's shape — is the more defensible choice for comparing two independent runtime samples:
+
+   ```python
+   from scipy.stats import mannwhitneyu
+
+   stat, p_value = mannwhitneyu(baseline_times, variant_times, alternative="two-sided")
+   ```
+
+   A p-value alone still isn't the whole answer — a statistically significant 0.3% improvement is real and useless. Report an effect size with an interval, using a bootstrap on the percent difference in medians:
+
+   ```python
+   import numpy as np
+
+   def bootstrap_pct_diff(baseline, variant, n_boot=10_000, seed=0):
+       rng = np.random.default_rng(seed)
+       diffs = []
+       for _ in range(n_boot):
+           b = rng.choice(baseline, size=len(baseline), replace=True)
+           v = rng.choice(variant, size=len(variant), replace=True)
+           diffs.append((np.median(b) - np.median(v)) / np.median(b))
+       diffs.sort()
+       return np.percentile(diffs, [2.5, 97.5])
+   ```
+
+   This is exactly the bar the ML-systems research community itself has moved toward requiring: Joelle Pineau and coauthors' "Improving Reproducibility in Machine Learning Research" — the report behind NeurIPS's Machine Learning Reproducibility Checklist, introduced in 2019 — explicitly asks authors reporting a performance number to also report the variance it was measured across; a single number with no spread is treated as an unverifiable claim. Hold your own result to the same standard before you write it up.
+
+6. **Write the result up like it has to survive someone else re-running it — because that's the actual deliverable.** Draft a short report containing: the one-sentence question from step 1, your `hypothesis.md` (linked by its git commit hash, not just quoted — the commit is your proof of order), your harness code, the raw `pyperf compare_to` / `mannwhitneyu` output, and a conclusion that states exactly what the data supports, no more. If the result is a null (your hypothesis didn't hold), write it up with the same rigor as a positive one — a well-run experiment that closes off a bad idea is a real contribution, not a failure, and claiming a real effect when your bootstrap CI actually straddles zero is the fastest way to lose credibility with anyone who checks your numbers.
+
+   Keep this write-up; it feeds two things ahead of you directly. If your question came from a real open-source project's issue tracker and your result is positive, it's most of what Module 3 (Contributing Upstream) will ask you to attach to a pull request as evidence. Either way, this whole exercise — question, pre-registered hypothesis, methodology, honestly-reported result — is already a complete draft of the research note this tier's checkpoint project requires.
+
+## Check on learning
+
+- Have a peer or mentor read your `hypothesis.md` *before* they see your results, and evaluate it against this rubric: does it state a null, a numeric effect-size threshold, and a fixed stopping rule, all committed to git before your benchmark script existed? Could they state, from the file alone, the exact observation that would have proven you wrong?
+- Have a peer or mentor review your benchmark harness and write-up against this rubric: process-level isolation rather than a bare `timeit` loop, a statistical test suited to the shape of your runtime data, a reported effect size with a confidence interval, and a conclusion that matches what the interval actually supports — not a marginal or straddles-zero result rounded up to "faster."
+- Explain-back: walk a peer through the full experiment end to end — the question and where you found it, the hypothesis you pre-registered before running anything, your methodology, and your actual result, positive or null — and have them tell you honestly whether they'd trust the conclusion enough to act on it.

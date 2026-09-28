@@ -154,3 +154,12 @@ All notable changes to The Manual (curriculum + app) are logged here. This file 
 4. `OfflineOutboxFlusher` was written but never mounted in `layout.tsx` — the entire offline write-queue would have been dead code, silently never replaying queued requests on reconnect. Fixed by mounting it alongside `RegisterServiceWorker`.
 
 **Deliberately not attempted:** a full bidirectional multi-device sync engine (conflict resolution if the same lesson is completed offline on two devices before either syncs) — last-write-wins via the existing upsert semantics is the honest current behavior, appropriate for a single-learner app; see MASTERFILE.md §3.8's own "what this doesn't attempt" note.
+
+## [0.9.0] — 2026-09-28 — CS Foundations Tier 5: complete — track is now fully content-complete
+
+**Added**
+- `content/cs-foundations/tier-5/*.mdx` (5 files) + matching assessment files: Reading & Critiquing Research Papers, Original Problem-Solving & Research Methodology, Contributing Upstream to Core Infrastructure, Teaching & Mentoring as Mastery Proof, and The Frontier: Algorithms Underneath Modern AI. Per the tier's uniform Tier-5 policy, assessments here are mostly `explain_back`/portfolio-framed rather than auto-graded recognition questions.
+
+**Caught by the hardened assembly tooling (from 0.8.0's fix), working as intended:** "Teaching & Mentoring as Mastery Proof" was flagged and correctly NOT overwritten — its own agent had already written a real 12,170-character lesson directly to disk mid-run, but the workflow's structured output for that same module came back as a 3,251-character meta-report about the work rather than the lesson itself (the exact failure pattern that caused actual data loss in Tier 4, before the safety threshold existed). The existing good file was kept; only the other 4 modules' structured output was written.
+
+**Status:** CS Foundations is now the first fully content-complete track in The Manual — all 6 tiers, 412 hours, 54 lessons. The other 8 tracks still have only their `docs/curriculum/*.md` syllabus.

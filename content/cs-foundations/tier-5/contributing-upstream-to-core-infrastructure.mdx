@@ -1,0 +1,97 @@
+---
+trackId: cs-foundations
+tier: 5
+title: Contributing Upstream to Core Infrastructure
+order: 3
+estimatedHours: 20
+---
+
+Tier 4's open-source module already proved you can take a real bug in someone else's codebase through triage, root-cause, fix, test, and review to a merge. This module assumes that muscle exists and asks a harder question: can you survive what core infrastructure projects actually gatekeep on — which is almost never code quality? CPython, NumPy, PyTorch's public API surface, and the Rust compiler each carry either decades of backward-compatibility weight or hundreds of millions of downstream users, so a maintainer's real objection to your PR is rarely "this doesn't work." It's "we haven't agreed this is the right change yet." The skill this lesson builds is going through that agreement process for real — picking something that actually needs it, writing it up in the project's own format, posting it somewhere a maintainer will genuinely read it, and taking real pushback seriously enough to change your mind or defend your position with evidence. That arc — proposal, discussion, implementation, review — is this tier's checkpoint's first requirement, almost word for word: "one upstream-merged or seriously-reviewed contribution to a significant open-source CS infrastructure project."
+
+## What you'll leave this lesson knowing
+
+- How to tell, in a specific core project (CPython or NumPy, with PyTorch and the Rust compiler as alternate paths), which governance process — a PEP, a NEP, an RFC, or a compiler-team MCP — a given change actually needs, using the project's own stated threshold rather than guessing
+- How to find and choose a genuinely design-level gap in a core project's tracker or roadmap, distinct from the routine, self-contained bug fix Tier 4 already proved you could land
+- How to write and actually post a pre-implementation design discussion — in the project's real venue and format — that states the problem precisely, weighs real alternatives, addresses backward compatibility, and survives at least one round of substantive maintainer pushback
+- How to implement to a core project's heavier bar: dedicated performance-regression benchmarking (pyperformance, ASV) on top of the test-and-lint bar Tier 4 already covered
+- How to document the full arc — proposal, discussion, implementation, review outcome — as this tier's checkpoint's upstream-contribution artifact, even when the honest outcome is "deferred" or "rejected with real technical reasoning" rather than merged
+
+## Do this
+
+1. **Pick one core project and read its governance document before touching any code.** Each of these has a real, public process for deciding when an idea needs group buy-in before a PR is welcome — read it end to end for whichever one you pick, and write down, in your own words, its actual threshold for "this needs a proposal" versus "just open a PR":
+
+   - **CPython** (the language runtime and standard library) — [devguide.python.org](https://devguide.python.org/), specifically its "Changing CPython" section, plus [PEP 1](https://peps.python.org/pep-0001/) ("PEP Purpose and Guidelines"), which is itself the process document. PEP 1 is explicit that most changes don't need a PEP at all — only ones affecting language semantics, the public stdlib API, or backward compatibility do — and that before anyone writes a full PEP, they're expected to float the idea informally on [discuss.python.org](https://discuss.python.org/), usually in the "Ideas" category, to gauge whether it's worth the effort.
+   - **NumPy** (foundational array and numerical-algorithms infrastructure) — the [NEP process itself](https://numpy.org/neps/nep-0000-purpose-and-process.html) (NEP 0, "Purpose and Process") plus the [NumPy contributor guide](https://numpy.org/doc/stable/dev/index.html). NEP 0 lays out exactly which changes need a NumPy Enhancement Proposal (anything touching public API, adding a new module, or changing numerical behavior that existing code depends on) and which don't (routine bug fixes, most performance work that doesn't change results).
+   - **PyTorch** (widely-used ML infrastructure with real public-API stability guarantees) — the [`CONTRIBUTING.md`](https://github.com/pytorch/pytorch/blob/main/CONTRIBUTING.md) in `pytorch/pytorch`, plus the [`pytorch/rfcs`](https://github.com/pytorch/rfcs) repo for anything touching public API or core architecture, discussed on [dev-discuss.pytorch.org](https://dev-discuss.pytorch.org/).
+   - **The Rust compiler** — [rustc-dev-guide.rust-lang.org](https://rustc-dev-guide.rust-lang.org/), plus the lighter-weight [Major Change Proposal (MCP) process](https://forge.rust-lang.org/compiler/mcp.html) that the compiler team uses for changes scoped to `rustc` itself, versus a full [RFC](https://github.com/rust-lang/rfcs) for anything touching the language or public standard library.
+
+   Whichever you pick, find one real historical example of each outcome the process actually produces — accepted, rejected, and deferred/withdrawn — and note roughly how long each took from first post to resolution. These aren't rhetorical: CPython's [PEP 703](https://peps.python.org/pep-0703/) ("Making the Global Interpreter Lock Optional in CPython," Sam Gross, accepted by the Steering Council in 2023) is a real, current example of a runtime-level design change that took sustained public discussion and a formal governance decision before a single line landed — that's the scale of process you're about to practice, not simulate.
+
+2. **Read two or three real historical proposals end to end, using the five-Cs method Module 1 already taught you.** A PEP, a NEP, or an RFC is a technical document exactly like the papers you critiqued in Module 1, and Category / Context / Correctness / Contributions / Clarity applies to it unchanged. Pick from real, substantive examples: PEP 703 (contested, eventually accepted, still rolling out); [NEP 50](https://numpy.org/neps/nep-0050-scalar-promotion.html) ("Promotion rules for Python scalars," multiple years of public disagreement about numerical edge cases before landing as NumPy 2.0's default); or [NEP 18](https://numpy.org/neps/nep-0018-array-function-protocol.html) (the `__array_function__` dispatch protocol that let NumPy-like libraries such as CuPy and Dask interoperate with NumPy's own API). For each one, write your Category/Context/Correctness/Contributions/Clarity paragraph as you did in Module 1, but add a sixth note this time: what, specifically, changed in the proposal's text between its first draft and its accepted (or rejected) form. That delta is the actual record of the design negotiation you're about to enter yourself, and most of these projects keep full PR history on the proposal document itself so you can read the real diffs, not just the final version.
+
+3. **Find a genuinely design-level gap — not a bug — using the tracker's own signals.** This is deliberately one level up from Tier 4's search, which filtered for `label:bug`. Here you're filtering for the opposite: something that needs agreement before code, not just a competent patch. Real starting points:
+
+   ```text
+   repo:python/cpython is:issue is:open label:"type-feature" -label:"pending"
+   ```
+
+   `type-feature` on CPython's tracker marks exactly the issues that touch behavior or public API rather than pure defects — the ones PEP 1's threshold applies to. For NumPy, browse the [open NEP index](https://numpy.org/neps/) for a draft marked "Under Discussion" with no implementation PR yet, or search:
+
+   ```text
+   repo:numpy/numpy is:issue is:open label:"triage review" sort:comments-desc
+   ```
+
+   A long, unresolved comment thread with no consensus is precisely the signature of a design-level disagreement rather than a routine fix — read the whole thread, not just the most recent comments, since design disagreements often circle back to a point raised early and then dropped. For PyTorch, check open issues labeled with a `module:` prefix under active discussion in `pytorch/rfcs`; for the Rust compiler, browse open [MCPs](https://github.com/rust-lang/compiler-team/issues) for one that's stalled for lack of a champion willing to write the implementation. In every case, confirm with a maintainer — a comment on the issue, or a message in the project's real-time venue (`#t-compiler` on the [Rust Zulip](https://rust-lang.zulipchat.com/) is the standard one for the compiler) — that the gap is real and currently unclaimed before you invest the next several steps in it.
+
+4. **Draft the proposal in the project's own template, then actually post it — before you write implementation code.** This step is the one Tier 4 never asked of you, and it's the actual point of this module. Use the project's real template: [PEP 12](https://peps.python.org/pep-0012/) is CPython's literal sample PEP template (Abstract, Motivation, Rationale, Specification, Backward Compatibility, Security Implications, How to Teach This, Rejected Ideas); NumPy ships an [`nep-template.rst`](https://numpy.org/neps/) with equivalent sections. A minimal version of the shape every one of these projects expects looks like this:
+
+   ```text
+   ## Abstract
+   One paragraph: what changes, in plain language.
+
+   ## Motivation
+   The concrete problem this solves, with a real example that currently fails
+   or is currently awkward — not a hypothetical.
+
+   ## Rationale
+   Why this approach, specifically, over the alternatives you considered.
+
+   ## Backward Compatibility
+   What existing code, if any, breaks or changes behavior. If nothing breaks,
+   say so explicitly and explain why you're confident of that.
+
+   ## Alternatives Considered
+   At least one other real approach, and the concrete reason you didn't pick it.
+   ```
+
+   Do not skip "Alternatives Considered" — a proposal that presents only one option reads, to an experienced maintainer, as someone who hasn't actually thought about the tradeoffs, and it's the single most common reason a first-time proposal gets a skeptical first response. Post it in the project's real venue, not a private draft: `discuss.python.org`'s "Ideas" category for CPython (following PEP 1's own instruction to discuss before drafting the formal PEP text), a `numpy-discussion` mailing-list thread or a GitHub Discussion on `numpy/numpy` for NumPy, a new thread on `dev-discuss.pytorch.org` or a draft PR to `pytorch/rfcs` for PyTorch, or a new topic under `#t-compiler` on Zulip for Rust. This has to be a real post that a real maintainer can reply to — a document you only showed a peer doesn't count, because the entire skill here is handling feedback from someone with no obligation to be gentle with you. Expect at least one round of pushback, and respond to it in writing, in the same thread, the same way you'd revise a paper's Correctness section after your own critique surfaced a hole in it: either revise your proposal with their objection incorporated, or make a specific, evidenced case for why you still think your version is right. Keep the entire thread — it's the single most important artifact this module produces.
+
+5. **Implement to the project's heavier bar, once the design is genuinely settled enough to write code against.** The mechanics — tests, CI, style, changelog conventions — are exactly what Tier 4 already taught you; don't re-derive that from scratch, just apply it to a codebase where "the tests pass" is necessary but not sufficient. What's new at this scale is dedicated performance-regression tooling, because a core project's contributors have been burned before by a "safe-looking" change that silently regressed a hot path:
+
+   ```bash
+   # NumPy: compare your branch against main using its real benchmark suite
+   pip install asv
+   cd numpy && git submodule update --init  # benchmarks/ ships in the repo
+   asv continuous main HEAD -b <the benchmark module your change touches>
+   ```
+
+   ```bash
+   # CPython: check a runtime-level change for regressions with the project's
+   # own benchmark suite, comparing two built interpreters
+   git clone https://github.com/python/pyperformance.git && cd pyperformance
+   python -m pyperformance run -o before.json --python=/path/to/main/cpython
+   python -m pyperformance run -o after.json --python=/path/to/your-branch/cpython
+   python -m pyperformance compare before.json after.json
+   ```
+
+   Reuse Module 2's benchmarking discipline here directly if you've done it already: run multiple trials, report variance, and don't claim "no regression" from a single run on a noisy machine. Add the project's own changelog entry format rather than skipping it — CPython requires a fragment under `Misc/NEWS.d/next/<category>/`, most simply created with `pip install blurb && blurb add` (check the devguide's current NEWS-entry instructions, since this tooling has shifted since CPython's 2022 move off `bugs.python.org` onto GitHub Issues); NumPy expects a release-notes fragment describing user-facing impact. A design-level change that regresses performance or ships with no changelog entry undoes the credibility your proposal thread just spent several rounds building.
+
+6. **Navigate a design-heavy review to a real resolution, and write the contribution log.** Expect more reviewers, not fewer, than Tier 4's single-maintainer PRs — CPython's Steering Council or a designated PEP delegate makes the final call on contested PEPs; NumPy NEPs move through explicit statuses (Draft, Under Discussion, Accepted, Rejected, Withdrawn, Superseded — NEP 0 documents all of them); Rust RFCs and MCPs go through a public **Final Comment Period (FCP)** where named team members explicitly check off approval before it can merge. All of these are legitimate, well-documented endpoints, and a substantive "Deferred" or "Rejected" with real technical reasoning attached is exactly what this tier's checkpoint means by "seriously reviewed" — it does not require a merge. What it does require is that you engaged with the real disagreement rather than going quiet or resubmitting the same text unchanged. When it resolves — however it resolves — write a contribution log: the proposal text, a link to the real discussion thread, what changed and why between your first draft and the final one, your implementation and its benchmark results, and an honest account of the review, including anything that didn't go the way you expected. That log, together with the discussion thread itself, is this tier's checkpoint's first deliverable.
+
+## Check on learning
+
+Quizzes are retired at this tier — every check below is peer-, mentor-, or maintainer-reviewed, not self-graded.
+
+- Have a peer or mentor read your actual posted design-discussion thread from step 4 — not a hypothetical rewrite of it — and evaluate it against this rubric: does it state a precise, non-hypothetical problem; does it weigh at least one real alternative and give a concrete reason for rejecting it; does it address backward compatibility explicitly; and does your response to whatever pushback it received either incorporate the objection or defend your position with specific evidence, rather than restating your original text?
+- Explain-back, live and without notes: walk a peer through why the gap you chose in step 3 genuinely needed a PEP/NEP/RFC/MCP rather than a direct PR, citing the project's own stated threshold from step 1 (not your own intuition about what "feels big enough"). Have them push back on your reasoning the way a skeptical maintainer would, and note where your explanation held up and where it didn't.
+- Present your full contribution log from step 6 — proposal, discussion thread, implementation, benchmark results, and review outcome, whatever that outcome was — to a mentor and have them assess it directly against this tier's checkpoint language: "one upstream-merged or seriously-reviewed contribution to a significant open-source CS infrastructure project." If the outcome was a deferral or a rejection, have them specifically confirm the log shows you engaged with the real technical objection rather than just recording that one was made.

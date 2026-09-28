@@ -1,0 +1,100 @@
+---
+trackId: cs-foundations
+tier: 5
+title: Teaching & Mentoring as Mastery Proof
+order: 4
+estimatedHours: 12
+---
+
+Richard Feynman's own test for whether you understand something was blunt: if you can't explain it to someone who knows nothing about it, in plain language, with no hand-waving, you don't understand it — you've memorized it. A real beginner is that test run for actual stakes, because unlike a textbook or a compiler, a novice has zero charity for the gaps in your explanation; they stop exactly where your own understanding was fuzzier than you thought it was. This module treats teaching and mentoring as the terminal proof-of-mastery mechanism for everything Tiers 0 through 4 built — not an extracurricular nice-to-have — and it produces the second of this tier's three checkpoint artifacts directly: a real teaching artifact (workshop, tutorial, or a documented mentoring record) that explains a nontrivial algorithms/complexity concept to a true novice, backed by evidence you actually iterated on their feedback instead of publishing once and walking away.
+
+## What you'll leave this lesson knowing
+
+- How to use backward design (Greg Wilson's *Teaching Tech Together*) to build a lesson from concrete learning objectives outward, instead of starting from "content I want to cover" and hoping objectives fall out of it
+- How to preempt a real, catalogued novice misconception in your teaching material before you deliver it, instead of discovering it live when a beginner gets stuck
+- How to tell a genuine Diátaxis-style tutorial (learning-oriented, guaranteed to work end to end) apart from a how-to guide wearing a tutorial's title, and write the former
+- How to give iterative, Socratic feedback as an Exercism mentor — asking a question that leads a learner to their own fix, instead of handing over corrected code — across a real run of mentor discussions
+- How to close a feedback loop for real: turn a specific confusion signal from an actual beginner into a concrete, describable revision to your material, and produce evidence the revision helped
+
+## Do this
+
+1. **Read the actual theory before you improvise a lesson.** Read the backward-design and cognitive-load chapters of Greg Wilson's [*Teaching Tech Together*](https://teachtogether.tech/) (free online; Wilson founded [Software Carpentry](https://software-carpentry.org/), so this isn't armchair pedagogy — it's distilled from decades of actually teaching programming to adults). Extract **backward design** as a literal procedure: (1) write down 2-3 things a learner should be able to *do* after your lesson — not "understand X," which isn't checkable, but "explain why X happens" or "write code that does Y" — (2) design an assessment that would prove they can do it, (3) only *then* decide what to actually teach, in whatever order gets a learner to pass that assessment fastest. Most self-taught material (including tutorials you've probably followed) gets this backward: content first, objectives implied, assessment absent.
+
+   Then read Yizhou Qian and James Lehman's ["Students' Misconceptions and Other Difficulties in Introductory Programming: A Literature Review"](https://dl.acm.org/journal/toce) (*ACM Transactions on Computing Education*, 2017 — search the title on the ACM Digital Library or Google Scholar if the direct link rotates) for a catalog of specific, documented novice misconceptions: for example, that many beginners believe a variable holds a *history* of every value it's been assigned rather than only its current one, or that `if`/`else` branches somehow both execute "a little bit." Pick one misconception from the paper that applies directly to whatever concept you teach in step 2 — you're about to design against a real, published failure mode, not a guess.
+
+2. **Design one workshop or lesson, backward, for one nontrivial concept you already know cold.** Pick something from your own Tiers 0-4 work that a true beginner finds genuinely hard on first contact — Big-O growth rates, why recursion terminates, why a hash table is O(1) *amortized* and not always O(1), or why binary search requires a sorted array. Fill out a concrete planning worksheet before you write a single slide:
+
+   ```markdown
+   # Workshop plan: <concept>
+
+   ## Learning objectives (2-3, each starting with a verb)
+   1. Learner can ___
+   2. Learner can ___
+
+   ## Assessment (how you'll know objective 1 and 2 were hit)
+   - ...
+
+   ## Misconception you're preempting (name it, cite Qian & Lehman or your own observation)
+   - ...
+
+   ## The one demo/hook (concrete, runnable, or drawable — not just slides of prose)
+   - ...
+
+   ## Time budget (45-60 min total)
+   - Hook: __ min | Core explanation: __ min | Guided practice: __ min | Formative check: __ min
+   ```
+
+   Build the demo as a real artifact, not a plan for one. If you're teaching complexity, a script a beginner can watch run live makes growth rates concrete instead of abstract:
+
+   ```python
+   import time
+
+   def linear_search(items, target):
+       for i, x in enumerate(items):
+           if x == target:
+               return i
+       return -1
+
+   def binary_search(items, target):
+       lo, hi = 0, len(items) - 1
+       while lo <= hi:
+           mid = (lo + hi) // 2
+           if items[mid] == target:
+               return mid
+           elif items[mid] < target:
+               lo = mid + 1
+           else:
+               hi = mid - 1
+       return -1
+
+   for n in (10_000, 100_000, 1_000_000, 10_000_000):
+       data = list(range(n))
+       target = n - 1  # worst case for linear search
+       t0 = time.perf_counter(); linear_search(data, target); t1 = time.perf_counter()
+       t2 = time.perf_counter(); binary_search(data, target); t3 = time.perf_counter()
+       print(f"n={n:>9}: linear={t1 - t0:.6f}s  binary={t3 - t2:.6f}s")
+   ```
+
+   Run it in front of a beginner and let the widening gap be the argument, not a Big-O table they have to take on faith. Whatever your concept is, your demo should do the equivalent: make the abstraction observable.
+
+3. **Deliver it to a genuine beginner — not a peer who already knows the material — and run a formative check, not a vibe check.** Recruit a real novice: [r/learnprogramming](https://www.reddit.com/r/learnprogramming/), [The Odin Project](https://www.theodinproject.com/)'s community, the [freeCodeCamp forum](https://forum.freecodecamp.org/), a local [CoderDojo](https://coderdojo.com/) chapter, or a bootcamp student you know. If your workshop runs live (in person or on a call), borrow [The Carpentries](https://carpentries.org/)' sticky-note pacing check — green means "I'm following," pink/red means "I'm stuck" — checked every 5-10 minutes, or its async equivalent (a shared doc where learners drop an emoji reaction) so you catch confusion while you can still fix it in the room, not only afterward.
+
+   At the end, run Angelo and Cross's **muddiest point** technique (from *Classroom Assessment Techniques*, 1993 — search the technique's name if you want the full academic framing): ask the learner, in writing, to name the single thing that's *still* least clear, in one or two sentences, anonymously if you're teaching more than one person. Do not accept "nothing, it was clear" without a follow-up question — a beginner who can't name any confusion after learning something genuinely new usually hasn't engaged deeply enough to know what they don't know yet, and that's a signal about your check, not a clean pass.
+
+4. **Write a real tutorial and publish it somewhere a stranger can find it.** Read Daniele Procida's [Diátaxis](https://diataxis.fr/) framework first — specifically the distinction between a **tutorial** (learning-oriented: takes a beginner by the hand through a concrete task and is *guaranteed* to work end to end) and a **how-to guide** (goal-oriented: assumes competence, skips context). Most "tutorials" on the internet are actually how-to guides with the wrong label, and Diátaxis names exactly why that fails a true beginner: a how-to guide's writer already knows what to ignore, and a beginner doesn't. Write an actual tutorial for the same concept from step 2, or a different one — every step must be literally reproducible by someone starting from nothing, with no "just configure X first" gaps a beginner can't fill in.
+
+   Publish it somewhere real: your own blog or a static site (GitHub Pages costs nothing), [dev.to](https://dev.to/) (zero-gatekeeping, real audience), or pitch it to [freeCodeCamp News](https://www.freecodecamp.org/news/), which runs an actual open contributor process for community-written technical tutorials — read their own contributor guidelines before drafting so you're writing to their bar, not guessing at it. For a model of what clear, beginner-respecting technical explanation looks like at its best, look at Julia Evans's [Wizard Zines](https://wizardzines.com/) — dense, plain-language, no unearned jargon.
+
+5. **Mentor real learners on Exercism — a run of discussions, not one.** Pick a language track you know cold (your primary language or the second one from Tier 0), and opt in to mentoring at [exercism.org/mentoring](https://exercism.org/mentoring) — their own mentor docs, linked from that dashboard once you opt in, are explicit that a mentor's job is to ask a question that leads the student toward their own fix, not to paste corrected code. Exercism's automated analyzer already flags mechanical issues (unused imports, style nits) before a human mentor ever sees the submission, so your job as mentor is specifically the part software can't do: is this solution correct for the *wrong* reason, did the student miss a more idiomatic approach, do they understand *why* their fix works or did they pattern-match a guess?
+
+   Complete at least 8-10 real mentor discussions, and after each one write one sentence on what the student actually misunderstood before your first comment — not what they got wrong syntactically, what they got wrong conceptually. By discussion 8-10 you should start seeing the same one or two misconceptions recur across different students; that recurrence is data, and it feeds directly into the next step.
+
+6. **Close the loop — this is the step most self-taught teaching skips entirely.** Take the muddiest-point answer from step 3 and the recurring misconception pattern from step 5, and make one concrete, describable change to your workshop or tutorial because of it — a new analogy, a reordered explanation, an added worked example at exactly the point learners kept getting stuck. Then re-teach the revised version to a *different* real beginner, or re-publish the revised tutorial, and run the same muddiest-point check again. Write a short before/after account: what confusion signal you saw, exactly what you changed and why, and whether the second run's muddiest-point answers actually moved — this account, alongside whichever artifact you choose (workshop, tutorial, or your Exercism mentoring log), is the checkpoint's Module 2 teaching artifact.
+
+## Check on learning
+
+Quizzes are retired at this tier — every check below is peer- or mentor-reviewed, not self-graded.
+
+- Have the beginner who went through your *revised* workshop or tutorial from step 6 attempt it with zero help from you in the room; separately, have a peer or mentor read your before/after account and confirm your change was a substantive response to the specific confusion you recorded, not a cosmetic edit made after the fact.
+- Have a peer, an Exercism mentoring lead, or another mentor on your track read 3 of your mentor discussion threads from step 5 against this rubric: did you ask before telling in every thread, did at least one comment address a conceptual misunderstanding rather than a style nit, and can they tell from the thread alone what the student learned?
+- Explain-back, live and without notes: walk a mentor through the full loop end to end — the learning objective and misconception you designed against in step 2, what actually confused your real beginner in step 3, what pattern recurred across your Exercism discussions in step 5, and the specific, single change you made in step 6 because of both signals.

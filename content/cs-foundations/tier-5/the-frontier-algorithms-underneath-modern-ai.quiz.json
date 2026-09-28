@@ -1,0 +1,30 @@
+[
+  {
+    "id": "cs-foundations/tier-5/the-frontier-algorithms-underneath-modern-ai/q1",
+    "type": "short_answer",
+    "prompt": "FlashAttention does not reduce attention's FLOP count \u2014 it's still O(n\u00b2\u00b7d_k) time. What specific resource's asymptotic complexity does it actually reduce, going from O(n\u00b2) down to O(n) (or O(n\u00b2\u00b7d_k\u00b2/M) accesses, for SRAM size M), which is what produces its reported wall-clock speedup and memory savings?",
+    "acceptedAnswers": [
+      "HBM I/O",
+      "memory I/O",
+      "HBM accesses",
+      "I/O complexity",
+      "memory traffic between HBM and SRAM",
+      "peak memory / HBM reads and writes"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-5/the-frontier-algorithms-underneath-modern-ai/q2",
+    "type": "explain_back",
+    "prompt": "Write a 200-300 word critique of the efficient-ML-systems paper you went deepest on in this lesson (FlashAttention, FlashAttention-2, PagedAttention, or the speculative-decoding paper), using Module 1's five-Cs structure (Category, Context, Correctness, Contributions, Clarity). Your Correctness paragraph must cite specific evidence from your own step-3 or step-5 reproduction/benchmark, not just restate the paper's claims, and must explicitly separate what you verified numerically from what you're taking on the paper's word (e.g. algorithmic correctness of tiling/online softmax vs. the paper's specific reported GPU speedup, which pure NumPy can't reproduce). Have a peer or mentor evaluate it against this rubric: (1) each C is addressed with real technical detail, not generic praise; (2) the FLOP-count-vs-I/O-complexity distinction from step 4 is stated correctly; (3) it's honest about the limits of your own reproduction."
+  },
+  {
+    "id": "cs-foundations/tier-5/the-frontier-algorithms-underneath-modern-ai/q3",
+    "type": "explain_back",
+    "prompt": "Present your checkpoint research note (this tier's third and final checkpoint artifact) to a peer or mentor and have them evaluate it against this rubric: (1) it restates its anchor paper's core algorithmic claim with real precision (the specific mechanism and the specific complexity measure it improves), not a summary of the abstract; (2) it includes your own benchmark data from step 5, reported with variance across multiple trials rather than a single run; (3) it proposes one small original experiment or extension that is genuinely falsifiable \u2014 a stranger reading it should be able to say what result would prove it wrong; (4) it honestly states what you didn't or couldn't verify (e.g. real GPU kernel-level speedup vs. a CPU-only algorithmic reproduction). Record their verdict on each of the four points and what you revised as a result."
+  },
+  {
+    "id": "cs-foundations/tier-5/the-frontier-algorithms-underneath-modern-ai/q4",
+    "type": "explain_back",
+    "prompt": "Without notes, explain to a peer why softmax can't simply be computed independently on each block of keys/values and then concatenated \u2014 the specific obstacle online softmax solves \u2014 and walk through, using your own flash_attention_reference code, exactly how the running-max rescaling term keeps the tiled computation mathematically identical to full softmax attention. Have them ask what would go wrong numerically if you removed the rescaling step, and note whether your answer correctly identified the actual failure mode rather than just asserting 'it would be wrong.'"
+  }
+]

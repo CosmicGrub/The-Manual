@@ -1,0 +1,28 @@
+[
+  {
+    "id": "cs-foundations/tier-5/contributing-upstream-to-core-infrastructure/q1",
+    "type": "short_answer",
+    "prompt": "Which CPython PEP, authored by Sam Gross and accepted by the Steering Council in 2023, proposes making the Global Interpreter Lock optional \u2014 a real, current example of the kind of multi-year, publicly-argued core-runtime design change this lesson asks you to practice a small version of?",
+    "acceptedAnswers": [
+      "PEP 703",
+      "PEP 703: Making the Global Interpreter Lock Optional in CPython",
+      "703",
+      "Making the Global Interpreter Lock Optional in CPython"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-5/contributing-upstream-to-core-infrastructure/q2",
+    "type": "explain_back",
+    "prompt": "Have a peer or mentor read your actual posted pre-implementation design-discussion thread (on discuss.python.org, a NumPy mailing-list/GitHub Discussion thread, a PyTorch RFC, or a Rust Zulip topic \u2014 not a hypothetical draft) and evaluate it against this rubric: (1) it states a precise, non-hypothetical problem; (2) it weighs at least one real alternative with a concrete reason for rejecting it; (3) it addresses backward compatibility explicitly; (4) your reply to whatever pushback it received either incorporates the objection or defends your position with specific evidence, rather than restating your original text unchanged. Record their verdict on each of the four points and what, if anything, you revised as a result."
+  },
+  {
+    "id": "cs-foundations/tier-5/contributing-upstream-to-core-infrastructure/q3",
+    "type": "explain_back",
+    "prompt": "Without notes, explain to a peer why the specific issue or gap you chose genuinely required a PEP, NEP, RFC, or compiler-team MCP rather than a direct pull request \u2014 citing the project's own stated threshold for when that process is required, not your own intuition about what feels significant. Have them push back the way a skeptical maintainer would (e.g. 'why couldn't this just be a normal PR with a good description?'), and note here exactly where your explanation held up and where it didn't."
+  },
+  {
+    "id": "cs-foundations/tier-5/contributing-upstream-to-core-infrastructure/q4",
+    "type": "explain_back",
+    "prompt": "Present your full contribution log \u2014 the proposal text, a link to the real discussion thread, what changed between your first draft and the final one and why, your implementation and its benchmark results (pyperformance or ASV, with multiple trials, not a single noisy run), and the review outcome \u2014 to a mentor, and have them assess it directly against this tier's checkpoint language: 'one upstream-merged or seriously-reviewed contribution to a significant open-source CS infrastructure project.' If the outcome was a deferral or rejection rather than a merge, have them specifically confirm the log demonstrates you engaged with the real technical objection rather than merely recording that one was made."
+  }
+]
