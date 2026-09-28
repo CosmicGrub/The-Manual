@@ -1,0 +1,65 @@
+---
+trackId: languages
+tier: 0
+title: Installing & Managing Toolchains
+order: 5
+estimatedHours: 4
+---
+
+Right now you probably have one Python, maybe one Node, maybe a Rust install from a tutorial you half-finished. That's fine for a single project. It stops being fine the moment you have three: one pinned to an old Python because a library hasn't caught up yet, one that wants the latest Node LTS, one Rust crate that needs a nightly compiler feature. Module 1 already told you *what* PATH does and why "command not found" happens when a language's binary isn't on it. This module is where you actually build the machinery that puts those binaries on PATH in the first place — and, just as importantly, the machinery for having *several versions* of the same language coexist without them fighting each other.
+
+## What you'll leave this lesson knowing
+
+- The real difference between an OS package manager (apt/Homebrew/winget), a language's own installer (python.org, an MSI), and a version manager (pyenv, nvm) — and why a polyglot developer wants the third one for anything they'll juggle multiple versions of
+- How to install and use `pyenv` to have multiple Python versions on one machine and switch between them per-shell or per-project
+- How to install and use `nvm` to do the same thing for Node
+- How to install Rust with `rustup` and why Rust's tooling folds "install a toolchain" and "manage multiple versions" into a single official tool, unlike Python and Node
+- How to diagnose a "which one is actually running?" PATH conflict when two installs of the same language exist on your machine, on whichever OS you use
+
+## Do this
+
+1. **Take inventory before you install anything.** Open a terminal and run `which -a python3`, `which -a node`, `which -a gcc`, `which -a git`, and `which -a rustc` (on Windows, use `where python`, `where node`, etc., in PowerShell or Command Prompt, or `Get-Command python` in PowerShell for more detail). `which -a` (not just `which`) is the important part — it lists *every* matching executable on your PATH, in the order your shell would find them, not just the first one. Note what's already there and where it lives (something like `/usr/bin/python3` is your OS's system copy; `/opt/homebrew/bin/python3` is Homebrew's; `C:\Python312\python.exe` is a Windows installer's). You're about to add more entries to this list, and being able to read it is the single most useful troubleshooting skill this lesson teaches.
+
+2. **Get your OS's package manager handling the boring, version-agnostic stuff — not your language runtimes.** macOS: install Homebrew if you don't have it (`/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"`), then `brew install git`. Linux (Debian/Ubuntu): `sudo apt update && sudo apt install build-essential git curl` (`build-essential` is what gets you a working `gcc`; other distros use `dnf`, `pacman`, etc. — look up your distro's equivalent package name, that's normal). Windows: `winget` ships with Windows 10/11 already — confirm with `winget --version`, then `winget install --id Git.Git -e`. The pattern to notice: these are great for system tools like git, curl, and a C compiler, which you basically always want exactly one current version of. They're a worse fit for Python and Node specifically, because a polyglot developer needs *several* versions of those side by side — which is exactly what step 3 and 4 solve.
+
+3. **Install pyenv and get two Python versions living on your machine at once.** On macOS/Linux: `curl https://pyenv.run | bash`, then add the three lines the installer prints (something like `export PYENV_ROOT="$HOME/.pyenv"`, a PATH line, and `eval "$(pyenv init -)"`) to your shell's config file — `~/.zshrc` on macOS (zsh has been the default shell since Catalina), `~/.bashrc` on most Linux setups. Close and reopen your terminal so those lines actually load. On Windows, the equivalent is `pyenv-win`, or you can lean on the official python.org installer's built-in `py` launcher, which already supports side-by-side versions via `py -0` (list installed) and `py -3.11` / `py -3.12` (run a specific one) — worth trying both and picking what your future toolchain steps expect. Now install two real versions and prove you can move between them:
+   ```
+   pyenv install 3.12.4
+   pyenv install 3.11.9
+   pyenv global 3.12.4
+   python --version
+   pyenv local 3.11.9
+   python --version
+   ```
+   `pyenv global` sets your default everywhere; `pyenv local`, run inside a project folder, drops a `.python-version` file that pins *that project* to a different version, overriding the global one only there. That's the actual problem this solves: an old project stays on 3.11 without dragging a new project on 3.12 down with it.
+
+4. **Install nvm and do the same thing for Node.** macOS/Linux: `curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash`, then reopen your terminal (or `source ~/.zshrc` / `source ~/.bashrc`). Windows: nvm-sh doesn't run natively there — install `nvm-windows` (a separate project, get the installer from its GitHub releases) instead; the commands below are close enough to identical either way.
+   ```
+   nvm install --lts
+   nvm install 18
+   nvm use 18
+   node --version
+   nvm alias default --lts
+   ```
+   Same shape as pyenv: install as many versions as you need, `use` switches the active one for your current shell, and `alias default` decides what a brand-new terminal starts with.
+
+5. **Install Rust with rustup, and notice it's a different shape of tool.** macOS/Linux: `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`. Windows: download and run `rustup-init.exe` from rustup.rs — it will also check for the Microsoft C++ Build Tools (the MSVC linker), since Rust needs a linker under the hood and Windows doesn't ship one by default; the installer tells you if something's missing and links straight to it. Where pyenv and nvm are third-party tools bolted on top of Python and Node because neither language ships an official version manager, `rustup` *is* Rust's official installer and version manager in one — a genuinely different design choice worth noticing as a polyglot. Try:
+   ```
+   rustc --version
+   cargo --version
+   rustup toolchain list
+   rustup component add clippy rustfmt
+   ```
+   `rustup` manages toolchains (stable/beta/nightly channels), components (clippy is a linter, rustfmt a formatter), and targets (for cross-compiling, e.g. `rustup target add wasm32-unknown-unknown`) — all through one command, instead of three separate ecosystems.
+
+6. **Get a real C compiler answering, since your checkpoint project needs one.** Linux: you already have it from step 2's `build-essential`. macOS: run `xcode-select --install`, which gives you Apple's Command Line Tools including `clang` (aliased so `gcc` works too). Windows is the genuinely awkward one: either install MSYS2 (`winget install -e --id MSYS2.MSYS2`, then inside its shell `pacman -S mingw-w64-ucrt-x86_64-gcc`) to get a native `gcc`, or use WSL, which gives you a real Linux `apt install build-essential` instead. Confirm with `gcc --version` (or `clang --version` on macOS) once it's done.
+
+7. **Deliberately create a PATH conflict, then fix it — this is the actual skill.** If you have both a system Python and a pyenv-managed one, run `which -a python3` again and compare it to step 1's output: pyenv works by putting a "shim" directory at the *front* of your PATH, so its fake `python3` gets found before the system one — that's why `pyenv global`/`pyenv local` can change what `python3` means without touching the real installations at all. Now break it on purpose: comment out the `eval "$(pyenv init -)"` line in your shell config, reopen your terminal, and run `python --version` — it'll quietly fall back to whatever was already on PATH, with no error telling you why. This is a completely normal thing to get stuck on, and the fix is a completely normal thing to have to search for (try "pyenv shim not working after restart" or read `pyenv init --help`) rather than guess at. Uncomment the line, reopen your terminal, and confirm `pyenv version` is back to reporting the version you expect.
+
+8. **Run one final sweep confirming everything answers correctly.** In a fresh terminal window (not one left over from earlier steps — this matters, since PATH and shell-config changes only apply to shells started *after* the change): `python --version`, `node --version`, `npm --version`, `rustc --version`, `cargo --version`, `gcc --version`, `git --version`. Every one of these should print a real version string with no "command not found." If one doesn't, go back to `which -a <command>` for that tool and work out whether it's missing entirely or just not on PATH yet — you now have the actual diagnostic loop for both cases.
+
+## Check on learning
+
+- In your own words, explain why a version manager (pyenv, nvm) is a better fit than a plain single-version installer for someone learning nine languages over the next few years — name a concrete situation where having only one Python version installed would actually block you.
+- If both a Homebrew-installed Python and a pyenv-managed Python show up when you run `which -a python3`, which one actually runs when you type `python3`, and what specifically determines that? Say how you'd change it if you wanted the other one to win.
+- Walk through, step by step, what you did in step 7 to break your PATH on purpose and what told you it was broken (or, more precisely, what *didn't* tell you — no error message appeared) — then explain how you diagnosed and reversed it.

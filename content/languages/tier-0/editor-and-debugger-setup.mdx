@@ -1,0 +1,117 @@
+---
+trackId: languages
+tier: 0
+title: Editor & Debugger Setup
+order: 2
+estimatedHours: 4
+---
+
+You already installed VS Code and got a Python script running in it back in CS Foundations Tier 0 — one language, one interpreter, one extension, and `print()` to see what happened. A polyglot workbench asks more of your editor: it needs to speak Python, JavaScript, and C fluently at once, and it needs a debugger you actually know how to drive by hand, so a bug in whichever language you're in that day doesn't send you back to scattering `print()` and `console.log()` calls everywhere and re-running the program fifty times to narrow it down.
+
+## What you'll leave this lesson knowing
+
+- Which extensions your polyglot workbench needs beyond the Python one you already installed, and what a language extension actually gives you (IntelliSense *plus* a debug adapter, not just syntax highlighting)
+- How to use the integrated terminal as a real multi-shell tool — multiple terminal tabs, splits, and picking which shell each one runs
+- How to set a breakpoint and step through running code — over, into, watching a variable, reading the call stack — in a Python script and a Node script, and notice the workflow is identical even though the two runtimes are completely different underneath
+- Why a C program has to be compiled with `-g` before a debugger can make any sense of it, and how to wire up gdb (or lldb) through VS Code to step through compiled C
+- How `.vscode/settings.json`, `.vscode/launch.json`, and `.vscode/extensions.json` let you pin per-project, per-language configuration that travels with the repo instead of living only in your personal VS Code install
+
+## Do this
+
+1. **Confirm your baseline, then add the one extension this lesson needs beyond Python.** Open VS Code and check the Extensions view (`Ctrl+Shift+X` / `Cmd+Shift+X`) for "Python" (`ms-python.python`) — if CS Foundations Tier 0 is done, it's already there. Add the C/C++ extension from the terminal:
+
+   ```bash
+   code --install-extension ms-vscode.cpptools
+   ```
+
+   That's the official Microsoft extension — it gives you IntelliSense and debugging for C and C++. You don't need to install anything extra for JavaScript or Node: VS Code ships Node.js debugging support in the box, so "one fewer extension than you'd expect" is correct, not a step you're missing.
+
+2. **Get comfortable with the integrated terminal as a real multi-shell tool.** Open it with `` Ctrl+` `` (backtick). Click the `+` in the terminal panel to open a second one, and the split-terminal icon next to it to see two side by side — you'll do this constantly once you're running a Python script in one pane and a Node process in another. Click the dropdown next to the `+` to see which shell each new terminal launches (bash, zsh, PowerShell, Git Bash on Windows). This is the exact shell-and-PATH machinery Module 1 covered, just running inside a panel instead of a standalone terminal app — every terminal VS Code opens starts in your current workspace folder, which is why `python3 hello.py` or `node hello.js` just work without `cd`-ing there first.
+
+3. **Debug a Python script with a real bug.** Create `sum_evens.py`:
+
+   ```python
+   def sum_evens(nums):
+       total = 0
+       for i in range(len(nums)):
+           if i % 2 == 0:
+               total += nums[i]
+       return total
+
+   if __name__ == "__main__":
+       data = [1, 2, 3, 4, 5, 6]
+       print(sum_evens(data))
+   ```
+
+   This is supposed to sum the *even values* in the list (2 + 4 + 6 = 12) but actually sums the values sitting at *even indices* (1 + 3 + 5 = 9) — a classic index-vs-value mix-up. Open the Run and Debug view (`Ctrl+Shift+D`), click "create a launch.json file" if prompted and choose "Python File," then click in the gutter to the left of `total += nums[i]` — a red dot appears, marking a breakpoint. Press `F5`. Execution pauses right there. In the Variables pane, expand Locals and watch `total`, `i`, and `nums`, and add `nums[i]` to the Watch pane too. Press `F10` (step over) repeatedly and watch `i` climb 0, 2, 4 while `total` accumulates `nums[0]`, `nums[2]`, `nums[4]` — the exact wrong values, visible in real time instead of guessed from bad output.
+
+4. **Debug the same bug in Node.** Same logic, different language — create `sum_evens.js`:
+
+   ```javascript
+   function sumEvens(nums) {
+     let total = 0;
+     for (let i = 0; i < nums.length; i++) {
+       if (i % 2 === 0) {
+         total += nums[i];
+       }
+     }
+     return total;
+   }
+
+   const data = [1, 2, 3, 4, 5, 6];
+   console.log(sumEvens(data));
+   ```
+
+   Back in Run and Debug, click "create a launch.json file" again and this time choose "Node.js" — VS Code adds a second configuration to the same `launch.json`, and a dropdown at the top of the panel lets you switch between it and "Python File." Set a breakpoint on the same `total += nums[i]` line, press `F5`, and step through with `F10` exactly as before. Notice you didn't have to relearn anything — same gutter click, same Variables pane, same keys — even though a Python script and a Node script are executed by two completely different programs under the hood.
+
+5. **That sameness isn't an accident — it's a protocol.** VS Code doesn't hand-build separate debugging logic for every language it supports. It speaks a standard called the **Debug Adapter Protocol (DAP)**: a fixed set of messages for "set a breakpoint here," "step over," "what are the current locals," and so on. Each language extension ships (or points VS Code at) a small **debug adapter** — a translator that speaks DAP on one side and that language's own debugging mechanism on the other: for Python, the adapter (`debugpy`) hooks into the same low-level tracing machinery the standard library's `pdb` is built on; for Node, it talks to the V8 engine's built-in inspector protocol, the same one Chrome DevTools uses. That's the real reason installing a language extension gives you two things at once — IntelliSense *and* a debug adapter — and it's why the C/C++ extension is about to do something structurally different again.
+
+6. **Compile C with debug symbols, then attach a debugger to it.** Create `sum_evens.c`:
+
+   ```c
+   #include <stdio.h>
+
+   int sum_evens(int nums[], int len) {
+       int total = 0;
+       for (int i = 0; i < len; i++) {
+           if (i % 2 == 0) {
+               total += nums[i];
+           }
+       }
+       return total;
+   }
+
+   int main(void) {
+       int data[] = {1, 2, 3, 4, 5, 6};
+       printf("%d\n", sum_evens(data, 6));
+       return 0;
+   }
+   ```
+
+   Compile it with the `-g` flag: `gcc -g -o sum_evens sum_evens.c` (Module 5 covers installing gcc properly if you don't have it yet — if `gcc --version` fails right now, that's a PATH problem exactly like Module 1 described, and it's fine to come back to this step after Module 5). `-g` matters because compiled machine code, by default, carries none of your source with it — just addresses and raw instructions. `-g` embeds a symbol table mapping those addresses back to `sum_evens.c` and its variable names, which is the only reason a debugger can show you source and variable names at all instead of memory dumps. Now add a third configuration to `launch.json`: `"type": "cppdbg"`, `"program": "${workspaceFolder}/sum_evens"`, and `"MIMode": "gdb"` — Linux and Windows/MinGW both ship gdb. On macOS, Xcode's Command Line Tools ship `lldb` instead, so set `"MIMode": "lldb"` there, and if the exact settings for your platform don't work on the first try, that's completely normal — search "vscode cpptools launch.json gdb" or "lldb" for your OS and adjust, the same way you'd look up an unfamiliar command flag. Set a breakpoint on the same `total += nums[i]` line and press `F5`. You're now watching a *compiled* program's live memory through the same Variables pane — slower to set up than Python or Node, but the payoff is identical: real state, in real time, instead of a guess.
+
+7. **Pin your setup so it travels with the repo, not just your machine.** Everything you just configured lives in a hidden `.vscode/` folder VS Code created inside your project — that's workspace-level configuration, separate from your personal VS Code settings (Settings has a Workspace tab and a User tab), and it's what lets a teammate open the same repo and get the same three debug configs for free. Open `.vscode/settings.json` and add a couple of per-language overrides:
+
+   ```json
+   {
+     "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
+     "[python]": { "editor.tabSize": 4 },
+     "[javascript]": { "editor.tabSize": 2 }
+   }
+   ```
+
+   Then create `.vscode/extensions.json` so anyone opening this repo gets prompted to install exactly what it needs:
+
+   ```json
+   {
+     "recommendations": ["ms-python.python", "ms-vscode.cpptools"]
+   }
+   ```
+
+   You'll formalize exactly which of these files get committed to git — and which get ignored — in Module 4's per-language `.gitignore` conventions; for now, just notice that `settings.json`, `launch.json`, and `extensions.json` are project state, not personal preference, which is exactly why they live inside the repo folder instead of some global config only you can see.
+
+## Check on learning
+
+- In your own words: what does "step over" actually do differently from letting the program just run to completion? Use the `total += nums[i]` breakpoint in `sum_evens` as your example.
+- Why did debugging Python and debugging Node feel almost identical, while debugging C needed an extra compile flag and a choice between gdb and lldb? Name the one underlying reason.
+- Explain to a teammate what the Debug Adapter Protocol is for, in plain language — what problem would VS Code run into if every language extension had to invent its own completely separate debugging UI from scratch?

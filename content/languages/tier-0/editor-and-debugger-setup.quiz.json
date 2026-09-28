@@ -1,0 +1,49 @@
+[
+  {
+    "id": "languages/tier-0/editor-and-debugger-setup/q1",
+    "type": "multiple_choice",
+    "prompt": "What does compiling a C program with `gcc -g` actually do that makes real debugging possible at all?",
+    "choices": [
+      "It automatically finds and fixes bugs before the program runs",
+      "It embeds a symbol table mapping the compiled machine code back to your source lines and variable names",
+      "It makes the compiled binary run faster",
+      "It turns the C program into an interpreted script like Python"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-0/editor-and-debugger-setup/q2",
+    "type": "short_answer",
+    "prompt": "What is the name of the hidden folder VS Code creates inside a project to hold per-project files like settings.json, launch.json, and extensions.json?",
+    "acceptedAnswers": [
+      ".vscode",
+      ".vscode/",
+      ".vscode folder"
+    ]
+  },
+  {
+    "id": "languages/tier-0/editor-and-debugger-setup/q3",
+    "type": "multiple_choice",
+    "prompt": "Why does VS Code's Run and Debug panel look and behave identically whether you're debugging a Python script, a Node script, or a compiled C program?",
+    "choices": [
+      "All three languages are secretly compiled to the same bytecode before running",
+      "VS Code speaks a standard Debug Adapter Protocol (DAP), and each language's extension supplies an adapter that translates DAP into that language's own debugging mechanism",
+      "Only Python and Node actually support real debugging \u2014 the C configuration just reruns the program and times it",
+      "VS Code detects the language and silently swaps in a completely different UI you don't notice"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-0/editor-and-debugger-setup/q4",
+    "type": "short_answer",
+    "prompt": "On macOS, which debugger backend do you typically set as MIMode in a cppdbg launch.json entry, since gdb isn't the default there?",
+    "acceptedAnswers": [
+      "lldb"
+    ]
+  },
+  {
+    "id": "languages/tier-0/editor-and-debugger-setup/q5",
+    "type": "explain_back",
+    "prompt": "In your own words, explain to a teammate why installing a language's VS Code extension (like the Python extension or the C/C++ extension) gives you more than just nicer syntax highlighting \u2014 what two distinct capabilities does it actually add, and why does that matter the moment you press F5?"
+  }
+]

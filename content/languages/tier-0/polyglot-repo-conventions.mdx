@@ -1,0 +1,103 @@
+---
+trackId: languages
+tier: 0
+title: Polyglot Repo Conventions
+order: 4
+estimatedHours: 2
+---
+
+You already know how to turn a folder into a git repo, stage changes, commit them, and push to GitHub — that's Git Day Zero, and none of that changes here. What changes the moment your project has a Python service, a Node script, and a C utility living side by side is *what belongs in that repo and what absolutely does not*: every language leaves its own trail of generated junk, and a `.gitignore` written with only one language in mind silently lets every other language's clutter through. This lesson covers the two things a polyglot codebase needs on top of the git basics you already have: knowing what to exclude per language, and choosing whether multiple languages live in one repo or several.
+
+## What you'll leave this lesson knowing
+
+- Why a `.gitignore` written for one language fails silently the moment a second language joins the repo, and what junk Python, Node, C/C++, and Java each specifically leave behind
+- How to generate and combine per-language `.gitignore` templates instead of memorizing them, and how to untrack a file that got committed before the rule existed
+- The difference between a project's `.gitignore` and your machine-wide `core.excludesFile`, and which OS/editor junk belongs in which
+- The real tradeoffs between a monorepo (one repo, many languages) and a polyrepo (one repo per language or service), stated in terms of an actual pressure a project is under, not a rule of thumb
+- How to lay out a polyglot repo so each language's subproject stays self-contained and navigable
+
+## Do this
+
+1. **Generate real junk from three languages, on purpose.** You need to see the problem before the fix makes sense. Build a scratch multi-language repo:
+   ```
+   mkdir polyglot-practice && cd polyglot-practice
+   git init
+   mkdir py-tool node-tool c-tool
+   ```
+   Python:
+   ```
+   cd py-tool
+   python3 -m venv .venv
+   echo 'print("hi")' > main.py
+   python3 -c "import py_compile; py_compile.compile('main.py')"
+   ls -a
+   cd ..
+   ```
+   Node:
+   ```
+   cd node-tool
+   npm init -y
+   npm install left-pad
+   ls
+   cd ..
+   ```
+   C:
+   ```
+   cd c-tool
+   printf '#include <stdio.h>\nint main(){printf("hi\\n");return 0;}\n' > main.c
+   gcc main.c -o main
+   ls
+   cd ..
+   ```
+   Notice what each command left behind: `.venv/` and `__pycache__/` from Python, `node_modules/` and `package-lock.json` from Node, and a compiled `main` binary from C. Every one of those is fully reproducible from the source files sitting next to them — none of it belongs in git, but you'd have to already know each language's habits to know that.
+
+2. **Stop guessing and generate the `.gitignore`.** From the repo root, generate and combine templates for exactly the stacks you have, using gitignore.io's API in one command:
+   ```
+   curl -L -s "https://www.toptal.com/developers/gitignore/api/python,node,c,c++,visualstudiocode" -o .gitignore
+   ```
+   Open the file — it's sectioned (`### Python ###`, `### Node ###`, `### C++ ###`...), each block written by people who know that ecosystem's junk cold. This is the same instinct as reaching for `--help` or a man page instead of guessing at flags: don't hand-roll something a maintained community list already solved correctly.
+
+3. **Verify it actually works.** Run `git status` from the repo root. `.venv/`, `__pycache__/`, `node_modules/`, and the compiled `main` binary should now be invisible — only real source (`main.py`, `main.c`, `package.json`, `package-lock.json` if you want it tracked) shows as untracked. If a file you expected to disappear is still listed, it's almost always because it was already tracked *before* the `.gitignore` rule existed — ignoring only blocks *future* additions, it doesn't retroactively hide something git is already watching. Fix that with:
+   ```
+   git rm --cached <path-to-file>
+   ```
+   which untracks the file without deleting it off your disk.
+
+4. **Separate "this project's junk" from "your machine's junk."** `.DS_Store` (macOS), `Thumbs.db` (Windows), and a personal `.vscode/settings.json` aren't specific to this repo — they'd show up in every repo you ever touch, in every language. Instead of pasting them into every project's `.gitignore`, set a global exclude file once:
+   ```
+   git config --global core.excludesFile ~/.gitignore_global
+   echo ".DS_Store" >> ~/.gitignore_global
+   echo "Thumbs.db" >> ~/.gitignore_global
+   ```
+   Project `.gitignore` = "what this codebase's toolchains generate," committed and shared with everyone who clones it. Global excludes file = "what your OS and editor generate," private to your machine and never committed anywhere.
+
+5. **Commit the result.**
+   ```
+   git add .gitignore
+   git commit -m "Add combined Python/Node/C .gitignore"
+   ```
+
+6. **Now the architectural question: monorepo or polyrepo?** Your `polyglot-practice` folder — three languages under one `.git` — is already a monorepo: one clone, one `git log`, one commit can touch all three subprojects at once. The alternative is a polyrepo: `py-tool`, `node-tool`, and `c-tool` as three separate GitHub repositories, each with its own history and its own `.gitignore`. Neither is "correct" in general:
+   - **Monorepo fits when** the pieces genuinely change together (a Python backend and its Node frontend, released as one product), and you want one PR and one CI run to cover a change that spans both. The cost is exactly what you just did in step 2 — your `.gitignore` and your CI config have to know about *every* stack, and cloning pulls everyone's code even if you only touch one piece.
+   - **Polyrepo fits when** a piece is independently versioned or released (a C library five unrelated products depend on, each pinning a different version), or is owned by a different team that shouldn't need write access to everything else. The cost is that a change spanning two repos needs two PRs and manual coordination of which version each consumer points at.
+   
+   Real organizations run both — Google is famous for one company-wide monorepo, most microservice shops run one repo per service — so if you're stuck deciding for a real project later, that's a normal place to be stuck. Search "monorepo vs polyrepo" for your actual situation and read a couple of arguments on both sides before you commit; it's a genuinely contested tradeoff among working engineers, not a fact you either already know or don't.
+
+7. **Make the monorepo shape you built actually navigable.** Add a `README.md` at the repo root with one line per subfolder describing what it is and how to run it:
+   ```
+   ## py-tool
+   cd py-tool && python3 main.py
+   
+   ## node-tool
+   cd node-tool && node main.js
+   
+   ## c-tool
+   cd c-tool && ./main
+   ```
+   Commit it (`git add README.md && git commit -m "Add root README describing each subproject"`), then push the whole thing to GitHub the way you already know from Git Day Zero (`git remote add origin <url>`, `git push -u origin main`). This per-folder-README pattern is what keeps a monorepo from turning into an unlabeled junk drawer — it's also exactly what your Tier-0 checkpoint project's own README needs to do.
+
+## Check on learning
+
+- Without looking anything up: name two files or folders Python leaves behind that shouldn't be committed, and two that Node leaves behind. Why doesn't either list transfer to the other language?
+- What's the actual difference between a rule you put in a project's `.gitignore` versus one you put in your global `core.excludesFile` — and which one would `node_modules/` belong in?
+- Explain back: describe one real (or realistic) project where you'd choose a monorepo, and a different one where you'd choose a polyrepo, naming the specific pressure — shared release, independent teams, atomic cross-language commits — driving each choice.

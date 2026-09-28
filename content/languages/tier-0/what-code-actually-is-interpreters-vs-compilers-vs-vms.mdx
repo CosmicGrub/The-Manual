@@ -1,0 +1,83 @@
+---
+trackId: languages
+tier: 0
+title: What Code Actually Is: Interpreters vs Compilers vs VMs
+order: 3
+estimatedHours: 4
+---
+
+You already know from CS Foundations' "What Even Is a Computer" that a CPU is a dumb loop — fetch an instruction, execute it, repeat, billions of times a second — and that it only ever understands raw machine code, not English-like source text. What that lesson didn't cover is *who* turns your source code into those instructions, *when* they do it, and why that one design choice is the biggest reason `print("hello")` in Python and `printf("hello\n");` in C feel, install, and run completely differently, even though both end up flipping the exact same kind of bits on the exact same kind of CPU.
+
+## What you'll leave this lesson knowing
+
+- The real pipeline between "you type source code" and "the CPU runs it": tokens, a parse tree, then a translation step down to something a machine (real or virtual) can execute
+- The concrete difference between an interpreter, a compiler, and a bytecode VM — not as trivia, but as something you can *see* on your own machine
+- Which bucket each of this track's nine languages falls into: interpreted (Python, JS), compiled-to-native (C, C++, Rust, Go), or compiled-to-bytecode-VM (Java, C#)
+- Why "interpreted" languages like Python are quietly compiling too, and how to prove it with a command you run yourself
+- Why a Java `.class` file runs unmodified on Windows, macOS, and Linux, while a C binary compiled on one of those won't run on the others
+
+## Do this
+
+1. **Tokenize a line of code by hand, on paper.** Take the line `total = total + 5`. Before a computer can do anything with that text, something has to chop it into meaningful pieces — this step is called lexing, and the pieces are called tokens. Write out the token list yourself: `NAME(total)`, `OP(=)`, `NAME(total)`, `OP(+)`, `NUMBER(5)`. Then imagine those tokens getting arranged into a tree that says "assign to `total` the result of adding `total` and `5`" — that tree is called an AST (abstract syntax tree). Every single language you'll ever touch — Python, C, Rust, SQL, all of them — starts with this exact two-step move (tokens, then a tree) before anything resembling "running your code" happens. What differs is what happens *after* the tree exists, and that's the whole subject of this lesson.
+
+2. **Run Python and watch nothing visible happen in between.** In your terminal, run `python3 -c "print('hello from an interpreter')"`. It just prints. There's no separate "build" step you had to run first — you typed source code and instantly got output. That's the interpreter experience: something reads your tokens/tree and executes it directly, in essentially one motion from your point of view.
+
+3. **Now catch Python secretly compiling anyway.** Make a small project folder, and inside it create `greet.py` containing:
+   ```python
+   def greet(name):
+       message = "hello, " + name
+       return message
+
+   print(greet("world"))
+   ```
+   Run it once with `python3 greet.py`. Now compile it explicitly with `python3 -m py_compile greet.py`, and look inside the `__pycache__` folder that appears — run `ls __pycache__`. You'll see a file like `greet.cpython-312.pyc`. Run `file __pycache__/greet.cpython-312.pyc` (on Windows Git Bash, just open it in a text editor instead) — it'll report something like "Byte-compiled Python module," not "text." Python was compiling your source to bytecode the whole time; CPython (the standard Python you're using) just does that step automatically, in memory, every time you run a script, instead of making you run it as a separate command like C does. "Interpreted" doesn't mean "skips compiling" — it means "compiles and runs in one motion, usually re-doing it each time."
+
+4. **Read that bytecode yourself.** Still in that folder, run `python3 -m dis greet.py`. You'll get output for the `greet` function that looks something like:
+   ```
+     2           0 LOAD_FAST                0 (name)
+                 2 LOAD_CONST               1 ('hello, ')
+                 4 BINARY_ADD
+                 6 STORE_FAST               1 (message)
+     3           8 LOAD_FAST                1 (message)
+                10 RETURN_VALUE
+   ```
+   (Exact opcode names shift slightly between Python versions — that's fine, the shape is what matters.) `LOAD_FAST`, `BINARY_ADD`, `RETURN_VALUE` — these are not CPU instructions and not Python source. They're bytecode: a made-up instruction set for a made-up machine, the Python VM, that only exists as a program running inside `python3` itself. You just watched your source code become a real intermediate representation, one step before execution.
+
+5. **Compile C down to actual machine code — the opposite end of the spectrum.** Check whether you have a C compiler: `gcc --version` or `cc --version`. (Linux usually has one, or `sudo apt install build-essential` gets you one; macOS gets `cc` via Xcode Command Line Tools; Windows needs MinGW or WSL. If none of that works right now, that's completely fine — Module 5 owns installing toolchains properly, and step 6 gives you a no-install fallback.) If you do have a compiler, write `hello.c`:
+   ```c
+   #include <stdio.h>
+   int main(void) {
+       printf("hello from a compiler\n");
+       return 0;
+   }
+   ```
+   Run `gcc hello.c -o hello`. Nothing prints yet — that command only *translated* your source into a standalone binary called `hello`; it built it, it didn't run it. Now run `./hello` and it prints. Try `./hello.c` directly, just to see it refuse — your source file was never executable on its own, unlike `greet.py`, which the interpreter can run straight from text. Finally, run `file hello`: instead of "Byte-compiled Python module," you'll see something like "ELF 64-bit executable" (Linux) or "Mach-O 64-bit executable" (macOS) — a description of a file containing literal machine instructions for your specific CPU architecture and OS, not bytecode for any kind of VM.
+
+6. **No compiler yet? Watch it happen in the browser instead.** Go to godbolt.org (a tool called Compiler Explorer, genuinely used by working systems programmers — not a toy). Paste a small C function like `int add(int a, int b) { return a + b; }` into the left pane. The right pane fills with real x86 assembly instructions (`mov`, `add`, `ret`) generated live, with zero installs. This is a good moment to notice you just looked up and used an unfamiliar tool to answer a "what does this actually produce" question — that instinct, not memorizing every tool up front, is most of what separates a productive programmer from a stuck one.
+
+7. **Place C++, Rust, and Go in the same bucket as C, without installing them yet.** All three compile ahead-of-time straight to native machine code, the same category as the `hello` binary you just built: `rustc` or `cargo build` for Rust, `go build` for Go, a C++ compiler (`g++`/`clang++`) for C++. Each one produces a standalone file that runs directly on your CPU with no separate runtime program needed at execution time — same deal as `./hello`, just from different source languages and compilers. You'll install and run these for real in Module 5 and Module 6; for now, just file them mentally next to C.
+
+8. **See the third bucket: bytecode plus a VM.** You likely don't have Java installed yet (Module 5 covers that too), so read this transcript rather than reproducing it. Given a file `Hello.java`:
+   ```java
+   public class Hello {
+       public static void main(String[] args) {
+           System.out.println("hello from a VM");
+       }
+   }
+   ```
+   running `javac Hello.java` produces `Hello.class` — a genuine compile step, just like `gcc`'s. But `Hello.class` is not machine code for your CPU; running `javap -c Hello` on it shows bytecode like:
+   ```
+   getstatic     #2   // Field java/lang/System.out
+   ldc           #3   // String hello from a VM
+   invokevirtual #4   // Method println
+   return
+   ```
+   `getstatic`, `invokevirtual` — again, not your CPU's instruction set. `Hello.class` only becomes running behavior when `java Hello` launches the JVM (the Java Virtual Machine), which reads that bytecode and interprets/just-in-time-compiles it on the fly. C#/.NET works the same way, with the CLR standing in for the JVM. This is exactly why the *identical, unmodified* `.class` file runs on Windows, macOS, and Linux alike — "write once, run anywhere" isn't marketing magic, it's a direct, mechanical consequence of compiling to a portable virtual machine's instruction set instead of any one real CPU's. Compare that to your `hello` binary from step 5: it's tied to one OS and CPU architecture, because it *is* that CPU's actual instructions, with no VM standing between it and the hardware.
+
+9. **Write your own three-bucket reference table.** Sort this track's nine languages into exactly three buckets based on everything above: **interpreted** (Python, JavaScript — note that JS engines like V8 actually JIT-compile hot code to machine code at runtime too, so "interpreted" is a simplification for both, same as it was for Python), **compiled to native machine code** (C, C++, Rust, Go), and **compiled to VM bytecode** (Java, C#). Write it down somewhere you'll keep — Module 6's Rosetta Stone Lab has you verify this table against real, running code in five of these languages, and it's worth having a prediction to check against rather than discovering it cold.
+
+## Check on learning
+
+- In your own words, explain why running a C program takes two visible steps (compile, then run) while running a Python script looks like one — and why that's really a difference in *who translates and when*, not a difference in *whether* translation happens at all.
+- Without looking anything back up, say which bucket each of Python, C, and Java belongs in, and justify Java's bucket specifically using the words ".class file" and "JVM."
+- Teach a friend, out loud, why a Java `.class` file compiled on your machine will run unmodified on someone else's Windows PC, but a C binary you compiled will not — what's physically different about what each file actually contains?

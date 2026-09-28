@@ -1,0 +1,47 @@
+[
+  {
+    "id": "languages/tier-0/installing-and-managing-toolchains/q1",
+    "type": "multiple_choice",
+    "prompt": "You need Python 3.9 for an old project and Python 3.12 for a new one, on the same machine, without breaking either. What's the right tool for this?",
+    "choices": [
+      "Uninstall and reinstall Python each time you switch projects",
+      "A version manager like pyenv, installing both versions and pinning each project to one with `pyenv local`",
+      "Edit your PATH by hand in a terminal before running each project",
+      "Install Python twice under two different user accounts on the same machine"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-0/installing-and-managing-toolchains/q2",
+    "type": "short_answer",
+    "prompt": "What single command lists every `python3` executable found on your PATH, in the order your shell would search them (macOS/Linux)?",
+    "acceptedAnswers": [
+      "which -a python3"
+    ]
+  },
+  {
+    "id": "languages/tier-0/installing-and-managing-toolchains/q3",
+    "type": "multiple_choice",
+    "prompt": "Unlike pyenv and nvm, which are third-party tools bolted onto Python and Node, what does `rustup` do differently?",
+    "choices": [
+      "It only installs Rust's package manager, Cargo, and nothing else",
+      "It is Rust's official installer and version manager combined, also managing toolchains, components, and cross-compilation targets",
+      "It requires a separate tool to switch between stable and nightly Rust",
+      "It only works on Linux"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-0/installing-and-managing-toolchains/q4",
+    "type": "short_answer",
+    "prompt": "Which single nvm command installs Node's current LTS release?",
+    "acceptedAnswers": [
+      "nvm install --lts"
+    ]
+  },
+  {
+    "id": "languages/tier-0/installing-and-managing-toolchains/q5",
+    "type": "explain_back",
+    "prompt": "In your own words, explain why 'command not found' right after installing a new language toolchain is usually a PATH problem rather than a broken install \u2014 and walk through exactly how you'd verify that diagnosis on your own machine, including what a version manager's 'shim' has to do with it."
+  }
+]

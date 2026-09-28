@@ -1,0 +1,49 @@
+[
+  {
+    "id": "languages/tier-0/hello-world-across-five-languages/q1",
+    "type": "multiple_choice",
+    "prompt": "What is the correct two-step sequence to go from `hello.c` to a running program?",
+    "choices": [
+      "Run `python3 hello.c` directly, no compile step needed",
+      "Compile with `gcc hello.c -o hello`, then execute the result with `./hello`",
+      "Compile with `javac hello.c`, then run with `java hello`",
+      "Add a shebang line, then run `./hello.c` directly"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-0/hello-world-across-five-languages/q2",
+    "type": "multiple_choice",
+    "prompt": "You run `gcc hello.c -o hello` successfully, then type `hello` and press enter. You get \"command not found.\" What's actually going on?",
+    "choices": [
+      "The compile failed silently and no binary was produced",
+      "You need to rename the file to hello.exe even on macOS/Linux",
+      "Your shell's PATH doesn't include the current directory by default, so you need `./hello` to run a file that isn't on PATH",
+      "C programs can only be run with `bash hello`"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "languages/tier-0/hello-world-across-five-languages/q3",
+    "type": "short_answer",
+    "prompt": "What command compiles Hello.java into bytecode (the step before you can run it with `java Hello`)?",
+    "acceptedAnswers": [
+      "javac Hello.java",
+      "javac"
+    ]
+  },
+  {
+    "id": "languages/tier-0/hello-world-across-five-languages/q4",
+    "type": "short_answer",
+    "prompt": "What file extension does `javac` produce when it compiles a .java source file into bytecode?",
+    "acceptedAnswers": [
+      ".class",
+      "class"
+    ]
+  },
+  {
+    "id": "languages/tier-0/hello-world-across-five-languages/q5",
+    "type": "explain_back",
+    "prompt": "Explain, as if to someone who just watched you run all five hello-world programs, why `python3 hello.py` and `node hello.js` need no compile step, why `gcc hello.c -o hello` followed by `./hello` needs two, and why `javac Hello.java` followed by `java Hello` is a third, different case from both \u2014 specifically, what `javac` produces that `gcc` doesn't, and why that difference is what makes Java's 'write once, run anywhere' claim true in a way a C binary can't match."
+  }
+]

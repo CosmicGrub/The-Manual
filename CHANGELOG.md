@@ -163,3 +163,12 @@ All notable changes to The Manual (curriculum + app) are logged here. This file 
 **Caught by the hardened assembly tooling (from 0.8.0's fix), working as intended:** "Teaching & Mentoring as Mastery Proof" was flagged and correctly NOT overwritten — its own agent had already written a real 12,170-character lesson directly to disk mid-run, but the workflow's structured output for that same module came back as a 3,251-character meta-report about the work rather than the lesson itself (the exact failure pattern that caused actual data loss in Tier 4, before the safety threshold existed). The existing good file was kept; only the other 4 modules' structured output was written.
 
 **Status:** CS Foundations is now the first fully content-complete track in The Manual — all 6 tiers, 412 hours, 54 lessons. The other 8 tracks still have only their `docs/curriculum/*.md` syllabus.
+
+## [0.10.0] — 2026-09-28 — Language Mastery Tier 0: complete real lesson content
+
+**Context:** Second track to get real lesson content, per §4.6's recommended path (Language Mastery is part of the "bedrock trio" alongside CS Foundations and Software Engineering). Tier 0 is a real test of the §4.5 de-duplication policy in practice, not just in the syllabus text: its topics (command line, editor setup, toolchains) sound similar to CS Foundations Tier 0 on the surface.
+
+**Added**
+- `content/languages/tier-0/*.mdx` (6 files) + matching quizzes: The Command Line & Filesystem Mental Model, Editor & Debugger Setup, What Code Actually Is (Interpreters vs Compilers vs VMs), Polyglot Repo Conventions, Installing & Managing Toolchains, and Hello World Across Five Languages. Each agent was explicitly instructed that CS Foundations Tier 0 is done and must not be re-taught — content stayed genuinely additive (e.g. the command-line lesson opens with a 2-sentence recap then moves straight to PATH-across-toolchains and stdin/stdout/stderr piping between programs in different languages, material CS Foundations never covered) rather than restating cd/ls/pwd with different words.
+
+**Status:** Language Mastery Tier 0 complete (23h, 6 lessons). CS Foundations remains the only fully complete track; 8 tracks now have partial or no lesson content beyond their syllabus.

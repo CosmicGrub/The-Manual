@@ -1,0 +1,75 @@
+---
+trackId: languages
+tier: 0
+title: Hello, World Across Five Languages (Rosetta Stone Lab)
+order: 6
+estimatedHours: 3
+---
+
+You've spent five modules getting ready to code without actually writing a real program: you set up a shell, learned what PATH does, installed an editor and a debugger, absorbed the interpreter/compiler/VM distinction as a concept, and installed toolchains for several languages. This lesson is where all of that stops being setup and becomes something you've actually done — the same three words, "Hello, World!", written and run five different ways, so you can feel in your fingers the difference between a language that just runs and a language that makes you compile first, and start noticing that most languages' basic syntax rhymes with each other more than it doesn't.
+
+## What you'll leave this lesson knowing
+
+- How to write and run a minimal program in Python, JavaScript (Node), C, Java, and Bash — and explain, for each one, exactly what happened between hitting enter and seeing output
+- The concrete, hands-on difference between "run directly" (Python, Node, Bash), "compile, then run the result" (C), and "compile to bytecode, then run that bytecode on a VM" (Java)
+- Why `./hello` works after compiling `hello.c` but plain `hello` gives you "command not found" — and how that connects back to the PATH mental model from Module 1
+- How to spot family resemblances across five languages' syntax for "print something" and for comments, as a first taste of pattern-matching new languages fast
+- What `javac` (a build tool) is doing differently from `gcc` (a compiler) and from `python3`/`node`/`bash` (interpreters)
+
+## Do this
+
+1. **Make a lab folder.** If you've already got the polyglot repo from Module 4 going, add a `hello-world-lab/` folder inside it. If not, `mkdir hello-world-lab && cd hello-world-lab` anywhere is fine for now — you'll fold it into real version control by the end of this lesson. You should already have Python, Node, gcc, and a JDK installed from Module 5; if any of them are missing, that's your cue to go back and finish that install before continuing, not to muscle through without them.
+
+2. **Python — the baseline "just run it" case.** Create `hello.py`:
+   ```python
+   print("Hello, World!")
+   ```
+   Run it with `python3 hello.py` (or `python hello.py` if that's how your Module 5 install resolved on Windows). One command, one step, output on screen immediately. There is no separate "build" artifact left behind — the interpreter reads your source top to bottom and executes it directly, line by line, which is exactly what Module 3 described in the abstract and what you're now watching happen.
+
+3. **Node/JS — same shape, different runtime.** Create `hello.js`:
+   ```js
+   console.log("Hello, World!");
+   ```
+   Run it with `node hello.js`. Notice the family resemblance to Python already: one file, one command, instant output, no compile step. The differences are surface-level — `console.log(...)` instead of `print(...)`, a trailing semicolon (optional in JS, but common style; try deleting it and running again — it still works) instead of none. Under the hood Node's V8 engine is actually doing something more sophisticated than pure line-by-line interpretation (it compiles hot code to machine code just-in-time), but from where you're sitting at the terminal, it behaves exactly like Python: source in, output out, no visible middle step.
+
+4. **C — your first real compile step.** Create `hello.c`:
+   ```c
+   #include <stdio.h>
+
+   int main(void) {
+       printf("Hello, World!\n");
+       return 0;
+   }
+   ```
+   Try running it the way you ran the last two: `python3`-style, there's no equivalent — C source isn't executable on its own. Compile it first: `gcc hello.c -o hello`. That produces a new file, `hello` (or `hello.exe` on Windows), which is actual machine code for your specific CPU and OS, not source code anymore. Now run *that*: `./hello`. Two distinct steps, two distinct artifacts (`hello.c` you wrote, `hello` the compiler produced), and only the second one is a program your OS can execute directly.
+
+5. **The `./` gotcha — genuinely new, and worth sitting with.** Try running the compiled binary without the prefix: just type `hello` and press enter. You'll get "command not found" even though the file is sitting right there and definitely ran a second ago with `./hello`. This isn't a fluke — on Unix-like systems (macOS, Linux, and Git Bash/WSL on Windows), your shell's PATH deliberately does *not* include the current directory, on purpose, as a security convention: if it did, a malicious file named `ls` sitting in some folder you `cd` into could silently override the real `ls`. `./hello` sidesteps PATH entirely — the `./` means "run this exact file, right here, no searching required." Installed tools like `python3`, `node`, and `gcc` work without `./` only because their install process put them somewhere that *is* on PATH (which is exactly what Module 1's PATH lesson and Module 5's installer steps were setting up). A binary you just built yourself isn't on PATH, so it needs the explicit path.
+
+6. **Java — a build tool plus a VM, in two commands.** Create a file named exactly `Hello.java` (capital H — this matters, keep reading):
+   ```java
+   public class Hello {
+       public static void main(String[] args) {
+           System.out.println("Hello, World!");
+       }
+   }
+   ```
+   Java requires the filename to match the public class name exactly, including capitalization — `hello.java` won't compile. Build it with `javac Hello.java`. That's a **build tool**, not a raw compiler like `gcc`: instead of producing native machine code for your exact CPU, it produces a new file, `Hello.class`, containing *bytecode* — an intermediate format that isn't tied to any one OS or processor. Run it with `java Hello` (no `.class`, no `./` — `java` is a launcher that finds the class file itself). `java` starts the JVM, which loads that bytecode and executes it. This is the concrete payoff of "write once, run anywhere": the exact same `Hello.class` file would run unmodified on Windows, macOS, or Linux, as long as each has a JVM installed, whereas the `hello` binary from step 4 only runs on the OS/CPU combination it was compiled for.
+
+7. **Bash — an interpreter you may not have thought of as a "real" language yet.** Create `hello.sh`:
+   ```bash
+   #!/usr/bin/env bash
+   echo "Hello, World!"
+   ```
+   Run it two different ways and notice they're really the same idea from two different steps 4-6 just showed you. First, explicitly hand it to the interpreter: `bash hello.sh`. Second, make it self-executing the way `./hello` was: `chmod +x hello.sh` (permissions, straight out of CS Foundations Tier 0), then `./hello.sh`. That first line, `#!/usr/bin/env bash` — the "shebang" — is what tells your shell *which* interpreter to hand the rest of the file to when you run it as `./hello.sh` without typing `bash` yourself. Every `.sh` script you write from here on should start with one.
+
+8. **Line them up and look for the family resemblance.** Open all five files side by side (split editor panes work well here) and compare just two things across them: how each one prints output, and how each one writes a comment. You should see `print(...)` / `console.log(...)` / `printf(...)` / `System.out.println(...)` / `echo ...` — different spellings of the identical idea — and `#` for comments in Python and Bash, `//` in JS/C/Java. Write a quick two-column list in a `NOTES.md` file in the lab folder: one column per language, one row for "how to print," one row for "how to comment," one row for "steps from source to running program (count them)." Python/Node/Bash land at 1, C and Java land at 2 — but for genuinely different reasons, which is the whole point of this lesson.
+
+9. **When something doesn't run, that's normal — debug it like you mean it.** If `javac` says "command not found," that's a PATH problem exactly like Module 1 covered, just for a different toolchain — the JDK's `bin` folder isn't on PATH, which is a Module 5 troubleshooting issue, not a Java problem. If `gcc` complains about a missing header or a typo'd semicolon, read the line number in the error message and go look at that exact line — C's compiler errors are unforgiving about syntax in a way Python's interpreter usually isn't. Hitting an error you don't immediately recognize and searching the exact text of it is completely normal here; every one of these five toolchains has its own error-message dialect, and no one has all five memorized on day one.
+
+10. **Fold it into version control.** If your `hello-world-lab/` isn't inside a git repo yet, `git init` it now (or just `cd` into your Module 4 polyglot repo). Add a `.gitignore` that keeps build output out of history — at minimum `hello` (the compiled C binary) and `*.class` (Java bytecode) — since those are regenerated from source every time and don't belong in version control, while `hello.py`, `hello.js`, `hello.c`, `Hello.java`, `hello.sh`, and `NOTES.md` do. Stage and commit the source files with a real message, e.g. `git add . && git commit -m "Add Rosetta Stone hello-world lab across five languages"`. You now have a small, real, working example of exactly the kind of repo the Tier 0 checkpoint project asks for.
+
+## Check on learning
+
+- Without looking back at this lesson, explain out loud why `./hello` runs your compiled C program but plain `hello` fails with "command not found" — name the specific PATH behavior responsible.
+- Fill in this sentence for each of the five languages: "`___` produces a **[machine-code binary / bytecode file / nothing — it just runs]**, and I execute it with **`___`**." If you get Java and C mixed up, redo step 6.
+- Explain what a *build tool* like `javac` is doing that a plain compiler like `gcc` isn't, and what a plain compiler is doing that an interpreter like `python3` isn't. Use "Hello, World!" in each of the three languages as your evidence, not just the definitions.

@@ -1,0 +1,48 @@
+[
+  {
+    "id": "languages/tier-0/command-line-and-filesystem-mental-model/q1",
+    "type": "multiple_choice",
+    "prompt": "You run `cargo --version` and get `command not found`, even though you're sure you installed Rust last week. What's the most likely explanation?",
+    "choices": [
+      "Rust silently uninstalled itself",
+      "cargo's directory isn't listed in your shell's PATH",
+      "You need to restart your entire computer before any new tool works",
+      "cargo only runs from inside an IDE, never a terminal"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-0/command-line-and-filesystem-mental-model/q2",
+    "type": "multiple_choice",
+    "prompt": "Which command redirects ONLY a program's error/diagnostic stream to a file, while its normal output still prints to your terminal?",
+    "choices": [
+      "program > errors.txt",
+      "program 2> errors.txt",
+      "program 2>&1",
+      "program | errors.txt"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-0/command-line-and-filesystem-mental-model/q3",
+    "type": "short_answer",
+    "prompt": "In a pipeline like `python3 numbers.py | bash evens.sh`, which single stream is actually passed from the first program into the second \u2014 stdout or stderr?",
+    "acceptedAnswers": [
+      "stdout",
+      "standard output"
+    ]
+  },
+  {
+    "id": "languages/tier-0/command-line-and-filesystem-mental-model/q4",
+    "type": "short_answer",
+    "prompt": "What two-dash flag does almost every command-line tool accept to print its own usage summary, without needing a man page or an internet search?",
+    "acceptedAnswers": [
+      "--help"
+    ]
+  },
+  {
+    "id": "languages/tier-0/command-line-and-filesystem-mental-model/q5",
+    "type": "explain_back",
+    "prompt": "Explain to someone who has never opened a terminal why the exact same short command \u2014 say, typing `node` \u2014 can work perfectly on your machine and say 'command not found' on a friend's machine, even though Node.js is genuinely installed on both. Then explain why the diagnostic messages a program prints to stderr don't end up inside a file you redirected its stdout into."
+  }
+]

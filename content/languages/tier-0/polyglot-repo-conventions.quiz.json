@@ -1,0 +1,53 @@
+[
+  {
+    "id": "languages/tier-0/polyglot-repo-conventions/q1",
+    "type": "multiple_choice",
+    "prompt": "Which of these is NOT something you'd typically add to a polyglot project's .gitignore?",
+    "choices": [
+      "node_modules/ (Node's installed packages)",
+      "__pycache__/ (Python's compiled bytecode cache)",
+      "main.py (a Python source file you actually wrote)",
+      "*.o (C/C++ compiled object files)"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "languages/tier-0/polyglot-repo-conventions/q2",
+    "type": "multiple_choice",
+    "prompt": "You add `target/` to your repo's .gitignore, but `git status` still shows `target/build.log` as tracked. What's the most likely reason?",
+    "choices": [
+      "gitignore rules only work for files, not entire folders",
+      "The file was already committed before the .gitignore rule existed, so gitignore doesn't retroactively untrack it",
+      "You need to restart your terminal for .gitignore changes to take effect",
+      ".gitignore only applies on the default branch"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-0/polyglot-repo-conventions/q3",
+    "type": "short_answer",
+    "prompt": "What git config setting lets you ignore files like .DS_Store or Thumbs.db globally, across every repo on your machine, instead of listing them in every project's .gitignore?",
+    "acceptedAnswers": [
+      "core.excludesFile",
+      "core.excludesfile",
+      "git config --global core.excludesFile"
+    ]
+  },
+  {
+    "id": "languages/tier-0/polyglot-repo-conventions/q4",
+    "type": "multiple_choice",
+    "prompt": "A single C library is consumed, independently versioned, by five unrelated products owned by five different teams. Which repo shape best fits that situation?",
+    "choices": [
+      "A monorepo containing the library and all five products",
+      "A polyrepo \u2014 the library in its own repo, separate from its consumers",
+      "No version control \u2014 vendor the library's source directly into each product",
+      "One branch per consuming team inside the library's repo"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-0/polyglot-repo-conventions/q5",
+    "type": "explain_back",
+    "prompt": "Explain, in your own words, why a .gitignore written only with Python in mind would fail on a repo that also contains a Node service and a C utility \u2014 and how a combined-template generator (like gitignore.io) solves that without you having to memorize every language's junk patterns."
+  }
+]

@@ -1,0 +1,79 @@
+---
+trackId: languages
+tier: 0
+title: The Command Line & Filesystem Mental Model
+order: 1
+estimatedHours: 6
+---
+
+You already know how to move around a filesystem and chain a couple of commands together — `cd`, `ls`, `pwd`, and a basic `ls -la | grep .py` pipe are old news from CS Foundations Tier 0. What that lesson didn't need to cover yet is what happens the moment you're running programs written in *different* languages against each other: how your shell finds each language's own toolchain, how a program's real output and its error chatter travel as two genuinely separate streams, and how to wire your own Python, Bash, and (eventually) Node, C, Java, and Rust programs together using nothing but stdin and stdout. That's the actual job of this lesson — the plumbing every other module in this tier, and every language you touch from Tier 1 onward, quietly assumes you already have.
+
+As with CS Foundations Tier 0, do this whole lesson in **Git Bash** or **WSL** if you're on Windows, not the classic Command Prompt — the redirection syntax below (`2>`, `2>&1`) exists in PowerShell too, but this lesson is written against the Bash/zsh syntax throughout, and you only want to learn one version.
+
+## What you'll leave this lesson knowing
+
+- Why "command not found" for a specific language's tool (`python3`, `node`, `cargo`, `javac`) means *that language's* bin directory is missing from `PATH` — not that the software doesn't exist — and how to check which directory (if any) resolves it
+- How a language installer's edit to `PATH` (and specifically whether it prepends or appends) decides which of two installed versions of the same tool actually runs when you type its name
+- The difference between stdin, stdout, and stderr as three separate, numbered streams, and how to redirect each one independently with `>`, `2>`, and `2>&1`
+- How to build a pipeline where a program written in one language feeds a program written in a completely different language through nothing but stdout → stdin — and why stderr does *not* flow through that pipe
+- The habit of reaching for `--help` or `man` on any unfamiliar command-line tool, including language toolchains, before you reach for a search engine
+
+## Do this
+
+1. Quick recap check — skip this step if you're confident. Run `pwd`, `ls`, and `cd ~` then back to where you started. If any of that feels unfamiliar, go do (or redo) CS Foundations Tier 0's "The Command Line & Filesystem" lesson first — this module builds directly on top of it, not the other way around.
+
+2. Look at `PATH` as a list of *toolchains*, not just "a search list." Run `echo $PATH | tr ':' '\n'` — that pipes the single `:`-separated `PATH` string through `tr` (translate characters) to print one directory per line, so you can actually read it instead of squinting at a wall of text. Now run `which python3` (Windows Command Prompt: `where python3`; PowerShell: `Get-Command python3`). Whatever path it prints should be one of the lines you just saw. If you already have any of `node`, `gcc`, `java`, `rustc`, or `javac` installed, run `which` on those too, and notice each one lives in a *different* directory — every language's installer put its own tools in its own place, and `PATH` is the only reason typing a short name finds any of them at all.
+
+3. Reproduce "command not found" on purpose, so you know exactly what it means instead of just fearing it. On Bash or zsh, run: `PATH="" bash -c 'python3 --version'`. You'll get `command not found` even though Python is genuinely installed on your machine, because that one throwaway subshell had an empty `PATH`, so there was nowhere left to search. This is the entire cause of nearly every "but I definitely installed it!" bug you'll hit with a language toolchain: the software is there, `PATH` just doesn't point at it — on this particular terminal, or anymore, or yet. Nothing here is permanent; your real `PATH` is untouched outside that one command. (PowerShell users: skip this exact command, it's a Bash/zsh trick — the underlying concept, that `PATH` controls what a short name can find, is identical everywhere.)
+
+4. Go look at how a real installer edits `PATH`. Language installers don't inject themselves invisibly — they add one line to a shell startup file (`~/.bashrc`, `~/.zshrc`, or your PowerShell profile) that runs every time you open a terminal. Open yours in VS Code (`code ~/.bashrc` or the equivalent) and look for a line shaped like `export PATH="$HOME/.cargo/bin:$PATH"` (Rust's rustup) or `export PATH="$HOME/.pyenv/bin:$PATH"` (pyenv). If you don't have either tool installed yet and nothing like that shows up, search "what line does rustup add to my shell config" and read one real example instead of taking this on faith — that's a completely normal thing to look up, not a sign you're behind. Notice the new directory goes at the *front*: `$HOME/.cargo/bin:$PATH` puts the new path before your existing `PATH`, so if two installed tools share a name, whichever one's directory comes first in the list wins. That's the actual mechanism behind "I have two versions of Python and the wrong one keeps running" — not a mystery, just list order.
+
+5. Now the part CS Foundations didn't need yet: stdin, stdout, and stderr. Every running program has three streams open by default, numbered by the operating system itself — `0` is stdin (its input), `1` is stdout (its real output), `2` is stderr (its errors and diagnostics) — and that numbering is universal: true for a Python script, a Bash script, or a compiled C binary equally. Create `msg.py`:
+   ```python
+   import sys
+   print("this is normal output")
+   print("this is a diagnostic message", file=sys.stderr)
+   ```
+   Run `python3 msg.py`. Both lines print to your terminal, and by eye you can't tell which stream either one came from. That indistinguishability is exactly the problem the next step solves.
+
+6. Split the streams apart and watch each one land. Run each of these, `cat`-ing the result each time:
+   - `python3 msg.py > out.txt` — only the stdout line lands in `out.txt`; the stderr line still prints straight to your terminal, uncaptured.
+   - `python3 msg.py 2> err.txt` — the reverse: only the stderr line is captured, stdout still prints to your terminal.
+   - `python3 msg.py > out.txt 2> err.txt` — both captured, fully separated into two files.
+   - `python3 msg.py > both.txt 2>&1` — both captured into *one* file. `2>&1` means "point stream 2 wherever stream 1 currently points," so order matters here: this only merges correctly because `> both.txt` already ran first.
+
+7. Confirm it's not a Python-only trick — same concept, different syntax, in Bash itself. Create `msg.sh`:
+   ```bash
+   echo "this is normal output"
+   echo "this is a diagnostic message" >&2
+   ```
+   Run `bash msg.sh > out.txt 2> err.txt` and confirm it splits identically. `echo ... >&2` is Bash's version of Python's `file=sys.stderr` — same OS-level concept, different spelling. (If you already have Node installed, `console.log(...)` vs. `console.error(...)` does the same split — try it if you've got it, but don't stop to install Node just for this; Module 5 covers real installs properly.)
+
+8. Chain programs written in different languages together through a pipe, using only stdin/stdout — no temp files. Create `numbers.py`:
+   ```python
+   import sys
+   for i in range(1, 21):
+       print(i)
+       print(f"generated {i}", file=sys.stderr)
+   ```
+   and `evens.sh`:
+   ```bash
+   while read -r n; do
+     if (( n % 2 == 0 )); then
+       echo "$n"
+     fi
+   done
+   ```
+   Run: `python3 numbers.py | bash evens.sh | wc -l`. Read it right to left: `wc -l` counts lines, fed by `evens.sh`'s stdout, fed by `numbers.py`'s stdout. You should get `10`. Three separate programs — an interpreted Python script, an interpreted Bash script, and `wc`, which is itself a compiled C program you've been calling by name since CS Foundations Tier 0 — cooperating with zero shared code and zero knowledge of what language any of the others were written in. That's the actual point of this lesson.
+
+9. Confirm stderr does *not* travel through the pipe. Run `python3 numbers.py | bash evens.sh | wc -l` again and watch — the `generated 1` … `generated 20` lines still print straight to your terminal, because stderr bypasses the pipe entirely; `evens.sh` only ever receives the numbers on stdin, never the diagnostic lines. Now capture that noise instead of letting it fly by: `python3 numbers.py 2> generate.log | bash evens.sh | wc -l`, then `cat generate.log` to see it was captured the whole time, completely separate from the pipeline's real data.
+
+10. Build the `--help`/`man` habit deliberately. Run `python3 --help`, `bash --help`, `wc --help`, and `git --help` (git you already know from CS Foundations — same habit, applied on purpose now). Where it's supported, try the man-page version too: `man wc`, then `/searchterm` and Enter to search inside it, `q` to quit. Not every tool ships a man page — Windows tools mostly don't, and some newer CLIs only support `--help` — that's fine, `--help` is close to universal as the fallback. From now on, before pasting an error into a search engine or an AI chat, check whether the tool itself already told you the answer.
+
+11. Capstone for this lesson: build one pipeline using everything above, without checking your notes. Regenerate `numbers.py`'s output, filter it through `evens.sh`, count the result, and land the real output and the diagnostic noise in two separate files with a single command: `python3 numbers.py 2> pipeline.log | bash evens.sh > pipeline-evens.txt`. Then run `wc -l < pipeline-evens.txt` to get your count, and `cat pipeline.log` to confirm the stderr chatter landed exactly where you sent it — nowhere near the real data.
+
+## Check on learning
+
+- A teammate says "I installed Rust yesterday but `cargo` says command not found today." Walk through, out loud, what you'd actually check first, and why "just reinstall it" usually isn't the fix.
+- Before running it, predict exactly what `python3 numbers.py 2>/dev/null | wc -l` will print, and why the stderr lines have zero effect on that count either way (Windows Command Prompt: `2>nul` instead of `2>/dev/null`). Then run it and check your prediction.
+- In your own words, explain to someone who's never used a terminal why `python3 numbers.py | bash evens.sh` can connect two completely different programming languages without either one knowing the other exists — and why the diagnostic lines one of them prints never show up in a file you redirected the pipeline's real output into.

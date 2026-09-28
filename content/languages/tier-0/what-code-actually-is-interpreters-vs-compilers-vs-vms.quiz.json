@@ -1,0 +1,53 @@
+[
+  {
+    "id": "languages/tier-0/what-code-actually-is-interpreters-vs-compilers-vs-vms/q1",
+    "type": "multiple_choice",
+    "prompt": "What actually happens when you run `python3 greet.py`?",
+    "choices": [
+      "CPython skips any compile step entirely and executes the raw source text character by character",
+      "CPython compiles the source to bytecode first (which you can find cached in __pycache__), then an interpreter loop runs that bytecode",
+      "CPython compiles the source directly to native machine code for your CPU, exactly like gcc does",
+      "CPython sends the source to a remote server that compiles and runs it"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-0/what-code-actually-is-interpreters-vs-compilers-vs-vms/q2",
+    "type": "multiple_choice",
+    "prompt": "Why can an unmodified Hello.class file, compiled once, run correctly on Windows, macOS, and Linux alike?",
+    "choices": [
+      "javac secretly produces three different binaries bundled into one .class file",
+      ".class files contain native machine code that happens to work on every CPU architecture",
+      ".class files contain JVM bytecode, and each OS has its own JVM installed that interprets/JIT-compiles that same bytecode",
+      "Java source is never actually compiled, so there's nothing OS-specific to break"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "languages/tier-0/what-code-actually-is-interpreters-vs-compilers-vs-vms/q3",
+    "type": "short_answer",
+    "prompt": "What Python standard-library module (invoked as `python3 -m dis <file>`) lets you print the actual bytecode instructions the interpreter runs, like LOAD_FAST and RETURN_VALUE?",
+    "acceptedAnswers": [
+      "dis",
+      "the dis module",
+      "python3 -m dis",
+      "python -m dis"
+    ]
+  },
+  {
+    "id": "languages/tier-0/what-code-actually-is-interpreters-vs-compilers-vs-vms/q4",
+    "type": "short_answer",
+    "prompt": "What file type/extension does `javac Hello.java` produce as its compiled output?",
+    "acceptedAnswers": [
+      ".class",
+      "class file",
+      "Hello.class",
+      "class"
+    ]
+  },
+  {
+    "id": "languages/tier-0/what-code-actually-is-interpreters-vs-compilers-vs-vms/q5",
+    "type": "explain_back",
+    "prompt": "Explain to someone who has never programmed why a `gcc hello.c -o hello` binary compiled on Linux cannot run on Windows, but the same idea doesn't apply to a `Hello.class` file compiled with javac. Use what's actually inside each file (real CPU instructions vs. VM bytecode) as the core of your explanation, not just 'they're different formats.'"
+  }
+]
