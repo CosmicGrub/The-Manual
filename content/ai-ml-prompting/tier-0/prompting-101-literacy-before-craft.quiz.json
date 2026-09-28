@@ -1,0 +1,98 @@
+[
+  {
+    "id": "ai-ml-prompting/tier-0/prompting-101-literacy-before-craft/q1",
+    "type": "multiple_choice",
+    "prompt": "What is the fundamental difference between an old-style completion API and a chat API?",
+    "choices": [
+      "Completion APIs take raw text and continue it; chat APIs take structured, role-tagged messages the model was fine-tuned to interpret differently",
+      "Chat APIs are slower because they process more tokens per request",
+      "Completion APIs can only be used for code, while chat APIs handle natural language",
+      "There is no real difference; 'chat API' is just a marketing term for the same underlying request format"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-0/prompting-101-literacy-before-craft/q2",
+    "type": "multiple_choice",
+    "prompt": "In a multi-turn chat API conversation, why do you have to resend the assistant's earlier replies along with new user messages?",
+    "choices": [
+      "The API is stateless \u2014 the model has no memory between calls, so the full conversation history must be included in every request",
+      "It's not actually required; the provider's servers automatically remember prior turns for your account",
+      "Resending old replies is only needed if temperature is set above 0",
+      "It's required for billing purposes, not for the model's understanding"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-0/prompting-101-literacy-before-craft/q3",
+    "type": "multiple_choice",
+    "prompt": "You gave a model an instruction 80 messages into a long conversation, then had to trim the earliest messages to stay under the context window limit. What's the concrete consequence?",
+    "choices": [
+      "The instruction is unaffected since instructions are stored separately from the conversation",
+      "If that instruction's message got trimmed, the model can no longer see it and will stop following it \u2014 not out of defiance, it's simply missing from the input",
+      "The API automatically re-inserts important instructions before trimming",
+      "Trimming only affects assistant messages, never user instructions"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-0/prompting-101-literacy-before-craft/q4",
+    "type": "multiple_choice",
+    "prompt": "What does setting temperature near 0 do to a model's token sampling?",
+    "choices": [
+      "It disables the model's ability to generate code",
+      "It collapses sampling toward always picking the single highest-probability token, making output close to (but not perfectly) deterministic",
+      "It forces the model to always produce the shortest possible answer",
+      "It increases the size of the context window available for that request"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-0/prompting-101-literacy-before-craft/q5",
+    "type": "multiple_choice",
+    "prompt": "You send the exact same prompt to a model three times at temperature=1.0 and get three different one-word answers. What's the best explanation?",
+    "choices": [
+      "The model is broken and needs to be reset",
+      "At higher temperature, the probability distribution over next tokens is flattened, so lower-probability (but still plausible) tokens get sampled more often across runs",
+      "Each request is silently routed to a different, unrelated model",
+      "The API caches and randomly shuffles previous users' responses"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-0/prompting-101-literacy-before-craft/q6",
+    "type": "multiple_choice",
+    "prompt": "A model confidently gives a specific page number for a claim that doesn't actually exist in the cited book. What's the underlying reason this happens?",
+    "choices": [
+      "The model deliberately lies when it doesn't know an answer",
+      "The model generates the next tokens that are statistically plausible given its training patterns, with no built-in step that verifies facts against a source \u2014 fluent output isn't evidence it looked anything up",
+      "The model's training data was recently deleted, causing it to guess",
+      "This only happens with older models and has been fully solved in current ones"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-0/prompting-101-literacy-before-craft/q7",
+    "type": "multiple_choice",
+    "prompt": "A coworker pastes their .env file, including a real AWS secret key, into a chat prompt to ask why authentication is failing. What is the correct next step?",
+    "choices": [
+      "Nothing \u2014 as long as the provider's privacy policy says data isn't used for training, the key is safe",
+      "Delete the chat message afterward so the key is no longer visible anywhere",
+      "Treat the key as compromised and rotate it immediately, the same way you would if it had been committed to a public repo",
+      "Only worry about it if the model's response repeats the key back verbatim"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "ai-ml-prompting/tier-0/prompting-101-literacy-before-craft/q8",
+    "type": "multiple_choice",
+    "prompt": "In a chat API request, what is the role of the 'system' message?",
+    "choices": [
+      "It represents the model's own prior replies fed back into the conversation",
+      "It frames the whole conversation with persona, tone, and constraints, and generally applies throughout the exchange rather than being one turn among many",
+      "It is only used to pass authentication credentials to the API",
+      "It has no functional effect and exists purely for logging purposes"
+    ],
+    "correctIndex": 1
+  }
+]

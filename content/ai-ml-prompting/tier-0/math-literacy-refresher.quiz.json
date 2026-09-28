@@ -1,0 +1,98 @@
+[
+  {
+    "id": "ai-ml-prompting/tier-0/math-literacy-refresher/q1",
+    "type": "multiple_choice",
+    "prompt": "In an equation, what does the subscript i in a term like x_i typically indicate?",
+    "choices": [
+      "An exponent \u2014 raise x to the power of i",
+      "An index \u2014 'pick out this specific item from a list,' like x[i] in code",
+      "Multiplication \u2014 multiply x by i",
+      "That x is an imaginary number"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-0/math-literacy-refresher/q2",
+    "type": "multiple_choice",
+    "prompt": "What does the capital Greek letter \u03a3 (sigma) mean in an equation?",
+    "choices": [
+      "Multiply together every term that follows",
+      "Take the average of the terms that follow",
+      "Add up every term that follows, once per value of the index",
+      "Find the largest term among those that follow"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "ai-ml-prompting/tier-0/math-literacy-refresher/q3",
+    "type": "multiple_choice",
+    "prompt": "For the mean squared error formula L = (1/n) * \u03a3 (y_i \u2212 \u0177_i)\u00b2, with n = 4, what do you compute for each of the 4 examples before adding the results together?",
+    "choices": [
+      "Just the actual value y_i by itself",
+      "The squared difference between the actual value and the predicted value",
+      "The predicted value \u0177_i divided by 4",
+      "The difference between y_i and \u0177_i, without squaring it"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-0/math-literacy-refresher/q4",
+    "type": "multiple_choice",
+    "prompt": "Conceptually, what is a vector?",
+    "choices": [
+      "A single number by itself",
+      "An ordered list of numbers, where position carries meaning",
+      "A grid of numbers arranged in rows and columns",
+      "A rule that maps one input to one output"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-0/math-literacy-refresher/q5",
+    "type": "multiple_choice",
+    "prompt": "Conceptually, what is a matrix?",
+    "choices": [
+      "A single ordered list of numbers",
+      "A grid of numbers arranged in rows and columns",
+      "A symbol meaning 'approximately equal to'",
+      "A random number generator used in training"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-0/math-literacy-refresher/q6",
+    "type": "multiple_choice",
+    "prompt": "A grayscale photo is stored as a grid of pixel brightness values, 480 rows by 640 columns. Which data structure does this most naturally match?",
+    "choices": [
+      "A vector",
+      "A scalar",
+      "A matrix",
+      "A function"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "ai-ml-prompting/tier-0/math-literacy-refresher/q7",
+    "type": "multiple_choice",
+    "prompt": "Given the function f(x) = 2x + 3, what is f(5)?",
+    "choices": [
+      "10",
+      "13",
+      "8",
+      "16"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-0/math-literacy-refresher/q8",
+    "type": "multiple_choice",
+    "prompt": "In ML notation, what does \u0177 ('y-hat') typically represent?",
+    "choices": [
+      "The average of every y value in the dataset",
+      "The true, observed value recorded in the dataset",
+      "The model's predicted value, as opposed to the actual observed value y",
+      "The rate of change of y with respect to x"
+    ],
+    "correctIndex": 2
+  }
+]

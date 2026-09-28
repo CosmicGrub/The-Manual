@@ -1,0 +1,98 @@
+[
+  {
+    "id": "ai-ml-prompting/tier-0/dev-environment-for-ai-python-work/q1",
+    "type": "multiple_choice",
+    "prompt": "What is the primary purpose of a Python virtual environment?",
+    "choices": [
+      "To isolate a project's installed packages from other projects and the system Python",
+      "To make Python code run faster",
+      "To encrypt your source code before sharing it",
+      "It's required before pip will work at all"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-0/dev-environment-for-ai-python-work/q2",
+    "type": "multiple_choice",
+    "prompt": "Which pattern is standard for keeping an API key out of source control while still letting your code use it at runtime?",
+    "choices": [
+      "A .env file loaded at runtime with a library like python-dotenv",
+      "Hardcoding the key as a string directly in your main script",
+      "Pasting the key into the project's README for reference",
+      "Writing the key as a comment above the API call"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-0/dev-environment-for-ai-python-work/q3",
+    "type": "multiple_choice",
+    "prompt": "You want to run a one-off notebook experiment on a public dataset and would like free GPU access without installing anything locally. What's the best fit?",
+    "choices": [
+      "Google Colab",
+      "VS Code with a local venv",
+      "Setting up conda from scratch first",
+      "Editing the script directly in a terminal text editor"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-0/dev-environment-for-ai-python-work/q4",
+    "type": "multiple_choice",
+    "prompt": "Why should a .env file never be committed to a public git repository?",
+    "choices": [
+      "Automated scanners and bots can find leaked keys within minutes and use them to run up charges or access your account",
+      "It makes the git repository too large to clone",
+      "Git doesn't support tracking files named .env",
+      "It will cause pip install to fail for other contributors"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-0/dev-environment-for-ai-python-work/q5",
+    "type": "multiple_choice",
+    "prompt": "What does the command `python3 -m venv .venv` do?",
+    "choices": [
+      "Creates a new isolated virtual environment in a folder named .venv",
+      "Installs Python 3 globally on the system",
+      "Upgrades pip to the latest version",
+      "Deletes any currently active virtual environment"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-0/dev-environment-for-ai-python-work/q6",
+    "type": "multiple_choice",
+    "prompt": "In the minimal Anthropic SDK example, what does the load_dotenv() call actually do?",
+    "choices": [
+      "Reads key=value pairs from a .env file into environment variables so os.environ can access them",
+      "Sends your prompt to the Claude model",
+      "Installs the anthropic package if it's missing",
+      "Authenticates your machine with GitHub"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-0/dev-environment-for-ai-python-work/q7",
+    "type": "multiple_choice",
+    "prompt": "Per this module, when should you reach for conda instead of venv?",
+    "choices": [
+      "When you need to manage non-Python dependencies, like CUDA/GPU libraries, alongside Python packages",
+      "Always, for every Python project regardless of size",
+      "Never \u2014 conda is considered deprecated for this kind of work",
+      "Only when working inside Google Colab"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-0/dev-environment-for-ai-python-work/q8",
+    "type": "multiple_choice",
+    "prompt": "A teammate accidentally pushes a commit containing a live OpenAI API key to a public GitHub repo. What's the correct immediate action?",
+    "choices": [
+      "Revoke/rotate the key immediately in the provider's dashboard, then clean it out of git history",
+      "Delete the .env file in a new commit and consider it handled",
+      "Email the provider and wait for them to disable the key without taking any action yourself",
+      "Nothing \u2014 GitHub automatically hides secrets from public view once pushed"
+    ],
+    "correctIndex": 0
+  }
+]

@@ -1,0 +1,107 @@
+---
+trackId: ai-ml-prompting
+tier: 0
+title: "Math Literacy Refresher"
+order: 5
+estimatedHours: 5
+slug: math-literacy-refresher
+---
+
+## Why This Module Exists
+
+You already know your way around a terminal — CS Foundations Tier 0 covered that — and CS Foundations' math spine (Tiers 1 and 3) already covered algebra, functions, and some linear algebra. This module doesn't re-teach any of that. It exists for one reason: this track's own Tier 1 is about to hand you real ML equations — loss functions, gradients, dot products — and assumes you can read the notation without flinching. If Σ, subscripts, and "y-hat" already sit fine with you, skim this in twenty minutes and move on. If they don't, this is where you get comfortable, fast, before the actual math shows up.
+
+## Decoding a Real Equation, Symbol by Symbol
+
+Here's an equation you'll meet again, almost unchanged, in Tier 1. It's called mean squared error, and it measures how wrong a model's predictions are on average:
+
+```
+L = (1/n) * Σ (from i=1 to n) of (y_i − ŷ_i)²
+```
+
+That looks dense the first time. Read it left to right, piece by piece:
+
+- **L** — just a name, like a variable in code. Whoever wrote this picked L because the result is a "loss." Nothing sacred about the letter.
+- **1/n** — "divide by how many things there are." If you have 4 data points, n = 4. This is the "mean" (average) part of "mean squared error."
+- **Σ** (capital Greek sigma) — "add up everything that follows, once for each value of the index." It's a for-loop written as a symbol: `total = 0; for i in range(1, n+1): total += (...)`.
+- **i=1** under the Σ, and **n** above it — the index i starts at 1 and runs through n. Same job as `range(1, n+1)` in Python.
+- **y_i** — "the actual value for example number i." The subscript doesn't mean multiplication or an exponent — it means "pick out one specific item from a list," same as `y[i]` in code.
+- **ŷ_i** (read "y-hat sub i") — "the model's predicted value for example i." The hat is a convention meaning "this is an estimate, not the ground truth." Any time you see a hat over a variable, read it as "predicted."
+- **(y_i − ŷ_i)²** — the gap between what actually happened and what the model guessed, squared. Squaring does two jobs: every error becomes positive (too high and too low both count as "wrong"), and big misses get punished harder than small ones.
+
+Put back together: "For each example, find how far off the prediction was, square that gap, add up all the squared gaps, then divide by how many examples there were." One sentence's worth of logic, wearing a costume of Greek letters.
+
+That's the transferable skill: identify each symbol's job (a name, an index, an operation, a convention like the hat), read piece by piece, and translate back into plain English before worrying about computing anything.
+
+## Algebra and Functions: The Quick Refresher
+
+A function is a rule that takes an input and produces exactly one output. `f(x) = 2x + 3` means "take whatever x is, double it, add 3." `f(5) = 2(5) + 3 = 13`. That's the whole idea — everything else is notation dressing.
+
+Two conventions worth having cold:
+
+- **y = mx + b** is the shape of every "linear" relationship you'll meet: m is the rate of change (how steep), b is the starting value (y when x = 0). When Tier 1 shows you that a single artificial neuron computes `w·x + b`, you're looking at this exact same shape wearing a fancier name for m.
+- **Exponents and logs** show up constantly in ML notation (`e^x` in the sigmoid function, `log` in cross-entropy loss). Three facts cover most of what you need: `a^0 = 1`, `a^(-1) = 1/a`, and a logarithm answers "what power do I raise the base to, to get this number?" — log undoes exponentiation, the way subtraction undoes addition.
+
+Function composition — `f(g(x))`, "run x through g, then feed that result into f" — matters more than it looks. A neural network is nothing but composed functions: one layer's output becomes the next layer's input. If `f(g(x))` makes sense to you, "layers stacked on top of each other" will make sense the first time you see it.
+
+Solving for a variable is just rearranging: if `y = mx + b` and you know y, m, and b, isolate x by undoing each operation in reverse (subtract b, then divide by m). You won't need heavy algebra in this track, but you do need to read a rearranged equation without panicking — recognize that `w = (y - b) / x` is the exact same relationship as `y = wx + b`, solved for a different letter.
+
+## What a Vector Actually Is
+
+A vector is an ordered list of numbers. That's the whole definition at this level — no arrows, no operations, just an ordered list where position matters.
+
+Example: describe a house as `[1800, 3, 2, 15]` — square footage, bedrooms, bathrooms, age in years. That's a 4-dimensional vector. "Dimensional" just means "how many numbers are in the list," not anything about physical space. A vector with 300 numbers in it (one per pixel intensity, say, or one per word-feature) is a 300-dimensional vector — you can't picture it, but the definition hasn't changed: it's still an ordered list.
+
+Order matters. `[1800, 3, 2, 15]` and `[3, 1800, 2, 15]` are very different (and one is nonsensical), even though they hold the same numbers, because each position carries an agreed-upon meaning.
+
+You'll see vectors written stacked vertically or side by side — that's a formatting choice, not a different concept. Tier 1 covers what you can do with vectors (add them, measure length, compare direction). Right now the goal is recognizing one on sight: a list of numbers, in order, describing something.
+
+## What a Matrix Actually Is
+
+A matrix is a grid of numbers — rows and columns. Picture a spreadsheet, or a stack of vectors laid on top of each other.
+
+Take a table of five houses, each described by the same 4 features as above:
+
+```
+[[1800, 3, 2, 15],
+ [1200, 2, 1, 40],
+ [3000, 5, 3,  2],
+ [ 950, 1, 1, 60],
+ [2100, 4, 2,  8]]
+```
+
+That's a matrix: 5 rows (one per house), 4 columns (one per feature). Each row is a vector. A matrix is just several vectors bundled together, all sharing the same columns.
+
+Another matrix you'll meet constantly: a grayscale image. A 480×640 photo is literally a 480×640 grid of numbers, one per pixel, each number representing how bright that pixel is. "Image" and "matrix" are, mechanically, the same object.
+
+Same rule as with vectors: no operations yet. You're not multiplying matrices here — you're building the recognition that "a grid of numbers arranged in rows and columns" is called a matrix, so that when Tier 1 says "multiply this matrix by that vector," you already know what kind of objects are involved before learning how the operation works.
+
+## A Notation Reference You'll Actually Use
+
+Recognition only — none of these need to be computed yet:
+
+- **Σ** — "sum up what follows" (a for-loop in symbol form)
+- **subscript** (`x_i`) — "pick out item i from a list" (list indexing)
+- **hat** (`ŷ`) — "this is a prediction or estimate, not the ground-truth value"
+- **∈** — "is a member of" (`x ∈ ℝ` means "x is a real number")
+- **≈** — "approximately equal to"
+- **‖·‖** — "the size, or length, of" (a Tier 1 topic — for now, just recognize the symbol)
+- **∇** (nabla) — "the gradient of" (also Tier 1 — recognize it, don't compute it yet)
+
+When an equation feels like a wall of symbols, look for these first. Most of the "scary" is three or four repeating conventions, not new math each time.
+
+## Exercise: Decode This Yourself
+
+Here's the equation behind a single artificial neuron and behind linear regression — you'll see it again, almost verbatim, in Tier 1:
+
+```
+ŷ = Σ (from i=1 to n) of (w_i * x_i) + b
+```
+
+Working from what you just learned, do three things:
+
+1. Write, in one or two plain-English sentences, what this equation computes.
+2. Expand it by hand for n = 3 — write out every term the Σ is hiding, as an explicit sum instead of a compressed symbol.
+3. Looking at your expanded version, name which groups of numbers here are naturally vectors, based on this module's definition.
+
+**Hint:** don't hunt for a numeric answer — there isn't one without actual values for w and x. Focus on unpacking the Σ into a plain list of additions, the same way the mean-squared-error example was unpacked above, and on noticing that `w_1, w_2, w_3` and `x_1, x_2, x_3` are each an ordered list in their own right.

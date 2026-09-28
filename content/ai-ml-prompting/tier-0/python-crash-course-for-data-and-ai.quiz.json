@@ -1,0 +1,98 @@
+[
+  {
+    "id": "ai-ml-prompting/tier-0/python-crash-course-for-data-and-ai/q1",
+    "type": "multiple_choice",
+    "prompt": "Which list comprehension correctly builds a list of the squares of only the odd numbers in `nums`?",
+    "choices": [
+      "[x**2 for x in nums if x % 2 != 0]",
+      "[x for x in nums if x**2 % 2 != 0]",
+      "[x**2 if x % 2 != 0 for x in nums]",
+      "{x**2 for x in nums if x % 2 != 0}"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-0/python-crash-course-for-data-and-ai/q2",
+    "type": "multiple_choice",
+    "prompt": "You use `csv.DictReader` to read a file with columns `id, quantity`. What type is `row['quantity']` right after reading, before you do anything else to it?",
+    "choices": [
+      "int",
+      "float",
+      "str",
+      "It depends on the column's contents"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "ai-ml-prompting/tier-0/python-crash-course-for-data-and-ai/q3",
+    "type": "multiple_choice",
+    "prompt": "Given `prices = np.array([10, 20, 30])` and `qty = np.array([1, 2, 3])`, what does `(prices * qty).sum()` compute without writing an explicit loop?",
+    "choices": [
+      "The elementwise product of the two arrays, then the sum of those products",
+      "The sum of prices multiplied by the sum of qty",
+      "A ValueError, since arrays can't be multiplied directly",
+      "The dot product only if the arrays are 2D"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-0/python-crash-course-for-data-and-ai/q4",
+    "type": "multiple_choice",
+    "prompt": "In pandas, what does `df.groupby('product')['revenue'].sum()` return?",
+    "choices": [
+      "A single number: total revenue across all products",
+      "A new DataFrame with one row per original order",
+      "A Series with one summed revenue value per unique product",
+      "A Python dict mapping product names to lists of revenue values"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "ai-ml-prompting/tier-0/python-crash-course-for-data-and-ai/q5",
+    "type": "multiple_choice",
+    "prompt": "You need to load a JSON file's contents directly into a Python dict. Which call does that?",
+    "choices": [
+      "json.loads(open('file.json'))",
+      "json.load(open('file.json'))",
+      "json.dumps('file.json')",
+      "json.parse('file.json')"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-0/python-crash-course-for-data-and-ai/q6",
+    "type": "multiple_choice",
+    "prompt": "Why prefer `df[df['revenue'] > 20]` over looping through rows with a Python `for` loop to filter a large DataFrame?",
+    "choices": [
+      "It's the only syntax pandas supports for filtering",
+      "It mutates the original DataFrame in place, which is required",
+      "It applies the comparison across the whole column at once, which is both shorter and faster than a manual row-by-row loop",
+      "It automatically removes duplicate rows as a side effect"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "ai-ml-prompting/tier-0/python-crash-course-for-data-and-ai/q7",
+    "type": "multiple_choice",
+    "prompt": "In a script, what is the practical effect of wrapping the call to `main()` in `if __name__ == \"__main__\":`?",
+    "choices": [
+      "It makes the script run faster",
+      "It lets the file's functions be imported by other code without automatically executing main() on import",
+      "It is required for the script to use command-line arguments",
+      "It silences all exceptions raised inside main()"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-0/python-crash-course-for-data-and-ai/q8",
+    "type": "multiple_choice",
+    "prompt": "You want to turn a list of order dicts into a lookup keyed by order_id for fast access later. Which is the idiomatic way to build it?",
+    "choices": [
+      "A dict comprehension: {o['order_id']: o for o in orders}",
+      "A nested for loop that appends to a list, then converts the list to a dict afterward",
+      "Sorting the list by order_id and using binary search each time you need one",
+      "Calling dict(orders) directly on the list of dicts"
+    ],
+    "correctIndex": 0
+  }
+]

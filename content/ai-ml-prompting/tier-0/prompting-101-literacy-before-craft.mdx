@@ -1,0 +1,166 @@
+---
+trackId: ai-ml-prompting
+tier: 0
+title: "Prompting 101 — Literacy Before Craft"
+order: 4
+estimatedHours: 6
+slug: prompting-101-literacy-before-craft
+---
+
+## What a Prompt Actually Is
+
+A prompt is not a command in the programming sense — it's text you hand a language model so it can predict what comes next. That's it. There's no parser looking for keywords, no function being called by name. The model reads your text as one long sequence of tokens and generates a statistically plausible continuation, token by token, based on patterns learned from training data.
+
+This matters because it explains both what prompting *can* do (steer behavior by shaping the text the model conditions on) and what it *can't* do (guarantee an outcome the way a function call guarantees a return value). Everything else in this module is a consequence of that one fact.
+
+## Completion APIs vs. Chat APIs
+
+Early large language model APIs were **completion** APIs: you sent a raw string, and the model returned a continuation of that string. Nothing more.
+
+```python
+# Old-style completion API (illustrative shape — mostly deprecated now)
+completion_prompt = "The capital of France is"
+# response.text comes back as something like:
+#   " Paris, the largest city in the country and its political center."
+# The model has no concept of "question" or "answer." It just continues text.
+```
+
+If you wanted the model to behave like an assistant, you had to fake it by writing the whole conversation as plain text yourself (`"Human: ...\nAI: ..."`) and hoping the model kept the pattern going.
+
+**Chat APIs** (what you use today with Claude, GPT, etc.) formalize that pattern into structured, role-tagged messages instead of one flat string:
+
+```python
+from anthropic import Anthropic
+
+client = Anthropic()  # reads ANTHROPIC_API_KEY from the environment
+
+response = client.messages.create(
+    model="claude-sonnet-4-5",
+    max_tokens=100,
+    system="You are a terse geography tutor. Answer in one sentence.",
+    messages=[
+        {"role": "user", "content": "What's the capital of France?"}
+    ],
+)
+print(response.content[0].text)
+# "The capital of France is Paris."
+```
+
+Under the hood, the model is still just predicting the next tokens — the roles are a formatting convention the model was specifically fine-tuned to respect. But that fine-tuning is exactly what makes chat APIs behave like an assistant instead of a text-completion engine.
+
+## Roles: System, User, Assistant
+
+- **system** — instructions that frame the whole conversation: persona, constraints, tone. Sent once (or updated), applies throughout.
+- **user** — what the human is asking, turn by turn.
+- **assistant** — the model's prior replies, which you feed back in so the model has "memory" of what it already said.
+
+Here's a real multi-turn exchange, built as an actual message list:
+
+```python
+messages = [
+    {"role": "user", "content": "I have a list of 5 ints. Write a function to find the max."},
+    {"role": "assistant", "content": "def find_max(nums):\n    return max(nums)"},
+    {"role": "user", "content": "Now make it work without using the built-in max()."},
+]
+
+response = client.messages.create(
+    model="claude-sonnet-4-5",
+    max_tokens=200,
+    system="You are a Python tutor. Show code, then a one-line explanation.",
+    messages=messages,
+)
+print(response.content[0].text)
+```
+
+The crucial detail: **the API is stateless.** The model doesn't remember your first message on its own. Every single call resends the *entire* message history — that assistant reply about `find_max` is only "remembered" in the second call because you literally pasted it back in as part of the `messages` list. If your code forgets to include it, the model has no idea the first exchange happened.
+
+## The Context Window (and What Happens When You Run Out)
+
+The context window is the maximum number of tokens — input plus output combined — the model can process in a single call. Claude models currently support windows in the hundreds of thousands of tokens; older or smaller models may cap out at 4,000–32,000. Either way, it's finite, and every message you resend (per the statelessness point above) eats into that budget.
+
+Concrete consequence — say your running conversation plus a log file you pasted totals more tokens than the model allows:
+
+```python
+response = client.messages.create(
+    model="claude-sonnet-4-5",
+    max_tokens=1024,
+    messages=long_messages,
+)
+# anthropic.BadRequestError: prompt is too long: 210004 tokens > 200000 maximum
+```
+
+Your code just breaks. The typical fix is to trim old messages before sending — but that has a sharper consequence than an error message: if you gave an instruction 80 messages ago ("always answer in French") and then trim the earliest messages to fit the budget, that instruction is now gone from what the model sees. It's not that the model chose to ignore you — the text simply isn't in the input anymore. It will start answering in English again, and it will look like the model "forgot," because it did, in the most literal sense possible.
+
+## Temperature and Sampling
+
+At each step, the model doesn't pick one next token — it computes a probability distribution over every possible next token, then samples from it. **Temperature** rescales that distribution before sampling:
+
+- **Temperature near 0**: sampling collapses toward always picking the single highest-probability token (greedy decoding). Output is close to deterministic, though not perfectly reproducible — floating-point operations on GPUs can vary slightly across runs even at temperature 0.
+- **Higher temperature** (e.g. 1.0+): the distribution flattens, so lower-probability tokens get picked more often. Output becomes more varied and can feel more "creative" — but it also gets more likely to wander into incoherent or off-topic territory.
+
+This is why the exact same prompt can give you different answers:
+
+```python
+for i in range(3):
+    r = client.messages.create(
+        model="claude-sonnet-4-5",
+        max_tokens=20,
+        temperature=1.0,
+        messages=[{"role": "user", "content": "Give me one word that describes the ocean."}],
+    )
+    print(r.content[0].text)
+
+# Three runs, identical prompt, temperature=1.0:
+#   Vast
+#   Endless
+#   Powerful
+```
+
+Run the same loop with `temperature=0`, and you'll get "Vast" (or whichever token had the highest probability) nearly every time. There's no randomness being injected on purpose to seem "human" — it's a deliberate, tunable parameter that trades consistency for variety.
+
+## Hallucination
+
+A model has no built-in fact-checking step by default. It generates the next token that best fits the statistical pattern of its training data, and a confident, well-formatted, false sentence is exactly as easy for it to produce as a confident, well-formatted, true one — there's no internal "certainty meter" that lights up differently for made-up facts.
+
+```python
+r = client.messages.create(
+    model="claude-sonnet-4-5",
+    max_tokens=200,
+    messages=[{"role": "user", "content": (
+        "What page of Kernighan & Ritchie's 'The C Programming Language' "
+        "(2nd edition) defines the 'lint' warning for unused variables?"
+    )}],
+)
+print(r.content[0].text)
+# A model can confidently answer something like:
+#   "This is covered on page 47, in the section on compiler diagnostics."
+```
+
+That book has no such section, and no reliable page 47 claim to check — the answer was generated because it has the *shape* of a real citation (a plausible page number, a plausible-sounding topic), not because anything was looked up. This is the core failure mode to internalize: fluency is not evidence of accuracy. Asking the model to "double-check itself" in the same turn often doesn't help, since it's still just generating more statistically plausible text, not consulting a source. Grounding answers in retrieved, verifiable documents is a real fix — that's a tool-use topic for a later tier, not something solved by prompt wording alone.
+
+## Prompt Etiquette: Never Paste Secrets or PII
+
+Whatever you type into a prompt leaves your machine and is sent to the provider's servers, where it may be logged for abuse monitoring, retained per their data policy, or — depending on the product tier and your account settings — used to improve future models. You don't control what happens to it after you hit send.
+
+```python
+# DON'T do this:
+prompt = """
+Here's my .env file — why isn't my API authenticating?
+
+AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE
+AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+DATABASE_URL=postgres://admin:Sup3rSecret!@prod-db.company.com:5432/customers
+"""
+```
+
+The concrete reason this is dangerous: once a real credential appears in a prompt, treat it the same as if you'd committed it to a public GitHub repo — it needs to be rotated immediately, full stop, regardless of what the provider's privacy policy promises. The same logic applies to a customer's SSN, medical record, or any personal data pasted in "just to get help debugging" — it may violate your company's data policy or the law the moment it leaves your machine, and you can't un-send it. The fix costs nothing: redact it (`AWS_ACCESS_KEY_ID=<redacted>`) or use synthetic placeholder data before asking for help.
+
+## Exercise
+
+Using whichever chat API you have access to (Claude, GPT, or similar — check what's already configured in your environment from the setup module), write a script that:
+
+1. Sends the same user prompt three times at `temperature=0` and three times at `temperature=1.0`.
+2. Prints all six outputs.
+3. Writes one or two sentences: were the `temperature=0` outputs identical, near-identical, or wildly different? Was that what you expected from this module?
+
+**Hint:** pick a prompt where variation is easy to *see*, like "Name one animal" or "Give me a made-up name for a coffee shop" — a prompt like "What is 2+2?" won't show much difference at any temperature, and that's worth noticing too.

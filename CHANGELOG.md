@@ -297,3 +297,14 @@ All notable changes to The Manual (curriculum + app) are logged here. This file 
 - `content/software-engineering/tier-5/*.mdx` (5 files) + matching quizzes: Contributing Upstream to Major Infrastructure Projects (real case studies: PostgreSQL's mailing-list/CommitFest process, Django's DEP process, and SQLite's deliberate no-external-contributions policy as a useful counter-example), Novel System/Framework Design, Reading & Reproducing Systems Papers, Teaching & Curriculum Design, Architecture at Organization Scale.
 
 **Status:** Software Engineering Tier 5 complete (68h, 5 lessons). **Software Engineering is now the third fully content-complete track in The Manual** — all 6 tiers, 269 hours, 34 lessons — joining CS Foundations and Language Mastery. All three "bedrock trio" tracks (MASTERFILE §4.6) are now complete. `npm run build` passed clean, 112 unique slugs verified. 6 tracks remain at syllabus-only depth: Hardware Systems, AI/ML, Platforms, DevOps, Cybersecurity & Ethical Hacking, Capstones.
+
+## [0.22.0] — 2026-09-28 — AI, ML & Prompt Engineering Tier 0: the fourth track begins
+
+**Context:** With all three bedrock-trio tracks complete, moving to Phase 2 of MASTERFILE §4.6's recommended path: AI/ML, which depends on CS Foundations' math spine (already complete). Tier 0 is deliberately light on math/ML theory proper — this track's own Tier 1 applies CS Foundations Tiers 1 & 3's math spine to ML; Tier 0 just builds raw AI literacy so nothing later feels like unexplained magic.
+
+**Added**
+- `content/ai-ml-prompting/tier-0/*.mdx` (5 files) + matching quizzes: What Is AI, Really? (symbolic vs. statistical AI, both AI winters explained with their actual causes — the knowledge-acquisition bottleneck, brittle rule sets, the ALPAC/Lighthill reports — and a concrete explanation of why the transformer architecture's parallelizable self-attention was the actual technical pivot, not just "deep learning got popular"), Dev Environment for AI/Python Work, Python Crash Course for Data & AI, Prompting 101 — Literacy Before Craft, Math Literacy Refresher (notation/algebra/what-a-vector-is, explicitly scoped away from this track's own Tier 1, which does the real ML-math application work).
+
+**Result:** `npm run build` passed clean on the first attempt. 117 unique slugs verified repo-wide.
+
+**Status:** AI/ML Tier 0 complete (29h, 5 lessons) — the fourth track in The Manual to get real lesson content. Tiers 1-5 remain.

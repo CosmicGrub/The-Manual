@@ -1,0 +1,98 @@
+[
+  {
+    "id": "ai-ml-prompting/tier-0/what-is-ai-really/q1",
+    "type": "multiple_choice",
+    "prompt": "What is the core difference between symbolic AI and statistical/ML AI?",
+    "choices": [
+      "Symbolic AI uses hand-written rules and logic; statistical AI learns patterns from examples",
+      "Symbolic AI runs on GPUs; statistical AI runs on CPUs",
+      "Symbolic AI is newer and statistical AI is older",
+      "There is no real difference, just different marketing terms"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-0/what-is-ai-really/q2",
+    "type": "multiple_choice",
+    "prompt": "What does passing the Turing test actually demonstrate about a machine?",
+    "choices": [
+      "That it is conscious",
+      "That it can convincingly imitate human conversation to a judge, not that it understands or reasons",
+      "That it has passed a formal intelligence benchmark used by all AI researchers today",
+      "That it can solve any problem a human can solve"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-0/what-is-ai-really/q3",
+    "type": "multiple_choice",
+    "prompt": "Which of these was a concrete, specific cause of the AI winters, rather than a vague explanation?",
+    "choices": [
+      "Governments decided AI research was unethical and banned it",
+      "The knowledge acquisition bottleneck made expert systems slow and expensive to build, and their rules became brittle and contradictory as they grew",
+      "Computers of the era were physically incapable of running any AI software at all",
+      "Universities stopped teaching computer science entirely"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-0/what-is-ai-really/q4",
+    "type": "multiple_choice",
+    "prompt": "What specifically did the transformer architecture change compared to earlier RNN/LSTM models for language?",
+    "choices": [
+      "It added color images to text models",
+      "It let every token attend to every other token in parallel, instead of processing words one at a time in sequence, enabling much faster training and longer-range context",
+      "It removed the need for any training data",
+      "It made models require less electricity than any prior architecture"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-0/what-is-ai-really/q5",
+    "type": "multiple_choice",
+    "prompt": "A researcher says an LLM is best described as 'broad but still narrow AI' rather than AGI. What's the reasoning behind that claim?",
+    "choices": [
+      "LLMs can only answer questions about one narrow topic, like chess",
+      "LLMs handle a wide range of tasks for a single model, but they're still mechanically doing one thing (next-token prediction) with no persistent goals or ability to learn genuinely new skills outside training and context",
+      "LLMs are technically illegal to call AGI under current law",
+      "LLMs are narrow because they only work in English"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-0/what-is-ai-really/q6",
+    "type": "multiple_choice",
+    "prompt": "You ask an LLM for a citation to a research paper, and it gives you a specific-sounding title, author, and journal \u2014 but the paper doesn't exist. What is this an example of, and why does it happen?",
+    "choices": [
+      "A software bug that only occurs on weekends",
+      "Hallucination \u2014 the model generates the most fluent, statistically plausible continuation, and fluency isn't the same thing as truth",
+      "Proof the model is deliberately lying to the user",
+      "The model is quoting the citation verbatim from a corrupted training file"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-0/what-is-ai-really/q7",
+    "type": "multiple_choice",
+    "prompt": "What is a 'token' in the context of how an LLM processes a prompt?",
+    "choices": [
+      "A security credential required to access the model",
+      "A chunk of text, often a subword piece, that the model actually operates on instead of whole words or raw letters",
+      "A unit of payment charged per API request",
+      "A single neuron in the model's network"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-0/what-is-ai-really/q8",
+    "type": "multiple_choice",
+    "prompt": "You ask a chatbot the same open-ended question in two separate fresh conversations and get two different, both-reasonable-sounding answers. What best explains this?",
+    "choices": [
+      "The model has a persistent memory that changed its mind between conversations",
+      "The model retrieves a fixed stored answer but corrupts it randomly",
+      "At each step the model samples from a probability distribution over next tokens rather than always picking the single top choice, so different runs can produce different but equally valid continuations",
+      "This should never happen with a correctly functioning model"
+    ],
+    "correctIndex": 2
+  }
+]

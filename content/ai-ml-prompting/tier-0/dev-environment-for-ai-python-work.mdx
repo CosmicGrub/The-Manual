@@ -1,0 +1,144 @@
+---
+trackId: ai-ml-prompting
+tier: 0
+title: "Dev Environment for AI/Python Work"
+order: 2
+estimatedHours: 4
+slug: dev-environment-for-ai-python-work
+---
+
+## What this module assumes
+
+CS Foundations Tier 0 already got you comfortable with a terminal: navigating directories, running commands, reading error output without panicking. This module doesn't re-teach any of that. What it does cover is the layer specific to AI/Python work: getting a real Python environment running, choosing between local and cloud notebooks, keeping API keys out of places they can leak, and making your first real call to an LLM API.
+
+## Python, pip, and virtual environments
+
+Check what you have first:
+
+```bash
+python3 --version
+pip --version
+```
+
+If either command fails, install Python from python.org (Windows/Mac) or your distro's package manager (Linux). Get Python 3.10 or newer — most current AI libraries assume it.
+
+`pip` is Python's package installer. `pip install anthropic` downloads a package and its dependencies into your Python environment. The problem: if you install packages globally, every project on your machine shares the same set of versions. Project A needs `numpy 1.24`, Project B needs `numpy 2.0`, and now you have a conflict that breaks one of them.
+
+**Virtual environments** solve this by giving each project its own isolated set of installed packages. The built-in tool is `venv`:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate       # macOS/Linux
+.venv\Scripts\activate          # Windows (cmd or PowerShell)
+```
+
+Your prompt now shows `(.venv)`. Anything you `pip install` from here goes into that folder, not your system Python. Deactivate with `deactivate`. Every new project you start in this track should begin with `python3 -m venv .venv` and activation — it's cheap, and skipping it is how "works on my machine" problems start.
+
+**Conda vs venv:** `venv` is enough for everything in this tier — it's built in, lightweight, and handles pure-Python dependencies fine. `conda` (via Anaconda or Miniconda) additionally manages non-Python dependencies — compiled libraries like CUDA toolkits that some heavier ML packages need. You'll want conda later, when Tier 1's math-heavy libraries need GPU-linked binaries. For calling an API and doing data work, `venv` is the right default — don't reach for conda until something specifically requires it.
+
+## VS Code + Jupyter vs Google Colab
+
+Two environments for writing and running Python, and they solve different problems.
+
+**Google Colab** runs Jupyter notebooks in your browser, on Google's servers, with zero local setup and free (if rate-limited and sometimes slow) GPU access. Use it when you want to run something *right now* without installing anything, when you need a GPU briefly and don't have one, or when you're sharing a runnable notebook with someone who doesn't want to set up an environment either. The tradeoffs: sessions disconnect and reset after periods of inactivity, files don't persist unless you explicitly mount Google Drive, and it's awkward to version-control — notebooks aren't naturally friendly with git diffs, and Colab isn't built around a git workflow the way a local editor is.
+
+**VS Code**, with the Python and Jupyter extensions installed, runs notebooks *and* plain `.py` scripts locally, integrates directly with git, and keeps your virtual environment, your files, and your secrets on your own machine where you control them. Use it for anything you're going to keep working on, put under version control, or that reads/writes local files — which, past the first "let me poke at this" phase, is most real work.
+
+Practical default for this track: reach for Colab for a quick isolated experiment or when you need free GPU time; use VS Code for anything that's going to become an actual project with more than one file, or that touches API keys and local data you care about.
+
+## Managing API keys safely
+
+An API key is a password that lets whoever has it act as you — make requests billed to your account, see your usage, sometimes access more than you intended. Treat it like a password, not like a config value.
+
+**Never put a key directly in your code.** Not as a string literal, not "just for now," not even in a private repo you plan to make public later. The standard pattern is a `.env` file — a plain text file of `KEY=value` pairs that your code loads at runtime but that never gets committed to git:
+
+```
+ANTHROPIC_API_KEY=sk-ant-api03-your-real-key-here
+```
+
+Save this as `.env` in your project root, then immediately add a `.gitignore` file (or add a line to an existing one) containing:
+
+```
+.env
+```
+
+Verify it worked before you do anything else:
+
+```bash
+git status
+```
+
+`.env` should not appear in the output. If it does, git isn't ignoring it yet — fix that before your first commit, not after.
+
+**Why this actually matters, concretely:** GitHub runs automated secret-scanning that partners directly with providers like Anthropic and OpenAI — when a string matching a known API key pattern gets pushed to a *public* repo, it can be flagged and reported within minutes, sometimes before you've even opened a second terminal tab. Independently of that, plenty of bots continuously scrape public GitHub commits specifically looking for leaked keys. Once a key is found, it gets used immediately — commonly to run large batch API calls (someone else's project, someone else's product, someone else's spam) billed entirely to your account. There are well-documented cases of developers waking up to four- and five-figure API bills from a key that leaked in a commit made hours earlier. The fix afterward is the same every time: revoke the key in the provider's dashboard immediately (this stops the bleeding instantly, unlike waiting for a support ticket), issue a new one, and only then worry about scrubbing it from git history — a revoked key in old commits is a rotated password, not a live one, but scrubbing history still matters so it doesn't get reused for something else later.
+
+This is why `.env` plus `.gitignore` isn't optional ceremony — it's the one habit that prevents the single most common way beginners accidentally cause real financial damage with these tools.
+
+## Installing and sanity-checking an LLM SDK
+
+With your virtual environment active:
+
+```bash
+pip install anthropic python-dotenv
+```
+
+(For OpenAI's models instead: `pip install openai python-dotenv` — the pattern below is nearly identical.)
+
+Minimal working call, `hello.py`:
+
+```python
+import os
+from dotenv import load_dotenv
+from anthropic import Anthropic
+
+load_dotenv()  # reads .env into environment variables
+
+client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+
+response = client.messages.create(
+    model="claude-sonnet-4-5",
+    max_tokens=100,
+    messages=[{"role": "user", "content": "Say hello in exactly five words."}],
+)
+
+print(response.content[0].text)
+```
+
+Run it:
+
+```bash
+python3 hello.py
+```
+
+If it prints five words back, your environment, your key, and your network access are all confirmed working — that's the whole point of this exercise: a known-good baseline you can trust before you start debugging anything more complicated. If it fails, the error tells you which layer broke: `KeyError` on `ANTHROPIC_API_KEY` means `.env` didn't load (check the file exists and is in the same directory you're running from); an authentication error means the key itself is wrong or was revoked; anything else is usually a package or network issue, not a "you don't understand the API" issue.
+
+The OpenAI equivalent, for comparison — note the client reads the key from the environment automatically, no manual `os.environ` lookup required:
+
+```python
+import os
+from dotenv import load_dotenv
+from openai import OpenAI
+
+load_dotenv()
+client = OpenAI()  # reads OPENAI_API_KEY from the environment automatically
+
+response = client.chat.completions.create(
+    model="gpt-4o-mini",
+    messages=[{"role": "user", "content": "Say hello in exactly five words."}],
+)
+
+print(response.choices[0].message.content)
+```
+
+## Exercise
+
+Set up a new project folder from scratch:
+
+1. Create the folder, `cd` into it, and initialize a virtual environment.
+2. Initialize a git repo and create a `.gitignore` containing `.env`.
+3. Create a `.env` file with your real (or a placeholder) API key.
+4. Install `anthropic` (or `openai`) and `python-dotenv`.
+5. Write a script that loads the key, sends one message to the model, and prints the reply.
+6. Run `git status` and confirm `.env` is not listed as untracked or staged.
+
+**Hint:** if step 6 shows `.env` anyway, check that your `.gitignore` file is spelled exactly `.gitignore` (not `gitignore.txt`) and sits in the same directory as `.env` — and that you created it *before* ever running `git add .` on this folder, since git won't retroactively un-track a file it already started tracking just because you add it to `.gitignore` afterward.

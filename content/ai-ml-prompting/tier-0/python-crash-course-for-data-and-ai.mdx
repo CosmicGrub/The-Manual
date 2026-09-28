@@ -1,0 +1,237 @@
+---
+trackId: ai-ml-prompting
+tier: 0
+title: "Python Crash Course for Data & AI"
+order: 3
+estimatedHours: 10
+slug: python-crash-course-for-data-and-ai
+---
+
+## What you already know, and what's new here
+
+You can already write a function, loop over data, and branch with if/else — that's CS Foundations territory, and this module doesn't re-teach it. What's new is the specific toolkit data and AI work runs on: comprehensions used idiomatically instead of verbose loops, real file I/O (CSV, JSON), and the two libraries — NumPy and pandas — that every later module in this track assumes you can already use. By the end you'll write a complete script, not just REPL one-liners.
+
+## Control flow and functions, data-flavored
+
+Same syntax you know, applied to the shape of problems you'll actually hit: classifying rows, validating fields, transforming values.
+
+```python
+def classify_temp(celsius):
+    if celsius < 0:
+        return "freezing"
+    elif celsius < 15:
+        return "cold"
+    elif celsius < 25:
+        return "mild"
+    else:
+        return "hot"
+
+readings = [-3, 12, 22, 31, 8]
+for r in readings:
+    print(r, "->", classify_temp(r))
+```
+
+Two habits worth locking in now because you'll use them constantly: default arguments for optional config, and returning early instead of nesting.
+
+```python
+def normalize(value, low=0, high=100):
+    if value < low:
+        return low
+    if value > high:
+        return high
+    return value
+```
+
+That's the whole review. Everything below is new.
+
+## Lists, dicts, and comprehensions, used idiomatically
+
+A comprehension isn't a stylistic flex — it's the standard way to express "build a new collection by transforming/filtering another one" in Python, and you'll read it in almost every data script you encounter.
+
+```python
+nums = [1, 2, 3, 4, 5, 6, 7, 8]
+
+squares = [x**2 for x in nums]                 # transform
+evens = [x for x in nums if x % 2 == 0]          # filter
+even_squares = [x**2 for x in nums if x % 2 == 0]  # both
+```
+
+Dict comprehensions follow the same pattern, and they're the fastest way to turn a list of records into a lookup table:
+
+```python
+users = [
+    {"id": 1, "name": "Amara"},
+    {"id": 2, "name": "Bo"},
+    {"id": 3, "name": "Chidi"},
+]
+
+by_id = {u["id"]: u["name"] for u in users}
+# {1: 'Amara', 2: 'Bo', 3: 'Chidi'}
+```
+
+Rule of thumb: if a comprehension needs more than one `if` or a nested loop to explain out loud, write a regular `for` loop instead. Readability loses to cleverness every time someone else (including future you) has to debug it.
+
+## Reading and writing real files: CSV and JSON
+
+Real data doesn't live in variables you typed — it lives in files. Two formats cover most of what you'll touch: CSV (tabular, everything's a string) and JSON (nested, typed).
+
+**CSV**, using the standard library's `csv` module:
+
+```python
+import csv
+
+with open("orders.csv", newline="") as f:
+    reader = csv.DictReader(f)
+    orders = list(reader)
+
+print(orders[0])
+# {'order_id': '1001', 'product': 'Widget', 'quantity': '4', 'price': '2.50'}
+```
+
+Notice every value is a string — `'4'`, not `4`. CSV has no types; you cast manually:
+
+```python
+for order in orders:
+    order["quantity"] = int(order["quantity"])
+    order["price"] = float(order["price"])
+```
+
+Writing CSV back out:
+
+```python
+with open("orders_clean.csv", "w", newline="") as f:
+    writer = csv.DictWriter(f, fieldnames=["order_id", "product", "quantity", "price"])
+    writer.writeheader()
+    writer.writerows(orders)
+```
+
+**JSON**, using the `json` module — this is the format you'll use constantly once you're calling APIs, including LLM APIs, later in this track:
+
+```python
+import json
+
+with open("config.json") as f:
+    config = json.load(f)   # file -> Python dict/list
+
+summary = {"total_orders": len(orders), "products": sorted({o["product"] for o in orders})}
+
+with open("summary.json", "w") as f:
+    json.dump(summary, f, indent=2)   # Python -> file, pretty-printed
+```
+
+`json.load`/`json.dump` work on file objects; `json.loads`/`json.dumps` work on strings (you'll use the string versions constantly with API responses).
+
+## NumPy: arrays that aren't just lists
+
+A Python list can hold anything and grows one item at a time. A NumPy array holds one fixed type and lets you operate on the whole thing at once — no explicit loop.
+
+```python
+import numpy as np
+
+prices = np.array([2.50, 5.00, 1.25, 8.75])
+quantities = np.array([4, 2, 10, 1])
+
+revenue = prices * quantities        # elementwise, no loop
+print(revenue)                       # [10.  10.   12.5  8.75]
+print(revenue.sum())                 # 41.25
+print(revenue.mean(), revenue.max()) # 10.3125 12.5
+```
+
+That `prices * quantities` line is the whole point of NumPy: operations apply to every element automatically ("vectorization"), which is both shorter to write and dramatically faster than a Python `for` loop once you're working with thousands or millions of values — the underlying loop runs in compiled C, not the Python interpreter. You don't need to know why that's faster yet (that's Tier 1); just know that "write the loop yourself" is almost always the wrong move once NumPy is available.
+
+2D arrays represent tables of numbers directly:
+
+```python
+grid = np.array([[1, 2, 3], [4, 5, 6]])
+print(grid.shape)   # (2, 3) -> 2 rows, 3 columns
+print(grid[1, 2])   # 6 -> row 1, column 2
+print(grid.sum(axis=0))  # column sums: [5 7 9]
+```
+
+## pandas: DataFrames for real work
+
+pandas builds on NumPy to give you labeled, tabular data — think "spreadsheet you can script." It's what you'll reach for instead of hand-rolling CSV parsing once files have more than a few columns.
+
+```python
+import pandas as pd
+
+df = pd.read_csv("orders.csv")
+print(df.head())
+print(df.dtypes)
+```
+
+Unlike raw `csv`, pandas infers types for you — `quantity` and `price` come in as numbers, not strings. Add a computed column and aggregate:
+
+```python
+df["revenue"] = df["quantity"] * df["price"]
+
+by_product = df.groupby("product")["revenue"].sum().sort_values(ascending=False)
+print(by_product)
+
+df.to_csv("orders_with_revenue.csv", index=False)
+df.to_json("orders_with_revenue.json", orient="records", indent=2)
+```
+
+`df["product"]` pulls out a column (a `Series`); filtering rows uses a boolean mask, not a loop:
+
+```python
+big_orders = df[df["revenue"] > 20]
+```
+
+You'll see this filtering pattern constantly — `df[condition]` — because it's the DataFrame equivalent of the list comprehension's `if` clause.
+
+## Putting it together: an end-to-end script
+
+Everything above happening in a REPL is a rehearsal. Real work is a script that runs start to finish with no human in the loop: read data in, transform it, write output out.
+
+```python
+# summarize_orders.py
+import csv
+import json
+import sys
+
+def load_orders(path):
+    with open(path, newline="") as f:
+        reader = csv.DictReader(f)
+        return [
+            {**row, "quantity": int(row["quantity"]), "price": float(row["price"])}
+            for row in reader
+        ]
+
+def summarize(orders):
+    totals = {}
+    for order in orders:
+        product = order["product"]
+        revenue = order["quantity"] * order["price"]
+        totals[product] = totals.get(product, 0) + revenue
+    return totals
+
+def main(input_path, output_path):
+    orders = load_orders(input_path)
+    totals = summarize(orders)
+    result = {
+        "order_count": len(orders),
+        "revenue_by_product": {k: round(v, 2) for k, v in totals.items()},
+        "total_revenue": round(sum(totals.values()), 2),
+    }
+    with open(output_path, "w") as f:
+        json.dump(result, f, indent=2)
+    print(f"Wrote summary for {len(orders)} orders to {output_path}")
+
+if __name__ == "__main__":
+    main(sys.argv[1], sys.argv[2])
+```
+
+Run it with `python summarize_orders.py orders.csv summary.json`. The `if __name__ == "__main__":` guard matters: it means the file's functions can be imported elsewhere (say, tested, or reused in a bigger pipeline) without the script immediately trying to run against real files. This shape — small functions, a `main()` that wires them together, a guard at the bottom — is the template you'll reuse for essentially every data script you write, in this track and beyond.
+
+## Exercise
+
+You have a CSV of website events with columns `user_id, event_type, timestamp`. Write a script `event_summary.py` that:
+
+1. Reads the CSV.
+2. Counts how many events each `user_id` triggered, and separately, how many events of each `event_type` occurred overall.
+3. Writes a single JSON file containing both counts plus the total number of events.
+
+Do it twice: once with plain `csv` + dict-building (using `.get(key, 0)` or a comprehension), and once by loading the file with `pd.read_csv` and using `.value_counts()`. Compare the two versions — same result, very different amount of code.
+
+Hint: `series.value_counts()` on a pandas column returns counts per unique value directly; `.to_dict()` on that turns it into something `json.dump` can write.

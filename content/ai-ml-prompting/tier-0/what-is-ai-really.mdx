@@ -1,0 +1,82 @@
+---
+trackId: ai-ml-prompting
+tier: 0
+title: "What Is AI, Really?"
+order: 1
+estimatedHours: 4
+slug: what-is-ai-really
+---
+
+## Two Different Things People Call "AI"
+
+"AI" has meant two almost unrelated projects across its 70-year history.
+
+**Symbolic AI** (also called "good old-fashioned AI" or GOFAI) tries to build intelligence out of explicit rules and logic. A programmer writes down knowledge as `IF-THEN` statements, and the system reasons by chaining them together. If you wanted a symbolic system to diagnose a cough, you'd hand-code: `IF fever AND cough > 2 weeks AND weight loss THEN suspect tuberculosis`.
+
+**Statistical / ML AI** doesn't get told rules — it's shown examples and learns the patterns itself. Give it thousands of labeled chest X-rays, and it learns which pixel patterns correlate with disease, without anyone writing a single `IF` statement. Everything from spam filters to GPT-4 is in this camp.
+
+The whole history of AI is largely the story of symbolic AI dominating, failing, and statistical AI eventually eating its lunch.
+
+## The Turing Test
+
+In 1950, Alan Turing proposed a practical stand-in for "can machines think?": if a human judge, chatting via text with both a machine and a person, can't reliably tell which is which, call the machine's behavior intelligent. It's worth being precise about what this tests — **convincing imitation of conversation**, not understanding, reasoning, or consciousness. A simple pattern-matching chatbot from the 1960s (ELIZA, which just reflected your statements back as questions) fooled some users into thinking it understood them. That's the test's real weakness: it measures how gullible the judge is as much as how smart the machine is. Modern LLMs pass casual versions of the Turing test constantly, which tells you less than you'd think about whether they "think."
+
+## Expert Systems: The First Boom
+
+By the late 1970s, symbolic AI produced real products: **expert systems** that encoded a human specialist's rules into software. MYCIN diagnosed bacterial infections and recommended antibiotics as well as junior doctors did, using a few hundred hand-written rules. DENDRAL inferred chemical structures from mass spectrometry data. Companies poured money in; by the mid-1980s the expert-systems industry was worth billions.
+
+## The AI Winters — Concretely
+
+**Winter one (mid-1970s).** Early machine translation had promised Russian-to-English translation good enough to replace human translators; a 1966 US government report (ALPAC) found it wasn't even close and cut funding. In the UK, the 1973 Lighthill report concluded AI research hadn't delivered on its grand promises about general problem-solving, and British government funding collapsed. The core problem: researchers had oversold "general" reasoning demos that only worked in tiny toy worlds (blocks stacked on a table) and fell apart on anything realistically messy.
+
+**Winter two (late 1980s–early 1990s).** Expert systems hit a wall for reasons that are still relevant: the **knowledge acquisition bottleneck** — extracting a specialist's know-how into explicit rules was slow, expensive, and specialists often couldn't articulate why they knew what they knew. Rule sets became brittle: add rule #4,000 and it silently contradicts rule #1,200, and there was no way for the system to notice or adapt. They also couldn't handle anything outside their narrow domain or degrade gracefully when facing unfamiliar input — a doctor recognizes when a case is outside their expertise; a 1980s expert system confidently gave a wrong answer instead. When specialized "Lisp machine" hardware companies (built specifically to run these systems) collapsed around 1987 as cheaper general-purpose workstations caught up, the industry's confidence — and its funding — went with them.
+
+Both winters share a pattern worth remembering: overpromise general intelligence, deliver narrow brittle demos, funders lose patience, money dries up for a decade.
+
+## The Deep Learning Revolution — and Why Transformers Changed Everything
+
+Statistical AI (neural networks specifically) had existed since the 1950s but was too weak, and too starved of data and compute, to compete. That flipped in 2012, when a neural network called AlexNet crushed the competition on an image-recognition benchmark, proving that with enough data and GPU compute, learned statistical patterns could beat hand-engineered approaches decisively.
+
+For text, the next constraint was architectural. The neural networks used for language through the mid-2010s (RNNs and LSTMs) processed a sentence **one word at a time, in sequence** — word 50 could only be understood after words 1 through 49 had been processed in order. This made two things hard: it was slow to train (you can't parallelize a strictly sequential process across many GPU cores), and it made long-range context fragile (by word 50, information about word 2 had been diluted through 48 sequential steps).
+
+The **transformer architecture**, introduced in 2017 ("Attention Is All You Need"), threw out the sequential requirement. Its core mechanism, self-attention, lets every word in a sequence look directly at every other word simultaneously and learn which ones matter to it — no chain of 48 intermediate steps required. Two consequences made this the pivot point of the whole field: training could now be massively parallelized across GPUs, and models could maintain coherent relationships across much longer stretches of text. That combination is what made it practical to train models on internet-scale text and get something like GPT out the other end. Every major LLM since — GPT, Claude, Gemini, Llama — is a transformer.
+
+## Narrow AI vs. General AI
+
+**Narrow AI (ANI)** does one type of task, however impressively: a chess engine, a spam filter, an image classifier. **General AI (AGI)** — a system that can learn and reason across arbitrary domains the way a human can — doesn't exist yet, despite marketing claims. Where does an LLM sit? It's genuinely ambiguous, and that's worth sitting with rather than resolving too fast: an LLM performs across an unusually wide range of tasks (writing, code, translation, basic reasoning) for a single model, which feels general. But it's still doing one thing mechanically — predicting the next token — and it has no persistent goals, no ability to act in the world on its own, and no capacity to learn a genuinely new skill outside what its training and context window support. Most researchers currently treat LLMs as broad but still narrow — impressively wide narrow AI, not AGI.
+
+## Myths vs. Reality
+
+Be concrete here, because vague hype and vague doom are equally useless.
+
+**What LLMs are actually good at:** synthesizing and restating information found in their training data in new arrangements, drafting and editing text, writing boilerplate and moderately complex code, brainstorming, translating between styles or languages, and following explicit instructions about format and tone.
+
+**What they're genuinely bad at:** reliable arithmetic on large numbers (ask one to multiply two 8-digit numbers by "thinking," not using a tool — it will often be wrong), knowing anything after their training cutoff unless given a tool or search, and — the big one — **hallucination**: producing fluent, confident, specific-sounding false information (a fake citation, a fake API function, a fake court case) because fluency and truth are not the same optimization target for these models. There is no internal "I don't know" flag that reliably fires; the model produces the statistically plausible continuation whether or not it's true.
+
+**Myth:** "It's basically a search engine that quotes its training data." **Reality:** it generalizes patterns and produces genuinely novel text combinations it never saw verbatim — which is exactly why it can also confidently generate novel *false* combinations.
+
+**Myth:** "It understands what it's saying the way a person does." **Reality:** unresolved and genuinely debated among researchers — treat confident claims either way with suspicion, and judge the model by what it outputs, not by what it claims to "feel."
+
+## How a Prompt Becomes Text — No Math, Just Mechanism
+
+1. **Tokenize.** Your prompt isn't processed as words or letters — it's chopped into **tokens**, chunks that are often subwords. "unbelievable" might become `["un", "believ", "able"]`; common short words are usually single tokens. This is why LLMs sometimes botch letter-counting tasks — they don't natively see individual letters, they see token chunks.
+
+2. **Predict a distribution.** Given the tokens so far, the model doesn't output one guaranteed next word. It outputs a probability distribution over its entire vocabulary — for "The capital of France is", something like `Paris: 91%`, `the: 3%`, `located: 2%`, ...thousands of other tokens splitting the remainder.
+
+3. **Sample.** The system picks one token from that distribution — not necessarily the single highest-probability one. Sometimes it just takes the top pick (deterministic); sometimes it randomly samples, weighted toward higher-probability options, controlled by a setting usually called "temperature." This is exactly why asking a model the same question twice can give you two different, both-reasonable phrasings: it's not retrieving a fixed answer, it's re-sampling.
+
+4. **Repeat.** The chosen token gets appended to the sequence, and the whole process runs again to pick the *next* token — one token at a time, until it emits a stop signal or hits a length limit.
+
+That's the entire generative loop. There's no separate "planning" stage where the model decides the whole sentence in advance — the appearance of planning emerges from a token-by-token process trained on enormous amounts of text where good planning-shaped patterns were statistically rewarded.
+
+## Exercise
+
+Open any chatbot you have access to and run three small experiments:
+
+1. Ask it to multiply two random 7-digit numbers "in your head" (no code tool) and check the answer with a calculator.
+2. Ask it for a citation or academic reference on a moderately obscure topic, then try to verify that source actually exists.
+3. Ask the exact same open-ended question ("give me a one-sentence description of autumn") three separate times in fresh conversations and compare the outputs.
+
+Write one paragraph connecting what you observed back to the token-probability-sampling loop above: *why* did the arithmetic likely fail, *why* might the citation be fabricated rather than just "not found," and *why* did the three autumn sentences differ.
+
+**Hint:** none of these are the model being "lazy" or "broken" — each is a direct, predictable consequence of one specific step in the generation loop (tokenization, the fact that fluency ≠ truth, or sampling).
