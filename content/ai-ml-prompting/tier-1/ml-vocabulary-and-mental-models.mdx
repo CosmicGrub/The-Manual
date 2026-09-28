@@ -1,0 +1,156 @@
+---
+trackId: ai-ml-prompting
+tier: 1
+title: "ML Vocabulary & Mental Models"
+order: 6
+estimatedHours: 6
+slug: ml-vocabulary-and-mental-models
+---
+
+## The Three Learning Paradigms, With Real Examples
+
+Most ML explanations start with abstract definitions ("supervised learning uses labeled data") that don't stick until you've seen the concrete case. Here are three, one per paradigm, plus the vocabulary that goes with each.
+
+**Supervised learning: spam filtering.** You have a mailbox with 50,000 past emails, each already marked spam or not-spam by a human. That's the supervised setup: every training example comes with the "right answer" attached. The model's job is to learn the mapping from an email's features (word frequencies, sender domain, number of links, all-caps ratio) to that answer, so it can predict the label on emails nobody has looked at yet. Nearly everything you build early in this track — price prediction, image classification, sentiment analysis — is supervised learning, because you have ground truth to learn from and check against.
+
+**Unsupervised learning: customer segmentation.** An e-commerce company has customer data — visit frequency, average order size — with no labels at all. Nobody tagged customers as "type A" or "type B"; there's no ground truth to check against. Unsupervised learning finds structure in the data itself. A clustering algorithm groups customers who behave similarly, and a human decides afterward what those groups mean ("frequent small-basket shoppers" vs. "occasional big spenders"). Here's one iteration of that idea, k-means clustering, by hand with numpy — group 6 customers by (monthly visits, average order value) into 2 clusters, starting from two rough guesses at where the cluster centers are:
+
+```python
+import numpy as np
+
+customers = np.array([
+    [ 2, 15], [ 1, 12], [15, 40],
+    [18, 55], [ 3, 18], [20, 60],
+])
+centers = np.array([[2.0, 15.0], [18.0, 55.0]])  # 2 initial guesses, no labels involved
+
+def assign(points, centers):
+    # Euclidean distance from each point to each center — same norm you
+    # already have from CS Foundations, just applied row by row here.
+    dists = np.linalg.norm(points[:, None, :] - centers[None, :, :], axis=2)
+    return np.argmin(dists, axis=1)
+
+labels = assign(customers, centers)
+print(labels)                 # [0 0 1 1 0 1]
+
+new_centers = np.array([customers[labels == k].mean(axis=0) for k in range(2)])
+print(new_centers)
+# [[ 2.         15.        ]
+#  [17.667      51.667     ]]
+```
+
+No labels went in anywhere — the algorithm only looked at distances between points. Repeat the assign-then-recompute-center loop until the centers stop moving and you have k-means. The "answer" (which customers form a segment) is discovered, not supplied.
+
+**Reinforcement learning: a robot vacuum.** There's no dataset of correct moves here — the vacuum acts, and the environment gives it feedback: a small penalty for bumping a wall, no penalty for clean progress, maybe a bonus for finishing a room. It updates its own estimate of "how good is this action from this position" from that feedback, over thousands of trials, without anyone labeling the correct move ahead of time. The core object is a Q-table: one value per (state, action) pair, estimating future reward. One update, in numpy:
+
+```python
+import numpy as np
+
+Q = np.zeros((4, 2))          # 4 positions x 2 actions [left, right]
+alpha, gamma = 0.5, 0.9       # learning rate, discount factor
+s, a, r, s_next = 1, 1, -1.0, 2   # at position 1, moved right, got -1, landed at 2
+
+old_q = Q[s, a]
+best_next = np.max(Q[s_next])
+Q[s, a] = old_q + alpha * (r + gamma * best_next - old_q)
+print(Q[s, a])                 # -0.5
+```
+
+That single line — old estimate plus a nudge toward (reward + discounted best future value) — is the entire mechanism reinforcement learning is built from; you'll see it again, unabbreviated, later in this track.
+
+## Features and Labels
+
+Every supervised example is a row of **features** (the inputs, what you know) paired with a **label** (the output, what you're trying to predict). Building the feature matrix and label vector is the first concrete step of any supervised project:
+
+```python
+import numpy as np
+
+# columns: [sqft, bedrooms, age_years]
+X = np.array([
+    [1800, 3, 15], [1200, 2, 40], [3000, 5,  2],
+    [ 950, 1, 60], [2100, 4,  8], [1650, 3, 22],
+])
+y = np.array([310, 195, 620, 140, 410, 285])   # price, $1000s
+
+print(X.shape, y.shape)   # (6, 3) (6,)
+print(X[0], "->", y[0])   # [1800    3   15] -> 310
+```
+
+`X` is conventionally capital because it's a matrix (one row per example, one column per feature); `y` is lowercase because it's a vector (one label per example). Every model you train in this track takes `X` and `y` in exactly this shape. Unsupervised learning uses `X` alone — no `y` exists, which is precisely why "supervised" means "supervised by labels."
+
+## Why Three Splits, Not Two
+
+You already know to hold out test data so you're not grading yourself on questions you studied from. The part that's easy to skip: if you also use that same test set to decide anything about the model — which polynomial degree, which regularization strength, which architecture — you've quietly turned it into training data. It stops measuring "how will this model do on data it never influenced" and starts measuring "how well did I pick a model that happens to fit these particular 60 points."
+
+That's why you split three ways:
+
+- **train** — fit the model's parameters.
+- **validation** — compare candidate models and hyperparameters, pick a winner. You're allowed to look at this repeatedly.
+- **test** — touch exactly once, after everything else is locked in, to report an honest number.
+
+Here's the failure mode made concrete. Generate noisy data from a known quadratic, split it 180/60/60, then try 300 random (polynomial degree, ridge regularization strength) combinations two different ways:
+
+```python
+import numpy as np
+
+rng = np.random.default_rng(11)
+X = rng.uniform(-3, 3, 300)
+y = 0.5 * X**2 - X + 2 + rng.normal(0, 1.5, size=300)
+
+idx = rng.permutation(300)
+X_train, y_train = X[idx[:180]], y[idx[:180]]
+X_val,   y_val   = X[idx[180:240]], y[idx[180:240]]
+X_test,  y_test  = X[idx[240:]],    y[idx[240:]]
+
+def mse(p, t): return np.mean((p - t) ** 2)
+def feats(x, d): return np.vstack([x**p for p in range(d + 1)]).T
+def ridge(Xf, yv, lam):
+    A = Xf.T @ Xf + lam * np.eye(Xf.shape[1])
+    return np.linalg.solve(A, Xf.T @ yv)
+
+degs = rng.integers(1, 15, size=300)
+lams = 10 ** rng.uniform(-6, 1, size=300)
+
+# strategy 1: pick whichever combo scores best directly on the TEST set
+best_test, best = np.inf, None
+for d, lam in zip(degs, lams):
+    w = ridge(feats(X_train, d), y_train, lam)
+    score = mse(feats(X_test, d) @ w, y_test)
+    if score < best_test:
+        best_test, best = score, (d, lam, w)
+```
+
+Result: the winning combo (degree 5, lambda ≈ 2.43) reports a **test MSE of 1.368** — looks great. Run that exact model against 20,000 brand-new points it never influenced, and its real error is **2.327**, about 70% worse than what got written down. The number was optimistic because it was chosen to be — out of 300 candidates, one was bound to fit this particular 60-point test set's noise unusually well.
+
+Do it properly — pick the winner using the **validation** set instead, then check the test set exactly once — and the picture changes: validation selects degree 2, lambda ≈ 2.72; the one-time honest test MSE is **1.384**, and true error on the 20,000 fresh points is **2.257**. Almost the same test-set number as before (1.384 vs. 1.368), but this time it isn't a lie, because it wasn't used to choose anything — and the model it points to actually generalizes slightly better besides. Skip the validation split, and you lose the ability to tell the honest number from the flattering one.
+
+## Overfitting, Underfitting, and the Bias-Variance Tradeoff
+
+Using that same train/validation split, fit three polynomials of different degree to the same data and compare train error to validation error:
+
+```python
+for deg, label in [(1, "underfit"), (2, "good fit"), (15, "overfit")]:
+    c = np.polyfit(X_train, y_train, deg)
+    print(label, mse(np.polyval(c, X_train), y_train),
+                 mse(np.polyval(c, X_val), y_val))
+```
+
+```
+degree= 1 (underfit )  train_mse=4.109  val_mse=5.007   gap=0.90
+degree= 2 (good fit )  train_mse=2.496  val_mse=2.450   gap=-0.05
+degree=15 (overfit  )  train_mse=2.251  val_mse=3.157   gap=0.91
+```
+
+Read the pattern directly off the numbers:
+
+- **Underfitting (degree 1):** error is high on *both* train and validation (4.11 and 5.01). The model — a straight line — is too simple to capture the real quadratic curve, so it does poorly even on the data it was fit to. This is **high bias**: the model's assumptions are wrong, and more data won't fix that.
+- **Overfitting (degree 15):** train error is the lowest of the three (2.25) — the model bends itself around every training point, including noise — but validation error jumps to 3.16. That train/val gap (0.91) is **high variance**: the model is unstable, sensitive to the exact noise in this training sample, and a different sample would produce a wildly different curve.
+- **The good fit (degree 2)** — which happens to match the true underlying quadratic — gets low error on both sets, with essentially no gap. Low bias, low variance, at this noise level.
+
+The bias-variance tradeoff is that pattern: as model flexibility increases, bias goes down (fewer wrong assumptions) but variance goes up (more sensitivity to this training sample's noise), and the train-vs-validation gap is your instrument for reading which regime you're in. A model that's underfitting needs more capacity — higher degree, more features, a bigger network later in this track. A model that's overfitting needs less capacity, more data, or regularization — that `lam` term from the section above exists specifically to fight this.
+
+## Exercise: Catch the Leak
+
+Take the split-decision code from the "why three splits" section and modify it: instead of only reporting `best_test` at the very end, also record, after every one of the 300 trials, the running-minimum test MSE seen *so far* (after 10 combos, after 50, after 150, after 300). Print or plot how that number keeps drifting downward as you try more combos — even though nothing about the model's actual quality is improving. Then do the same tracking against the validation set's running minimum, and compare the two curves.
+
+**Hint:** both running minimums will trend downward as you try more combos — that's expected, and fine for validation, because you're *allowed* to optimize against it. The point is what happens next: take whichever model the validation search preferred, check it against the test set exactly once, and that single number won't keep dropping no matter how many more combos you try afterward — because you've stopped letting the search see it.

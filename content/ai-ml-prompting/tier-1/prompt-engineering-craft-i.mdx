@@ -1,0 +1,290 @@
+---
+trackId: ai-ml-prompting
+tier: 1
+title: "Prompt Engineering Craft I"
+order: 5
+estimatedHours: 8
+slug: prompt-engineering-craft-i
+---
+
+# Prompt Engineering Craft I
+
+Tier 0 got you comfortable with what a prompt *is* — tokens, roles, temperature, hallucination. This module is where prompting turns into a craft with named techniques you apply deliberately, compare against each other, and iterate on with evidence instead of vibes. Every technique below gets a real prompt, a real (illustrative) model response, and a reason the change in output happened.
+
+## Zero-Shot vs. Few-Shot Prompting
+
+**Zero-shot** means you give the model an instruction and nothing else — no examples of what a good answer looks like. **Few-shot** means you show it 2-5 worked examples in the exact input/output shape you want, then hand it a new input and let it pattern-match.
+
+Say you're building a bug-triage bot. It needs to output a machine-parseable line: `SEVERITY: <value> | CATEGORY: <value>`, because a downstream script splits on `" | "` and feeds the pieces into a dashboard.
+
+Zero-shot prompt:
+
+```python
+report = "App crashes every time I tap the checkout button."
+
+prompt = f"Classify this bug report's severity and category: {report}"
+
+response = client.messages.create(
+    model="claude-sonnet-4-5",
+    max_tokens=100,
+    messages=[{"role": "user", "content": prompt}],
+)
+print(response.content[0].text)
+```
+
+Illustrative zero-shot output — plausible, reasonable, and useless to your parser:
+
+```
+This sounds like a critical severity issue since it blocks a core purchase
+flow. I'd categorize it under Backend, though it could also touch payment
+integration depending on the root cause.
+```
+
+There's no fixed `SEVERITY:`/`CATEGORY:` structure, the casing isn't consistent run to run, and there's extra prose your `.split(" | ")` code will choke on. The model wasn't told the *shape* of the answer, only the *task*, so it defaulted to a normal helpful-assistant paragraph.
+
+Few-shot prompt — same task, three worked examples first:
+
+```python
+examples = '''Report: "The logo is slightly blurry on retina displays."
+SEVERITY: low | CATEGORY: ui
+
+Report: "Password reset email sometimes lands in spam."
+SEVERITY: medium | CATEGORY: auth
+
+Report: "Database writes silently fail under high load, no error logged."
+SEVERITY: critical | CATEGORY: backend
+'''
+
+prompt = f'''Classify new bug reports using the exact format shown below.
+
+{examples}
+Report: "{report}"
+SEVERITY:'''
+
+response = client.messages.create(
+    model="claude-sonnet-4-5",
+    max_tokens=30,
+    messages=[{"role": "user", "content": prompt}],
+)
+print(response.content[0].text)
+```
+
+Illustrative few-shot output:
+
+```
+ critical | CATEGORY: backend
+```
+
+Same underlying judgment, but now it's a single, parseable line every time, because the examples pinned down the exact format, not just the topic. This is the actual mechanism behind few-shot's reputation for "better" output: it's rarely that the model reasons better with examples — it's that examples remove ambiguity about format, tone, and granularity that a plain instruction leaves the model to guess at.
+
+## System / Role Prompting
+
+The `system` parameter sets a persona and constraints that apply to the whole conversation, separate from the user's turn-by-turn asks. It's the highest-leverage lever for controlling *how* the model answers, independent of *what* it's asked.
+
+No system prompt:
+
+```python
+response = client.messages.create(
+    model="claude-sonnet-4-5",
+    max_tokens=300,
+    messages=[{"role": "user", "content": "Review this function:\n\ndef add(a, b):\n    return a+b"}],
+)
+print(response.content[0].text)
+```
+
+Illustrative default output:
+
+```
+This is a solid, simple function! A few thoughts:
+1. Consider adding type hints: def add(a: float, b: float) -> float
+2. You might want a docstring explaining what it does
+3. The spacing around `+` could follow PEP 8 (a+b -> a + b)
+Overall this works correctly for numeric inputs.
+```
+
+Helpful, but verbose, and it's commenting on style when what you actually wanted was a bug check before merging a PR.
+
+With a system prompt locking role and scope:
+
+```python
+response = client.messages.create(
+    model="claude-sonnet-4-5",
+    max_tokens=300,
+    system=(
+        "You are a terse senior code reviewer performing a pre-merge check. "
+        "Only flag genuine bugs, security issues, or incorrect behavior. "
+        "Never comment on style, naming, or formatting. "
+        "If there are no real issues, respond with exactly: No issues."
+    ),
+    messages=[{"role": "user", "content": "Review this function:\n\ndef add(a, b):\n    return a+b"}],
+)
+print(response.content[0].text)
+```
+
+Illustrative output:
+
+```
+No issues.
+```
+
+Same function, same user message — the only thing that changed is the system prompt, and it collapsed a six-line style lecture into the one-line answer the workflow actually needed. This is what "role prompting" buys you: it's not roleplay, it's a persistent filter on scope and tone that you'd otherwise have to repeat in every single user message.
+
+## Chain-of-Thought Prompting
+
+**Chain-of-thought (CoT)** means explicitly asking the model to reason step by step *before* giving a final answer, instead of jumping straight to it. It matters most on multi-step problems where an early wrong assumption poisons everything downstream.
+
+```python
+problem = (
+    "A bakery starts the day with 200 loaves. By 10am they've sold 35% "
+    "of their stock. At 10am they bake 50 more loaves. By 2pm they've "
+    "sold 60% of what they now have. How many loaves are left at 2pm?"
+)
+
+response = client.messages.create(
+    model="claude-sonnet-4-5",
+    max_tokens=150,
+    messages=[{"role": "user", "content": f"{problem} Answer with just the number."}],
+)
+print(response.content[0].text)
+```
+
+Illustrative direct-answer output (wrong):
+
+```
+60
+```
+
+Here's how that wrong answer happens: 35% of 200 sold = 70, leaving 130, plus 50 baked = 180 — correct so far. But "60% of what they now have" gets misread as 60% of the *original* 200 instead of the *current* 180, giving 120 sold and 180 - 120 = 60. It's a classic wrong-base-for-percentage error, and jumping straight to a number hides exactly where it happened.
+
+Same problem, chain-of-thought prompt:
+
+```python
+response = client.messages.create(
+    model="claude-sonnet-4-5",
+    max_tokens=300,
+    messages=[{"role": "user", "content": (
+        f"{problem} Think step by step. At each step, explicitly state "
+        "which quantity the next percentage applies to before calculating."
+    )}],
+)
+print(response.content[0].text)
+```
+
+Illustrative CoT output:
+
+```
+Step 1: 35% of the starting 200 loaves = 70 sold. Remaining: 200 - 70 = 130.
+Step 2: They bake 50 more: 130 + 50 = 180 loaves now in stock.
+Step 3: "60% of what they now have" refers to the current stock of 180,
+not the original 200. 60% of 180 = 108 sold.
+Step 4: 180 - 108 = 72 loaves left.
+Answer: 72
+```
+
+72 is correct. Forcing the model to name which quantity each percentage applies to is what closed the gap — it turned an implicit assumption ("60% of... the number I started with") into an explicit, checkable claim ("60% of the current stock of 180"), and once it's explicit, it's also correct. This is the real value of CoT: it doesn't make the model smarter, it makes its intermediate assumptions visible, which is exactly where multi-step problems go wrong.
+
+## Structured Output (JSON)
+
+Getting a model to reliably emit valid, schema-conforming JSON is what lets prompt output feed directly into other code. Two things go wrong if you don't handle them: the model adds explanatory prose around the JSON, or it wraps it in a markdown code fence even when told not to.
+
+```python
+import json
+import re
+
+def extract_contact(client, message_text):
+    prompt = f'''Extract contact info from the message below.
+Respond with ONLY a JSON object — no markdown, no code fences, no explanation.
+Schema: {{"name": string, "email": string, "phone": string or null, "urgency": "low"|"medium"|"high"}}
+
+Message:
+"""{message_text}"""'''
+    response = client.messages.create(
+        model="claude-sonnet-4-5",
+        max_tokens=150,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return response.content[0].text
+
+raw = extract_contact(client, "Hi, this is Dana Okafor, dana.okafor@example.com. "
+                               "My checkout is completely broken, need this fixed today!")
+print(raw)
+# Illustrative output (models often add fences anyway, despite instructions):
+# ```json
+# {"name": "Dana Okafor", "email": "dana.okafor@example.com", "phone": null, "urgency": "high"}
+# ```
+```
+
+Calling `json.loads(raw)` directly on that output raises `json.JSONDecodeError: Expecting value: line 1 column 1 (char 0)`, because the string starts with three backticks, not `{`. You have to strip that before parsing, and then validate the shape:
+
+```python
+REQUIRED_KEYS = {"name", "email", "phone", "urgency"}
+VALID_URGENCY = {"low", "medium", "high"}
+
+def parse_and_validate(raw_output):
+    cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw_output.strip())
+    try:
+        data = json.loads(cleaned)
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Model did not return valid JSON: {e}\nRaw: {raw_output!r}") from e
+
+    missing = REQUIRED_KEYS - data.keys()
+    if missing:
+        raise ValueError(f"Missing required keys: {missing}")
+    if data["urgency"] not in VALID_URGENCY:
+        raise ValueError(f"urgency must be one of {VALID_URGENCY}, got {data['urgency']!r}")
+    if data["phone"] is not None and not isinstance(data["phone"], str):
+        raise ValueError("phone must be a string or null")
+    if "@" not in data["email"]:
+        raise ValueError(f"email doesn't look valid: {data['email']!r}")
+
+    return data
+
+contact = parse_and_validate(raw)
+print(contact)
+# {'name': 'Dana Okafor', 'email': 'dana.okafor@example.com', 'phone': None, 'urgency': 'high'}
+```
+
+Notice the validator does two separate jobs: it recovers from a *formatting* failure (the fence) with a regex, then checks a *content* failure (wrong type, missing key, invalid enum value) with explicit rules that raise a specific, debuggable `ValueError` instead of letting a malformed dict silently corrupt whatever consumes it. For a schema with more than a handful of fields, swap the hand-rolled checks for the `jsonschema` package or a `pydantic` model — same idea, less boilerplate.
+
+## Prompt Templates & Iterative Refinement
+
+A prompt template is a function that builds a prompt from variables instead of hand-typing strings each time, and it's what makes iteration *comparable* — you change one input, keep the rest constant, and log what happened. Here's the bug-triage prompt evolving across four real versions, tying every technique above into one workflow:
+
+```python
+def build_triage_prompt(report_text, version):
+    if version == "v1_zero_shot":
+        return f"Classify this bug report's severity and category: {report_text}"
+
+    if version == "v2_few_shot":
+        examples = ('Report: "The logo is slightly blurry on retina displays."\n'
+                     'SEVERITY: low | CATEGORY: ui\n\n'
+                     'Report: "Database writes silently fail under high load."\n'
+                     'SEVERITY: critical | CATEGORY: backend\n')
+        return f'Follow this exact format:\n\n{examples}\nReport: "{report_text}"\nSEVERITY:'
+
+    if version == "v3_role_locked":
+        # same few-shot body, but the format is now enforced by a system
+        # prompt instead of hoping the model keeps copying the pattern
+        return f'Report: "{report_text}"'
+
+    if version == "v4_structured_json":
+        return (f'Classify the report below. Respond with ONLY JSON: '
+                 f'{{"severity": "critical"|"high"|"medium"|"low", '
+                 f'"category": "ui"|"backend"|"data"|"auth"}}\n\n'
+                 f'Report: "{report_text}"')
+```
+
+Each version is a hypothesis, not a guess: v1 tested whether an instruction alone was enough (it wasn't — inconsistent format). v2 tested whether examples would fix format (they did, but relied on the model continuing the pattern under load). v3 moved format-locking into a `system` prompt so it survives even if a user message gets long or messy. v4 moved to JSON specifically because the consumer changed from a regex-parsing script to a service that wants a real object. Logging the prompt, the actual output, and the one-sentence reason you changed it is the entire discipline — it's what separates "I tweaked the prompt until it looked right" from a reproducible, defensible decision.
+
+## Exercise
+
+Pick a real text task of your own — extracting action items from meeting notes, classifying support emails by department, pulling structured data out of messy pasted text, anything with real inputs you have on hand. Build it through all four stages:
+
+1. **v1 (zero-shot):** one plain instruction. Run it on 3 real inputs and note where the output format or accuracy breaks.
+2. **v2 (few-shot):** add 2-3 worked examples in your exact target format. Re-run the same 3 inputs.
+3. **CoT if it's a reasoning task:** if any input requires more than one logical step, add "think step by step, and name which number/fact each step depends on" and check whether an answer flips from wrong to right.
+4. **v4 (structured JSON + validator):** define a schema, prompt for JSON only, and write a `parse_and_validate` function like the one above that strips code fences and checks every required key and type.
+
+Log all four prompts and their actual outputs side by side.
+
+**Hint:** if you don't have a task in mind, use your own inbox — extract `{"sender": str, "topic": str, "action_required": bool, "deadline": string or null}` from 5 real emails. The deadline field is a good stress test for your validator: real emails say things like "by end of week" or "no rush," not ISO dates, so decide up front whether your schema allows free text there or whether the prompt needs to demand a specific date format — and see what the model does when no deadline is mentioned at all.

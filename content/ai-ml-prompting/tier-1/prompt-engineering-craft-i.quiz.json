@@ -1,0 +1,98 @@
+[
+  {
+    "id": "ai-ml-prompting/tier-1/prompt-engineering-craft-i/q1",
+    "type": "multiple_choice",
+    "prompt": "What is the core difference between zero-shot and few-shot prompting?",
+    "choices": [
+      "Few-shot includes worked examples of the input/output shape before the real task; zero-shot gives only an instruction",
+      "Zero-shot uses a system prompt and few-shot does not",
+      "Few-shot requires a fine-tuned model; zero-shot works with any base model",
+      "Zero-shot always produces JSON output; few-shot always produces plain text"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-1/prompt-engineering-craft-i/q2",
+    "type": "multiple_choice",
+    "prompt": "In the bug-triage example, why did the zero-shot prompt produce output that broke the downstream `.split(\" | \")` parser?",
+    "choices": [
+      "The model refused to classify the bug report",
+      "The instruction described the task but never showed the exact output format, so the model defaulted to a normal explanatory paragraph",
+      "The model's max_tokens was set too low to finish the JSON",
+      "Zero-shot prompts cannot include a system parameter"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-1/prompt-engineering-craft-i/q3",
+    "type": "multiple_choice",
+    "prompt": "What does the `system` parameter primarily control in a chat API call?",
+    "choices": [
+      "The maximum number of tokens the model can generate",
+      "Which specific model version handles the request",
+      "A persona, tone, and set of constraints that apply across the whole conversation, separate from each user turn",
+      "Whether the response is streamed token by token"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "ai-ml-prompting/tier-1/prompt-engineering-craft-i/q4",
+    "type": "multiple_choice",
+    "prompt": "Bakery problem: 200 loaves to start. 35% sold by 10am, then 50 more baked, then 60% of the current stock sold by 2pm. How many loaves are left at 2pm?",
+    "choices": [
+      "60",
+      "72",
+      "108",
+      "130"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-1/prompt-engineering-craft-i/q5",
+    "type": "multiple_choice",
+    "prompt": "In the bakery chain-of-thought example, what specifically caused the wrong direct answer of 60?",
+    "choices": [
+      "The model added the two percentages together (35% + 60% = 95%) directly",
+      "The model applied the second percentage (60%) to the original 200 loaves instead of the current stock of 180",
+      "The model forgot to include the 50 newly baked loaves at all",
+      "The model rounded 35% down to 30% before calculating"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-1/prompt-engineering-craft-i/q6",
+    "type": "multiple_choice",
+    "prompt": "A model returns this string for a JSON extraction prompt: ```json\\n{\"name\": \"Dana\"}\\n```. What happens if you call `json.loads()` directly on that raw string without any preprocessing?",
+    "choices": [
+      "It parses successfully and returns {'name': 'Dana'}",
+      "It raises json.JSONDecodeError because the string starts with backticks, not a JSON value",
+      "It silently returns an empty dict",
+      "It automatically strips the code fence and parses normally"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-1/prompt-engineering-craft-i/q7",
+    "type": "multiple_choice",
+    "prompt": "In the `parse_and_validate` function from the structured-output section, what are the two distinct categories of failure it handles?",
+    "choices": [
+      "Network timeouts and authentication errors",
+      "Formatting failures (like a wrapping code fence) and content failures (missing keys, wrong types, invalid enum values)",
+      "Rate-limit errors and token-budget overruns",
+      "Temperature errors and max_tokens errors"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-1/prompt-engineering-craft-i/q8",
+    "type": "multiple_choice",
+    "prompt": "What makes prompt-template versioning (v1, v2, v3, v4...) a real practiced workflow rather than just trial and error?",
+    "choices": [
+      "Each version is only ever tested once, with no comparison to prior versions",
+      "Each version changes one thing at a time against the same inputs, with the actual output and the reason for the change logged, so improvements are evidence-based and reproducible",
+      "Later versions always use a lower temperature than earlier ones",
+      "Every version must produce identical output for the workflow to count as valid"
+    ],
+    "correctIndex": 1
+  }
+]

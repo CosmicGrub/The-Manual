@@ -1,0 +1,141 @@
+---
+trackId: ai-ml-prompting
+tier: 1
+title: "Gradient Descent Mechanics"
+order: 3
+estimatedHours: 4
+slug: gradient-descent-mechanics
+---
+
+## From Derivatives to a Training Loop
+
+You already know what a derivative and a gradient are, and you've seen why a convex function has one clean minimum while a non-convex one can have several (CS Foundations Tier 3). This module is about turning that into code: gradient descent is just "compute the gradient, take a step opposite it, repeat" — the actual loop that trains every model you'll build in this track.
+
+The update rule is one line:
+
+```
+x_new = x_old - learning_rate * gradient(x_old)
+```
+
+That's it. Everything interesting in this module — convergence, divergence, getting stuck — comes from how that one line behaves under different learning rates and different loss surfaces.
+
+## Implementing It From Scratch
+
+Start with a convex function: `f(x) = (x - 3)^2 + 5`. Its minimum is obviously at `x = 3` (value 5), and its derivative is `f'(x) = 2(x - 3)`.
+
+```python
+import numpy as np
+
+def f(x):
+    return (x - 3)**2 + 5
+
+def grad_f(x):
+    return 2 * (x - 3)
+
+def gradient_descent(grad_fn, x0, lr, n_iters):
+    x = x0
+    history = [x]
+    for _ in range(n_iters):
+        x = x - lr * grad_fn(x)
+        history.append(x)
+    return np.array(history)
+```
+
+Run it from `x0 = 0.0` with `lr = 0.1`:
+
+```python
+hist = gradient_descent(grad_f, x0=0.0, lr=0.1, n_iters=5)
+print(hist)
+# [0.    0.6   1.08  1.464 1.7712 2.01696]
+```
+
+Each step closes the gap to 3 by a factor of `(1 - 2*lr) = 0.8`. That factor is the whole story of convergence speed here — it comes directly from the curvature (`f''(x) = 2`) and the learning rate.
+
+## The Learning Rate: Too Small, Too Large, Just Right
+
+Because the gap shrinks by a constant factor `(1 - 2*lr)` each step, you can predict behavior exactly for this function:
+
+**Too small (`lr = 0.001`)** — factor is `0.998`, barely different from 1. After 1000 iterations:
+
+```python
+x, _ = gradient_descent(grad_f, 0.0, 0.001, 1000)[-1], None
+# x ≈ 2.595
+```
+
+Still 0.4 away from the true minimum after a thousand steps. Loss is `5.164` instead of `5.0` — technically improving, practically wasting compute.
+
+**Too large (`lr = 1.1`)** — factor is `1 - 2*1.1 = -1.2`, magnitude greater than 1, so error *grows* each step instead of shrinking, and flips sign:
+
+```python
+hist = gradient_descent(grad_f, 0.0, 1.1, 4)
+print(hist)
+# [0.    6.6  -1.32   8.184 -3.221]
+```
+
+That's textbook divergence: oscillating around the minimum with growing amplitude instead of settling into it. This is the single most common beginner mistake in real training runs — loss that explodes or turns to `NaN` after a few epochs almost always means the learning rate is too high for the curvature of the loss surface.
+
+**Just right (`lr = 0.5`)** — for this particular quadratic, `f''(x) = 2` everywhere, so `lr = 1/f''(x) = 0.5` lands exactly on the minimum in one step, from *any* starting point:
+
+```python
+hist = gradient_descent(grad_f, 0.0, 0.5, 1)
+print(hist)
+# [0. 3.]
+```
+
+That's a special property of quadratics with constant curvature (Newton's method, effectively), not something you get for free on real loss surfaces — but it illustrates *why* the learning rate has to be matched to curvature, not picked arbitrarily.
+
+## Convergence Criteria
+
+In practice you don't run a fixed number of iterations and hope — you stop when the gradient (or the loss) stops changing meaningfully:
+
+```python
+def gradient_descent_until_converged(grad_fn, x0, lr, tol=1e-6, max_iters=10000):
+    x = x0
+    for i in range(max_iters):
+        g = grad_fn(x)
+        if abs(g) < tol:
+            return x, i
+        x = x - lr * g
+    return x, max_iters
+
+x, n_iters = gradient_descent_until_converged(grad_f, 0.0, 0.1)
+print(x, n_iters)
+# 2.9999995 70
+```
+
+With `lr = 0.1` it takes 70 iterations to get the gradient below `1e-6`. Try `tol=1e-6` with `lr=0.001` and you'll hit `max_iters` without converging at all — a direct, measurable consequence of picking too small a learning rate.
+
+## Why Some Loss Surfaces Are Easy and Others Aren't
+
+`(x - 3)^2 + 5` is convex: one bowl, one minimum, gradient descent gets there from anywhere given a stable learning rate. Most real loss surfaces aren't that forgiving. Compare it to a non-convex function with two minima, `f(x) = x^4 - 3x^2`:
+
+```python
+def g(x):
+    return x**4 - 3*x**2
+
+def grad_g(x):
+    return 4*x**3 - 6*x
+```
+
+`grad_g(x) = 0` at `x = 0` and at `x = ±sqrt(1.5) ≈ ±1.2247`. The two outer points are minima (`f ≈ -2.25`, tied); `x = 0` is a local maximum with `f = 0`. Where you *start* now decides where you *end up*:
+
+```python
+hist_pos = gradient_descent(grad_g, x0=1.5, lr=0.01, n_iters=300)
+hist_neg = gradient_descent(grad_g, x0=-1.5, lr=0.01, n_iters=300)
+print(hist_pos[-1], hist_neg[-1])
+# 1.2247... -1.2247...
+```
+
+Starting at `1.5` lands on the right-hand minimum; starting at `-1.5` lands on the left-hand one. There's no single "the" answer for where gradient descent converges — it depends on initialization, which is exactly why weight initialization is a real, non-trivial design choice for neural networks, not a formality.
+
+In higher dimensions this gets a second failure mode: saddle points, where the gradient is zero but the surface curves up in one direction and down in another (the 2D analogue: `f(x, y) = x^2 - y^2`, flat at the origin, a bowl along `x`, a hill along `y`). A model can sit near a saddle with a tiny gradient in every direction for a long stretch of training without being anywhere near a minimum. Convex losses (plain linear regression, logistic regression) never have this problem — one bowl, no saddles, no competing minima. Non-convex losses (essentially every neural network) can have all of it, which is why later modules cover techniques — momentum, adaptive learning rates, better initialization — built specifically to survive this terrain.
+
+## Exercise
+
+Implement gradient descent from scratch on `f(x) = x^4 - 3x^2 + x` (the same double-well, nudged asymmetric by the `+ x` term).
+
+1. Derive `grad_f(x)` by hand (it's a cubic).
+2. Run gradient descent from at least three different starting points (`x0 = -2, 0, 2`) and record where each one converges.
+3. Find, experimentally, roughly the largest `lr` that still converges (rather than diverging) when starting from `x0 = 1.5`.
+
+**Hint:** the asymmetric term breaks the tie between the two minima — one basin is now lower than the other — so part of the exercise is noticing that starting position alone can trap you in the *worse* of the two minima, with no signal from gradient descent itself that a better one exists nearby.

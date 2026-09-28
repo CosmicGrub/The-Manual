@@ -1,0 +1,98 @@
+[
+  {
+    "id": "ai-ml-prompting/tier-1/python-for-data/q1",
+    "type": "multiple_choice",
+    "prompt": "In the timed comparison, a pure Python loop multiplying and summing 2,000,000 pairs took about 0.59 seconds while the NumPy vectorized version took about 0.06 seconds. What is the primary mechanical reason for that gap?",
+    "choices": [
+      "NumPy runs on a different, faster copy of Python installed separately",
+      "The Python loop re-enters the interpreter and re-checks types on every iteration, while NumPy runs one compiled C loop over contiguous typed memory with no per-element interpreter overhead",
+      "NumPy arrays are stored on the GPU by default, while Python lists are not",
+      "The Python loop version is actually a bug and doesn't compute the same result"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-1/python-for-data/q2",
+    "type": "multiple_choice",
+    "prompt": "Given `scores = np.array([62, 88, 45, 91])`, what does `np.where(scores < 60, scores + 10, scores)` return?",
+    "choices": [
+      "array([62, 88, 45, 91])",
+      "array([72, 98, 55, 101])",
+      "array([62, 88, 55, 91])",
+      "A single boolean: False"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "ai-ml-prompting/tier-1/python-for-data/q3",
+    "type": "multiple_choice",
+    "prompt": "You run `orders.groupby(\"product\")[\"revenue\"].agg([\"sum\", \"mean\", \"count\"])` on a DataFrame with 3 unique products. What is the shape of the result?",
+    "choices": [
+      "A single scalar summarizing all products combined",
+      "A DataFrame with 3 rows (one per product) and 3 columns (sum, mean, count)",
+      "A DataFrame with one row per original order, unchanged",
+      "A Python dict, not a DataFrame or Series"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-1/python-for-data/q4",
+    "type": "multiple_choice",
+    "prompt": "`orders2` has 3 rows; one row's `customer_id` (99) doesn't exist in `customers2`, and `customers2` has one customer (Femi) with no matching order at all. What is the shape of `orders2.merge(customers2, on=\"customer_id\", how=\"inner\")`?",
+    "choices": [
+      "(3, 4) \u2014 all original orders are kept",
+      "(2, 4) \u2014 only rows with a customer_id present in both tables are kept",
+      "(7, 4) \u2014 every combination from both tables is kept",
+      "It raises an error because customer_id 99 doesn't exist"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-1/python-for-data/q5",
+    "type": "multiple_choice",
+    "prompt": "Using the same `orders2`/`customers2` tables as the previous question, what is the shape of `orders2.merge(customers2, on=\"customer_id\", how=\"left\")`?",
+    "choices": [
+      "(2, 4) \u2014 the unmatched order is dropped",
+      "(3, 4) \u2014 every order row is kept, with NaN filled in for the unmatched customer's name",
+      "(6, 4) \u2014 one row per customer regardless of orders",
+      "(7, 4) \u2014 same as an outer join"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-1/python-for-data/q6",
+    "type": "multiple_choice",
+    "prompt": "What is the actual relationship between matplotlib and seaborn?",
+    "choices": [
+      "They are unrelated, competing libraries with incompatible outputs",
+      "seaborn is the low-level engine and matplotlib is built on top of it for statistical plots",
+      "seaborn is built on top of matplotlib and provides higher-level functions (like sns.barplot) that plot a DataFrame directly with fewer lines of code",
+      "matplotlib only works inside Jupyter, while seaborn only works in scripts"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "ai-ml-prompting/tier-1/python-for-data/q7",
+    "type": "multiple_choice",
+    "prompt": "Why does this module recommend running Kernel to Restart and Run All before trusting a notebook's result?",
+    "choices": [
+      "It makes the notebook file smaller on disk",
+      "It automatically fixes any bugs in the code",
+      "It catches results that only look correct because cells were run out of order or a since-deleted cell's output is still being relied on",
+      "It is required before a notebook can be converted to a .py script"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "ai-ml-prompting/tier-1/python-for-data/q8",
+    "type": "multiple_choice",
+    "prompt": "In a repeatable notebook structure, why put `np.random.seed(42)` in the very first cell rather than just before the specific step that uses randomness?",
+    "choices": [
+      "Seeding only works if it's the first line executed in the entire Python process",
+      "It has no real effect on reproducibility either way",
+      "Putting it first guarantees every random operation anywhere later in the notebook draws from the same fixed sequence, so a full rerun reproduces identical numbers",
+      "It makes the random numbers generated afterward statistically unbiased"
+    ],
+    "correctIndex": 2
+  }
+]

@@ -1,0 +1,181 @@
+---
+trackId: ai-ml-prompting
+tier: 1
+title: "Probability & Information Theory Applied to ML"
+order: 2
+estimatedHours: 6
+slug: probability-and-information-theory-applied-to-ml
+---
+
+## Where this picks up
+
+CS Foundations Tier 3 already gave you the probability rules (addition, multiplication, conditional probability), named distributions, and the entropy/cross-entropy formulas from first principles. None of that gets re-derived here. This module spends its time on two things: using Bayes' theorem to build an actual classifier that predicts real labels from real data, and connecting the cross-entropy formula you already know to the loss function that trains almost every model in the rest of this track.
+
+## Bayes' theorem, one sentence
+
+You already know `P(A|B) = P(A) * P(B|A) / P(B)`. In ML terms, swap in a class label `y` and observed features `x`: `P(y|x) = P(y) * P(x|y) / P(x)` — "given what I observed, how likely is each label?" That's the entire idea behind a **naive Bayes classifier**. Now build one.
+
+## The problem: spam or not spam
+
+Five training emails, already labeled:
+
+```
+Spam:
+  "free money now"
+  "win free cash now"
+  "free win prize"
+
+Ham (not spam):
+  "meeting report attached"
+  "project meeting notes"
+```
+
+Three spam, two ham. Every distinct word across both classes forms the **vocabulary**:
+
+```
+attached, cash, free, meeting, money, notes, now, prize, project, report, win
+```
+
+That's `V = 11` words. Naive Bayes treats each email as a "bag of words" — a vector of word counts, ignoring order — and makes one deliberately unrealistic assumption to make the math tractable: it treats every word's presence as **conditionally independent** given the class. "Free" showing up doesn't change how likely "now" is to show up, *given that you already know the email is spam*. That assumption is false in real language (word choices absolutely correlate), which is exactly why it's called "naive" — but it works well enough in practice that naive Bayes was a production-grade spam filter for years, and it's still a solid baseline today.
+
+### Step 1: priors
+
+The **prior** is just `P(class)` before looking at any words — how common each class is in training data:
+
+```
+P(spam) = 3/5 = 0.6
+P(ham)  = 2/5 = 0.4
+```
+
+### Step 2: class-conditional word probabilities (with smoothing)
+
+For each class, count total words and per-word counts:
+
+```
+spam word counts: free=3, money=1, now=2, win=2, cash=1, prize=1   (total = 10 words)
+ham  word counts: meeting=2, report=1, attached=1, project=1, notes=1   (total = 6 words)
+```
+
+The **likelihood** `P(word | class)` would naively be `count / total`, but that's broken: any word that never appeared in a class (like "free" in ham) gets probability exactly `0`, which would zero out an entire prediction no matter what else the email contains. The fix is **Laplace (add-one) smoothing** — add 1 to every count and add `V` to every denominator, so nothing is ever impossible, just unlikely:
+
+```
+P(word | class) = (count(word, class) + 1) / (total_words_in_class + V)
+```
+
+### Step 3: classify a new email by hand
+
+New email to classify: `"free meeting now"`. Compute `P(word|spam)` and `P(word|ham)` for each word (`V=11`, spam total=10, ham total=6):
+
+| word | P(word\|spam) | P(word\|ham) |
+|---|---|---|
+| free | (3+1)/(10+11) = 4/21 ≈ 0.1905 | (0+1)/(6+11) = 1/17 ≈ 0.0588 |
+| meeting | (0+1)/21 ≈ 0.0476 | (2+1)/17 ≈ 0.1765 |
+| now | (2+1)/21 ≈ 0.1429 | (0+1)/17 ≈ 0.0588 |
+
+Multiply everything for each class (prior times the product of the three likelihoods) — but multiplying small probabilities repeatedly underflows to `0` in floating point fast, so in practice you work in **log space** and add instead of multiply (`log(a*b) = log(a) + log(b)`, same trick as computing entropy):
+
+```
+log_score(spam) = ln(0.6) + ln(0.1905) + ln(0.0476) + ln(0.1429) ≈ -7.159
+log_score(ham)  = ln(0.4) + ln(0.0588) + ln(0.1765) + ln(0.0588) ≈ -8.317
+```
+
+`-7.159 > -8.317`, so spam wins. Converting back to normalized probabilities (subtract the max before exponentiating, another standard numerical-stability trick, then renormalize) gives:
+
+```
+P(spam | "free meeting now") ≈ 0.761
+P(ham  | "free meeting now") ≈ 0.239
+```
+
+Sensible: "free" is a strong spam signal, "now" leans spam, "meeting" leans ham, and spam wins the tug-of-war. This decision rule — pick the class with the highest posterior — is called **MAP (maximum a posteriori)** classification.
+
+### Step 4: the same thing in numpy
+
+```python
+import numpy as np
+
+vocab = ['attached','cash','free','meeting','money','notes','now',
+         'prize','project','report','win']
+word_index = {w: i for i, w in enumerate(vocab)}
+
+def to_vector(doc):
+    v = np.zeros(len(vocab))
+    for w in doc.split():
+        v[word_index[w]] += 1
+    return v
+
+spam_docs = ['free money now', 'win free cash now', 'free win prize']
+ham_docs  = ['meeting report attached', 'project meeting notes']
+
+X_spam = np.array([to_vector(d) for d in spam_docs])   # shape (3, 11)
+X_ham  = np.array([to_vector(d) for d in ham_docs])    # shape (2, 11)
+
+spam_word_counts = X_spam.sum(axis=0)   # word totals across all spam docs
+ham_word_counts  = X_ham.sum(axis=0)
+
+V = len(vocab)
+log_p_word_given_spam = np.log((spam_word_counts + 1) / (spam_word_counts.sum() + V))
+log_p_word_given_ham  = np.log((ham_word_counts  + 1) / (ham_word_counts.sum()  + V))
+
+n_spam, n_ham = len(spam_docs), len(ham_docs)
+log_prior_spam = np.log(n_spam / (n_spam + n_ham))
+log_prior_ham  = np.log(n_ham  / (n_spam + n_ham))
+
+test_vec = to_vector('free meeting now')
+
+score_spam = log_prior_spam + test_vec @ log_p_word_given_spam
+score_ham  = log_prior_ham  + test_vec @ log_p_word_given_ham
+
+print(score_spam, score_ham)          # -7.159486287148259 -8.317318475374693
+print('spam' if score_spam > score_ham else 'ham')   # spam
+```
+
+Notice `test_vec @ log_p_word_given_spam` — a dot product between the document's word-count vector and the vector of per-word log-probabilities — replaces the entire "multiply three probabilities, or add three logs" step from the hand calculation in one line. This is the pattern you'll use constantly from here on: whenever you find yourself writing "sum this quantity over every feature," it's almost always a dot product, and numpy computes it as one vectorized operation instead of a Python loop.
+
+## Cross-entropy: the loss you'll see for the rest of this track
+
+You already know the formula from Tier 3: `H(p, q) = -sum p(x) * log2(q(x))`, and that it shrinks toward 0 as a predicted distribution `q` gets closer to the true distribution `p`. Machine learning libraries use the exact same formula with one cosmetic change — natural log (`ln`) instead of `log2` (the calculus for gradient descent is cleaner with `ln`; the units change from "bits" to "nats," but the shape of the function, and everything you learned about it, is identical). Under this name, it's usually written as **log loss** or **binary cross-entropy** for two-class problems:
+
+```
+L(y, ŷ) = -[ y * ln(ŷ) + (1 - y) * ln(1 - ŷ) ]
+```
+
+`y` is the true label (0 or 1), `ŷ` is the model's predicted probability of class 1. When `y=1`, the second term vanishes and you're left with `-ln(ŷ)` — exactly the self-information formula from Tier 3, just in nats instead of bits. Compute it for a batch:
+
+```python
+import numpy as np
+
+y_true = np.array([1, 0, 1, 1])
+y_pred = np.array([0.9, 0.2, 0.6, 0.3])   # model's predicted P(class=1)
+
+def binary_cross_entropy(y_true, y_pred, eps=1e-15):
+    y_pred = np.clip(y_pred, eps, 1 - eps)   # avoid ln(0)
+    return -(y_true * np.log(y_pred) + (1 - y_true) * np.log(1 - y_pred))
+
+losses = binary_cross_entropy(y_true, y_pred)
+print(losses)        # [0.10536052 0.22314355 0.51082562 1.2039728 ]
+print(losses.mean()) # 0.5108256237659907  <- this number is what gets minimized
+```
+
+Look at example 4: true label is `1`, model predicted `0.3` — confidently *wrong* — and it costs `1.204`, more than double any other example. Example 1 (`y=1`, `ŷ=0.9`, confident and right) costs only `0.105`. This is the exact same "confident wrongness is punished harder than honest uncertainty" behavior you verified by hand in Tier 3 — it did not change, only the log base did.
+
+The multi-class version (what softmax classifiers and neural net output layers use) drops the two-term binary special case and sums over every class with a one-hot true label:
+
+```python
+y_true = np.array([0, 1, 0])        # true class is index 1, one-hot encoded
+y_pred_bad  = np.array([0.7, 0.2, 0.1])   # confidently wrong
+y_pred_good = np.array([0.1, 0.85, 0.05]) # confidently right
+
+loss_bad  = -np.sum(y_true * np.log(y_pred_bad))
+loss_good = -np.sum(y_true * np.log(y_pred_good))
+print(loss_bad, loss_good)   # 1.6094379124341003 0.16251892949777494
+```
+
+Because `y_true` is one-hot, every term except the true class multiplies by `0` and disappears — the whole sum collapses to `-ln(ŷ_true_class)`, same simplification as the binary case.
+
+**Why this matters for everything after this module:** logistic regression, softmax classifiers, and neural networks all work by starting with random weights, producing bad predicted probabilities, computing this exact loss, and using gradient descent to nudge the weights in whatever direction makes the loss smaller. "Training a classifier" *is* "minimizing cross-entropy between predicted and true label distributions" — there's no additional idea hiding behind that phrase. The naive Bayes classifier above reaches its probabilities differently (by directly counting word frequencies, not by gradient descent), but its output — `P(spam)=0.761` for a document that really is spam — could be scored the same way: `-ln(0.761) ≈ 0.273`. A well-trained classifier should make examples like that cheap and get expensive only when it's confidently wrong, exactly as the numbers above show.
+
+## Exercise
+
+Extend the training set with two more emails: spam = `"win cash prize now"`, ham = `"project report notes"`. Recompute the vocabulary, word counts, and priors, then classify the email `"win report now"` using the same log-space approach (by hand or in numpy — try both and check they agree). Which class wins, and which single word in the test email do you think is doing the most work to pull the score in that direction? Then compute the cross-entropy loss for your classifier's own posterior probability on that prediction, as if the label you predicted turned out to be correct.
+
+**Hint:** don't forget the vocabulary changes when you add new documents — "cash" and "report" already exist in the vocabulary, but count carefully whether any brand-new words appear, since that changes `V` and therefore every smoothed probability, not just the ones for the new words.

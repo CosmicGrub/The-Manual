@@ -1,0 +1,199 @@
+---
+trackId: ai-ml-prompting
+tier: 1
+title: "Linear Algebra Applied to ML"
+order: 1
+estimatedHours: 8
+slug: linear-algebra-applied-to-ml
+---
+
+## From math objects to ML objects
+
+CS Foundations Tier 3 already gave you vectors, matrices, dot products, and eigenvectors as mathematical objects. This module doesn't re-derive any of that — it shows you what those objects *are* when you're doing machine learning: a row of data is a vector, a layer of a model is a matrix, and "the eigenvectors of the covariance matrix" is how you actually compress real data. Everything below is runnable numpy.
+
+## A data row is a feature vector
+
+Every row of a dataset — one house, one email, one image — is a vector. Each entry is a **feature**: a measured number describing that example.
+
+```python
+import numpy as np
+
+# sqft, bedrooms, age (years), bathrooms
+house1 = np.array([1850, 3, 12, 2])
+house2 = np.array([1200, 2, 5, 1])
+
+print(house1.shape)   # (4,) -- a 4-dimensional feature vector
+print(np.dot(house1, house2))
+```
+```
+(4,)
+2220068
+```
+
+That dot product is technically valid, but it's a bad similarity score, and the reason matters: `sqft` has values in the thousands while `bathrooms` has values around 1-5. The sum is dominated almost entirely by the sqft term — the other three features barely move the number. This is the concrete, ML-flavored reason "feature scaling" exists (you'll formalize it in a later module): a dot product, cosine similarity, or Euclidean distance treats every dimension as equally important *by construction*, so if your dimensions live on wildly different scales, the largest one silently wins.
+
+You can see it directly with cosine similarity, which normalizes out vector length but not per-feature scale:
+
+```python
+cos_sim = np.dot(house1, house2) / (np.linalg.norm(house1) * np.linalg.norm(house2))
+print(cos_sim)
+```
+```
+0.9999972776831678
+```
+
+house1 and house2 look almost identical to the dot product, purely because both have large, similar sqft values. A whole dataset is just a stack of these vectors — a matrix, one row per example:
+
+```python
+X = np.array([
+    [1850, 3, 12, 2],
+    [1200, 2,  5, 1],
+    [2400, 4, 20, 3],
+    [ 980, 2,  8, 1],
+    [3100, 5,  2, 4],
+], dtype=float)
+
+print(X.shape)   # (5, 4) -- 5 examples, 4 features each
+```
+
+This `X` — examples as rows, features as columns — is the standard layout you'll feed into every model from here on.
+
+## A weight matrix is a batch of dot products
+
+A "linear layer" (the core building block of linear regression, logistic regression, and every dense layer in a neural net) is nothing but a matrix multiply plus a bias vector. Here's what it computes, mechanically, with real shapes:
+
+```python
+np.random.seed(0)
+W = np.random.randn(2, 4) * 0.01   # 2 output neurons, 4 input features
+b = np.zeros(2)
+
+print(W)
+```
+```
+[[ 0.0176  0.004   0.0098  0.0224]
+ [ 0.0187 -0.0098  0.0095 -0.0015]]
+```
+
+`W` has shape `(2, 4)`: 2 rows, one per output neuron, each row the same length as a feature vector (4). Row 0 of `W` dotted with a feature vector gives output neuron 0; row 1 gives output neuron 1. That's it — a linear layer is "one dot product per output neuron."
+
+For a single house:
+
+```python
+z = W @ house1 + b
+print(z)
+```
+```
+[32.8092 34.6315]
+```
+
+`W @ house1` is `(2,4) @ (4,) = (2,)` — matrix-vector multiply, exactly the dot-product-per-row you'd expect from Tier 3. For a whole batch, you do the same thing for every row of `X` at once:
+
+```python
+out = X @ W.T + b
+print(out.shape)
+print(out)
+```
+```
+(5, 2)
+[[32.8092 34.6315]
+ [21.248  22.4371]
+ [42.6162 44.9678]
+ [17.3964 18.357 ]
+ [54.8148 57.8584]]
+```
+
+`X` is `(5, 4)`, `W.T` is `(4, 2)`, so `X @ W.T` is `(5, 2)`: 5 examples, 2 outputs each. Notice row 0 of `out` — `[32.8092, 34.6315]` — is exactly `z` from above. **`X @ W.T + b` is just "compute `W @ x + b` for every row `x` of `X`, stacked."** Every dense/linear layer you'll write from here forward — in plain numpy, PyTorch, or anywhere else — is this operation. Training a model means adjusting the *numbers inside* `W` and `b` so this matmul produces outputs that match reality; nothing about the mechanics changes.
+
+## PCA: eigenvectors as "directions of most variance"
+
+You already know eigenvectors of a matrix point along directions that matrix stretches without rotating, and eigenvalues are the stretch factor. PCA applies that to one specific matrix: the **covariance matrix** of your data. The covariance matrix measures how features vary together, and its eigenvectors are exactly the directions along which the data spreads out the most — the eigenvalues tell you *how much* it spreads along each one.
+
+Take a small, clearly correlated 2D dataset:
+
+```python
+data = np.array([
+    [2.5, 2.4], [0.5, 0.7], [2.2, 2.9], [1.9, 2.2], [3.1, 3.0],
+    [2.3, 2.7], [2.0, 1.6], [1.0, 1.1], [1.5, 1.6], [1.1, 0.9],
+])
+
+centered = data - data.mean(axis=0)      # PCA always starts by centering
+cov = np.cov(centered.T)
+print(cov)
+```
+```
+[[0.6166 0.6154]
+ [0.6154 0.7166]]
+```
+
+The off-diagonal values are large and positive relative to the diagonal — the two features rise and fall together, which is exactly what you'd expect for correlated data. Now find that matrix's eigenvectors and eigenvalues:
+
+```python
+eigvals, eigvecs = np.linalg.eigh(cov)   # eigh: cov is symmetric, returns ascending order
+print(eigvals)
+print(eigvecs)
+```
+```
+[0.0491 1.284 ]
+[[-0.7352  0.6779]
+ [ 0.6779  0.7352]]
+```
+
+`eigh` returns eigenvalues *ascending*, so the last column is the one you want — the eigenvector with the biggest eigenvalue is the direction of maximum variance, i.e. principal component 1:
+
+```python
+order = np.argsort(eigvals)[::-1]
+eigvals, eigvecs = eigvals[order], eigvecs[:, order]
+
+explained = eigvals / eigvals.sum()
+print(eigvals)          # [1.284  0.0491]
+print(explained)        # [0.9632 0.0368]
+```
+
+PC1 alone explains **96.3%** of the total variance in this dataset — almost all of it lives along one direction, with only 3.7% along the direction perpendicular to it. That's the entire "find the directions of most variance" idea, made concrete: it's a sorted eigendecomposition of a covariance matrix.
+
+Project the data onto PC1 to compress it from 2 numbers per row to 1:
+
+```python
+pc1 = eigvecs[:, 0]
+proj = centered @ pc1
+print(proj[:3])
+```
+```
+[ 0.828  -1.7776  0.9922]
+```
+
+Each of those is a single number that captures "where along the main axis of spread" that point sits. You can reconstruct an approximation of the original point from just that one number plus the direction:
+
+```python
+reconstructed = np.outer(proj, pc1) + data.mean(axis=0)
+print(reconstructed[0], "vs original", data[0])
+```
+```
+[2.3713 2.5187] vs original [2.5 2.4]
+```
+
+Not exact — you threw away 3.7% of the variance — but close, from a single number instead of two. That's the whole trade PCA makes, and it's the same trick whether you're compressing 2 features into 1 or 512 features into 50: build the covariance matrix, eigendecompose it, keep the eigenvectors with the largest eigenvalues.
+
+## Exercise
+
+You're given a 4-feature dataset (extend the house matrix from earlier with two more made-up columns, `distance_to_city_km` and `lot_size_sqft`):
+
+```python
+X4 = np.array([
+    [1850, 3, 12, 2,  8.5, 5200],
+    [1200, 2,  5, 1, 15.2, 3100],
+    [2400, 4, 20, 3,  4.1, 6800],
+    [ 980, 2,  8, 1, 22.0, 2900],
+    [3100, 5,  2, 4,  2.3, 9100],
+    [1600, 3, 15, 2, 11.7, 4400],
+], dtype=float)
+```
+
+1. Center `X4` and compute its `(6, 6)` covariance matrix.
+2. Eigendecompose it, sort eigenvalues descending, and print the explained variance ratio for all 6 components.
+3. Project the data onto the top 2 principal components and print the resulting `(6, 2)` array.
+4. How much total variance do the top 2 components explain? Is it enough that you'd feel comfortable dropping the other 4 dimensions?
+
+**Hint:** `np.linalg.eigh` returns eigenvalues in ascending order every time — if you forget to reverse the order before picking "the top k," you'll silently grab the *least* important directions. Also: don't skip centering (`X4 - X4.mean(axis=0)`) — covariance is only meaningful for centered data.
+
+## Check your understanding

@@ -1,0 +1,98 @@
+[
+  {
+    "id": "ai-ml-prompting/tier-1/probability-and-information-theory-applied-to-ml/q1",
+    "type": "multiple_choice",
+    "prompt": "In P(y|x) = P(y) * P(x|y) / P(x) applied to a classifier, what does P(y) represent?",
+    "choices": [
+      "The prior \u2014 how common class y is before looking at any features",
+      "The posterior \u2014 the final predicted probability of class y",
+      "The likelihood of observing the features given the class",
+      "The normalizing constant that makes probabilities sum to 1"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-1/probability-and-information-theory-applied-to-ml/q2",
+    "type": "multiple_choice",
+    "prompt": "Why does naive Bayes apply Laplace (add-one) smoothing to word probabilities instead of using raw count/total?",
+    "choices": [
+      "It makes the probabilities sum to exactly 1.0",
+      "It speeds up the numpy dot product computation",
+      "Without it, any word absent from a class's training data gets probability 0, which would zero out an entire class score regardless of other evidence",
+      "It converts the probabilities from bits to nats"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "ai-ml-prompting/tier-1/probability-and-information-theory-applied-to-ml/q3",
+    "type": "multiple_choice",
+    "prompt": "A naive Bayes spam filter is trained on 4 spam emails and 6 ham emails (10 total). What is P(spam), the prior?",
+    "choices": [
+      "0.4",
+      "0.6",
+      "0.1",
+      "1.0"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-1/probability-and-information-theory-applied-to-ml/q4",
+    "type": "multiple_choice",
+    "prompt": "Why does naive Bayes classification typically work in log-space (summing log-probabilities) instead of multiplying raw probabilities directly?",
+    "choices": [
+      "Logarithms are required by the definition of Bayes' theorem",
+      "Multiplying many small probabilities together underflows to 0 in floating point; adding their logs avoids this",
+      "Log-space makes the 'naive' independence assumption true",
+      "It changes the final classification decision to be more accurate"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-1/probability-and-information-theory-applied-to-ml/q5",
+    "type": "multiple_choice",
+    "prompt": "For a word that appears 2 times across a spam class with 8 total spam words, using a vocabulary size V=10, what is the Laplace-smoothed P(word | spam)?",
+    "choices": [
+      "2/8 = 0.25",
+      "3/18 \u2248 0.167",
+      "2/10 = 0.2",
+      "3/8 \u2248 0.375"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-1/probability-and-information-theory-applied-to-ml/q6",
+    "type": "multiple_choice",
+    "prompt": "A model predicts \u0177 = 0.95 for an example whose true label is y = 1. Using binary cross-entropy L = -[y*ln(\u0177) + (1-y)*ln(1-\u0177)], approximately what is the loss?",
+    "choices": [
+      "0.051",
+      "0.95",
+      "2.996",
+      "-0.051"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-1/probability-and-information-theory-applied-to-ml/q7",
+    "type": "multiple_choice",
+    "prompt": "Comparing two predictions for the same true label y=1: model A predicts \u0177=0.6 (unsure), model B predicts \u0177=0.05 (confidently wrong). What does cross-entropy loss do in this comparison?",
+    "choices": [
+      "Penalizes both models equally, since cross-entropy only cares about the true label, not the prediction",
+      "Gives model B a much higher (worse) loss than model A, punishing confident wrongness more than honest uncertainty",
+      "Gives model A a higher loss than model B, since A's prediction is farther from certainty",
+      "Cannot be computed because \u0177=0.05 is too close to zero"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-1/probability-and-information-theory-applied-to-ml/q8",
+    "type": "multiple_choice",
+    "prompt": "In the multi-class cross-entropy formula L = -sum(y_i * ln(\u0177_i)) with a one-hot true label vector, what happens to the terms for classes that are NOT the true class?",
+    "choices": [
+      "They are averaged together with the true class term",
+      "They multiply by 0 (since y_i=0 for those classes) and drop out of the sum entirely",
+      "They are squared before being added",
+      "They dominate the loss unless the model is very confident"
+    ],
+    "correctIndex": 1
+  }
+]

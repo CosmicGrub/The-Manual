@@ -1,0 +1,98 @@
+[
+  {
+    "id": "ai-ml-prompting/tier-1/gradient-descent-mechanics/q1",
+    "type": "multiple_choice",
+    "prompt": "In the update rule x_new = x_old - lr * gradient, what role does the learning rate play?",
+    "choices": [
+      "It scales how large a step is taken in the direction opposite the gradient",
+      "It determines whether the function is convex",
+      "It sets the exact location of the global minimum",
+      "It replaces the need to compute a gradient"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-1/gradient-descent-mechanics/q2",
+    "type": "multiple_choice",
+    "prompt": "For f(x) = (x-3)^2 + 5, the gradient is f'(x) = 2(x-3). Starting at x=1 with learning rate 0.1, what is x after one gradient descent step?",
+    "choices": [
+      "1.4",
+      "0.6",
+      "1.0",
+      "2.0"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-1/gradient-descent-mechanics/q3",
+    "type": "multiple_choice",
+    "prompt": "You run gradient descent on f(x) = (x-3)^2 + 5 starting at x0=0 with learning rate 1.1. What happens over the first several iterations?",
+    "choices": [
+      "x oscillates and grows in magnitude, diverging away from the minimum",
+      "x converges smoothly and quickly to 3",
+      "x stays exactly at 0 forever",
+      "x converges but overshoots slightly before settling near 3"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-1/gradient-descent-mechanics/q4",
+    "type": "multiple_choice",
+    "prompt": "What is a saddle point on a loss surface?",
+    "choices": [
+      "A point where the gradient is zero, but it's neither a local minimum nor a local maximum",
+      "The single global minimum of a convex function",
+      "A point where the learning rate must be doubled",
+      "Any point where two loss surfaces intersect"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-1/gradient-descent-mechanics/q5",
+    "type": "multiple_choice",
+    "prompt": "Why is training standard linear regression with mean squared error considered easy to optimize compared to training a deep neural network?",
+    "choices": [
+      "The MSE loss surface for linear regression is convex, so gradient descent is guaranteed to find the single global minimum",
+      "Linear regression doesn't require a learning rate",
+      "Neural networks always use a larger learning rate",
+      "Linear regression has no gradient to compute"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-1/gradient-descent-mechanics/q6",
+    "type": "multiple_choice",
+    "prompt": "For f(x) = (x-3)^2 + 5, the second derivative is a constant f''(x) = 2. Using x_new = x - lr*f'(x), which learning rate reaches x=3 in exactly one step from any starting point?",
+    "choices": [
+      "0.5",
+      "0.1",
+      "1.0",
+      "2.0"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-1/gradient-descent-mechanics/q7",
+    "type": "multiple_choice",
+    "prompt": "Your training loss decreases steadily for 5000 iterations but is still far from its lowest achievable value, and the loss curve shows no oscillation or spikes. What's the most likely explanation?",
+    "choices": [
+      "The learning rate is too small \u2014 increase it to speed up convergence",
+      "The learning rate is too large \u2014 decrease it",
+      "The loss function must be non-convex",
+      "Gradient descent has already converged"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-1/gradient-descent-mechanics/q8",
+    "type": "multiple_choice",
+    "prompt": "f(x) = x^4 - 3x^2 has minima at x \u2248 \u00b11.2247 and a local maximum at x=0. If you run gradient descent from x0 = -2.0 with a small learning rate, which minimum will it converge to?",
+    "choices": [
+      "x \u2248 -1.2247, the minimum nearest the starting point",
+      "x \u2248 +1.2247, since that is always the global minimum reached",
+      "x = 0, since gradients push toward critical points",
+      "It will diverge to negative infinity"
+    ],
+    "correctIndex": 0
+  }
+]

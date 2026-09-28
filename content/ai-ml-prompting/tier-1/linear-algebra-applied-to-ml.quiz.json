@@ -1,0 +1,98 @@
+[
+  {
+    "id": "ai-ml-prompting/tier-1/linear-algebra-applied-to-ml/q1",
+    "type": "multiple_choice",
+    "prompt": "If X.shape == (5, 4) and W.shape == (2, 4), what is the shape of X @ W.T?",
+    "choices": [
+      "(5, 2)",
+      "(2, 5)",
+      "(4, 4)",
+      "(5, 4)"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-1/linear-algebra-applied-to-ml/q2",
+    "type": "multiple_choice",
+    "prompt": "house1 = [1850, 3, 12, 2] and house2 = [1200, 2, 5, 1]. What is np.dot(house1, house2)?",
+    "choices": [
+      "2220068",
+      "22200",
+      "3714",
+      "12"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-1/linear-algebra-applied-to-ml/q3",
+    "type": "multiple_choice",
+    "prompt": "In a linear layer computed as X @ W.T + b, what does each entry of the output represent?",
+    "choices": [
+      "The dot product of one input feature vector with one row of W, plus a bias",
+      "The elementwise product of X and W",
+      "The average of all features in that row",
+      "The determinant of W for that row"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-1/linear-algebra-applied-to-ml/q4",
+    "type": "multiple_choice",
+    "prompt": "A covariance matrix's sorted eigenvalues are [1.284, 0.0491]. Approximately what percentage of total variance does the first principal component explain?",
+    "choices": [
+      "96%",
+      "50%",
+      "4%",
+      "128%"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-1/linear-algebra-applied-to-ml/q5",
+    "type": "multiple_choice",
+    "prompt": "Why do you sort the eigenvalues/eigenvectors of a covariance matrix in descending order before picking principal components?",
+    "choices": [
+      "np.linalg.eigh always returns them ascending, and you want the largest-eigenvalue eigenvector (the direction of most variance) first",
+      "Descending order is required for np.cov to run correctly",
+      "Sorting improves the numerical precision of the matrix multiply",
+      "Eigenvalues must be sorted before a matrix can be transposed"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-1/linear-algebra-applied-to-ml/q6",
+    "type": "multiple_choice",
+    "prompt": "You center a dataset and compute pc1 as the eigenvector of the covariance matrix with the largest eigenvalue. For a centered row v, what does np.dot(v, pc1) represent geometrically?",
+    "choices": [
+      "v's 1D coordinate along the direction of maximum variance",
+      "The Euclidean distance from v to the origin",
+      "The angle in degrees between v and pc1",
+      "The reconstruction error after projecting v"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-1/linear-algebra-applied-to-ml/q7",
+    "type": "multiple_choice",
+    "prompt": "Why can a raw dot product between feature vectors like [1850, 3, 12, 2] (sqft, bedrooms, age, bathrooms) be a misleading similarity measure?",
+    "choices": [
+      "The sqft feature has a much larger scale than the others and dominates the sum",
+      "Dot products can only be computed between unit-length vectors",
+      "Dot products of real feature vectors are always negative",
+      "The vectors must have the same number of dimensions as the weight matrix"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-1/linear-algebra-applied-to-ml/q8",
+    "type": "multiple_choice",
+    "prompt": "W has shape (2, 4) and b has shape (2,). For a single feature vector x of shape (4,), what is the shape of W @ x + b?",
+    "choices": [
+      "(2,)",
+      "(4,)",
+      "(2, 4)",
+      "(8,)"
+    ],
+    "correctIndex": 0
+  }
+]

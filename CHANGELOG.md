@@ -308,3 +308,14 @@ All notable changes to The Manual (curriculum + app) are logged here. This file 
 **Result:** `npm run build` passed clean on the first attempt. 117 unique slugs verified repo-wide.
 
 **Status:** AI/ML Tier 0 complete (29h, 5 lessons) — the fourth track in The Manual to get real lesson content. Tiers 1-5 remain.
+
+## [0.23.0] — 2026-09-28 — AI/ML Tier 1: complete (applying CS Foundations' math spine to ML)
+
+**Context:** Continuing the tier-by-tier pattern. This tier is the payoff of CS Foundations' math work — every module ties a math concept already proven in that track directly to real numpy code, rather than re-deriving the math from scratch.
+
+**Added**
+- `content/ai-ml-prompting/tier-1/*.mdx` (6 files) + matching quizzes: Linear Algebra Applied to ML (feature vectors, a weight matrix shown concretely as "one dot product per output neuron," PCA re-derived as sorted eigendecomposition of a covariance matrix with real numpy output), Probability & Information Theory Applied to ML, Gradient Descent Mechanics, Python for Data, Prompt Engineering Craft I (zero-shot/few-shot/chain-of-thought/structured-output, building on Tier 0's prompting literacy), ML Vocabulary & Mental Models.
+
+**Result:** `npm run build` passed clean on the first attempt. 123 unique slugs verified repo-wide.
+
+**Status:** AI/ML Tier 1 complete (42h, 6 lessons). AI/ML is now 2/6 tiers content-complete (Tiers 0-1, 71h); Tiers 2-5 remain.

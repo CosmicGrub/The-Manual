@@ -1,0 +1,98 @@
+[
+  {
+    "id": "ai-ml-prompting/tier-1/ml-vocabulary-and-mental-models/q1",
+    "type": "multiple_choice",
+    "prompt": "Which of these is a real-world example of unsupervised learning?",
+    "choices": [
+      "A spam filter trained on 50,000 emails that are each already labeled spam or not-spam",
+      "An e-commerce company grouping customers by purchase behavior with no predefined categories",
+      "A robot vacuum that gets penalized for bumping walls and rewarded for cleaning more floor space",
+      "A regression model predicting house prices from square footage and bedroom count"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-1/ml-vocabulary-and-mental-models/q2",
+    "type": "multiple_choice",
+    "prompt": "In the feature matrix / label setup used throughout this module (X, y = ...), what does y represent?",
+    "choices": [
+      "The matrix of input measurements for every example",
+      "The value the model is trying to predict for each example",
+      "The learning rate used during training",
+      "The number of training examples"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-1/ml-vocabulary-and-mental-models/q3",
+    "type": "multiple_choice",
+    "prompt": "Why do you need a validation split in addition to train and test, rather than just train and test?",
+    "choices": [
+      "Validation data trains the model faster than the training set alone",
+      "Test sets are always too small to train a model properly",
+      "If you use the test set to choose between models or hyperparameters, that same test set can no longer give an honest, unbiased estimate of final performance",
+      "Validation and test sets must always be exactly the same size"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "ai-ml-prompting/tier-1/ml-vocabulary-and-mental-models/q4",
+    "type": "multiple_choice",
+    "prompt": "In the module's split-decision experiment, tuning directly against the test set across 300 hyperparameter combinations reported a test MSE of 1.368, but the same model's error on 20,000 fresh points was 2.327. What does this gap show?",
+    "choices": [
+      "The model was underfitting the training data",
+      "The reported test score was optimistic because the model was specifically selected to score well on that particular test set",
+      "The fresh data used a different noise level than the test set",
+      "Ridge regularization was set too high"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-1/ml-vocabulary-and-mental-models/q5",
+    "type": "multiple_choice",
+    "prompt": "Given these results from the module \u2014 degree=1: train_mse=4.109, val_mse=5.007; degree=15: train_mse=2.251, val_mse=3.157 \u2014 which model has higher variance?",
+    "choices": [
+      "degree=1, because its validation error is higher in absolute terms",
+      "degree=15, because of the large gap between its low train error and higher validation error",
+      "Both have equal variance since neither train error is zero",
+      "Variance cannot be determined from train/validation error alone"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-1/ml-vocabulary-and-mental-models/q6",
+    "type": "multiple_choice",
+    "prompt": "A model that performs poorly on both the training set and the validation set is best described as:",
+    "choices": [
+      "Overfitting, i.e. high variance",
+      "Underfitting, i.e. high bias",
+      "Perfectly regularized",
+      "Suffering from data leakage"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-1/ml-vocabulary-and-mental-models/q7",
+    "type": "multiple_choice",
+    "prompt": "Which scenario best matches reinforcement learning, rather than supervised or unsupervised learning?",
+    "choices": [
+      "Classifying emails as spam using a dataset of emails already labeled by humans",
+      "Grouping news articles into topics without any topic labels provided",
+      "An agent that tries actions in an environment and updates its behavior based on reward and penalty signals it receives over time",
+      "Predicting a house's sale price from its square footage using historical sales data"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "ai-ml-prompting/tier-1/ml-vocabulary-and-mental-models/q8",
+    "type": "multiple_choice",
+    "prompt": "Given Q = np.zeros((4, 2)), alpha = 0.5, gamma = 0.9, and an update at s=1, a=1, r=-1.0, s_next=2 (with Q[2] still all zeros), what value does Q[1, 1] hold after running Q[s, a] = Q[s, a] + alpha * (r + gamma * np.max(Q[s_next]) - Q[s, a])?",
+    "choices": [
+      "-0.5",
+      "-1.0",
+      "0.45",
+      "0.0"
+    ],
+    "correctIndex": 0
+  }
+]

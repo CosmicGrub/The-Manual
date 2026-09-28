@@ -1,0 +1,213 @@
+---
+trackId: ai-ml-prompting
+tier: 1
+title: "Python for Data"
+order: 4
+estimatedHours: 10
+slug: python-for-data
+---
+
+# Python for Data
+
+You've used NumPy arrays and pandas DataFrames since Tier 0 — this module is where you find out why they exist. Three things: vectorized NumPy operations are dramatically faster than Python loops (measured, not just claimed), pandas filtering/grouping/merging is how you actually answer questions about real multi-table data, and a notebook only counts as a result if someone else (including future you) can rerun it and get the same numbers. Plotting ties it together — a chart is how you check your own work.
+
+## Why loops are slow, measured
+
+Here's a real comparison, not a toy claim. Multiply two lists of 2,000,000 numbers element by element, once with a pure Python loop and once with NumPy:
+
+```python
+import time
+import numpy as np
+
+n = 2_000_000
+prices = list(range(n))
+qty = list(range(1, n + 1))
+
+t0 = time.perf_counter()
+revenue_loop = []
+for i in range(n):
+    revenue_loop.append(prices[i] * qty[i])
+total_loop = sum(revenue_loop)
+t1 = time.perf_counter()
+print("pure python loop:", round(t1 - t0, 4), "sec")
+
+prices_np = np.array(prices)
+qty_np = np.array(qty)
+t2 = time.perf_counter()
+total_np = (prices_np * qty_np).sum()
+t3 = time.perf_counter()
+print("numpy vectorized:", round(t3 - t2, 5), "sec")
+print("speedup:", round((t1 - t0) / (t3 - t2), 1), "x")
+```
+
+Output on a normal laptop:
+
+```
+pure python loop: 0.5889 sec
+numpy vectorized: 0.06237 sec
+speedup: 9.4 x
+```
+
+Both computed the exact same number (`2666666666666000000`). One took nine and a half times longer to do it. At 2 million elements that's the difference between "instant" and "instant"; at 200 million elements (a real dataset, or a batch of embeddings) it's the difference between 1 minute and 10+ minutes, run repeatedly while you iterate.
+
+The mechanical reason: the Python `for` loop re-enters the interpreter on every single iteration — it checks the type of `prices[i]`, checks the type of `qty[i]`, dispatches to the right multiply method, boxes the result back into a Python object, and appends it, 2 million times over. NumPy's `prices_np * qty_np` does one call into a compiled C loop that already knows both arrays are fixed-width floats sitting in contiguous memory, so it multiplies them with no per-element type checks and no round-trips through the interpreter — plus the CPU can often process several elements per instruction (SIMD). You already knew vectorization was faster; now you know why, and you've watched the number that proves it.
+
+This generalizes past `*`. Any elementwise NumPy op — `+`, `-`, `/`, `**`, comparisons — is vectorized the same way:
+
+```python
+scores = np.array([62, 88, 45, 91, 73, 30])
+passed = scores >= 60          # array([ True,  True, False,  True,  True, False])
+curved = np.where(scores < 60, scores + 10, scores)  # bump failing scores by 10
+print(curved)                  # [62 88 55 91 73 40]
+print(passed.sum())            # 4  (True counts as 1)
+```
+
+`np.where(condition, if_true, if_false)` is the vectorized replacement for `if/else` inside a loop — no loop appears anywhere in that snippet, and it runs the same way whether `scores` has 6 elements or 6 million. Rule going forward: if you're writing `for i in range(len(array))`, stop and ask what the vectorized version looks like first. It almost always exists.
+
+## pandas: filtering, grouping, merging on real-shaped data
+
+Real analysis rarely lives in one table. Here's a two-table setup — customers and their orders — shaped like an actual small e-commerce dataset:
+
+```python
+import pandas as pd
+
+customers = pd.DataFrame({
+    "customer_id": [1, 2, 3, 4, 5],
+    "name": ["Amara", "Bo", "Chidi", "Deng", "Elif"],
+    "region": ["West", "East", "West", "South", "East"],
+})
+
+orders = pd.DataFrame({
+    "order_id": range(101, 113),
+    "customer_id": [1, 2, 1, 3, 4, 2, 5, 1, 3, 4, 2, 5],
+    "product": ["Widget", "Gadget", "Widget", "Gizmo", "Widget", "Gizmo",
+                "Gadget", "Gadget", "Widget", "Gizmo", "Widget", "Gadget"],
+    "quantity": [3, 1, 2, 5, 1, 2, 4, 2, 1, 3, 2, 1],
+    "unit_price": [12.50, 45.00, 12.50, 8.00, 12.50, 8.00,
+                   45.00, 45.00, 12.50, 8.00, 12.50, 45.00],
+})
+
+orders["revenue"] = orders["quantity"] * orders["unit_price"]
+```
+
+**Filtering** — boolean masks, no loop:
+
+```python
+big_orders = orders[orders["revenue"] > 40]
+print(big_orders[["order_id", "product", "revenue"]])
+```
+
+```
+    order_id product  revenue
+1        102  Gadget     45.0
+6        107  Gadget    180.0
+7        108  Gadget     90.0
+11       112  Gadget     45.0
+```
+
+**Grouping** — `.agg()` when you want more than one statistic per group:
+
+```python
+by_product = orders.groupby("product")["revenue"].agg(["sum", "mean", "count"]).round(2)
+print(by_product)
+```
+
+```
+           sum   mean  count
+product
+Gadget   360.0  90.00      4
+Gizmo     80.0  26.67      3
+Widget   112.5  22.50      5
+```
+
+`groupby("product")` splits the DataFrame into one chunk per unique product, applies the aggregation to each chunk independently, then stitches the results back into one table indexed by product — the "split-apply-combine" pattern, and it's what almost every real pandas question boils down to.
+
+**Merging** — combining the two tables on the shared key:
+
+```python
+merged = orders.merge(customers, on="customer_id", how="left")
+by_region = merged.groupby("region")["revenue"].sum().sort_values(ascending=False).round(2)
+print(by_region)
+```
+
+```
+region
+East     311.0
+West     205.0
+South     36.5
+Name: revenue, dtype: float64
+```
+
+**The join-type gotcha that actually bites people.** `how` controls what happens to rows that *don't* match on both sides — and it silently changes your row count if you get it wrong. Take a customer with no orders yet (`Femi`, id 6) and an order with a bad `customer_id` (99, a data-entry error):
+
+```python
+customers2 = pd.DataFrame({
+    "customer_id": [1, 2, 3, 4, 5, 6],
+    "name": ["Amara", "Bo", "Chidi", "Deng", "Elif", "Femi"],
+})
+orders2 = pd.DataFrame({
+    "order_id": [101, 102, 103],
+    "customer_id": [1, 2, 99],
+    "revenue": [37.5, 45.0, 20.0],
+})
+
+print(orders2.merge(customers2, on="customer_id", how="inner").shape)  # (2, 4)
+print(orders2.merge(customers2, on="customer_id", how="left").shape)   # (3, 4)
+print(orders2.merge(customers2, on="customer_id", how="outer").shape)  # (7, 4)
+```
+
+`inner` keeps only rows where the key matched on both sides — order 103 (bad customer_id) vanishes silently, no error, no warning. `left` keeps every order and fills `name` with `NaN` for the one that didn't match. `outer` keeps everything from both sides — every order, plus Femi with `NaN` revenue since she has no orders at all. If your row count changes unexpectedly after a merge, this is almost always why. **Default to checking `.shape` before and after every merge** — it's a one-line sanity check that catches silently dropped rows before they corrupt a downstream aggregation.
+
+## Plotting with matplotlib and seaborn
+
+matplotlib is the low-level plotting engine; seaborn sits on top of it and knows how to plot a whole DataFrame column-by-column, with sensible defaults, in far less code. Use `fig, ax = plt.subplots()` explicitly — it's the version that scales to multiple subplots and saves cleanly, unlike bare `plt.plot()`.
+
+```python
+import matplotlib
+matplotlib.use("Agg")   # for headless/script use; omit this line in Jupyter
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+fig, ax = plt.subplots(figsize=(6, 4))
+sns.barplot(data=orders, x="product", y="revenue", estimator=sum, errorbar=None, ax=ax)
+ax.set_title("Total revenue by product")
+ax.set_ylabel("Revenue ($)")
+fig.savefig("revenue_by_product.png", dpi=150)
+```
+
+That produces a 3-bar chart — Gadget tallest at 360, Widget next at 112.5, Gizmo lowest at 80 — matching the `groupby` table above exactly, because `sns.barplot(..., estimator=sum)` is doing the same aggregation pandas did, just drawing it. That match is worth checking every time: if your chart doesn't agree with your `.groupby()` output, one of the two has a bug, usually a filter applied before one but not the other.
+
+A second plot, this time a distribution instead of a total — useful for spotting outliers or skew that a sum hides:
+
+```python
+fig2, ax2 = plt.subplots(figsize=(6, 4))
+sns.histplot(data=orders, x="revenue", bins=10, ax=ax2)
+ax2.set_title("Distribution of individual order revenue")
+fig2.savefig("revenue_distribution.png", dpi=150)
+```
+
+With this data the histogram is clearly bimodal — a cluster of small Widget/Gizmo orders under $50, and a separate cluster of Gadget orders near $45–180 — a pattern the `by_product` table hints at (Gadget's mean is 4x Widget's) but the histogram makes impossible to miss. That's the actual argument for plotting: not decoration, a different failure mode caught than the one a summary table catches. Two habits worth locking in: always call `ax.set_title()` (a chart with no title is useless three days later), and always `fig.savefig(...)` to a real file instead of relying on inline display — inline plots vanish if the notebook is reopened without rerunning cells, saved files don't.
+
+## A repeatable Jupyter experiment workflow
+
+A notebook that only works if you run cells in exactly the order you happened to write them isn't reproducible — it's a trap for future you. Structure every real experiment notebook the same way:
+
+1. **Cell 1 — imports and seed, nothing else.** `import numpy as np, pandas as pd` etc., then `np.random.seed(42)` immediately, before any random data is generated or any model is fit. Without a fixed seed, "rerun and get the same numbers" is impossible whenever randomness is involved.
+2. **Cell 2 — config, as named constants, not magic numbers scattered through later cells.** `TEST_SIZE = 0.2`, `N_TRIALS = 100`, `DATA_PATH = "orders.csv"`. When you want to change an experiment parameter, you change it in exactly one place, and every later cell that references the name gets it automatically.
+3. **Cell 3+ — one logical step per cell**, each with a Markdown cell directly above it stating what it does and why in one line. "Load raw orders" / "Compute revenue and filter cancelled rows" / "Fit baseline model" — not because it looks nice, but because it makes `git diff` and later review possible.
+4. **Never reuse a variable name for a different shape of thing mid-notebook.** If `df` starts as raw orders and later becomes filtered orders, a cell run out of order after an edit will silently operate on the wrong version of `df` and give you a wrong number that looks plausible. Name each stage: `orders_raw`, `orders_filtered`, `orders_final`.
+5. **Before trusting any result, Kernel → Restart & Run All.** This is the single highest-value habit in this whole module. It catches every case where a variable only exists because you ran cells out of order, or deleted a cell whose output you're still relying on. A notebook that fails Restart & Run All is not a working result yet, no matter what the last output showed.
+6. **Save processed outputs with a name that identifies the run**, not just `output.csv` overwritten every time — `orders_summary_2026-09-28.csv` or a run-id in the filename. That's what makes a result comparable to the next experiment's result instead of silently overwritten.
+
+None of this is about notebooks looking tidy. It's about a specific, common failure: a number you reported was correct only because of the accidental order you happened to run cells in, and it silently stops being correct the next time the notebook is opened.
+
+## Exercise
+
+You're given a CSV `transactions.csv` with columns `txn_id, customer_id, product, quantity, unit_price, txn_date`, and a second CSV `customers.csv` with `customer_id, name, signup_date, region`. Using only pandas and NumPy (no loops over rows):
+
+1. Compute a `revenue` column and find the 5 transactions with the highest revenue.
+2. Merge in customer info with a `left` join, check `.shape` before and after to confirm no rows were silently dropped or duplicated, and report how many transactions have no matching customer (if any).
+3. Produce a table of total revenue per region, sorted descending, and a `seaborn` bar chart that visually matches it.
+4. Write the whole thing as a notebook that passes Restart & Run All — seed set in cell 1, config constants in cell 2, one Markdown-labeled step per cell after that.
+
+**Hint:** for step 2, `merged["name"].isna().sum()` counts unmatched rows directly — you don't need to inspect the table by eye. For step 3, reuse the `estimator=sum` pattern from this module and confirm the bar heights equal your `.groupby()` numbers before moving on.
