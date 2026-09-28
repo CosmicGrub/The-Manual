@@ -1,0 +1,269 @@
+---
+trackId: cs-foundations
+tier: 4
+title: Concurrency & Parallelism Fundamentals
+order: 4
+estimatedHours: 10
+---
+
+Herb Sutter's 2005 essay "The Free Lunch Is Over" made a prediction that turned out to be exactly right: clock speeds stopped climbing, chipmakers pivoted to putting more cores on a die instead, and every "free" speedup from waiting a year for faster hardware ended — from then on, your code only gets faster if you rewrite it to use more than one core. Two decades later that prediction has a second act nobody in 2005 fully saw coming: the most parallelism-hungry programs ever written are matrix multiplies inside neural networks, spread across thousands of GPU cores and, for the largest models, thousands of GPUs. Everything in this lesson — threads, processes, locks, and the math of how much speedup you can actually expect — is the same machinery whether you're speeding up a Python script on 8 CPU cores or explaining why doubling your GPU count doesn't double your training throughput.
+
+## What you'll leave this lesson knowing
+
+- The concrete difference between a thread and a process, why CPython's Global Interpreter Lock (GIL) means threads don't speed up CPU-bound Python but processes do, and how to prove that with a measured wall-clock benchmark instead of taking it on faith
+- How to reproduce a real race condition, fix it with a lock, and build a correctly synchronized bounded queue from scratch with a `threading.Condition` — including the specific `while`-vs-`if` bug that separates "looks right" from "is right"
+- The work/span model (`T1`, `T∞`, parallelism = `T1/T∞`) for reasoning about parallel algorithm complexity, and why it's a genuinely different kind of analysis than Tier 2's single-processor Big-O
+- Amdahl's Law and Gustafson's Law as two different (and both correct) answers to "how much speedup can I get from more processors," and how to compute both from real numbers
+- Why GPUs execute threads in lockstep groups of 32 (warps) rather than as independent threads, and why that same "many independent workers on the same instruction" shape is what makes both BLAS matrix multiplication and neural-network training parallelizable — and where that parallelism runs into a communication wall
+
+## Do this
+
+1. **Threads vs. processes: measure the GIL instead of trusting a blog post about it.** A thread and a process are both "a unit of execution the OS scheduler can run," but a process has its own private memory space and its own Python interpreter state, while threads inside one process share memory and, in CPython specifically, share one Global Interpreter Lock (GIL) — a lock that only lets one thread execute Python bytecode at a time, no matter how many CPU cores you have. This is documented in CPython's own developer docs ("Thread State and the Global Interpreter Lock") and implemented in `Python/ceval_gil.c` in the [python/cpython](https://github.com/python/cpython) source tree. Don't take that on faith — measure it:
+
+   ```python
+   # gil_bench.py
+   import time
+   from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
+
+   def is_prime(n):
+       if n < 2:
+           return False
+       for i in range(2, int(n**0.5) + 1):
+           if n % i == 0:
+               return False
+       return True
+
+   def count_primes(n):
+       return sum(1 for i in range(n) if is_prime(i))
+
+   def run_sequential(n, times):
+       start = time.perf_counter()
+       for _ in range(times):
+           count_primes(n)
+       return time.perf_counter() - start
+
+   def run_pooled(executor_cls, n, times, workers):
+       start = time.perf_counter()
+       with executor_cls(max_workers=workers) as ex:
+           list(ex.map(count_primes, [n] * times))
+       return time.perf_counter() - start
+
+   if __name__ == "__main__":   # required: ProcessPoolExecutor re-imports this module per worker
+       N, TIMES, WORKERS = 200_000, 8, 4
+       seq = run_sequential(N, TIMES)
+       threaded = run_pooled(ThreadPoolExecutor, N, TIMES, WORKERS)
+       multi = run_pooled(ProcessPoolExecutor, N, TIMES, WORKERS)
+       print(f"sequential:       {seq:.2f}s")
+       print(f"{WORKERS} threads:      {threaded:.2f}s")
+       print(f"{WORKERS} processes:    {multi:.2f}s")
+   ```
+
+   Run it (`python gil_bench.py`) on a machine with at least 4 cores (check with `os.cpu_count()`). Expect `threaded` to land close to `sequential` — sometimes even a little worse, because of lock-handoff overhead — while `multi` lands close to `sequential / WORKERS`. That gap *is* the GIL: each process gets its own interpreter and its own GIL, so four processes genuinely run on four cores; four threads take turns holding one shared GIL. This is exactly why the standard advice is CPU-bound pure Python → `ProcessPoolExecutor`, I/O-bound work (network calls, disk reads, `time.sleep`) → `ThreadPoolExecutor` or `asyncio` (both release the GIL while waiting on I/O, so nothing is lost by not using processes). There's a third case worth knowing: C-extension code that explicitly releases the GIL during its heavy lifting — NumPy's array math and PyTorch's tensor ops both do this — so threads *can* speed up numeric code even in plain CPython, which is why step 4 below gets a different answer than this step did. Also note the moving target: [PEP 703](https://peps.python.org/pep-0703/), authored by Sam Gross, was accepted and shipped as an experimental "free-threaded" build option starting in CPython 3.13 (`python3.13t`, or check `sys._is_gil_enabled()` at runtime) — if you have that build installed, rerun this benchmark on it and see the threaded number close the gap with the process number.
+
+2. **Race conditions: break a counter on purpose, then fix it — then build something bigger with the same fix.** `counter += 1` looks atomic. It isn't: it's `LOAD_GLOBAL`, `BINARY_ADD`, `STORE_GLOBAL` at the bytecode level, and CPython's scheduler can switch threads between any of those steps (by default roughly every 5ms, tunable via `sys.setswitchinterval`). Prove it:
+
+   ```python
+   import threading
+
+   def increment_unsafe(n):
+       global counter
+       for _ in range(n):
+           counter += 1
+
+   counter = 0
+   threads = [threading.Thread(target=increment_unsafe, args=(200_000,)) for _ in range(8)]
+   for t in threads:
+       t.start()
+   for t in threads:
+       t.join()
+   print(counter)   # should be 1_600_000 — run it a few times and watch it come up short
+   ```
+
+   Now fix it with a lock, and confirm the fix is exact every time, not just "usually right":
+
+   ```python
+   counter = 0
+   lock = threading.Lock()
+
+   def increment_safe(n):
+       global counter
+       for _ in range(n):
+           with lock:
+               counter += 1
+
+   counter = 0
+   threads = [threading.Thread(target=increment_safe, args=(200_000,)) for _ in range(8)]
+   for t in threads:
+       t.start()
+   for t in threads:
+       t.join()
+   assert counter == 1_600_000
+   ```
+
+   Now build something real with the same primitive: a bounded thread-safe queue from scratch using `threading.Condition` (this is the exact concurrent-data-structure exercise this tier's curriculum calls out — build it, then deliberately break it).
+
+   ```python
+   import collections
+   import threading
+
+   class BoundedQueue:
+       def __init__(self, capacity):
+           self.capacity = capacity
+           self.items = collections.deque()
+           self.lock = threading.Lock()
+           self.not_empty = threading.Condition(self.lock)
+           self.not_full = threading.Condition(self.lock)
+
+       def put(self, item):
+           with self.not_full:
+               while len(self.items) >= self.capacity:   # NOTE: while, not if — see below
+                   self.not_full.wait()
+               self.items.append(item)
+               self.not_empty.notify()
+
+       def get(self):
+           with self.not_empty:
+               while not self.items:                     # NOTE: while, not if
+                   self.not_empty.wait()
+               item = self.items.popleft()
+               self.not_full.notify()
+               return item
+   ```
+
+   Stress-test it with multiple producers and consumers hammering it at once:
+
+   ```python
+   import random
+   import time
+
+   def producer(q, n, worker_id):
+       for i in range(n):
+           q.put((worker_id, i))
+           time.sleep(random.uniform(0, 0.0005))
+
+   def consumer(q, n, results, results_lock):
+       for _ in range(n):
+           item = q.get()
+           with results_lock:
+               results.append(item)
+
+   q = BoundedQueue(capacity=10)
+   results, results_lock = [], threading.Lock()
+   producers = [threading.Thread(target=producer, args=(q, 500, i)) for i in range(4)]
+   consumers = [threading.Thread(target=consumer, args=(q, 500, results, results_lock)) for i in range(4)]
+   for t in producers + consumers:
+       t.start()
+   for t in producers + consumers:
+       t.join()
+
+   assert len(results) == 2000
+   assert len(set(results)) == 2000   # nothing lost, nothing duplicated
+   ```
+
+   Now break it on purpose: change both `while` loops to `if`. With a single producer and single consumer you may never notice — but with the 4-producer/4-consumer stress test above, run it 20-30 times in a loop and you should eventually see `len(self.items) > self.capacity` (the bound was violated) or a hang. The mechanism: a producer is woken from `wait()` when the queue has space, but before it re-acquires the lock and appends, another producer can slip in and fill the last slot — an `if` never rechecks that the condition *still* holds after waking, while a `while` does. This is the same lost-wakeup class of bug documented as the primary reason every standard condition-variable API (POSIX `pthread_cond_wait`, Java's `Object.wait`, Python's `threading.Condition`) explicitly recommends looping on the predicate rather than checking it once. Document what you saw and revert the fix.
+
+3. **Why parallel complexity analysis is a different kind of math than Tier 2's Big-O.** Sequential Big-O asks "how does runtime grow with input size on one processor." Parallel analysis asks a second question on top of that: "how does runtime shrink as I add processors, and where's the floor?" The standard model — used in Cormen, Leiserson, Rivest, and Stein's *Introduction to Algorithms* (CLRS), Chapter 27, "Multithreaded Algorithms," and originating in the Cilk project at MIT (co-created by Leiserson himself) — defines two quantities for any algorithm expressed as a DAG of dependent subtasks: **work** `T1` (total operations, i.e., runtime on 1 processor — this is just your familiar Big-O) and **span** `T∞` (the length of the longest chain of *sequentially dependent* operations — the runtime with infinitely many processors). The ratio `T1 / T∞` is called the algorithm's **parallelism**: it's a hard ceiling on possible speedup no matter how many processors you throw at it, because you can never finish faster than the critical path allows. A concrete example: summing an array sequentially is `T1 = O(n)`, `T∞ = O(n)` (each addition depends on the previous running total) — parallelism of 1, meaning more processors literally cannot help the naive version. Restructure it as a divide-and-conquer tree (sum the two halves independently, then add the two results) and `T1` stays `O(n)` (same total additions) but `T∞` drops to `O(log n)` (the tree's depth) — parallelism of `O(n / log n)`, which grows with input size. This exact restructuring — the "parallel reduction" pattern — is precisely what GPUs use internally to sum or reduce large arrays, and it's why "sum a billion numbers" is a well-known GPU-friendly problem while "compute this recurrence where each term depends on the last" is not, regardless of how many cores you have.
+
+   Now formalize Tier 2's doubling test, but double *worker count* instead of input size:
+
+   ```python
+   import os
+   import time
+   from concurrent.futures import ProcessPoolExecutor
+
+   def is_prime(n):
+       if n < 2:
+           return False
+       for i in range(2, int(n**0.5) + 1):
+           if n % i == 0:
+               return False
+       return True
+
+   def count_primes(n):
+       return sum(1 for i in range(n) if is_prime(i))
+
+   def run(n, times, workers):
+       start = time.perf_counter()
+       if workers == 1:
+           for _ in range(times):
+               count_primes(n)
+       else:
+           with ProcessPoolExecutor(max_workers=workers) as ex:
+               list(ex.map(count_primes, [n] * times))
+       return time.perf_counter() - start
+
+   if __name__ == "__main__":
+       N, TIMES = 150_000, 16
+       baseline = run(N, TIMES, 1)
+       print(f"workers=1   time={baseline:.2f}s  speedup=1.00x  cores={os.cpu_count()}")
+       for w in (2, 4, 8):
+           t = run(N, TIMES, w)
+           print(f"workers={w}   time={t:.2f}s  speedup={baseline / t:.2f}x  efficiency={(baseline / t) / w:.2f}")
+   ```
+
+   Expect near-linear speedup (efficiency close to 1.0) while `workers` stays at or below your physical core count, then a visible drop-off once you exceed it — you're now oversubscribing real hardware. Now compute what **Amdahl's Law** predicts and compare it against what you measured. Amdahl (in a 1967 AFIPS paper, "Validity of the Single Processor Approach to Achieving Large-Scale Computing Capabilities") modeled a fixed-size problem with serial fraction `S`: `speedup(P) = 1 / (S + (1 - S) / P)`.
+
+   ```python
+   def amdahl_speedup(serial_fraction, p):
+       return 1 / (serial_fraction + (1 - serial_fraction) / p)
+
+   for p in (1, 2, 4, 8, 16, 32, 64):
+       print(f"p={p:>3}  speedup={amdahl_speedup(0.05, p):.2f}x")
+   ```
+
+   With just 5% serial work, speedup caps out at `1 / 0.05 = 20x` no matter how large `p` gets — at `p=64` you're already at ~17.9x, meaning the next 64 processors you add buy almost nothing. Now solve it the other direction using your own measured data: given your observed `speedup` at a known `P`, the implied serial fraction is `S = (1/speedup - 1/P) / (1 - 1/P)`. Plug in your `workers=8` measurement and see how much "serial-equivalent" overhead (process startup, pickling arguments across the process boundary, OS scheduling) your benchmark actually has. Then look at the opposite framing, **Gustafson's Law** (J.L. Gustafson, "Reevaluating Amdahl's Law," *Communications of the ACM*, 1988): instead of holding problem size fixed and asking "how much faster," it holds *time* fixed and asks "how much bigger a problem can I solve" — `speedup(P) = P - S * (P - 1)`. This is the framing that actually matches AI training: nobody trains the same fixed-size batch on more GPUs and expects it to finish proportionally faster forever; they use more GPUs to train on a bigger batch or bigger model in the same wall-clock time. Amdahl explains why raw per-step speedup plateaus; Gustafson explains why the field keeps adding GPUs anyway.
+
+4. **GPU/AI workloads: same shape of parallelism, a much wider machine, and a real communication wall.** A CPU core runs one independent instruction stream per thread. A GPU is built differently: it groups threads into **warps** of 32 (NVIDIA's term — AMD's equivalent is a 32- or 64-wide "wavefront") that execute the *same instruction in lockstep* across all 32 threads, each on different data — this SIMT (Single Instruction, Multiple Threads) model is documented in NVIDIA's CUDA C++ Programming Guide, and it's why GPU code that branches differently per thread ("divergence") is slow: the warp has to serialize both branches instead of running them together. This is the same "same operation, many independent data elements" shape you exploited in step 3's parallel-sum tree, just implemented in hardware at a much larger scale (thousands of cores instead of your machine's 4-16).
+
+   You can see this exact shape of parallelism on your own CPU first, no GPU required, by controlling how many threads your BLAS library (the C library NumPy delegates matrix math to — typically OpenBLAS or Intel MKL) is allowed to use. Install `threadpoolctl` (`pip install threadpoolctl numpy`) — it's the real library the scikit-learn/joblib team built specifically to control native thread pools at runtime:
+
+   ```python
+   import time
+   import numpy as np
+   from threadpoolctl import threadpool_limits
+
+   n = 2000
+   a = np.random.rand(n, n)
+   b = np.random.rand(n, n)
+
+   for threads in (1, 2, 4, 8):
+       with threadpool_limits(limits=threads, user_api="blas"):
+           start = time.perf_counter()
+           a @ b
+           elapsed = time.perf_counter() - start
+       print(f"blas_threads={threads}  time={elapsed:.3f}s")
+   ```
+
+   Notice this uses plain `threading`-adjacent native code, not `ProcessPoolExecutor` — and it still scales, because the matrix multiply's inner C loops release the GIL while they run. You should see time roughly halve each time you double thread count, up to your physical core count — dense matrix multiply is embarrassingly parallel (every output cell is an independent dot product), which is exactly the property that lets it scale on both a multicore CPU and a many-thousand-core GPU. If you have `torch` installed and a CUDA-capable GPU available, confirm the GPU case directly (remember CUDA calls are asynchronous, so you must call `torch.cuda.synchronize()` before stopping the clock, or you'll time nothing):
+
+   ```python
+   import torch
+   import time
+
+   n = 4096
+   a, b = torch.rand(n, n), torch.rand(n, n)
+
+   start = time.perf_counter()
+   a @ b
+   cpu_time = time.perf_counter() - start
+   print(f"CPU:  {cpu_time:.3f}s")
+
+   if torch.cuda.is_available():
+       a_gpu, b_gpu = a.to("cuda"), b.to("cuda")
+       torch.cuda.synchronize()
+       start = time.perf_counter()
+       a_gpu @ b_gpu
+       torch.cuda.synchronize()
+       gpu_time = time.perf_counter() - start
+       print(f"GPU:  {gpu_time:.3f}s   speedup={cpu_time / gpu_time:.1f}x")
+   else:
+       print("no CUDA device — note the CPU number and move on")
+   ```
+
+   Finally, the wall this parallelism runs into at scale: when a neural network trains across multiple GPUs (data parallelism — each GPU holds a full model copy and processes a different slice of the batch), every GPU computes its local gradients independently — that part scales beautifully, same shape as your matmul benchmark — but then all GPUs must synchronize gradients before the next step, via an **all-reduce** (implemented by NVIDIA's NCCL library, the collective-communications backend under PyTorch's `DistributedDataParallel`). That synchronization is communication-bound, not compute-bound, and it does not shrink just because you added more GPUs — it's the "serial-ish" fraction in an Amdahl's Law sense, except it's inter-GPU network bandwidth instead of a single CPU's serial code path. This is exactly why doubling GPU count rarely doubles training throughput once you're communication-bound, and it's covered in real, citable depth in Tal Ben-Nun and Torsten Hoefler's survey "Demystifying Parallel and Distributed Deep Learning: An In-Depth Concurrency Analysis" (*ACM Computing Surveys*, 2019) — read at least its section on data parallelism and gradient synchronization, since it's the direct bridge from everything you just measured to why large-scale AI training is, at its core, a parallel-algorithm-complexity problem, not just "buy more GPUs."
+
+## Check on learning
+
+- A teammate's pure-Python (no NumPy, no I/O) function is slow, and they wrap it in a `ThreadPoolExecutor` expecting a 4x speedup on 4 cores. Explain, mechanistically (not just "the GIL"), why they won't get it, and name the one change that would.
+- In your own words, define `T1`, `T∞`, and "parallelism" from the work/span model, and use them to explain why summing an array via a divide-and-conquer tree can be parallelized effectively while summing it via a straight left-to-right loop cannot, even though both do the same `O(n)` total work.
+- Explain-back: walk through why doubling the number of GPUs used to train a model rarely doubles training throughput — connect this concretely to Amdahl's Law's serial-fraction term and to the specific communication step (gradient all-reduce) that plays that role in distributed training.

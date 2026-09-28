@@ -1,0 +1,49 @@
+[
+  {
+    "id": "cs-foundations/tier-4/concurrency-and-parallelism-fundamentals/q1",
+    "type": "multiple_choice",
+    "prompt": "You have a CPU-bound pure-Python function (no NumPy, no I/O) and want a real wall-clock speedup from multiple cores. Which approach actually delivers it, and why?",
+    "choices": [
+      "ThreadPoolExecutor, because CPython threads run truly concurrently on separate cores",
+      "ProcessPoolExecutor, because each process gets its own interpreter and its own GIL, so they run truly in parallel on separate cores",
+      "asyncio, because coroutines are automatically scheduled across all available cores",
+      "None of these — pure Python can never use more than one core under any concurrency model"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cs-foundations/tier-4/concurrency-and-parallelism-fundamentals/q2",
+    "type": "multiple_choice",
+    "prompt": "In a producer/consumer bounded queue with multiple producers and multiple consumers sharing one lock, why must a waiter recheck its condition in a `while` loop (`while len(items) >= capacity: cv.wait()`) instead of a single `if` check?",
+    "choices": [
+      "Because `threading.Condition.wait()` always returns immediately regardless of the condition, so the check is purely cosmetic",
+      "Because between this thread being woken and re-acquiring the lock, another thread can run and change the shared state, so the condition must be reconfirmed to still hold",
+      "Because `while` loops execute faster than `if` statements in CPython's bytecode interpreter",
+      "Because `if` statements are not permitted inside a `with lock:` block"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cs-foundations/tier-4/concurrency-and-parallelism-fundamentals/q3",
+    "type": "short_answer",
+    "prompt": "In the work/span model for parallel algorithms, T1 is the total work on one processor and T∞ is the length of the longest chain of sequentially dependent operations (the span). What single word names the ratio T1/T∞, which serves as a hard ceiling on achievable speedup?",
+    "acceptedAnswers": [
+      "parallelism",
+      "the parallelism"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-4/concurrency-and-parallelism-fundamentals/q4",
+    "type": "short_answer",
+    "prompt": "By Amdahl's Law, if 5% of a program's runtime is inherently serial, what is the maximum possible speedup as the number of processors approaches infinity? Answer with just the number (no units).",
+    "acceptedAnswers": [
+      "20",
+      "20x"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-4/concurrency-and-parallelism-fundamentals/q5",
+    "type": "explain_back",
+    "prompt": "Explain, in your own words, why doubling the number of GPUs used to train a neural network rarely doubles training throughput. Connect this concretely to Amdahl's Law's serial-fraction term and to the specific communication step (gradient all-reduce) that plays that role in data-parallel distributed training."
+  }
+]
