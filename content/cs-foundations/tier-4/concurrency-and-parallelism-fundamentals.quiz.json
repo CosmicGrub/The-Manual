@@ -7,7 +7,7 @@
       "ThreadPoolExecutor, because CPython threads run truly concurrently on separate cores",
       "ProcessPoolExecutor, because each process gets its own interpreter and its own GIL, so they run truly in parallel on separate cores",
       "asyncio, because coroutines are automatically scheduled across all available cores",
-      "None of these — pure Python can never use more than one core under any concurrency model"
+      "None of these \u2014 pure Python can never use more than one core under any concurrency model"
     ],
     "correctIndex": 1
   },
@@ -26,7 +26,7 @@
   {
     "id": "cs-foundations/tier-4/concurrency-and-parallelism-fundamentals/q3",
     "type": "short_answer",
-    "prompt": "In the work/span model for parallel algorithms, T1 is the total work on one processor and T∞ is the length of the longest chain of sequentially dependent operations (the span). What single word names the ratio T1/T∞, which serves as a hard ceiling on achievable speedup?",
+    "prompt": "In the work/span model for parallel algorithms, T1 is the total work on one processor and T\u221e is the length of the longest chain of sequentially dependent operations (the span). What single word names the ratio T1/T\u221e, which serves as a hard ceiling on achievable speedup?",
     "acceptedAnswers": [
       "parallelism",
       "the parallelism"

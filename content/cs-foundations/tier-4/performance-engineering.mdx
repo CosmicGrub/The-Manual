@@ -1,0 +1,286 @@
+---
+trackId: cs-foundations
+tier: 4
+title: Performance Engineering
+order: 1
+estimatedHours: 10
+---
+
+Big-O tells you how a program's cost grows as input gets bigger, but it says nothing about the constant sitting in front of the growth term — and that constant is exactly what separates code that merely works from code that's fast. Two O(n²) programs can differ by 50x in wall-clock time depending on how many Python-level function calls they make and how their data sits in memory, and Big-O is structurally blind to both. This module is about closing that gap with evidence instead of intuition: profile before you guess, measure the memory and cache effects Big-O can't see, benchmark with enough statistical rigor to trust the number, and — just as important — know when the honest answer is to stop.
+
+## What you'll leave this lesson knowing
+
+- How to profile a real Python program with `cProfile` (function-level) and `line_profiler` (line-level), read `tottime` versus `cumtime` correctly, and act on the actual hotspot instead of guessing at it
+- Why memory access pattern — not just Big-O — drives wall-clock speed: what a cache miss costs, and how to demonstrate it yourself with a pointer-chasing benchmark and your own machine's cache sizes
+- How array-of-structs versus struct-of-arrays layout, and `__slots__`, change real measured performance for code that has the exact same asymptotic complexity
+- How to run a statistically defensible benchmark — a formalized doubling test with repeats, noise control, and an empirically estimated growth exponent — instead of trusting a single `time.time()` call
+- How to use Amdahl's Law and your own profiler's numbers to decide, in writing, when further optimization isn't worth the engineering time
+
+## Do this
+
+1. **Build a real, working-but-slow program, and profile it with `cProfile` before you touch a single line of it.** Every optimization in this module needs a genuine baseline to work against, so write the naive closest-pair-of-points solver — given `n` 2D points, find the smallest distance between any two of them:
+
+   ```python
+   import math
+   import random
+
+
+   class Point:
+       def __init__(self, x, y):
+           self.x = x
+           self.y = y
+
+
+   def distance(a, b):
+       return math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2)
+
+
+   def closest_pair_naive(points):
+       best = float("inf")
+       n = len(points)
+       for i in range(n):
+           for j in range(i + 1, n):
+               d = distance(points[i], points[j])
+               if d < best:
+                   best = d
+       return best
+
+
+   random.seed(0)
+   points = [Point(random.random(), random.random()) for _ in range(2000)]
+   ```
+
+   This is O(n²) — every pair gets checked — and with n = 2000 that's just under 2,000,000 calls to `distance`. Before changing anything, profile it:
+
+   ```python
+   import cProfile
+   import pstats
+
+   profiler = cProfile.Profile()
+   profiler.enable()
+   closest_pair_naive(points)
+   profiler.disable()
+
+   stats = pstats.Stats(profiler)
+   stats.sort_stats("tottime")
+   stats.print_stats(5)
+   ```
+
+   Read the columns precisely: `ncalls` is how many times a function ran; `tottime` is time spent *inside that function's own code*, excluding time spent in functions it calls; `cumtime` is `tottime` plus every subcall's time. `distance` should show ~1,999,000 calls and have the largest `tottime` of any function; `closest_pair_naive` should dominate `cumtime` (since it's the entry point that calls everything else) but also carry a real, smaller `tottime` of its own — the pure overhead of the nested `for` loops and the ~2,000,000 calls into `distance`, which is exactly what you'll target in step 3. You can get the same view from the command line without editing the script at all: `python -m cProfile -s cumulative your_script.py`. For a visual flame graph instead of a text table, `pip install snakeviz`, save the profile with `profiler.dump_stats("naive.prof")`, then run `snakeviz naive.prof` — it opens an interactive, zoomable view in your browser. The rule this step exists to teach: never optimize the function you *assume* is slow. Profile, then optimize the function the numbers actually point at.
+
+2. **Go line-level with `line_profiler` to find exactly which line inside the hotspot costs the time.** `cProfile` tells you *which function*; it can't split cost within a function. `pip install line_profiler`, decorate the suspect function with `@profile` (no import needed — the `kernprof` runner injects it as a builtin only while it's running your script), and temporarily expand the one-liner into its component steps so the profiler has separate lines to attribute time to:
+
+   ```python
+   @profile
+   def distance(a, b):
+       dx = a.x - b.x
+       dy = a.y - b.y
+       return math.sqrt(dx * dx + dy * dy)
+   ```
+
+   Run it with `kernprof -l -v your_script.py`. The report shows, per line, `Hits`, `Time`, `Per Hit`, and `% Time`. You should find the two attribute-lookup lines (`dx = a.x - b.x`, `dy = a.y - b.y`) combined cost noticeably more than the `math.sqrt` line — every `a.x` in CPython goes through `__getattribute__`, which is a dict lookup on the instance's `__dict__` unless the class defines `__slots__` (you'll fix this in step 5). If you're profiling a program you can't or shouldn't modify — a running server, someone else's script — `pip install py-spy` (a real production sampling profiler, no code changes or restarts required): `py-spy top --pid <PID>` gives a live, `top`-style view of hot functions, and `py-spy record -o profile.svg --pid <PID>` produces a flame graph from a running process. Keep it in your toolbox for exactly the cases where you can't add a decorator.
+
+3. **Optimize using only what the profiler told you, then re-measure — don't guess at a rewrite.** Three specific, evidence-driven changes: (a) compare *squared* distances instead of calling `math.sqrt` inside the hot loop — you only need the argmin, not the actual distance, until the very end; (b) pull the coordinates out of the `Point` objects into flat lists once, up front, instead of repeating attribute lookups on every comparison; (c) inline the arithmetic so the loop isn't paying Python's function-call overhead ~2,000,000 times:
+
+   ```python
+   def closest_pair_optimized(points):
+       n = len(points)
+       xs = [p.x for p in points]
+       ys = [p.y for p in points]
+       best_sq = float("inf")
+       for i in range(n):
+           xi, yi = xs[i], ys[i]
+           for j in range(i + 1, n):
+               dx = xi - xs[j]
+               dy = yi - ys[j]
+               d_sq = dx * dx + dy * dy
+               if d_sq < best_sq:
+                   best_sq = d_sq
+       return math.sqrt(best_sq)
+   ```
+
+   Benchmark both with a simple timing helper (the same pattern as Tier 2's `time_it` from Sorting & Searching):
+
+   ```python
+   import time
+
+   def time_it(fn, *args):
+       start = time.perf_counter()
+       result = fn(*args)
+       return result, time.perf_counter() - start
+
+   _, t_naive = time_it(closest_pair_naive, points)
+   _, t_opt = time_it(closest_pair_optimized, points)
+   print(t_naive, t_opt, t_naive / t_opt)
+   ```
+
+   Expect a real, measurable multiple — commonly somewhere in the 2-5x range on CPython, though the exact number is your machine's to report, not mine. Confirm two things, not one: first, `closest_pair_naive(points)` and `closest_pair_optimized(points)` agree (use `math.isclose`, since one path never takes a square root until the end and float rounding can differ in the last bit); second, re-run the doubling test at n = 1000, 2000, 4000 and check that the *ratio* between naive and optimized stays roughly constant as n grows. If it does, you made a **constant-factor** improvement — both versions are still O(n²) — not a different algorithm. That distinction (faster vs. asymptotically different) is one you'll be required to state explicitly in step 8 and in the Tier 4 checkpoint project.
+
+4. **Prove to yourself that memory access pattern, not instruction count, can dominate wall-clock time.** Build a "pointer-chasing" benchmark: two loops that do the *exact same number of iterations and the exact same O(steps) work*, differing only in whether each step's memory access is predictable or not.
+
+   ```python
+   import array
+   import random
+   import time
+
+
+   def build_random_cycle(n, seed=0):
+       rng = random.Random(seed)
+       order = list(range(n))
+       rng.shuffle(order)
+       nxt = array.array("q", [0]) * n
+       for i in range(n):
+           nxt[order[i]] = order[(i + 1) % n]
+       return nxt
+
+
+   def chase(nxt, steps):
+       i = 0
+       for _ in range(steps):
+           i = nxt[i]
+       return i
+
+
+   def sequential(n, steps):
+       i = 0
+       total = 0
+       for _ in range(steps):
+           total += i
+           i = i + 1 if i + 1 < n else 0
+       return total
+   ```
+
+   `build_random_cycle` builds a single random n-cycle stored in a flat, contiguous `array.array` of 8-byte ints (not a Python list — a list stores pointers to separately-allocated int objects, which would confound the demo). Following `nxt[i]` repeatedly visits every index in a fixed but effectively random order — the definition of a memory-access pattern with no spatial locality. Measure nanoseconds-per-step for both functions across growing `n` (pick `steps` — try 2,000,000 to start — large enough that each run takes a fraction of a second, adjusted to what your machine handles comfortably):
+
+   ```python
+   for n in [1_000, 10_000, 100_000, 1_000_000, 4_000_000]:
+       nxt = build_random_cycle(n)
+       steps = 2_000_000
+       _, t_chase = time_it(chase, nxt, steps)
+       _, t_seq = time_it(sequential, n, steps)
+       print(n, t_chase / steps * 1e9, t_seq / steps * 1e9)  # ns per step
+   ```
+
+   `sequential`'s per-step time should stay roughly flat regardless of `n`. `chase`'s per-step time should stay flat too — until `n` grows past your CPU's cache size, at which point it should visibly jump, because random access defeats the hardware prefetcher and spatial locality, forcing an actual main-memory fetch on a growing fraction of steps. Find your own cache sizes with `lscpu | grep -i cache` on Linux (look for L1d, L2, L3, in KB/MB) or `sysctl -a | grep -i cache` on macOS, divide by 8 bytes to get the number of `int64` entries that fit, and check that the jump in your data lines up with crossing that boundary. This exact effect — and how to reason about it quantitatively — is the subject of Ulrich Drepper's 2007 paper *What Every Programmer Should Know About Memory*, still the canonical reference; MIT's 6.172 (your Tier 4 core resource) opens with the same material for a reason: it's the single most common gap between "I know the Big-O" and "I can actually write fast code."
+
+5. **Turn the layout insight into a deliberate optimization: array-of-structs vs. struct-of-arrays, plus `__slots__`.** Notice that step 3's `xs = [p.x for p in points]` already did this by accident — it shifted from *array-of-structs* (a list of `Point` objects, each its own heap allocation, attributes reached via dict lookup) toward *struct-of-arrays* (parallel flat sequences). Now measure the layout effect in isolation, and add `__slots__` to the mix:
+
+   ```python
+   import tracemalloc
+
+
+   class PointDict:
+       def __init__(self, x, y):
+           self.x = x
+           self.y = y
+
+
+   class PointSlots:
+       __slots__ = ("x", "y")
+
+       def __init__(self, x, y):
+           self.x = x
+           self.y = y
+
+
+   def measure_memory(cls, n):
+       tracemalloc.start()
+       objs = [cls(i, i) for i in range(n)]
+       current, _peak = tracemalloc.get_traced_memory()
+       tracemalloc.stop()
+       return objs, current
+
+
+   dict_objs, mem_dict = measure_memory(PointDict, 200_000)
+   slot_objs, mem_slots = measure_memory(PointSlots, 200_000)
+   print(mem_dict, mem_slots, mem_dict / mem_slots)
+   ```
+
+   `__slots__` tells CPython to give each instance a fixed-size C-level slot array instead of a per-instance `__dict__` — expect meaningfully less memory for the slots version (commonly 30-60% less per instance, but read your own number rather than trust a rule of thumb; it depends on your Python version). Now show the layout difference shows up in *speed*, not just memory, by timing plain summation three ways:
+
+   ```python
+   def sum_x_objects(objs):
+       total = 0.0
+       for o in objs:
+           total += o.x
+       return total
+
+   def sum_x_flat(xs):
+       total = 0.0
+       for x in xs:
+           total += x
+       return total
+
+   xs_flat = [o.x for o in dict_objs]
+
+   _, t_dict = time_it(sum_x_objects, dict_objs)
+   _, t_slots = time_it(sum_x_objects, slot_objs)
+   _, t_flat = time_it(sum_x_flat, xs_flat)
+   print(t_dict, t_slots, t_flat)
+   ```
+
+   Expect `t_flat < t_slots < t_dict`: the flat list skips attribute lookup entirely, slots skip the `__dict__` hash lookup that dict-based instances pay on every `.x`, and both skip nothing about the object indirection itself. Same algorithm (a single pass, O(n)), same asymptotic complexity, real and reproducible speed difference driven entirely by memory layout — which is exactly why NumPy's structured, columnar arrays exist, and exactly why a "premature `class`" is sometimes a real performance cost in hot code, not just a style choice.
+
+6. **Formalize the doubling test into a benchmark harness you can actually trust — then use the tool professionals use.** Tier 2 had you eyeball whether timing roughly doubled or quadrupled when `n` doubled. Make it precise: the empirical growth exponent `k` in `T(n) ≈ c·n^k` is recoverable from two measurements as `k = log2(T(2n) / T(n))` — a `k` near 1 says linear, near 2 says quadratic, and so on, independent of what the constant `c` happens to be. Build the harness with real noise control: `timeit.repeat` already disables the garbage collector during each timed run (a detail worth knowing, not just using), and you should always take the **minimum** of several repeats, never the mean — noise can only ever slow a run down, never speed one up, so the minimum is the closest honest estimate of the noise-free cost:
+
+   ```python
+   import math
+   import timeit
+
+   def measure(fn_name, setup, n, repeats=7, number=3):
+       full_setup = f"{setup}\nn = {n}"
+       times = timeit.repeat(f"{fn_name}(points[:n])", setup=full_setup, repeat=repeats, number=number)
+       return min(times) / number
+
+   setup = "from __main__ import closest_pair_optimized, points"
+   sizes = [500, 1000, 2000, 4000, 8000]
+   timings = {n: measure("closest_pair_optimized", setup, n) for n in sizes}
+   for n in sizes[:-1]:
+       k = math.log2(timings[2 * n] / timings[n])
+       print(n, 2 * n, timings[n], timings[2 * n], round(k, 2))
+   ```
+
+   You should see `k` land close to 2 across the board, confirming O(n²) empirically rather than just asserting it. For anything you'll report or compare across code changes, reach for `pyperf` instead of hand-rolled `timeit` — `pip install pyperf` — because it automatically flags high-variance machines (background load, CPU frequency scaling), computes real statistics instead of a single number, and is literally the tool CPython's own core developers use to catch performance regressions across Python releases, via the `pyperformance` benchmark suite (`github.com/python/pyperformance`, built on `github.com/psf/pyperf`):
+
+   ```python
+   # bench.py
+   import pyperf
+
+   runner = pyperf.Runner()
+   runner.timeit(
+       name="closest_pair_optimized_n2000",
+       stmt="closest_pair_optimized(points)",
+       setup="from __main__ import closest_pair_optimized, points",
+   )
+   ```
+
+   Run it twice — once against `closest_pair_naive`, once against `closest_pair_optimized` — saving each to its own JSON with `python bench.py -o naive.json` / `python bench.py -o opt.json`, then compare with `python -m pyperf compare_to naive.json opt.json`, which reports the speedup with a confidence-aware summary instead of a bare ratio.
+
+7. **Compute an Amdahl's Law ceiling from your own profiler numbers, and decide — in writing — what NOT to optimize.** Amdahl's Law (Gene Amdahl, 1967) answers a question profiling data makes precise: if a piece of code accounts for a fraction `p` of total runtime, and you speed up *only* that piece by a factor `s`, the whole program's speedup is capped at:
+
+   ```python
+   def amdahl_speedup(p, s):
+       return 1 / ((1 - p) + p / s)
+
+   for s in [2, 4, 10, 100, 10_000]:
+       print(s, amdahl_speedup(0.8, s))
+   ```
+
+   With `p = 0.8`, notice the ceiling: even an infinitely fast rewrite of that 80% (`s → ∞`) caps overall speedup at `1 / (1 - 0.8) = 5x`, and by `s = 10` you're already within 20% of that ceiling — squeezing `s` from 10 to 10,000 buys almost nothing. This is the numeric version of Donald Knuth's 1974 observation, from *Structured Programming with go to Statements*: "We should forget about small efficiencies, say about 97% of the time: premature optimization is the root of all evil." Now apply it for real: from your own step-1 or step-6 profiler output, take the actual percentage of time your hottest function accounts for, and the percentage some *other*, untouched function accounts for. Compute the Amdahl ceiling for optimizing that second, smaller-percentage function to be arbitrarily fast. If the ceiling is small (say, under 1.1x for a function at 6% of runtime), write two or three sentences to an imaginary teammate explaining, with the actual `p` and the actual ceiling number, why you're not going to spend the next two days on it — and what you'd work on instead.
+
+8. **Write the mini case study — this is the exact shape of your Tier 4 checkpoint project's report.** Pull steps 1, 3, and 6 together into a short written report with three required parts: (a) Big-O before and after — here, honestly, both `closest_pair_naive` and `closest_pair_optimized` are O(n²); the win is a constant factor, and saying so explicitly is part of the rigor, not a confession of failure; (b) measured wall-clock numbers at at least three input sizes, with the speedup ratio at each, produced by `pyperf compare_to` or your `timeit`-based harness from step 6 — not a single stopwatch run; (c) a correctness check that the optimized version still produces the right answer, run as an actual assertion across every size you benchmarked:
+
+   ```python
+   for n in [500, 1000, 2000]:
+       sample = points[:n]
+       assert math.isclose(closest_pair_naive(sample), closest_pair_optimized(sample), rel_tol=1e-9)
+   print("all sizes agree")
+   ```
+
+   That three-part shape — before/after Big-O, measured wall-clock speedup, all existing behavior still correct — is not incidental to this lesson. It is, word for word, what the Tier 4 checkpoint project asks you to produce, applied later to a real open-source codebase instead of this module's toy example. Treat this case study as the dry run.
+
+## Check on learning
+
+- Explain why step 3's optimization produced a real, measured speedup while leaving the Big-O completely unchanged at O(n²) — and why a performance report needs to state both facts separately rather than collapsing them into "it's faster now."
+- Without running anything, predict what step 4's `chase` benchmark would look like on a hypothetical machine with a single, uniform memory latency for every address (no cache hierarchy at all). What does your prediction tell you about why the jump you actually measured is a *cache* effect specifically, not just "big arrays are slow"?
+- Using your own profiler output and Amdahl's Law from step 7, write the two or three sentences you'd actually send a teammate explaining why you're not going to spend more time optimizing a function that's a small fraction of total runtime — the argument has to use the real numbers, not just "it's not worth it."

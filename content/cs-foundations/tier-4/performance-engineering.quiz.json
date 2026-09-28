@@ -1,0 +1,51 @@
+[
+  {
+    "id": "cs-foundations/tier-4/performance-engineering/q1",
+    "type": "multiple_choice",
+    "prompt": "In cProfile's output, a function's `cumtime` includes:",
+    "choices": [
+      "Only time spent in that function's own code, excluding calls to other functions",
+      "Time spent in that function plus time spent in every function it calls (its subcalls)",
+      "The average time per call across all invocations",
+      "Wall-clock time only when the function is the entry point of the profiled script"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cs-foundations/tier-4/performance-engineering/q2",
+    "type": "multiple_choice",
+    "prompt": "In the pointer-chasing benchmark, both `chase` and `sequential` perform the same number of loop iterations and are the same Big-O, O(steps). Why does `chase` get dramatically slower per-step once `n` exceeds the CPU's cache size, while `sequential` does not?",
+    "choices": [
+      "Because `chase` has worse asymptotic complexity than `sequential` once the array no longer fits in cache",
+      "Because random access defeats spatial locality and the hardware prefetcher, forcing a slow main-memory fetch on nearly every step, while sequential access stays within cache lines the prefetcher has already loaded",
+      "Because Python's garbage collector runs more often during random-order loops",
+      "Because `array.array` silently switches to a linked-list representation once it exceeds a size threshold"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cs-foundations/tier-4/performance-engineering/q3",
+    "type": "short_answer",
+    "prompt": "Using Amdahl's Law, if a function accounts for exactly 25% of a program's total runtime (p = 0.25) and you optimize that function to be infinitely fast (s approaches infinity), what is the maximum possible overall speedup of the whole program? Give the number rounded to two decimal places.",
+    "acceptedAnswers": [
+      "1.33",
+      "1.33x",
+      "4/3"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-4/performance-engineering/q4",
+    "type": "short_answer",
+    "prompt": "Which pip-installable tool decorates a specific function with `@profile` and, when the script is run via its `kernprof` command, reports per-line hit counts and time spent for that function?",
+    "acceptedAnswers": [
+      "line_profiler",
+      "line-profiler",
+      "Line Profiler"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-4/performance-engineering/q5",
+    "type": "explain_back",
+    "prompt": "In your own words, explain to a teammate why 'this optimization made the code 3x faster' and 'this optimization changed the algorithm from O(n^2) to O(n log n)' are two completely different kinds of claims, and why a performance-engineering report needs to state both separately rather than collapsing them into a single 'it's faster now' sentence."
+  }
+]

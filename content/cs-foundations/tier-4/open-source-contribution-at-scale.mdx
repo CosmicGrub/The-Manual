@@ -1,0 +1,214 @@
+---
+trackId: cs-foundations
+tier: 4
+title: Open Source Contribution at Scale
+order: 7
+estimatedHours: 15
+---
+
+Every lesson before this one has been graded by a compiler, an interpreter, or you. This one is graded by a stranger who owes you nothing: a maintainer with a backlog, limited attention, and no obligation to merge your code just because it runs. That's the actual skill this module builds — not "how to write a patch," which you've been able to do since Tier 1, but how to find a problem worth a maintainer's time, prove your fix is correct on their terms, and survive a real code review without your PR getting closed as "thanks, but not right now." This is also, directly, half of this tier's checkpoint project: the open-source contribution half. Treat this lesson as the checkpoint's instructions, not a warm-up for it.
+
+## What you'll leave this lesson knowing
+
+- How to evaluate a real open-source project's health — merge velocity, external-contributor turnover, review responsiveness — with actual numbers pulled via the GitHub CLI, before investing a single hour in it
+- How to distinguish a substantive issue from a trivial one using GitHub's search operators and a project's own triage labels, and why "good first issue" is often the wrong label to search for
+- How to reproduce a bug deterministically, use `git log`, `git blame`, and `git bisect` to find its root cause in code you didn't write, and turn that root cause into a regression test that fails before your fix and passes after it
+- How to discover exactly what a project's CI will check before you push, and run the equivalent locally so your PR doesn't turn into a five-round game of "please also fix the linter"
+- How to navigate a real review thread to a merge (or a substantive, reviewer-engaged conclusion) — commit conventions, DCO sign-offs, changelog fragments, and how to respond to "please add a test for X" without getting defensive or going silent
+
+## Do this
+
+1. **Pick a project using data, not vibes.** You're about to spend ten-plus hours on someone else's codebase; don't gamble that time on a project that takes six months to look at a PR. Before reading a single issue, pull real merge-velocity numbers for a few candidates using the [GitHub CLI](https://cli.github.com/) (`gh`), which you should already have from earlier tiers' repo-reading work (`gh auth login` once if you haven't).
+
+   Start with three real, actively maintained Python projects that are genuinely approachable for an outside contributor's first substantive PR — small enough to read most of in an afternoon, but real enough that a merged PR means something: [`tqdm/tqdm`](https://github.com/tqdm/tqdm) (a progress-bar library, a few thousand lines, single-purpose), [`pallets/click`](https://github.com/pallets/click) (a CLI framework used by Flask's own tooling), and [`psf/black`](https://github.com/psf/black) (the code formatter — larger, but exceptionally well-tested, which makes it a good fit if you want your regression test to have real teeth). Pull each one's last 100 merged PRs and compute median time-to-merge and how many distinct external logins actually got something merged in the last 90 days — a project where the same three maintainer accounts merge everything, with no outside names, is a project that's harder to break into no matter how good your patch is:
+
+   ```bash
+   # one candidate at a time
+   gh pr list --repo tqdm/tqdm --state merged --limit 100 \
+     --json number,author,createdAt,mergedAt,isCrossRepository > tqdm_prs.json
+   ```
+
+   ```python
+   import json
+   from datetime import datetime, timezone
+
+   def parse(ts):
+       return datetime.fromisoformat(ts.replace("Z", "+00:00"))
+
+   def analyze(path, repo_name):
+       with open(path) as f:
+           prs = json.load(f)
+
+       merge_days = []
+       ninety_days_ago = datetime.now(timezone.utc).timestamp() - 90 * 86400
+       recent_external_authors = set()
+
+       for pr in prs:
+           created = parse(pr["createdAt"])
+           merged = parse(pr["mergedAt"])
+           merge_days.append((merged - created).total_seconds() / 86400)
+           if pr["isCrossRepository"] and merged.timestamp() > ninety_days_ago:
+               recent_external_authors.add(pr["author"]["login"])
+
+       merge_days.sort()
+       median = merge_days[len(merge_days) // 2]
+       print(f"{repo_name}: median time-to-merge = {median:.1f} days, "
+             f"{len(recent_external_authors)} distinct external contributors merged in last 90d")
+
+   analyze("tqdm_prs.json", "tqdm/tqdm")
+   ```
+
+   Run the same two commands for `pallets/click` and `psf/black` (swap the `--repo` and output filename). You'll get three genuinely different numbers — write them down. A median measured in days, with several distinct outside logins in the last quarter, means real maintainers who actually look at outside PRs; a median measured in months, or a contributor list that's just the core team, means your patch could sit unread for the entire length of this tier. Pick whichever of the three looks healthiest, or, if none of them touch a domain you care about, run this same two-command check against a project of your own choosing before committing to it — the check costs five minutes and the alternative is losing ten hours to a dead PR queue.
+
+   Two more cheap checks before you commit to a repo. First, confirm the license actually permits outside contribution the way you'd expect (`LICENSE` at the repo root — MIT, BSD, and Apache-2.0 all clearly do; a repo with no license file at all is a legal gray zone worth avoiding). Second, if none of the three named candidates fit your interests, [CodeTriage](https://www.codetriage.com/) exists specifically to solve this discovery problem: it subscribes you to a trickle of open issues, one at a time, from real, actively maintained repositories across many languages, which is a reasonable alternative to hand-picking a project — but still run the same `gh pr list` health check on whatever it hands you before you invest time.
+
+2. **Find a substantive issue — and know why "good first issue" is usually the wrong search.** In October 2020, Hacktoberfest turned into what maintainer Drew DeVault publicly called a "DDoS attack" on open-source maintainers: a YouTube video showed people how to farm free T-shirts by opening throwaway, near-meaningless PRs (a reformatted README, a single renamed variable) against any public repo, and thousands of people did it at once. DigitalOcean had to ship an emergency rule change mid-event requiring maintainers to explicitly opt in and label PRs `hacktoberfest-accepted`, plus a reporting and ban system for spam, because the flood of low-effort PRs was actively harming the projects the event was supposed to help. Read the [DeVault "Spamtoberfest" post](https://drewdevault.com/2020/10/01/Spamtoberfest.html) — it's short, and it's the reason this lesson's bar is "substantive, non-typo" rather than "any merged PR." Maintainers remember which contributors showed up with real fixes during that month and which showed up for a shirt; don't be the second kind, even outside of October.
+
+   That history also explains why `good-first-issue`-labeled tickets are frequently a poor choice here: they're deliberately scoped down to be tiny (often genuinely one line), and during and after Hacktoberfest they get claimed and abandoned in bulk, leaving a graveyard of stale "I'll work on this!" comments with no follow-through. Search instead for tickets that are real but unclaimed, using GitHub's search operators directly against your chosen repo's issue tracker:
+
+   ```text
+   repo:tqdm/tqdm is:issue is:open label:bug -label:"good first issue" comments:1..4 sort:updated-asc
+   ```
+
+   `label:bug` filters for something a maintainer already triaged as a real defect, not a feature request or a question; `comments:1..4` filters out both the completely ignored (0 comments, possibly invalid) and the already-crowded (a long thread usually means someone's already deep into it, or it's more contentious than a first substantive contribution should be); `sort:updated-asc` surfaces issues that have gone quiet, which are more likely to be genuinely unclaimed rather than fought over. Read four or five candidates end to end — not just the title, the whole thread, including any linked PRs that already attempted and abandoned a fix, since those tell you exactly why the "obvious" fix doesn't actually work. You're looking for one with a **clear, reproducible symptom** (ideally with steps or a minimal snippet already in the thread) that requires you to understand actual logic to fix — not a wording change, not a `.gitignore` entry, not a version bump.
+
+   Once you've picked one, leave a comment stating specifically what you plan to do and how (not just "I'll take this") — this does two things: it lets the maintainer redirect you before you've sunk hours into a wrong approach, and it signals to other contributors that the issue is genuinely being worked, the same courtesy the [First Timers Only](https://www.firsttimersonly.com/) project asks new contributors to extend to each other.
+
+3. **Reproduce it, then find the root cause in code you didn't write.** Do not open an editor to "fix" anything yet. First, get a dev install and confirm you can trigger the exact reported symptom on an unmodified checkout:
+
+   ```bash
+   git clone https://github.com/<you>/tqdm.git   # your fork
+   cd tqdm
+   git remote add upstream https://github.com/tqdm/tqdm.git
+   pip install -e ".[dev]"
+   ```
+
+   Write the smallest possible script that reproduces the bug — strip the reporter's example down until removing one more line makes the bug disappear. This minimal repro is itself an artifact you'll keep: it becomes the skeleton of your regression test in the next step, and pasting it into the PR description later is how a reviewer confirms your fix without re-deriving your reasoning.
+
+   Now find *why* the code is wrong, using the same discipline Tier 3's "Reading Real Codebases" module built, aimed specifically at history instead of structure:
+
+   ```bash
+   git log -p --follow -- path/to/offending_file.py     # every change to this file, with diffs
+   git blame -L 40,75 path/to/offending_file.py          # who touched these exact lines, and when
+   ```
+
+   `git blame` on the suspicious lines usually points you to the commit — and often the PR discussion linked in that commit's message — that introduced the current behavior on purpose, for a different case than the one that's now broken. Reading *that* discussion is frequently the actual unlock: most real bugs aren't "someone wrote broken code," they're "someone wrote correct code for a case they had in mind, and an edge case they didn't consider now breaks it." If the bug is a regression (it used to work), confirm exactly where it broke with a bisect instead of guessing:
+
+   ```bash
+   git bisect start
+   git bisect bad                      # current HEAD reproduces the bug
+   git bisect good v4.65.0             # a tag/commit you've confirmed does NOT
+   git bisect run python repro.py      # exit code 0 = good, nonzero = bad
+   # git bisect walks the remaining commits automatically and reports the first bad one
+   git bisect reset
+   ```
+
+   `git bisect run` needs `repro.py` to exit nonzero exactly when the bug is present (assert on the buggy behavior, let a clean run exit 0) — write that assertion now; you'll reuse it almost verbatim as your test in the next step. If the bug isn't a regression — it's been broken since the feature was written, so there's no "good" commit to bisect against — drop a `breakpoint()` at the point in the code where your repro script's behavior diverges from what you expected, step through with `n`/`s`/`p` at the `(Pdb)` prompt, and inspect the actual values flowing through the function until you can name the exact line where the invariant you expected stops holding. Only once you can point at the specific line and the specific reason it's wrong — not "it works if I change this" — are you ready to write a fix.
+
+4. **Write the fix and a regression test that would have caught it, in the project's own style.** Open the project's `tests/` directory and read three or four existing test files before writing your own — note whether they use `pytest.mark.parametrize`, custom fixtures, or plain `assert`-per-function; matching the surrounding style is part of what makes a PR easy to review, and a reviewer forced to also comment on your formatting is a reviewer with less patience left for your logic. Your test must fail on the unfixed code and pass on the fixed code — verify the "fails first" half explicitly, since a regression test that never actually exercised the bug is worse than no test, because it looks like coverage while proving nothing:
+
+   ```python
+   # tests/tests_regression.py  (match the project's real test file naming — check first)
+   from tqdm import tqdm
+
+   def test_total_overridden_by_iterable_len_regression():
+       """Regression test for issue #NNNN: an explicit total= kwarg was being
+       silently clobbered by len(iterable) when both were provided."""
+       bar = tqdm(range(10), total=5)
+       assert bar.total == 5   # explicit total must win, not len(range(10))
+   ```
+
+   Run it in isolation against a git stash of your fix to confirm the red/green cycle for real, not from memory:
+
+   ```bash
+   git stash                 # temporarily remove your fix
+   pytest tests/tests_regression.py -v      # must FAIL
+   git stash pop              # restore your fix
+   pytest tests/tests_regression.py -v      # must PASS
+   ```
+
+   Then run the *entire* existing suite, not just your new test — a fix that passes its own test but breaks three others is not a fix:
+
+   ```bash
+   pytest -q
+   ```
+
+   Finally, open `.github/workflows/*.yml` in the repo and read what CI actually runs on every PR — this is the single highest-leverage five minutes in the whole process, because it tells you exactly which local commands to run before you push instead of finding out from a red X after you do:
+
+   ```bash
+   cat .github/workflows/*.yml | grep -A2 "run:"
+   ```
+
+   You'll typically find a lint step (`ruff check .` or `flake8`), a formatter check (`black --check .`), sometimes a type check (`mypy`), sometimes a minimum-coverage gate (`pytest --cov=<package> --cov-fail-under=90`), and the test matrix across Python versions. Run every one of those locally before opening the PR:
+
+   ```bash
+   ruff check .
+   black --check .
+   mypy .                              # if the project uses it — grep the workflow file to confirm
+   pytest -q --cov=tqdm --cov-report=term-missing   # if the workflow checks coverage
+   ```
+
+   If the coverage report shows your new code isn't fully exercised, that's a second, independent signal (beyond the red/green cycle in the last step) that your test doesn't actually reach the branch you fixed — go back and widen it before you push, not after CI flags it.
+
+   A PR that arrives already green saves a maintainer a review round-trip and is a visible, concrete signal that you did your homework — reviewers notice, and it's the single biggest lever you have over how fast your PR gets attention.
+
+5. **Write the PR like the project's process is a spec, because it is.** Read `CONTRIBUTING.md` in full before opening anything — it is not boilerplate, and skipping it is the single most common way outside contributors sink an otherwise-good fix. Specifically check for three things that vary a lot by project and will get your PR bounced if you miss them:
+
+   - **A required changelog fragment.** [`pip`](https://pip.pypa.io/en/latest/development/contributing/) requires every non-trivial change to add a file under `news/`, named after the issue or PR number with a type suffix — `news/1234.bugfix.rst` for a bug fix — which its release tooling, [towncrier](https://towncrier.readthedocs.io/), later compiles into the real changelog. `attrs`, `urllib3`, and Twisted use the same towncrier convention with their own fragment directories. Grep the repo root for `news/`, `changes/`, or `changelog.d/` before you open your PR, not after a reviewer asks for it.
+   - **A commit sign-off requirement.** Helm's project formally [moved to the Developer Certificate of Origin](https://helm.sh/blog/helm-dco/) — every commit must carry a `Signed-off-by:` trailer certifying you have the right to submit the code, checked automatically by a DCO bot that blocks merge until every commit has it. Add it going forward with `-s`, and fix commits you already made with `--amend -s` or an interactive rebase:
+
+     ```bash
+     git commit -s -m "fix: total= kwarg no longer overridden by iterable length"
+     ```
+
+   - **A commit message or PR title convention.** Many projects (and increasingly, projects generating changelogs automatically from history) expect [Conventional Commits](https://www.conventionalcommits.org/) style — `fix:`, `feat:`, `docs:` prefixes — check recent merged PR titles in `gh pr list --state merged --limit 20` to see whether the project actually enforces this or just suggests it.
+
+   Open the PR with `gh pr create`, and write the description as if the reviewer has zero context beyond the linked issue — because functionally, they do:
+
+   ```bash
+   gh pr create --title "fix: total= kwarg no longer overridden by iterable length" \
+     --body "Fixes #NNNN.
+
+   ## What was wrong
+   \`tqdm(iterable, total=N)\` silently used \`len(iterable)\` instead of the
+   explicit \`total=\` whenever the iterable had \`__len__\`.
+
+   ## Root cause
+   ...
+
+   ## Fix
+   ...
+
+   ## Testing
+   Added a regression test (tests_regression.py::test_total_overridden_by_iterable_len_regression)
+   that fails on main and passes with this change. Full suite + lint + type-check pass locally."
+   ```
+
+6. **Navigate the actual review — this is the part most tutorials skip.** A maintainer's first pass will almost never be "LGTM, merged." Expect one of a handful of real patterns, and know the right response to each:
+
+   - **"Please add a test for edge case X."** Do it, push, and reply `Done` on that specific thread — don't just push silently and leave the comment thread hanging unresolved; an unacknowledged comment reads as ignored, not addressed.
+   - **A request to squash or reorganize commits.** Use interactive rebase, not a fresh force-push over the whole branch history, so the reviewer's existing inline comments stay attached to the right lines where GitHub can:
+
+     ```bash
+     git rebase -i --autosquash upstream/main
+     git push --force-with-lease
+     ```
+
+   - **Scope pushback** — "this fixes the symptom but the real bug is upstream in X." This is a genuine, substantive engineering disagreement, and engaging with it seriously (rereading the code they're pointing at, and either revising your approach or explaining concretely why you still think yours is right) *is* the deliverable here, whether or not it ends in a merge — this tier's checkpoint explicitly accepts "seriously reviewer-approved" as sufficient, precisely because real open-source review sometimes lands on "this needs a bigger conversation" rather than a clean merge, and that outcome still demonstrates the skill this module is teaching.
+   - **Silence.** Check the project's own median response time from step 1 before assuming you've been ignored — if it's been well within that window, wait; if you're well past it, one polite ping on the PR itself (never a maintainer's personal DM or email) is normal and expected, not rude.
+   - **Your branch drifts behind `main` while review drags on**, and GitHub reports a conflict. Don't resolve it by starting over — pull the latest upstream history and replay your commits on top of it, then re-push with the lease flag so you can't accidentally clobber a commit a reviewer pushed to your branch in the meantime:
+
+     ```bash
+     git fetch upstream
+     git rebase upstream/main
+     # resolve any conflicts, `git add` the resolved files, `git rebase --continue`
+     git push --force-with-lease
+     ```
+
+   Whatever the outcome, write a half-page contribution log when you're done: the issue link, your root-cause finding, your regression test, and a short honest account of how review actually went — including any pushback and how you handled it. That log, plus the merged (or seriously reviewed) PR itself, is the artifact this tier's checkpoint asks for.
+
+## Check on learning
+
+- Explain why searching for `label:"good first issue"` is often a worse strategy for this exercise than searching `label:bug -label:"good first issue" comments:1..4`, using what you now know about how those issues get claimed and abandoned.
+- You've written a fix, and your new test passes locally, but a CI job named `mypy (3.11)` fails on your PR and you never ran `mypy` before pushing. Walk through exactly where you'd find out this check existed and how you'd have caught it before your first push.
+- Explain-back: walk through your own real (or, if not finished yet, currently in-progress) contribution end to end — how you chose the project using real merge-velocity data, how you confirmed the bug was real and non-trivial before claiming it, what your regression test asserts and why it fails without your fix, and what actually happened during review, including anything that didn't go the way you expected.

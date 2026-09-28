@@ -1,0 +1,301 @@
+---
+trackId: cs-foundations
+tier: 4
+title: Formal Complexity & Approximation
+order: 6
+estimatedHours: 10
+---
+
+Tier 3 proved P ⊆ NP in one line and made NP-completeness real with a single reduction (Independent Set ↔ Vertex Cover) and a single approximation algorithm (greedy Vertex Cover's 2x guarantee). This lesson turns that into a working toolkit: a meatier from-scratch reduction that actually decides satisfiability through a graph algorithm instead of a truth table, a provably-bounded approximation scheme whose accuracy dial you turn and measure yourself, and then the one fact that connects all of it straight to machine learning — training a neural network to fit its data exactly is itself NP-complete, which is the real, citable, mathematical reason gradient descent is a heuristic with no optimality guarantee, not an engineering shortcut anyone chose out of laziness.
+
+## What you'll leave this lesson knowing
+
+- How to build the classic 3-SAT to Independent Set reduction from scratch — a clause-triangle gadget, genuinely more involved than Tier 3's one-line Independent-Set/Vertex-Cover identity — and use it to decide satisfiability through a pure graph algorithm, verified against a brute-force SAT solver over hundreds of random formulas
+- How to build a real FPTAS (fully polynomial-time approximation scheme) for knapsack via scale-and-round, and how to prove empirically that its cost scales with the number of items and your accuracy target — not with the magnitude of the numbers involved, which is the opposite of Tier 3's pseudo-polynomial trap
+- Why Lloyd's algorithm for k-means is a heuristic and not an exact algorithm, demonstrated by literally watching it get stuck at a local optimum you can prove — by brute force — is not the true minimum
+- The specific, citable theorem (Blum and Rivest, 1992) proving that training even a tiny neural network to zero training error is NP-complete, and why that one fact is the actual mathematical reason every optimizer you've ever called (SGD, Adam, ...) comes with no guarantee of finding the best possible weights
+- How to read a real, shipped approximation-algorithms library (NetworkX's networkx.algorithms.approximation) for its documented guarantees, and use that to decide, for a new NP-hard problem, whether a provably-bounded approximation exists or you're stuck with an unguaranteed heuristic
+
+## Do this
+
+1. **Reduce 3-SAT to Independent Set — a real gadget construction, not a one-liner.** A 3-CNF formula is an AND of clauses, each clause an OR of exactly 3 literals (a variable or its negation). Take a concrete formula: (x1 OR NOT x2 OR x3) AND (NOT x1 OR x2 OR NOT x3) AND (x1 OR x2 OR x3). The reduction builds a graph with one node per literal occurrence (9 nodes for 3 clauses of 3 literals each — not one node per variable), then adds two kinds of edges: every pair of nodes within the same clause gets an edge (a triangle), and every pair of nodes across different clauses that are the same variable at opposite polarity (x1 and NOT x1) gets an edge. Claim: the formula is satisfiable if and only if this graph has an independent set of size exactly m (the number of clauses). Work out why before reading on: the triangle forces at most one node per clause into any independent set (since all three are mutually adjacent), so an independent set of size m must pick exactly one literal per clause — and the cross-clause edges guarantee it never picks both a variable and its negation. That's a full, valid boolean assignment, one clause-satisfying literal at a time.
+
+   ```python
+   import itertools
+
+   def build_conflict_graph(clauses):
+       # clauses: list of clauses, each a list of exactly 3 (var_name, is_positive) literals
+       nodes = [(ci, li) for ci, clause in enumerate(clauses) for li in range(len(clause))]
+       edges = set()
+       for a, b in itertools.combinations(nodes, 2):
+           ci, li = a
+           cj, lj = b
+           if ci == cj:
+               edges.add(frozenset((a, b)))              # same-clause triangle
+           else:
+               var_i, pos_i = clauses[ci][li]
+               var_j, pos_j = clauses[cj][lj]
+               if var_i == var_j and pos_i != pos_j:
+                   edges.add(frozenset((a, b)))           # x and NOT x conflict
+       return nodes, edges
+
+   def independent_set_of_size(nodes, edges, k):
+       for S in itertools.combinations(nodes, k):
+           if all(frozenset((a, b)) not in edges for a, b in itertools.combinations(S, 2)):
+               return S
+       return None
+
+   def sat_via_reduction(clauses):
+       m = len(clauses)
+       nodes, edges = build_conflict_graph(clauses)
+       S = independent_set_of_size(nodes, edges, m)
+       if S is None:
+           return False, None
+       assignment = {}
+       for (ci, li) in S:
+           var, pol = clauses[ci][li]
+           assignment[var] = pol
+       for clause in clauses:
+           for var, _ in clause:
+               assignment.setdefault(var, True)   # variables never picked don't matter
+       return True, assignment
+   ```
+
+   Run it on the concrete formula above:
+
+   ```python
+   formula = [
+       [("x1", True), ("x2", False), ("x3", True)],
+       [("x1", False), ("x2", True), ("x3", False)],
+       [("x1", True), ("x2", True), ("x3", True)],
+   ]
+   nodes, edges = build_conflict_graph(formula)
+   print(len(nodes), len(edges))              # 9 nodes, 15 edges
+   print(sat_via_reduction(formula))           # (True, {'x1': True, 'x2': True, 'x3': True})
+   ```
+
+   Now write a brute-force SAT solver that tries every assignment directly (no graph involved), and confirm the two methods never disagree over hundreds of random 3-CNF formulas — the same "run it hundreds of times and watch it never disagree" pattern Tier 3 used for Independent Set/Vertex Cover:
+
+   ```python
+   def evaluate_clause(clause, assignment):
+       return any(assignment[var] == polarity for var, polarity in clause)
+
+   def brute_force_sat(clauses):
+       variables = sorted({var for clause in clauses for var, _ in clause})
+       n = len(variables)
+       for bits in range(1 << n):
+           assignment = {variables[i]: bool((bits >> i) & 1) for i in range(n)}
+           if all(evaluate_clause(c, assignment) for c in clauses):
+               return True, assignment
+       return False, None
+
+   import random
+
+   def random_3cnf(num_vars, num_clauses, rng):
+       variables = [f"x{i}" for i in range(num_vars)]
+       clauses = []
+       for _ in range(num_clauses):
+           chosen_vars = rng.sample(variables, 3)
+           clauses.append([(v, rng.choice([True, False])) for v in chosen_vars])
+       return clauses
+
+   rng = random.Random()
+   mismatches = 0
+   for _ in range(300):
+       clauses = random_3cnf(rng.randint(3, 6), rng.randint(2, 8), rng)
+       direct, _ = brute_force_sat(clauses)
+       reduced, assignment = sat_via_reduction(clauses)
+       if direct != reduced:
+           mismatches += 1
+       if reduced:
+           assert all(evaluate_clause(c, assignment) for c in clauses)
+   print(mismatches)   # 0, every time — the theorem forbids disagreement
+   ```
+
+   This is the actual textbook construction (see Michael Sipser's Introduction to the Theory of Computation, the SAT to Independent Set/Clique reduction), and it's historically how Independent Set, Clique, and Vertex Cover were shown to be NP-complete in the first place — Richard Karp's 1972 paper "Reducibility Among Combinatorial Problems" is the paper that put the first 21 problems, including these, on the map by chaining reductions exactly like this one from SAT. Notice the direction: you're not writing a SAT solver and hoping it's fast — you're proving that if Independent Set had a polynomial-time algorithm, you could plug it into this construction and get a polynomial-time SAT solver for free, which is why Independent Set can't be easier than SAT.
+
+2. **Build a real FPTAS for knapsack — and prove its cost is polynomial in the right things.** Tier 3's exact knapsack DP runs in O(n times W) — polynomial in the value of the capacity W, not in the number of bits needed to write W down, which is why it blows up when W is astronomically large (that was the "pseudo-polynomial" catch). An FPTAS sidesteps this with scale-and-round: pick an accuracy target epsilon, scale every item's value down by a factor K = epsilon times max_value divided by n, round to an integer, and run the exact DP on the scaled values instead of on the capacity. Because the DP is now indexed by total scaled value (which tops out around n divided by epsilon, regardless of how big the original numbers were), the runtime becomes polynomial in n and 1/epsilon — genuinely polynomial, not pseudo.
+
+   ```python
+   def knapsack_exact(weights, values, capacity):
+       n = len(weights)
+       dp = [[0] * (capacity + 1) for _ in range(n + 1)]
+       for i in range(1, n + 1):
+           w, v = weights[i - 1], values[i - 1]
+           for c in range(capacity + 1):
+               dp[i][c] = dp[i - 1][c]
+               if w <= c:
+                   dp[i][c] = max(dp[i][c], dp[i - 1][c - w] + v)
+       return dp[n][capacity]
+
+   def knapsack_fptas(weights, values, capacity, epsilon):
+       n = len(values)
+       K = epsilon * max(values) / n
+       scaled = [int(v / K) for v in values]
+       max_scaled = sum(scaled)
+       INF = float("inf")
+       dp = [[INF] * (max_scaled + 1) for _ in range(n + 1)]
+       dp[0][0] = 0
+       for i in range(1, n + 1):
+           w, sv = weights[i - 1], scaled[i - 1]
+           for v in range(max_scaled + 1):
+               dp[i][v] = dp[i - 1][v]
+               if v >= sv and dp[i - 1][v - sv] + w < dp[i][v]:
+                   dp[i][v] = dp[i - 1][v - sv] + w
+       best_v = max(v for v in range(max_scaled + 1) if dp[n][v] <= capacity)
+       items, v = [], best_v
+       for i in range(n, 0, -1):
+           if dp[i][v] != dp[i - 1][v]:
+               items.append(i - 1)
+               v -= scaled[i - 1]
+       return sum(values[i] for i in items), items
+   ```
+
+   First, confirm the provable guarantee — value achieved is never below (1 - epsilon) times optimal — across a real sweep, and notice what actually moves as epsilon shrinks:
+
+   ```python
+   import random, time
+
+   random.seed(3)
+   n = 60
+   weights = [random.randint(5, 60) for _ in range(n)]
+   values = [random.randint(5, 300) for _ in range(n)]
+   capacity = 700
+
+   opt = knapsack_exact(weights, values, capacity)
+   for eps in (0.9, 0.7, 0.5, 0.3, 0.2, 0.1, 0.05):
+       t0 = time.perf_counter()
+       val, _ = knapsack_fptas(weights, values, capacity, eps)
+       elapsed = time.perf_counter() - t0
+       ratio = val / opt
+       assert ratio >= 1 - eps
+       print(f"eps={eps:<5} ratio={ratio:.4f} time={elapsed:.4f}s")
+   ```
+
+   On this instance, expect ratio to sit almost exactly at 1.0 even at epsilon=0.9 — that's not a bug, it's the difference between a worst-case guarantee and typical behavior: (1 - epsilon) is a floor that holds for every possible input, not a prediction for a random one, and random instances are rarely adversarial to rounding. What you'll see move reliably is time (and, if you print it, the DP table width max_scaled + 1): both should grow roughly linearly as epsilon shrinks, tracking the O(n / epsilon) term directly — that's the real price you pay for tightening the guarantee.
+
+   Now run the experiment that shows why this matters, holding epsilon fixed and varying capacity instead:
+
+   ```python
+   random.seed(1)
+   n = 40
+   weights2 = [random.randint(1, 100) for _ in range(n)]
+   values2 = [random.randint(1, 1000) for _ in range(n)]
+
+   for cap in (500, 2000, 8000, 32000):
+       t0 = time.perf_counter()
+       knapsack_exact(weights2, values2, cap)
+       exact_time = time.perf_counter() - t0
+
+       t0 = time.perf_counter()
+       knapsack_fptas(weights2, values2, cap, 0.05)
+       fptas_time = time.perf_counter() - t0
+       print(f"capacity={cap:<7} exact={exact_time:.4f}s  fptas={fptas_time:.4f}s")
+   ```
+
+   Expect exact_time to grow roughly in proportion to cap (a 64x increase in capacity should cost roughly a 64x increase in time — that's the pseudo-polynomial dependency from Tier 3, made visible), while fptas_time barely moves, because the FPTAS's DP table size never once mentions capacity in its formula — only n and epsilon do. Extrapolate honestly from your own numbers: at a capacity of 10**9, the exact DP would need a table with a billion columns (infeasible on any machine), while the FPTAS's cost is identical to what you just measured. This is the concrete, citable technique from Oscar Ibarra and Chul Kim's 1975 paper "Fast Approximation Algorithms for the Knapsack and Sum of Subset Problems" (Journal of the ACM) — the original FPTAS for knapsack — and it's covered in depth in Vijay Vazirani's textbook Approximation Algorithms (2001), Chapter 8, if you want the full accuracy proof this lesson only sketched.
+
+3. **Watch a heuristic get stuck — then connect it to why your neural net's optimizer gives up the same guarantee.** k-means clustering (partition points into k groups minimizing total squared distance to each group's centroid) is NP-hard to solve exactly — proven by Daniel Aloise, Amit Deshpande, Pierre Hansen, and Preyas Popat in "NP-hardness of Euclidean sum-of-squares clustering" (Machine Learning, 2009), and later shown to hold even for k=2 in the plane by Meena Mahajan, Prajakta Nimbhorkar, and Kasturi Varadarajan. Lloyd's algorithm — what everyone actually runs — is a heuristic: assign each point to its nearest centroid, recompute centroids as the mean of their assigned points, repeat until stable. Nothing about it guarantees the global optimum; it only guarantees it won't get worse each iteration. Build it from scratch:
+
+   ```python
+   import random
+
+   def squared_dist(a, b):
+       return sum((x - y) ** 2 for x, y in zip(a, b))
+
+   def lloyds_kmeans(points, k, seed):
+       rng = random.Random(seed)
+       centroids = rng.sample(points, k)
+       for _ in range(100):
+           clusters = [[] for _ in range(k)]
+           for p in points:
+               idx = min(range(k), key=lambda i: squared_dist(p, centroids[i]))
+               clusters[idx].append(p)
+           new_centroids = [
+               tuple(sum(p[d] for p in c) / len(c) for d in range(len(c[0]))) if c else centroids[i]
+               for i, c in enumerate(clusters)
+           ]
+           if new_centroids == centroids:
+               break
+           centroids = new_centroids
+       inertia = sum(
+           min(squared_dist(p, c) for c in centroids) for p in points
+       )
+       return inertia
+   ```
+
+   Now brute-force the true optimum on a small point set — feasible only because the set is tiny, which is exactly the NP-hardness talking:
+
+   ```python
+   import itertools
+
+   def brute_force_optimal_inertia(points, k):
+       best = None
+       for labels in itertools.product(range(k), repeat=len(points)):
+           if len(set(labels)) < k:
+               continue
+           clusters = [[] for _ in range(k)]
+           for p, lab in zip(points, labels):
+               clusters[lab].append(p)
+           inertia = 0
+           for c in clusters:
+               centroid = tuple(sum(p[d] for p in c) / len(c) for d in range(len(c[0])))
+               inertia += sum(squared_dist(p, centroid) for p in c)
+           if best is None or inertia < best:
+               best = inertia
+       return best
+
+   points = [
+       (0, 0), (0.5, 0.2), (0.3, -0.3),
+       (10, 0), (10.4, 0.3), (9.7, -0.2),
+       (5, 8), (5.3, 8.4), (4.8, 7.6),
+   ]
+   opt = brute_force_optimal_inertia(points, 3)
+   results = [lloyds_kmeans(points, 3, seed) for seed in range(30)]
+   print("optimal:", opt)
+   print("best/worst/mean over 30 random inits:", min(results), max(results), sum(results) / len(results))
+   print("runs strictly above optimal:", sum(1 for r in results if r > opt * 1.0001))
+   ```
+
+   On this exact point set, expect the optimal inertia to sit around 1.07, most of the 30 random-init runs to find it, and a real minority (in one run, 4 of 30) to land on a local optimum over 100x worse — some initializations put two starting centroids inside the same tight cluster and never recover. This is precisely why scikit-learn's KMeans doesn't run Lloyd's once: read sklearn/cluster/_kmeans.py in the scikit-learn/scikit-learn repo and find the n_init parameter — it runs Lloyd's from several random (or k-means++-seeded) starts and keeps the best, which is a restart heuristic on top of a heuristic, not a proof of optimality, precisely because none exists in general.
+
+   Now the connection this whole tier has been building toward: Avrim Blum and Ronald Rivest proved, in "Training a 3-node neural network is NP-complete" (Neural Networks, 1992), that finding weights for even a tiny two-layer network that fit a given labeled dataset with zero error is NP-complete — by reduction from the NP-complete Set-Splitting problem. That's the exact certificate shape from Tier 3's definition of NP applied to weights: checking whether a candidate weight vector fits the data is cheap, but finding one that provably fits (or provably minimizes error) is, in the worst case, as hard as SAT. This isn't a closed historical question either — complexity theorists including Vincent Froese, Christoph Hertrich, and Rolf Niedermeier have continued proving NP-hardness results for training networks with the ReLU activations actually used in modern deep learning (Journal of Artificial Intelligence Research, 2022). That is the real, citable reason torch.optim.SGD and torch.optim.Adam never claim to find the best weights — only some weights that a local-search heuristic converged to. Every "why didn't my model train better" debugging session you'll ever have is, underneath, the same local-optimum problem you just watched Lloyd's algorithm fall into above, just on a far higher-dimensional, non-convex surface.
+
+4. **Read a real, shipped approximation-algorithms library, then apply the whole framework to a problem of your own.** Install NetworkX (pip install networkx) and open its actual approximation module in the networkx/networkx repo: networkx/algorithms/approximation/vertex_cover.py and networkx/algorithms/approximation/traveling_salesman.py. Read min_weighted_vertex_cover's docstring — it documents the exact same w(S) <= 2 times w(S*) guarantee your Tier 3 greedy algorithm had, but implements a different algorithm to get there (the "local-ratio" method of Reuven Bar-Yehuda and Shimon Even, 1985), which is worth noticing: multiple, structurally different algorithms can carry the identical provable bound. Confirm the bound holds on real graphs, reusing your Tier 3 brute-force checker:
+
+   ```python
+   import networkx as nx
+   import networkx.algorithms.approximation as approx
+   from itertools import combinations
+   import random
+
+   def min_vertex_cover_size(edges, n_vertices):
+       for k in range(n_vertices + 1):
+           for cover in combinations(range(n_vertices), k):
+               cover_set = set(cover)
+               if all(u in cover_set or v in cover_set for u, v in edges):
+                   return k
+       return n_vertices
+
+   random.seed(5)
+   for _ in range(30):
+       n = random.randint(4, 9)
+       edges = [(u, v) for u, v in combinations(range(n), 2) if random.random() < 0.4]
+       if not edges:
+           continue
+       G = nx.Graph()
+       G.add_nodes_from(range(n))
+       G.add_edges_from(edges)
+       cover = approx.min_weighted_vertex_cover(G)
+       opt = min_vertex_cover_size(edges, n)
+       assert len(cover) <= 2 * opt
+   print("all 30 graphs respected the 2x bound")
+   ```
+
+   Then read christofides's docstring in the same file — a 3/2-approximation for metric TSP (Nicos Christofides, 1976) — and notice it cites its source paper directly in the code, exactly like your own lessons have been doing. Between this module and Tier 3, you now have three concrete categories to sort any new optimization problem into: exact and tractable (a polynomial algorithm exists — Tier 2's territory), NP-hard with a provable approximation bound (Vertex Cover, metric TSP, Knapsack's FPTAS above — you get to choose your accuracy/speed trade-off with a number you can defend), and NP-hard with no known bound, heuristics only (exact k-means, exact neural network training — you get an answer, with no defensible claim about how far from optimal it is). Pick one real optimization problem you've actually faced — scheduling shifts, routing deliveries, picking a subset of features for a model, tuning hyperparameters — and write four or five sentences: which of the three categories does it fall into, which specific named algorithm or library function would you reach for (cite one — networkx.algorithms.approximation, a knapsack FPTAS, scikit-learn's KMeans with n_init, or an unguaranteed heuristic like simulated annealing), and what would you actually be able to promise someone about the answer's quality versus what you'd have to admit you can't promise.
+
+## Check on learning
+
+- Walk through, without notes, why the same-clause triangle in the 3-SAT to Independent Set construction forces at most one literal per clause into any independent set, and why the cross-clause conflict edges are what prevent the extracted assignment from ever setting a variable to both true and false.
+- A colleague claims their FPTAS ran at epsilon = 0.5 and returned exactly the optimal value, so "the (1-epsilon) bound must be wrong, it should've allowed a 50% loss." Explain why this observation is fully consistent with the theorem, using the words "worst-case" and "typical-case" explicitly.
+- Explain-back: connect the NP-hardness of exact k-means clustering to the NP-hardness of exact neural network training — name the shared shape (cheap-to-verify, worst-case-hard-to-find) both results rely on, and explain why that shared shape is the actual reason every optimizer used in machine learning is a heuristic rather than an exact solver.

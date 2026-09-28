@@ -1,0 +1,51 @@
+[
+  {
+    "id": "cs-foundations/tier-4/formal-complexity-and-approximation/q1",
+    "type": "multiple_choice",
+    "prompt": "In the 3-SAT to Independent Set reduction, why does connecting all three literal-nodes of a clause into a triangle guarantee that at most one of them can be chosen in any independent set?",
+    "choices": [
+      "Because an independent set can never include two nodes that are adjacent to each other, and a triangle makes every pair of nodes within the clause adjacent, so at most one node per clause survives",
+      "Because triangles have exactly 3 nodes, which happens to match the number of literals in a 3-CNF clause by definition",
+      "Because every triangle graph is 3-colorable, and each color class corresponds to one satisfying assignment",
+      "Because the largest independent set of a triangle is always empty, forcing the algorithm to skip that clause entirely"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "cs-foundations/tier-4/formal-complexity-and-approximation/q2",
+    "type": "multiple_choice",
+    "prompt": "What makes the knapsack FPTAS from this lesson a genuinely polynomial-time approximation scheme rather than just another pseudo-polynomial algorithm like Tier 3's weight-indexed DP?",
+    "choices": [
+      "Its DP table size depends on the raw magnitude of the capacity W, just scaled down by epsilon",
+      "Its DP table size depends only on the number of items n and 1/epsilon, never on the raw magnitude of the capacity or the original values",
+      "It avoids dynamic programming entirely and uses a greedy rule instead",
+      "It only works when the capacity is a power of two, which keeps the table small"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cs-foundations/tier-4/formal-complexity-and-approximation/q3",
+    "type": "short_answer",
+    "prompt": "Name the two researchers who proved, in a 1992 Neural Networks journal paper, that training a 3-node neural network to zero error on an arbitrary dataset is NP-complete.",
+    "acceptedAnswers": [
+      "Blum and Rivest",
+      "Blum & Rivest",
+      "Avrim Blum and Ronald Rivest"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-4/formal-complexity-and-approximation/q4",
+    "type": "short_answer",
+    "prompt": "If an FPTAS is run with epsilon = 0.05, what is the guaranteed minimum fraction of the true optimal value it is proven to achieve, expressed as a decimal?",
+    "acceptedAnswers": [
+      "0.95",
+      "95%",
+      "0.95 (95%)"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-4/formal-complexity-and-approximation/q5",
+    "type": "explain_back",
+    "prompt": "Explain why Lloyd's algorithm for k-means clustering is called a heuristic rather than an exact algorithm, tying this directly to the NP-hardness of exact Euclidean sum-of-squares clustering, and then explain why the same underlying shape of argument (cheap to verify a candidate solution, provably hard in the worst case to find the guaranteed-best one) is exactly why gradient-descent-based neural network training carries no global-optimality guarantee either."
+  }
+]

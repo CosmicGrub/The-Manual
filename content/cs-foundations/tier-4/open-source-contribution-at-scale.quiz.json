@@ -1,0 +1,51 @@
+[
+  {
+    "id": "cs-foundations/tier-4/open-source-contribution-at-scale/q1",
+    "type": "multiple_choice",
+    "prompt": "Before you've read a single issue, what is the strongest signal that a repo is a good candidate to spend ten-plus hours contributing to?",
+    "choices": [
+      "It has thousands of GitHub stars",
+      "Its last 100 merged PRs show a short median time-to-merge and several distinct external-contributor logins in the past 90 days",
+      "Every open issue is labeled \"good first issue\"",
+      "Its README displays a CI-passing badge"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cs-foundations/tier-4/open-source-contribution-at-scale/q2",
+    "type": "short_answer",
+    "prompt": "What official command-line tool (used throughout this lesson as `<tool> pr list --json ...` and `<tool> pr create`) lets you query and open GitHub pull requests from the terminal?",
+    "acceptedAnswers": [
+      "gh",
+      "GitHub CLI",
+      "the GitHub CLI"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-4/open-source-contribution-at-scale/q3",
+    "type": "multiple_choice",
+    "prompt": "Before you trust a new regression test for a bug fix, what must you verify about it?",
+    "choices": [
+      "That it passes once your fix is applied \u2014 that alone is sufficient",
+      "That it fails against the unfixed code and only passes once your fix is applied, confirming it actually exercises the bug",
+      "That it runs in under one second",
+      "That it uses the exact same assertion style as every other test in the file"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cs-foundations/tier-4/open-source-contribution-at-scale/q4",
+    "type": "short_answer",
+    "prompt": "What git commit flag adds a \"Signed-off-by\" trailer, satisfying a project's Developer Certificate of Origin (DCO) requirement \u2014 the kind of check Helm's project formally adopted?",
+    "acceptedAnswers": [
+      "-s",
+      "--signoff",
+      "-s or --signoff"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-4/open-source-contribution-at-scale/q5",
+    "type": "explain_back",
+    "prompt": "Walk through your own real (or currently in-progress) open-source contribution end to end: how you chose the project using real merge-velocity data rather than star count, how you confirmed the issue was substantive and non-trivial before claiming it, what your regression test actually asserts and why it fails without your fix, and what happened during review \u2014 including anything that didn't go the way you expected."
+  }
+]
