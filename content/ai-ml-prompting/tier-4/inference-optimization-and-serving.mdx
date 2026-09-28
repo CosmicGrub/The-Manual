@@ -1,0 +1,192 @@
+---
+trackId: ai-ml-prompting
+tier: 4
+title: "Inference Optimization & Serving"
+order: 3
+estimatedHours: 12
+slug: inference-optimization-and-serving
+---
+
+## Why decoding is a different optimization problem than training
+
+Training throughput is dominated by matrix-matrix multiplies over huge batches — you're compute-bound, and more FLOPS almost linearly buys you more throughput. Autoregressive inference is a different beast: you generate one token at a time, per sequence, and each step is a matrix-*vector* operation against the full weight matrices. That single fact — decode is memory-bandwidth-bound, not compute-bound — is the thread connecting every technique in this module. Quantization, the KV cache, batching, and the serving frameworks built around them all exist because of it.
+
+## Quantization: fewer bits per weight
+
+A model's weight memory footprint is `num_params x bytes_per_param`. At fp16/bf16 that's 2 bytes/param; int8 is 1 byte; int4 is 0.5 bytes.
+
+For a 7B-parameter model:
+
+| Precision | Footprint | Relative size |
+|---|---|---|
+| fp16 | ~14 GB | 1x |
+| int8 | ~7 GB | 0.5x |
+| int4 | ~3.5 GB | 0.25x |
+
+Because decode is memory-bound, cutting the number of bytes you have to stream from HBM for every token directly cuts latency — this is the mechanism, not a side effect. Halving weight bytes roughly halves the time spent waiting on weight loads per decode step, which is most of decode time at small batch sizes.
+
+The accuracy cost is real but usually small if you use a calibrated post-training quantization (PTQ) method rather than naive round-to-nearest:
+
+- **GPTQ** (Frantar et al., 2022) — layer-by-layer weight rounding that minimizes reconstruction error using a small calibration set. Published results on large OPT/LLaMA models show 4-bit quantization costing on the order of a few tenths of a perplexity point on WikiText2, with roughly 3-4x speedup on memory-bound single-batch decode.
+- **AWQ** (Lin et al., 2023) — instead of quantizing everything uniformly, it identifies the small fraction of "salient" weight channels (the ones activations depend on most) and protects them, quantizing the rest aggressively. Reported results: ~3x decode speedup at 4-bit with under a point of degradation on common-sense QA benchmarks.
+- **LLM.int8()** (Dettmers et al., 2022) — 8-bit with outlier-channel handling to preserve fp16 precision on the small number of activation dimensions with large magnitude. Important nuance: this is primarily a *memory* technique. Because it does mixed-precision dequantization at runtime, it is not automatically faster than fp16 at small batch sizes — sometimes it's slower. Don't assume "quantized" means "faster" without checking the batch-size regime.
+
+The general accuracy pattern: 8-bit weight-only PTQ is close to lossless on most tasks; 4-bit is close to lossless for models above roughly 7B parameters with a good calibration method, but degrades more on smaller models and on tasks needing precise numeric or multi-step reasoning. Int4 without calibration (naive round-to-nearest) can lose several points of accuracy — always use a calibrated method in production.
+
+Loading a 4-bit model with `bitsandbytes`:
+
+```python
+from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+import torch
+
+model_id = "meta-llama/Llama-2-7b-hf"
+
+bnb_config = BitsAndBytesConfig(
+    load_in_4bit=True,
+    bnb_4bit_quant_type="nf4",              # normal-float 4-bit, tuned for weight distributions
+    bnb_4bit_compute_dtype=torch.bfloat16,  # matmuls still happen in bf16
+    bnb_4bit_use_double_quant=True,         # quantize the quantization constants too
+)
+
+tokenizer = AutoTokenizer.from_pretrained(model_id)
+model = AutoModelForCausalLM.from_pretrained(
+    model_id, quantization_config=bnb_config, device_map="auto"
+)
+print(f"{model.get_memory_footprint() / 1e9:.1f} GB")  # ~4.0 GB, vs ~13.5 GB at fp16
+```
+
+## The KV cache: what recomputation actually costs
+
+Self-attention at position `t` needs the key and value vectors for every token from `1` to `t`. Without caching, a naive generation loop recomputes the *entire* forward pass — including K/V projections for every prior token — at every single decoding step, because nothing from the last step is retained.
+
+Count the work in "token-forward" units (one token's worth of projection + attention work). Generating token 1 costs 1 unit. Generating token 2 requires reprocessing tokens 1-2, costing 2 units. Generating token `n` costs `n` units. Total work to generate a sequence of length `n`:
+
+```
+sum(t for t in 1..n) = n(n+1)/2  ≈  O(n^2) token-forward units
+```
+
+With a KV cache, each token's K/V is computed exactly once and reused thereafter. Generating token `t` only requires computing the new token's Q/K/V and attending to the cached K/V of the previous `t-1` tokens (an O(t) attention-score computation, but no reprojection of old tokens). Total work:
+
+```
+sum(1 for t in 1..n) = n  ≈  O(n) token-forward-equivalents for the projections,
+                              O(n^2) only for the (cheap, memory-bandwidth-light) score computation
+```
+
+For `n = 1000`: without caching you do roughly 500,500 token-forward-equivalents; with caching, 1,000. That's a ~500x difference in redundant work, and it gets worse the longer your context — this is why KV caching isn't an optimization, it's table stakes for anything beyond toy sequence lengths.
+
+You can see the shape of this directly with `use_cache`:
+
+```python
+import time, torch
+from transformers import AutoModelForCausalLM, AutoTokenizer
+
+model_id = "gpt2"
+tok = AutoTokenizer.from_pretrained(model_id)
+model = AutoModelForCausalLM.from_pretrained(model_id).eval()
+input_ids = tok("The transformer architecture", return_tensors="pt").input_ids
+
+def generate(use_cache, n_new=200):
+    ids, past = input_ids.clone(), None
+    t0 = time.time()
+    for _ in range(n_new):
+        feed = ids if (past is None or not use_cache) else ids[:, -1:]
+        with torch.no_grad():
+            out = model(feed, past_key_values=past, use_cache=use_cache)
+        past = out.past_key_values if use_cache else None
+        next_id = out.logits[:, -1].argmax(-1, keepdim=True)
+        ids = torch.cat([ids, next_id], dim=1)
+    return time.time() - t0
+
+print("with cache:   ", generate(True))
+print("without cache:", generate(False))
+```
+
+Exact timings depend on hardware, but the growth pattern is unmistakable: without the cache, time-per-token grows roughly linearly with position, so total generation time grows quadratically in sequence length; with the cache, time-per-token stays roughly flat.
+
+The cache isn't free, though — it costs memory. Per token, per sequence:
+
+```
+KV cache bytes/token = 2 (K and V) x num_layers x hidden_size x bytes_per_element
+```
+
+For a 7B model (32 layers, hidden size 4096, fp16): `2 x 32 x 4096 x 2 = 524,288 bytes ≈ 512 KB/token`. At a 4K-token context that's ~2 GB *per sequence* — often more than the activations, and it's why serving many concurrent long-context conversations is a memory-capacity problem as much as a compute problem. (Architectures reduce this with grouped-query attention, which shares K/V heads across multiple query heads — an architectural choice, not a serving-time lever, but worth knowing it's why newer models have much smaller per-token KV cost than their layer/hidden-size numbers alone would suggest.)
+
+## Batching: the roofline argument for throughput
+
+Now connect the two: at batch size 1, decode is memory-bound, meaning the GPU's compute units sit mostly idle while it waits for weights to stream in. Concretely, on an A100 (≈2 TB/s HBM bandwidth, ≈312 TFLOPS bf16 dense compute), for a 7B model:
+
+- **Memory time**: loading ~14 GB of fp16 weights takes `14 / 2000 ≈ 7 ms`.
+- **Compute time**: a forward pass costs roughly `2 x num_params` FLOPs (a standard approximation), so `2 x 7e9 = 14 GFLOPs`, taking `14e9 / 312e12 ≈ 0.045 ms`.
+
+Compute finishes in under 1% of the time spent waiting on memory. The GPU is idle almost the entire step. Here's the key insight: the weights get loaded from HBM into on-chip memory *once per step regardless of batch size* — every sequence in the batch reuses that same loaded weight tile. So increasing batch size grows compute time linearly while memory time stays nearly flat, converting previously-wasted compute cycles into useful work:
+
+- Batch 32: compute time ≈ `32 x 0.045 ≈ 1.4 ms`, still well under the 7 ms memory time. You get ~32x the tokens generated per step for roughly the same wall-clock time per step.
+- Crossover point: compute time equals memory time around `7 / 0.045 ≈ 155`. Past that batch size, you become compute-bound and further batching stops being "nearly free."
+
+In practice the crossover happens sooner than this simplified math suggests, because KV-cache reads also add memory traffic that scales with `batch x context_length`, plus scheduling and attention-kernel overhead — but the direction is exactly right, and it's why published vLLM/TGI throughput curves keep climbing steeply through the tens of concurrent requests before bending.
+
+This produces a real latency/throughput tradeoff, not a free lunch: aggregate throughput (tokens/sec across all requests) keeps rising with batch size, but *per-request* latency for each token generated rises too, since each step now does more total work and a slower request can block faster ones. Production systems track this with two separate metrics — **time-to-first-token (TTFT)**, dominated by prefill (which is compute-bound, since it processes the whole prompt as one big matrix-matrix multiply), and **time-per-output-token / inter-token latency (TPOT/ITL)**, dominated by memory-bound decode. Tuning a server means picking a target point on the throughput/latency curve, not maximizing either metric alone.
+
+Naive batching (wait for a fixed-size batch, run it to completion, only then accept new requests) wastes GPU time on padding short sequences to the batch's longest one, and stalls new requests behind whichever sequence in the batch takes longest to finish. **Continuous batching** (also called dynamic/in-flight batching) fixes this: as soon as any sequence in the batch finishes, a new request is spliced into that batch slot on the very next decode step, keeping the GPU consistently near-saturated instead of cycling between full-batch and idle.
+
+## vLLM and TGI: why not hand-roll it
+
+A loop that calls `model.generate()` per incoming request has none of this: it either serves requests one at a time (leaving nearly all that idle compute on the table) or does static batching (padding waste, head-of-line blocking). Two production frameworks solve this properly:
+
+**vLLM**'s core contribution is **PagedAttention**: instead of allocating one large contiguous KV-cache buffer per sequence (which fragments memory badly, since you don't know final sequence length up front and must either over-allocate or reallocate), it manages the KV cache in fixed-size blocks, addressed indirectly like OS virtual memory pages. This eliminates fragmentation, lets many sequences share memory for common prefixes (prefix caching — huge for repeated system prompts), and pushes achievable batch sizes much higher for the same GPU memory. vLLM also ships continuous batching and an OpenAI-compatible API server out of the box.
+
+```bash
+pip install vllm
+python -m vllm.entrypoints.openai.api_server \
+    --model meta-llama/Llama-2-7b-chat-hf \
+    --quantization awq \
+    --max-num-seqs 256 \
+    --gpu-memory-utilization 0.90
+```
+
+**TGI** (Hugging Face's Text Generation Inference) targets the same problem — continuous batching, tensor parallelism, quantized weight support (GPTQ/AWQ/bitsandbytes) — with a more traditional contiguous KV-cache layout, tight integration with the HF model hub/safetensors ecosystem, and built-in Prometheus metrics for production observability.
+
+```bash
+docker run --gpus all --shm-size 1g -p 8080:80 \
+  -v $PWD/data:/data \
+  ghcr.io/huggingface/text-generation-inference:latest \
+  --model-id meta-llama/Llama-2-7b-chat-hf \
+  --quantize awq \
+  --max-batch-total-tokens 16384
+```
+
+You reach for one of these instead of hand-rolling because request scheduling, paged/fragmentation-free KV-cache memory management, and continuous batching are exactly the hard, easy-to-get-wrong parts of serving — the same category of problem as writing your own database instead of using Postgres.
+
+## Distillation: a smaller model, not a smaller number
+
+Quantization keeps the architecture fixed and shrinks the numeric precision of its weights. **Distillation** goes further: it trains a genuinely smaller architecture (fewer layers, smaller hidden size) — a "student" — to mimic a larger "teacher" model's *output distribution*, not just its hard labels. The insight (Hinton et al., 2015) is that a teacher's full softmax over all classes carries far more signal than the single correct label — the relative probabilities it assigns to *wrong* answers ("dark knowledge") tell the student a lot about the decision surface.
+
+**DistilBERT** is the canonical concrete example: 40% fewer parameters than BERT-base, ~60% faster inference, while retaining about 97% of BERT's performance on GLUE benchmark tasks — achieved by training a 6-layer student against the frozen 12-layer BERT teacher's soft output distribution plus the standard masked-LM loss.
+
+```python
+import torch
+import torch.nn.functional as F
+
+def distillation_loss(student_logits, teacher_logits, labels, T=2.0, alpha=0.5):
+    # Soft targets: match the teacher's (temperature-softened) output distribution
+    soft_teacher = F.softmax(teacher_logits / T, dim=-1)
+    soft_student = F.log_softmax(student_logits / T, dim=-1)
+    kd_loss = F.kl_div(soft_student, soft_teacher, reduction="batchmean") * (T ** 2)
+
+    # Hard targets: standard supervised loss against ground truth
+    ce_loss = F.cross_entropy(student_logits, labels)
+
+    return alpha * kd_loss + (1 - alpha) * ce_loss
+```
+
+The `T ** 2` correction rescales gradients back to the same magnitude as the hard-label loss (softening with temperature `T` shrinks gradients by roughly `1/T^2`). In practice, distillation and quantization compose: distill down to a smaller architecture, then quantize that student's weights — the two techniques attack different axes (parameter count vs. bits per parameter) and stack multiplicatively.
+
+## Exercise
+
+You're deploying a 13B-parameter chat model on a single 24 GB GPU. Model config: `hidden_size = 5120`, `num_layers = 40`. Average conversation context is 3,000 tokens, and you need to serve 16 concurrent sequences.
+
+1. Compute the fp16 weight footprint. Does it fit in 24 GB on its own?
+2. Compute the fp16 KV cache footprint per sequence at 3,000 tokens, then for all 16 concurrent sequences.
+3. Given both numbers, which lever — quantizing the weights, quantizing the KV cache, cutting batch size, or capping context length — buys back the most headroom, and why? Is one lever alone enough, or do you need to combine them?
+
+**Hint:** use `bytes = num_params x bytes_per_param` for weights, and `bytes/token = 2 x num_layers x hidden_size x bytes_per_element` for the KV cache, then multiply by sequence count. Compare the two totals before reaching for a fix — one of them is probably the bigger problem here.

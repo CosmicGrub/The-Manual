@@ -1,0 +1,249 @@
+---
+trackId: ai-ml-prompting
+tier: 4
+title: "Advanced Prompt Engineering & Agentic Systems"
+order: 6
+estimatedHours: 12
+slug: advanced-prompt-engineering-and-agentic-systems
+---
+
+## From single-agent ReAct to a system of agents
+
+In Tier 3 you built a single ReAct loop: one model, one scratchpad, alternating `Thought → Action → Observation` until it emits a final answer. That pattern breaks down once a task needs more context than one model call can reasonably hold, or needs genuinely different skills (retrieval, code execution, critique) that benefit from separate system prompts, separate tool access, and separate failure isolation. This module is about the engineering that sits on top of ReAct once you're no longer building a toy — orchestrating several agents, making tool calls survive real-world flakiness, working within context limits on large inputs, and choosing a planning strategy (ReAct, Reflexion, or Tree-of-Thought) that matches the shape of the problem instead of defaulting to ReAct everywhere.
+
+## Multi-agent orchestration: a concrete supervisor pattern
+
+The two dominant topologies in production are **supervisor/worker** (one orchestrator agent routes subtasks to specialist agents and assembles the result) and **pipeline/handoff** (agent A's output is agent B's input, in a fixed sequence, no central router). Supervisor is more flexible and more expensive; pipeline is cheaper and easier to debug. Most production systems are pipelines with a thin supervisor bolted on for retries and branching.
+
+Here's a concrete four-agent research pipeline: a **Planner** breaks the request into subtasks, a **Researcher** executes tool calls (search, fetch) per subtask, a **Critic** checks the draft against the original request for gaps, and a **Writer** produces the final document. Each agent is just a differently-configured call to the same model — the separation is in system prompt, tool access, and what's in context, not in the underlying model.
+
+```python
+from anthropic import Anthropic
+from dataclasses import dataclass, field
+
+client = Anthropic()
+MODEL = "claude-sonnet-4-5"
+
+@dataclass
+class AgentSpec:
+    name: str
+    system: str
+    tools: list = field(default_factory=list)
+
+planner = AgentSpec(
+    name="planner",
+    system="Break the user's request into 2-4 concrete, independently "
+           "researchable subtasks. Output a numbered list only.",
+)
+researcher = AgentSpec(
+    name="researcher",
+    system="You research one subtask using the search_web tool. "
+           "Cite sources inline as [n]. Be terse.",
+    tools=[SEARCH_WEB_TOOL_SCHEMA],
+)
+critic = AgentSpec(
+    name="critic",
+    system="Compare the draft against the original request. List concrete "
+           "gaps or unsupported claims. If none, output exactly: APPROVED",
+)
+writer = AgentSpec(
+    name="writer",
+    system="Merge the research notes into a coherent report with a "
+           "References section. No new claims not present in the notes.",
+)
+
+def run_agent(spec: AgentSpec, user_content: str, max_tool_turns=4) -> str:
+    messages = [{"role": "user", "content": user_content}]
+    for _ in range(max_tool_turns):
+        resp = client.messages.create(
+            model=MODEL, max_tokens=2000,
+            system=spec.system, tools=spec.tools or None,
+            messages=messages,
+        )
+        if resp.stop_reason != "tool_use":
+            return "".join(b.text for b in resp.content if b.type == "text")
+        messages.append({"role": "assistant", "content": resp.content})
+        tool_results = [execute_tool(b) for b in resp.content if b.type == "tool_use"]
+        messages.append({"role": "user", "content": tool_results})
+    raise RuntimeError(f"{spec.name} exceeded tool-turn budget")
+
+def orchestrate(request: str) -> str:
+    subtasks = run_agent(planner, request).splitlines()
+    notes = [run_agent(researcher, f"Subtask: {t}\nOriginal request: {request}")
+             for t in subtasks if t.strip()]
+    draft = run_agent(writer, f"Request: {request}\n\nNotes:\n" + "\n---\n".join(notes))
+
+    for attempt in range(2):  # bounded revision loop, not infinite
+        verdict = run_agent(critic, f"Request: {request}\n\nDraft:\n{draft}")
+        if verdict.strip() == "APPROVED":
+            return draft
+        draft = run_agent(writer, f"Request: {request}\n\nNotes:\n{notes}\n\n"
+                                   f"Revise for these gaps:\n{verdict}")
+    return draft  # ship best effort rather than loop forever
+```
+
+Three design decisions here matter more than the code itself. First, **each agent gets only the context it needs** — the researcher never sees the critic's feedback, the critic never sees raw search results. This isn't just tidiness: irrelevant context measurably degrades instruction-following, and it keeps each agent's prompt cacheable and cheap. Second, **the revision loop is bounded** (`range(2)`), not `while verdict != "APPROVED"` — an unbounded critique loop is the most common cause of runaway token spend in multi-agent systems. Third, there's no shared mutable state between agents beyond what's explicitly passed — each `run_agent` call is stateless from the model's point of view, which makes the system debuggable: you can replay any single agent's call in isolation with the exact input it received. Evaluate this system the same way you evaluated single-agent pipelines in Tier 2 — per-agent unit evals (did the planner produce well-scoped subtasks?) plus end-to-end outcome evals — not vibes.
+
+## Tool-use reliability patterns
+
+A tool call fails in three distinct ways, and each needs a different fix: the call itself errors (network, auth, rate limit), the call succeeds but returns something the model can't parse (malformed JSON, truncated output, an unexpected schema version), or the call succeeds and returns a plausible-looking but wrong result (stale cache, wrong record matched). Only the first two are mechanically detectable; the third needs a verification step.
+
+```python
+import time
+from pydantic import BaseModel, ValidationError
+
+class WeatherResult(BaseModel):
+    city: str
+    temp_c: float
+    conditions: str
+
+def call_tool_with_repair(tool_fn, tool_input: dict, schema: type[BaseModel],
+                           max_retries=3):
+    last_error = None
+    for attempt in range(max_retries):
+        try:
+            raw = tool_fn(**tool_input)              # network/exec failure -> exception
+        except (TimeoutError, ConnectionError) as e:
+            last_error = str(e)
+            time.sleep(2 ** attempt)                  # exponential backoff
+            continue
+        try:
+            return schema.model_validate(raw)          # schema failure -> ValidationError
+        except ValidationError as e:
+            last_error = f"Tool returned data violating schema: {e}"
+            break  # retrying identically won't fix a schema mismatch, escalate instead
+    return {"is_error": True, "content": last_error}
+```
+
+Retries with backoff fix transient failures. They do nothing for a malformed response — retrying the same request usually returns the same bad response. For that case, the right move is to **feed the error back to the model as a tool result with `is_error: true`** and let it decide the next action (retry with different arguments, try an alternative tool, or ask the user for clarification) rather than looping mechanically:
+
+```python
+messages.append({"role": "user", "content": [{
+    "type": "tool_result",
+    "tool_use_id": tool_use_block.id,
+    "content": last_error,
+    "is_error": True,
+}]})
+```
+
+This is the single highest-leverage reliability pattern: the model, seeing the actual error text, often self-corrects (fixes a malformed date, switches units, tries a narrower search query) in ways a fixed retry policy can't. Add a **circuit breaker** on top — after N consecutive failures of the *same* tool in one session, stop offering that tool and tell the model it's unavailable, rather than letting it burn its tool-turn budget hammering a dead endpoint. For tools with side effects (sending an email, writing a database row), attach an **idempotency key** derived from the call's arguments so a retry after a timeout can't double-execute — the tool endpoint itself, not the agent, should reject a duplicate key.
+
+## Long-context strategies and prompt compression
+
+"Just use a bigger context window" doesn't solve cost (you pay per token) or quality (models reliably attend worse to the middle of very long contexts — the "lost in the middle" effect). Three techniques handle most real cases.
+
+**Map-reduce summarization** for inputs that don't fit at all: split into chunks, summarize each independently, then summarize the summaries.
+
+```python
+def map_reduce_summarize(document: str, chunk_size=6000, overlap=300) -> str:
+    chunks, i = [], 0
+    while i < len(document):
+        chunks.append(document[i:i + chunk_size])
+        i += chunk_size - overlap          # overlap prevents losing facts at boundaries
+
+    partials = [
+        run_agent(AgentSpec(name="summarizer",
+                             system="Extract every factual claim, number, and "
+                                    "named entity. Bullet points only, no prose."),
+                   chunk)
+        for chunk in chunks
+    ]
+    return run_agent(
+        AgentSpec(name="reducer",
+                   system="Merge these bullet summaries into one deduplicated "
+                          "summary, preserving every distinct fact."),
+        "\n---\n".join(partials),
+    )
+```
+
+This turns an N-token document into roughly `N / chunk_size` parallel calls plus one reduce call — parallelizable, and each chunk call is cheap and cacheable. Use extractive bullets, not abstractive prose, for the map step: prose summaries silently drop numbers and names that bullets tend to preserve.
+
+**Prompt caching** for the opposite problem: not "the input is too big to summarize," but "I'm sending the same large context (a codebase, a policy document, a tool schema library) on every call." Mark the static portion with `cache_control` so the provider caches the KV-state and you pay full price once, then a fraction on subsequent calls within the cache TTL:
+
+```python
+messages = [{
+    "role": "user",
+    "content": [
+        {"type": "text", "text": large_static_document, "cache_control": {"type": "ephemeral"}},
+        {"type": "text", "text": user_question},
+    ],
+}]
+```
+
+This is a cost optimization, not a context-limit workaround — the document still has to fit in the window once. Combine it with map-reduce when it doesn't.
+
+**Structured scratchpad memory** for long-running agent loops (ReAct-style, many turns): instead of keeping the full transcript in context, maintain an explicit running-state object (`facts_confirmed`, `open_questions`, `actions_taken`) that gets rewritten each turn instead of appended to, and only replay the last 2-3 raw turns verbatim. This bounds context growth in a long agent session to roughly constant size instead of linear in turn count, and it's a cheap, model-agnostic complement to prompt caching.
+
+Also apply the retrieval discipline from your RAG work: before stuffing all retrieved chunks into context, **deduplicate semantically** (drop chunks with cosine similarity above ~0.92 to one already selected) — near-duplicate passages waste tokens without adding information and dilute attention on the chunks that matter.
+
+## Structured planning patterns: ReAct, Reflexion, and Tree-of-Thought
+
+Quick recap since Tier 3 covered this in depth: **ReAct** interleaves reasoning and acting in one forward pass — `Thought → Action → Observation`, repeat, no backtracking, no memory of past attempts at the same problem. It's good when actions are cheap to try and mistakes are cheap to observe and correct in the next step.
+
+**Reflexion** adds a memory of *failed attempts* across episodes. After an attempt fails (a test suite fails, an eval fails, the final answer is wrong), a separate self-reflection step writes a short natural-language lesson ("I assumed the input was pre-sorted; it wasn't") into an episodic memory buffer, and the next attempt starts with that lesson in context. It's ReAct plus a retry loop with explicit, persistent self-critique — not a different search structure, a different *memory* structure.
+
+```python
+def reflexion_loop(task: str, verify_fn, max_attempts=3) -> str:
+    reflections = []
+    for attempt in range(max_attempts):
+        context = task
+        if reflections:
+            context += "\n\nLessons from previous failed attempts:\n" + "\n".join(reflections)
+        solution = run_agent(AgentSpec(name="actor", system=ACTOR_PROMPT), context)
+
+        ok, feedback = verify_fn(solution)          # e.g. run unit tests
+        if ok:
+            return solution
+
+        reflection = run_agent(
+            AgentSpec(name="self_reflector",
+                       system="Your previous attempt failed. Given the task, the "
+                              "attempt, and the failure feedback, write ONE "
+                              "concise, generalizable lesson for next time."),
+            f"Task: {task}\nAttempt: {solution}\nFailure: {feedback}",
+        )
+        reflections.append(reflection)
+    return solution  # best-effort last attempt
+```
+
+For a code-generation agent, this is the difference between an agent that fails the same test three times in a row (plain retry) and one whose second attempt explicitly avoids the specific mistake the first attempt made.
+
+**Tree-of-Thought (ToT)** changes the search structure itself: instead of one linear chain of thoughts, generate several candidate next-steps at each point, score them with an evaluator, keep the best few, and expand those — classic BFS/DFS over a tree of partial solutions, with backtracking when a branch dead-ends.
+
+```python
+def tree_of_thought(problem: str, expand_fn, evaluate_fn, beam_width=3, depth=4):
+    beam = [""]  # each entry is a partial-solution string
+    for _ in range(depth):
+        candidates = []
+        for partial in beam:
+            candidates += expand_fn(problem, partial, n=beam_width)  # propose next steps
+        scored = [(evaluate_fn(problem, c), c) for c in candidates]
+        scored.sort(key=lambda x: x[0], reverse=True)
+        beam = [c for _, c in scored[:beam_width]]   # prune to best branches
+    return beam[0]
+```
+
+Use ToT when a task has a **combinatorial branching structure and a cheap, reliable way to score partial progress** — puzzle-like planning, multi-step math where intermediate correctness is checkable, agentic task decomposition where several valid orderings exist. It costs roughly `beam_width × depth` model calls versus ReAct's `depth` calls, so it's only worth it when linear ReAct genuinely gets stuck in local dead-ends that backtracking would escape — not as a default upgrade.
+
+| | ReAct | Reflexion | Tree-of-Thought |
+|---|---|---|---|
+| Structure | linear chain | linear chain, repeated across episodes | branching tree, pruned each level |
+| Memory | current episode only | cross-episode lessons | none across episodes (within-episode only) |
+| Backtracking | no | no (starts over with a lesson) | yes, explicit |
+| Cost vs. ReAct | baseline | ~N× for N attempts | ~beam_width× per depth level |
+| Best for | cheap, correctable single-pass actions | tasks with a hard verifier (tests, evals) and repeatable failure modes | combinatorial planning with a scorable intermediate state |
+
+These aren't mutually exclusive — a production agent commonly runs ReAct at the leaf-action level, wrapped in a Reflexion outer loop for retries, with ToT reserved for the specific planning step that has real branching.
+
+## Exercise
+
+Build a two-agent pipeline: a **SQL-writer** agent that turns a natural-language question plus a table schema into a SQL query (tool: `validate_sql(query, schema) -> {valid: bool, error: str|None}`, which you can stub to check basic syntax and that referenced columns exist), and a **reviewer** agent that checks the query against the original question for correctness issues the validator can't catch (wrong join direction, off-by-one date range, missing `GROUP BY`). Wire in the tool-repair pattern from this module so a `validate_sql` failure gets fed back to the writer as an `is_error` tool result instead of crashing the pipeline, bounded to 3 repair attempts. Add a Reflexion-style memory so if the same query fails validation twice with related errors, the second retry includes an explicit lesson from the first failure.
+
+Hint: your `verify_fn` for the Reflexion wrapper should call `validate_sql` — treat validation failure exactly like a failed test suite.
+
+## Key takeaways
+
+- Multi-agent systems earn their complexity when subtasks need genuinely different context or tools — give each agent the minimum context it needs, and bound every revision loop.
+- A failed tool call needs to be diagnosed (transient vs. schema vs. silently-wrong) before you pick a fix; feeding the raw error back to the model as `is_error` content beats a fixed retry policy for anything non-transient.
+- Long-context problems split into "doesn't fit" (map-reduce), "fits but is expensive to resend" (prompt caching), and "grows unboundedly over a session" (structured scratchpad memory) — they call for different fixes, not one universal trick.
+- ReAct, Reflexion, and ToT differ in memory and search structure, not raw capability — pick based on whether you have a hard verifier (Reflexion) or a genuinely branching, scorable search space (ToT), and default to plain ReAct otherwise.

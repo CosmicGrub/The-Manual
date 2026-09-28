@@ -1,0 +1,323 @@
+---
+trackId: ai-ml-prompting
+tier: 4
+title: "Lightweight MLOps"
+order: 4
+estimatedHours: 12
+slug: lightweight-mlops
+---
+
+## Setup: what "lightweight" means here
+
+You don't need a platform team or a feature store to run ML in production responsibly. You need four things wired together: every training run is reproducible and comparable, every dataset and model artifact has a version you can point to, every pull request that touches the pipeline gets checked against a quality bar before it merges, and production is watched for the moment reality stops matching your training distribution. This module builds all four with tools a single engineer or small team can run: MLflow, DVC, GitHub Actions, and plain statistics. No Kubeflow, no Airflow, no managed feature platform — those solve problems you don't have yet.
+
+Running example throughout: a LoRA-fine-tuned classifier that routes support tickets to the right team, trained from a base open-weight model.
+
+## 1. Experiment tracking: MLflow, for real
+
+Untracked training runs are why "which checkpoint was the 0.91-accuracy one?" is a question teams ask in Slack instead of a database. MLflow gives you a run log with params, metrics, and artifacts, queryable later.
+
+```python
+# train.py
+import mlflow
+from dataclasses import dataclass
+
+@dataclass
+class RunConfig:
+    lora_rank: int = 16
+    lora_alpha: int = 32
+    learning_rate: float = 2e-4
+    epochs: int = 3
+    base_model: str = "meta-llama/Llama-3.1-8B"
+
+def train_and_log(cfg: RunConfig, train_one_epoch):
+    mlflow.set_tracking_uri("http://localhost:5000")
+    mlflow.set_experiment("support-ticket-router-lora")
+
+    with mlflow.start_run(run_name=f"rank{cfg.lora_rank}-lr{cfg.learning_rate}"):
+        mlflow.log_params({
+            "lora_rank": cfg.lora_rank,
+            "lora_alpha": cfg.lora_alpha,
+            "learning_rate": cfg.learning_rate,
+            "epochs": cfg.epochs,
+            "base_model": cfg.base_model,
+        })
+
+        for epoch in range(cfg.epochs):
+            train_loss, eval_loss, eval_acc = train_one_epoch(cfg, epoch)
+            mlflow.log_metrics(
+                {"train_loss": train_loss, "eval_loss": eval_loss, "eval_accuracy": eval_acc},
+                step=epoch,
+            )
+
+        mlflow.log_artifact("adapter/adapter_config.json")
+        mlflow.log_artifact("eval/sample_generations.jsonl")
+        if eval_acc >= 0.91:
+            mlflow.set_tag("candidate_for_registry", "true")
+
+        return mlflow.active_run().info.run_id
+```
+
+Each `start_run()` block is one row in a database you can query. Sweeping `lora_rank` over `{8, 16, 32}` and `learning_rate` over `{1e-4, 2e-4, 5e-4}` gives nine runs; pull the leaderboard back programmatically instead of eyeballing a UI:
+
+```python
+import mlflow
+
+runs = mlflow.search_runs(
+    experiment_names=["support-ticket-router-lora"],
+    order_by=["metrics.eval_accuracy DESC"],
+    max_results=5,
+)
+print(runs[["run_id", "params.lora_rank", "params.learning_rate", "metrics.eval_accuracy"]])
+```
+
+```
+                            run_id params.lora_rank params.learning_rate  metrics.eval_accuracy
+0  a1f3c9...                              16                 0.0002                   0.912
+1  7bd201...                              32                 0.0001                   0.904
+2  e44a8f...                              16                 0.0005                   0.897
+```
+
+Promote the winner to a named, versioned model instead of remembering a run ID:
+
+```python
+best_run_id = runs.iloc[0]["run_id"]
+mlflow.register_model(f"runs:/{best_run_id}/adapter", "support-ticket-router")
+```
+
+The registry gives you `Staging` → `Production` transitions with an audit trail — the thing that turns "I think we deployed the good one" into a verifiable fact. Autologging (`mlflow.sklearn.autolog()`, `mlflow.pytorch.autolog()`) covers common frameworks if you don't want to hand-instrument every metric, but for LoRA fine-tunes you'll usually log manually since the training loop is custom.
+
+## 2. Data and model versioning with DVC
+
+Git tracks code well and binary data badly. DVC stores large files in a remote (S3, GCS, or even a local path) and puts a small pointer file in git instead.
+
+```
+project/
+  data/raw/tickets.csv
+  src/{prepare,train,evaluate}.py
+  dvc.yaml
+  params.yaml
+```
+
+```bash
+dvc init
+dvc remote add -d storage s3://mlops-course-bucket/dvc-store
+dvc add data/raw/tickets.csv
+git add data/raw/tickets.csv.dvc data/raw/.gitignore
+git commit -m "Track raw ticket dataset v1 with DVC"
+dvc push
+```
+
+`tickets.csv.dvc` is a few lines of YAML containing an md5 hash. That hash is your dataset's version — swap the CSV, re-run `dvc add`, and the hash (and the committed pointer) changes, giving you a git-diffable data version history without bloating the repo.
+
+The real payoff is a declared pipeline, not ad hoc scripts:
+
+```yaml
+# dvc.yaml
+stages:
+  prepare:
+    cmd: python src/prepare.py
+    deps: [src/prepare.py, data/raw/tickets.csv]
+    params: [prepare.test_split]
+    outs: [data/processed/train.csv, data/processed/test.csv]
+
+  train:
+    cmd: python src/train.py
+    deps: [src/train.py, data/processed/train.csv]
+    params: [train.lora_rank, train.learning_rate, train.epochs]
+    outs: [model/adapter]
+
+  evaluate:
+    cmd: python src/evaluate.py
+    deps: [src/evaluate.py, model/adapter, data/processed/test.csv]
+    metrics:
+      - metrics.json:
+          cache: false
+```
+
+```yaml
+# params.yaml
+prepare:
+  test_split: 0.15
+train:
+  lora_rank: 16
+  learning_rate: 0.0002
+  epochs: 3
+```
+
+`dvc repro` walks the DAG and reruns only stages whose declared deps or params changed — bump `train.lora_rank` to 32 and `dvc repro` reruns `train` and `evaluate` but skips `prepare`, because `prepare`'s deps didn't move. This is the same incremental-build logic as `make`, applied to data pipelines.
+
+`dvc.lock` records the exact hashes that produced each output, so `dvc repro` is bit-for-bit reproducible given the same inputs. Commit it alongside code changes. To see what a change actually did to model quality:
+
+```bash
+dvc metrics diff main
+```
+
+```
+Path          Metric          HEAD     workspace    Change
+metrics.json  eval_accuracy   0.874    0.891        0.017
+metrics.json  eval_loss       0.420    0.390        -0.030
+```
+
+That's a real, numeric answer to "did this change help," derived from tracked data and tracked code — not a claim in a PR description.
+
+## 3. CI for ML pipelines: a real quality gate
+
+You already know how to wire GitHub Actions for lint/test/build. The ML-specific piece is two things standard CI doesn't do: pull versioned data before running anything, and fail the build on a *metric* regression, not just a failing assertion.
+
+```yaml
+# .github/workflows/model-quality-gate.yml
+name: Model Quality Gate
+
+on:
+  pull_request:
+    paths: ['src/**', 'data/raw/**.dvc', 'params.yaml', 'dvc.yaml']
+
+jobs:
+  quality-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Configure DVC remote credentials
+        run: |
+          dvc remote modify storage access_key_id ${{ secrets.DVC_S3_KEY }}
+          dvc remote modify storage secret_access_key ${{ secrets.DVC_S3_SECRET }}
+
+      - name: Pull versioned data and cached outputs
+        run: dvc pull
+
+      - name: Reproduce pipeline (reruns only changed stages)
+        run: dvc repro
+
+      - name: Compare metrics against main
+        run: |
+          dvc metrics diff main --show-json > metrics_diff.json
+          python scripts/gate_on_metrics.py metrics_diff.json
+```
+
+```python
+# scripts/gate_on_metrics.py
+import json, sys
+
+MIN_ACCURACY = 0.85
+MAX_REGRESSION = 0.01  # eval_accuracy must not drop more than 1pp vs main
+
+def main(diff_path: str) -> None:
+    diff = json.load(open(diff_path))
+    acc = diff.get("metrics.json", {}).get("eval_accuracy", {})
+    current, baseline = acc.get("workspace"), acc.get("HEAD")
+
+    if current is None:
+        print("No eval_accuracy produced — failing closed.")
+        sys.exit(1)
+    if current < MIN_ACCURACY:
+        print(f"FAIL: eval_accuracy {current:.4f} below floor {MIN_ACCURACY}")
+        sys.exit(1)
+    if baseline is not None and (baseline - current) > MAX_REGRESSION:
+        print(f"FAIL: regressed {baseline:.4f} -> {current:.4f}")
+        sys.exit(1)
+    print(f"PASS: eval_accuracy {current:.4f} (baseline {baseline})")
+
+if __name__ == "__main__":
+    main(sys.argv[1])
+```
+
+This is the ML analog of a coverage gate: a reviewer approving code changes is no longer trusting that the author eyeballed a notebook. The pipeline itself, run on a clean checkout with pinned data, produced the number that either passes or blocks the merge. Note this checks pipeline-level quality, not adversarial robustness or safety behavior — that's a separate, deeper eval harness (the kind you built in Tier 2 and would extend with red-teaming suites), and belongs as its own required check alongside this one, not a replacement for it.
+
+## 4. Detecting drift before it silently degrades the model
+
+A model's accuracy on live traffic isn't something you can watch directly most of the time — ground truth often arrives late (support ticket resolution, loan default, churn) or never at scale. What you *can* watch continuously is whether the input distribution the model is scoring still looks like the distribution it was trained on. That's data drift, and catching it early is your leading indicator for degradation you'd otherwise only discover after the damage is done.
+
+Three distinct failure modes, worth keeping separate:
+
+- **Data drift** — `P(X)` changes. Users' input features shift (e.g., average session length creeps up) even though the relationship between features and label hasn't.
+- **Concept drift** — `P(Y|X)` changes. The same input now implies a different correct output (fraud patterns evolve; the same transaction profile that was benign last quarter is fraud this quarter).
+- **Label drift** — `P(Y)` changes. The base rate of the outcome itself shifts (a seasonal spike in a particular ticket category).
+
+**Population Stability Index (PSI)** is the standard practical metric for the first, and a reasonable proxy for catching the second and third before labels are even available:
+
+```python
+import numpy as np
+
+def population_stability_index(reference: np.ndarray, current: np.ndarray, bins: int = 10) -> float:
+    breakpoints = np.quantile(reference, np.linspace(0, 1, bins + 1))
+    breakpoints[0], breakpoints[-1] = -np.inf, np.inf
+
+    ref_counts, _ = np.histogram(reference, bins=breakpoints)
+    cur_counts, _ = np.histogram(current, bins=breakpoints)
+
+    ref_pct = np.clip(ref_counts / len(reference), 1e-6, None)
+    cur_pct = np.clip(cur_counts / len(current), 1e-6, None)
+
+    return float(np.sum((cur_pct - ref_pct) * np.log(cur_pct / ref_pct)))
+```
+
+Run it on a real shift:
+
+```python
+rng = np.random.default_rng(7)
+reference = rng.normal(loc=12.0, scale=4.0, size=5000)   # training-time session length (min)
+current   = rng.normal(loc=15.5, scale=5.0, size=1200)   # last 24h of production traffic
+
+psi = population_stability_index(reference, current)
+print(f"PSI = {psi:.3f}")
+# PSI = 0.284
+```
+
+Standard interpretation bands: PSI < 0.1 is noise, 0.1–0.25 is a moderate shift worth investigating, > 0.25 is a significant shift that should trigger review or retraining. 0.284 here means the mean moved by nearly a full training-set standard deviation — a real behavioral change in your user base, not sampling noise.
+
+Pair PSI with a Kolmogorov–Smirnov test for statistical confirmation:
+
+```python
+from scipy.stats import ks_2samp
+
+stat, p_value = ks_2samp(reference, current)
+print(f"KS statistic = {stat:.3f}, p-value = {p_value:.2e}")
+# KS statistic = 0.187, p-value = 3.1e-14
+```
+
+Use both, for different reasons. PSI tells you the *magnitude* of the shift and maps to an actionable threshold. The KS p-value tells you whether the shift is statistically real — but at production sample sizes (thousands of requests per hour), KS p-values go astronomically small for even trivial, harmless shifts, because statistical significance and practical significance decouple as `n` grows. PSI is what you gate alerts on; KS is a sanity check that you're not chasing a two-data-point fluke on a small batch.
+
+In practice, monitor the handful of features your model actually depends on most (pull feature importances or SHAP values from the registered model), not every column — blanket monitoring across fifty features produces alert fatigue, and the team stops looking.
+
+```python
+from datetime import datetime, timezone
+import mlflow
+
+FEATURES_TO_MONITOR = ["avg_session_length_minutes", "cart_value_usd", "days_since_last_purchase"]
+PSI_ALERT_THRESHOLD = 0.25
+
+def run_drift_check(reference_df, production_df):
+    mlflow.set_experiment("prod-drift-monitoring")
+    with mlflow.start_run(run_name=f"drift-{datetime.now(timezone.utc):%Y-%m-%dT%H}"):
+        breaches = []
+        for feature in FEATURES_TO_MONITOR:
+            psi = population_stability_index(
+                reference_df[feature].values, production_df[feature].values
+            )
+            mlflow.log_metric(f"psi_{feature}", psi)
+            if psi > PSI_ALERT_THRESHOLD:
+                breaches.append((feature, psi))
+        mlflow.log_metric("num_features_breached", len(breaches))
+        if breaches:
+            mlflow.set_tag("alert", "drift_detected")
+        return breaches
+```
+
+Logging drift checks into the same MLflow instance as training runs means one place holds "what did we train on" and "what does production look like now" — you can diff them directly instead of reconciling two systems.
+
+When ground truth is delayed by weeks, add a second signal: monitor the model's *output* distribution (predicted class proportions, average confidence/entropy) over time. A classifier that suddenly routes 40% of tickets to "billing" instead of its usual 12% is telling you something changed, well before resolution data confirms whether it's right to do so.
+
+## Exercise
+
+Extend the CI quality gate into a scheduled drift gate: write a GitHub Actions workflow triggered on `schedule` (cron, e.g. daily at 06:00 UTC) that pulls the last 24 hours of production feature logs, computes PSI against the DVC-tracked training reference set for your top three features, and fails (posts to a Slack webhook, or opens a GitHub issue via the API) only if the *same* feature breaches threshold on two consecutive scheduled runs — not on the first breach alone.
+
+Hint: a single noisy batch will trip PSI > 0.25 by chance sometimes; you need state between runs to require persistence before alerting. You don't need a database for this — write the current run's breach set to a small JSON file, commit it back to a `monitoring/` path in the repo (or store it as a workflow artifact and download it at the start of the next run), and compare against the previous run's file before deciding whether to alert.

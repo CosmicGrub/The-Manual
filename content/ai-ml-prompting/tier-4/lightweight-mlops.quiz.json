@@ -1,0 +1,98 @@
+[
+  {
+    "id": "ai-ml-prompting/tier-4/lightweight-mlops/q1",
+    "type": "multiple_choice",
+    "prompt": "When you run `dvc add data/raw/tickets.csv` and commit the result to git, what actually lands in the git repository?",
+    "choices": [
+      "A small .dvc pointer file containing a content hash of the data",
+      "The full CSV file, compressed",
+      "Nothing \u2014 DVC bypasses git entirely",
+      "A binary diff against the previous version of the CSV"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-4/lightweight-mlops/q2",
+    "type": "multiple_choice",
+    "prompt": "A drift check computes PSI = 0.05 between a feature's reference and current-production distributions. What's the correct read?",
+    "choices": [
+      "No significant shift \u2014 this is within normal variation",
+      "Significant drift \u2014 trigger retraining immediately",
+      "The test is inconclusive; only a KS test can tell you anything at this PSI",
+      "The model is definitely miscalibrated"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-4/lightweight-mlops/q3",
+    "type": "multiple_choice",
+    "prompt": "You want to find the best of your last 50 LoRA fine-tuning runs, ranked by eval accuracy, without opening the MLflow UI. What do you call?",
+    "choices": [
+      "mlflow.search_runs(experiment_names=[...], order_by=[\"metrics.eval_accuracy DESC\"])",
+      "mlflow.log_metric(\"eval_accuracy\", sort=True)",
+      "mlflow.register_model(\"eval_accuracy\", top_k=1)",
+      "mlflow.autolog(rank_by=\"eval_accuracy\")"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-4/lightweight-mlops/q4",
+    "type": "multiple_choice",
+    "prompt": "Your CI quality gate has MAX_REGRESSION = 0.01. main has eval_accuracy 0.890; the PR branch produces 0.865. What happens?",
+    "choices": [
+      "The build fails \u2014 the 0.025 regression exceeds the 0.01 allowance",
+      "The build passes \u2014 0.865 is still above the MIN_ACCURACY floor",
+      "The build passes \u2014 regressions are only checked on merge to main, not on PRs",
+      "The gate can't evaluate this without a KS test first"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-4/lightweight-mlops/q5",
+    "type": "multiple_choice",
+    "prompt": "Why pair a KS test with PSI instead of relying on the KS p-value alone to decide whether to alert on drift?",
+    "choices": [
+      "At production sample sizes, KS p-values become vanishingly small for even trivial shifts, so PSI's magnitude-based threshold is what makes the alert actionable",
+      "KS tests don't work on continuous features, only categorical ones",
+      "PSI is more statistically rigorous than KS, so KS is redundant and should be dropped",
+      "KS requires labeled data and PSI doesn't, so they measure unrelated things"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-4/lightweight-mlops/q6",
+    "type": "multiple_choice",
+    "prompt": "A fraud model keeps seeing the same feature distributions it was trained on, but fraud patterns have evolved so the same feature values now more often indicate fraud. What is this?",
+    "choices": [
+      "Concept drift \u2014 P(Y|X) changed while P(X) stayed the same",
+      "Data drift \u2014 P(X) changed",
+      "Label drift \u2014 the base rate of the label changed",
+      "This isn't a form of drift; it's a labeling error"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-4/lightweight-mlops/q7",
+    "type": "multiple_choice",
+    "prompt": "A loan-default model's true labels arrive roughly 30 days after each prediction. What should you monitor day-to-day in the meantime as a leading indicator of trouble?",
+    "choices": [
+      "Feature drift on the model's top inputs and drift in the model's own output/confidence distribution",
+      "Nothing useful can be monitored until labels arrive \u2014 wait 30 days",
+      "Only the training-time eval_accuracy metric, refreshed daily",
+      "The git commit history of the training script"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-4/lightweight-mlops/q8",
+    "type": "multiple_choice",
+    "prompt": "In a dvc.yaml pipeline, what causes `dvc repro` to actually rerun a given stage?",
+    "choices": [
+      "A change in that stage's declared deps or params (tracked via hashes in dvc.lock)",
+      "Every stage reruns on every `dvc repro` call, regardless of changes",
+      "Only a change to dvc.yaml itself triggers any rerun",
+      "Stages rerun on a fixed schedule set by `dvc init`"
+    ],
+    "correctIndex": 0
+  }
+]

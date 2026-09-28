@@ -341,3 +341,14 @@ All notable changes to The Manual (curriculum + app) are logged here. This file 
 **Result:** `npm run build` passed clean on the first attempt. 135 unique slugs verified repo-wide. (The session's scratchpad tooling script was evicted mid-round by container storage pressure from this tier's unusually large subagent scratch files — recreated from the established pattern before assembly; no content was lost.)
 
 **Status:** AI/ML Tier 3 complete (78h, 6 lessons). AI/ML is now 4/6 tiers content-complete (Tiers 0-3, 217h); Tiers 4-5 remain.
+
+## [0.26.0] — 2026-09-28 — AI/ML Tier 4: complete (Advanced/Specialist level, production AI engineering)
+
+**Context:** Continuing the tier-by-tier pattern. This tier specializes toward production-grade AI engineering. The red-teaming module got a manual safety read before assembly (not just the automated pipeline): it explicitly frames every attack category as defensive education, pairs each with its mitigation in the same breath, uses only generic non-functional example strings, and states its own framing rule up front — consistent with the safety-review pattern established for the Cybersecurity track earlier in this project.
+
+**Added**
+- `content/ai-ml-prompting/tier-4/*.mdx` (6 files) + matching quizzes: Fine-Tuning & Parameter-Efficient Methods (real parameter-count math showing LoRA trains ~0.5% of an 8B model's weights, and why QLoRA drops full-fine-tuning's ~128GB memory footprint to ~4.6GB), Model Evaluation, Red-Teaming & Safety (LLM-as-judge harnesses, claim-level hallucination scoring, three red-team attack categories each paired with its defense and a before/after pass-rate harness, counterfactual bias testing with a paired significance test, NIST AI RMF and Constitutional AI made concrete), Inference Optimization & Serving, Lightweight MLOps, Architecture for AI-Powered Systems, Advanced Prompt Engineering & Agentic Systems.
+
+**Result:** `npm run build` passed clean on the first attempt. 141 unique slugs verified repo-wide.
+
+**Status:** AI/ML Tier 4 complete (78h, 6 lessons). AI/ML is now 5/6 tiers content-complete (Tiers 0-4, 295h); only Tier 5 (Expert/Innovator) remains.

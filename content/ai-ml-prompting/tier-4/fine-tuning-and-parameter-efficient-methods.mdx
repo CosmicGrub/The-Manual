@@ -1,0 +1,291 @@
+---
+trackId: ai-ml-prompting
+tier: 4
+title: "Fine-Tuning & Parameter-Efficient Methods"
+order: 1
+estimatedHours: 16
+slug: fine-tuning-and-parameter-efficient-methods
+---
+
+## Why This Isn't Just "Prompting, But With Extra Steps"
+
+By this tier you've built RAG pipelines, agents, and eval harnesses on top of frozen models accessed through an API. Fine-tuning is a different lever: you're changing the weights themselves. You reach for it when prompting and retrieval hit a ceiling — you need a fixed, low-latency output format at scale, a narrow domain vocabulary the base model wasn't trained on deeply enough, or behavior (tone, refusal patterns, tool-call formatting) that's expensive to re-specify in every system prompt and unreliable to enforce through instructions alone. This module covers the actual mechanics: what changes, what it costs, and where the data comes from.
+
+## Full Fine-Tuning vs. LoRA/QLoRA: The Actual Math
+
+Full fine-tuning updates every weight matrix in the model. To see why that's expensive and why LoRA isn't, work through real numbers using Llama-3-8B's published config: `hidden_size=4096`, `intermediate_size=14336`, `num_hidden_layers=32`, `num_attention_heads=32`, `num_key_value_heads=8` (grouped-query attention, so K/V projections are smaller than Q/O), `vocab_size=128256`.
+
+Per transformer layer, the linear projections are:
+
+| Matrix | Shape | Params |
+|---|---|---|
+| q_proj | 4096 × 4096 | 16,777,216 |
+| k_proj | 4096 × 1024 | 4,194,304 |
+| v_proj | 4096 × 1024 | 4,194,304 |
+| o_proj | 4096 × 4096 | 16,777,216 |
+| gate_proj | 4096 × 14336 | 58,720,256 |
+| up_proj | 4096 × 14336 | 58,720,256 |
+| down_proj | 14336 × 4096 | 58,720,256 |
+
+That's 218,103,808 params per layer. Times 32 layers = 6,979,321,856. Add the (untied) input and output embedding matrices, 128256 × 4096 each = 525,336,576 apiece, and you land at **8,029,995,008 params — the real 8.03B for this model.** Full fine-tuning means every one of those 8.03 billion numbers gets a gradient and an optimizer update, every step.
+
+### LoRA's decomposition
+
+LoRA (Hu et al., 2021) freezes the original weight matrix `W` and learns an additive low-rank update: `W' = W + BA`, where for a matrix of shape `(d_out, d_in)`, `B` is `(d_out, r)` and `A` is `(r, d_in)`, with rank `r` much smaller than `d_out` or `d_in`. Trainable parameter count for that one matrix is `r * (d_out + d_in)` instead of `d_out * d_in`. For a square matrix where `d_out = d_in = d`, that ratio simplifies to `2r/d` — for `q_proj` with `d=4096` and `r=16`, that's `32/4096 = 0.78%` of that matrix's parameters.
+
+Apply `r=16` LoRA adapters to all seven linear layers per block (attention projections + MLP), across all 32 layers:
+
+| Matrix | LoRA params (`r·(d_out+d_in)`) | ×32 layers |
+|---|---|---|
+| q_proj | 16·(4096+4096) = 131,072 | 4,194,304 |
+| k_proj | 16·(4096+1024) = 81,920 | 2,621,440 |
+| v_proj | 81,920 | 2,621,440 |
+| o_proj | 131,072 | 4,194,304 |
+| gate_proj | 16·(4096+14336) = 294,912 | 9,437,184 |
+| up_proj | 294,912 | 9,437,184 |
+| down_proj | 294,912 | 9,437,184 |
+
+Sum: **41,943,040 trainable parameters** — against 8,029,995,008 total. That's **0.52%**, roughly **1 in every 190 parameters**. The embeddings, layer norms, and 99.5% of every weight matrix never move. Everything the model "learns" during LoRA fine-tuning has to route through these 42M numbers — which is exactly the constraint that matters for whether LoRA is sufficient for your task (more below).
+
+### Why this collapses memory, not just compute
+
+The optimizer state, not the forward pass, is what kills full fine-tuning on modest hardware. Standard mixed-precision training with Adam keeps: bf16 weights (2 bytes/param), gradients, and — critically — an fp32 master copy of every weight plus two fp32 Adam moment buffers (`m`, `v`), i.e. 12 bytes/param just for optimizer state.
+
+**Full fine-tuning, 8.03B params:**
+- weights (bf16): 8.03B × 2B ≈ 16.1 GB
+- gradients (bf16): ≈ 16.1 GB
+- Adam optimizer state (fp32 master + m + v, 12B/param): 8.03B × 12B ≈ 96.4 GB
+- **Total ≈ 128 GB**, before activations — this needs multiple 80GB datacenter GPUs.
+
+**QLoRA (Dettmers et al., 2023):** freeze the base model quantized to 4-bit NormalFloat (with double quantization), and only the LoRA adapters are trainable in bf16:
+- base weights (NF4, ~4 bits/param): 8.03B × 0.5B ≈ 4.0 GB
+- LoRA adapter weights (bf16): 41.9M × 2B ≈ 84 MB
+- LoRA gradients + Adam state (12B/param, adapter only): 41.9M × 12B ≈ 503 MB
+- **Total ≈ 4.6 GB** for weights + optimizer, before activations.
+
+That's the actual mechanism behind "QLoRA fine-tunes a 65B model on a single 48GB GPU" — the frozen base model's precision drops to 4 bits and its optimizer state disappears entirely, because it has no gradient. Only the ~0.5% of parameters in the adapters carry gradients and Adam state. For an 8B model this comfortably fits, with room for activations, on a single 24GB consumer GPU.
+
+```python
+from peft import LoraConfig, get_peft_model
+
+config = LoraConfig(
+    r=16,
+    lora_alpha=32,          # scaling: applied update is (alpha/r) * B @ A
+    target_modules=["q_proj", "k_proj", "v_proj", "o_proj",
+                     "gate_proj", "up_proj", "down_proj"],
+    lora_dropout=0.05,
+    bias="none",
+    task_type="CAUSAL_LM",
+)
+model = get_peft_model(base_model, config)
+model.print_trainable_parameters()
+# trainable params: 41,943,040 || all params: 8,071,938,048 || trainable%: 0.5197
+```
+
+At inference, `model.merge_and_unload()` folds `BA` back into `W`, so a deployed LoRA-tuned model has identical architecture and latency to the base model — no adapter overhead at serving time.
+
+**The trade-off**: the low-rank constraint caps how much the weights can move. LoRA reliably matches full fine-tuning for style/format adaptation and moderate domain shifts. For tasks requiring the model to absorb large amounts of genuinely new knowledge or a big distributional shift (e.g., a new language the base model barely saw), full fine-tuning still has headroom LoRA structurally can't reach at low rank — you'd need to raise `r`, which claws back toward full fine-tuning's cost.
+
+## Instruction Tuning: What the Data Actually Looks Like
+
+Instruction tuning is supervised fine-tuning (SFT) on `(instruction, response)` pairs, teaching a pretrained base model to behave like an assistant rather than a raw text completer. Concretely, one example looks like this before templating:
+
+```json
+{
+  "instruction": "Summarize the following support ticket in one sentence for the on-call engineer.",
+  "input": "Customer reports that after upgrading to v4.2.1, the /export endpoint returns HTTP 500 for CSV exports larger than 10k rows. Works fine below that threshold. No errors in application logs, only a generic 'internal server error' in the response body. Started immediately after the v4.2.1 deploy at 14:32 UTC.",
+  "output": "The v4.2.1 deploy broke CSV export for payloads over 10k rows, returning unhandled HTTP 500s with no application-log trace, and it correlates exactly with the 14:32 UTC release."
+}
+```
+
+For a chat model this gets rendered through the deployment chat template — for Llama-3 that means role-delimiter tokens:
+
+```
+<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+
+You are a concise, technically precise incident-triage assistant.<|eot_id|><|start_header_id|>user<|end_header_id|>
+
+Summarize the following support ticket in one sentence for the on-call engineer.
+
+Customer reports that after upgrading to v4.2.1, the /export endpoint returns HTTP 500 for CSV exports larger than 10k rows...<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+
+The v4.2.1 deploy broke CSV export for payloads over 10k rows, returning unhandled HTTP 500s with no application-log trace, and it correlates exactly with the 14:32 UTC release.<|eot_id|>
+```
+
+The loss is computed only on the assistant span — you mask everything else to the ignore index so the model isn't trained to predict the system prompt or the user's own input tokens:
+
+```python
+def build_labels(input_ids, assistant_start_idx, assistant_end_idx, ignore_index=-100):
+    labels = input_ids.clone()
+    labels[:assistant_start_idx] = ignore_index   # system + user + role tokens
+    labels[assistant_end_idx:] = ignore_index      # anything after the response (padding)
+    return labels
+```
+
+`-100` is the default `ignore_index` for `torch.nn.CrossEntropyLoss`, so those positions contribute zero gradient. Get this wrong — forget to mask, or mis-align the indices with the tokenizer's actual `<|eot_id|>` boundaries — and you silently train the model to hallucinate plausible-looking user turns, since it's now being rewarded for predicting the prompt too.
+
+## RLHF and DPO: Preference Optimization Mechanics
+
+Instruction tuning teaches *a* correct behavior per example. Preference optimization teaches *relative* quality — given two responses to the same prompt, push the model toward the better one — which is what actually shapes tone, helpfulness, and refusal calibration after SFT.
+
+### RLHF: reward model + PPO
+
+Classic RLHF (Ouyang et al., 2022) runs in two stages on top of an SFT model:
+
+**1. Reward model training.** Collect pairwise human preferences: for prompt `x`, humans pick `y_w` (chosen) over `y_l` (rejected). Train a reward model `r_φ` (usually the SFT model with a scalar head replacing the LM head) with the Bradley-Terry pairwise loss:
+
+```python
+def reward_model_loss(reward_chosen, reward_rejected):
+    # Bradley-Terry: P(y_w preferred over y_l) = sigmoid(r(x, y_w) - r(x, y_l))
+    return -F.logsigmoid(reward_chosen - reward_rejected).mean()
+```
+
+**2. RL fine-tuning with PPO.** Optimize the policy `π_θ` (initialized from the SFT model) to maximize reward while staying close to a frozen reference policy `π_ref` (the original SFT model), via a KL penalty:
+
+```
+objective(θ) = E[x~D, y~π_θ(·|x)] [ r_φ(x, y) − β · KL(π_θ(·|x) ‖ π_ref(·|x)) ]
+```
+
+PPO optimizes this with a clipped surrogate objective and needs a learned value function `V(x)` as a baseline for advantage estimation. That means **four models resident simultaneously**: the policy being trained, the frozen reference, the reward model, and the value/critic network. It's expensive, sample-inefficient, and notoriously fiddly to stabilize (reward hacking, KL collapse, advantage normalization issues).
+
+### DPO: the same objective, no RL loop
+
+DPO (Rafailov et al., 2023) starts from the observation that the KL-constrained reward-maximization objective RLHF targets has a **closed-form optimal policy**:
+
+```
+π*(y|x) = (1 / Z(x)) · π_ref(y|x) · exp(r(x,y) / β)
+```
+
+Solve this for the reward instead of the policy:
+
+```
+r(x,y) = β · log( π*(y|x) / π_ref(y|x) ) + β · log Z(x)
+```
+
+Substitute that expression into the Bradley-Terry preference model. `log Z(x)` doesn't depend on `y`, so it cancels between the chosen and rejected terms, leaving a loss expressed *purely in terms of policy log-probabilities*:
+
+```
+L_DPO = −E[(x,y_w,y_l)~D] [ log σ( β·log(π_θ(y_w|x)/π_ref(y_w|x)) − β·log(π_θ(y_l|x)/π_ref(y_l|x)) ) ]
+```
+
+This is the entire simplification: **no reward model, no sampling from the policy, no PPO rollouts, no value network.** It's a supervised classification loss over static preference pairs, computed directly from two forward passes (policy and frozen reference) over completions you already have.
+
+```python
+import torch.nn.functional as F
+
+def dpo_loss(policy_chosen_logps, policy_rejected_logps,
+             ref_chosen_logps, ref_rejected_logps, beta=0.1):
+    """
+    *_logps: sum of token log-probs over the completion only (prompt masked out),
+    shape (batch,).
+    """
+    policy_logratios = policy_chosen_logps - policy_rejected_logps
+    ref_logratios = ref_chosen_logps - ref_rejected_logps
+    logits = beta * (policy_logratios - ref_logratios)
+    loss = -F.logsigmoid(logits).mean()
+    chosen_reward = (beta * (policy_chosen_logps - ref_chosen_logps)).detach()
+    rejected_reward = (beta * (policy_rejected_logps - ref_rejected_logps)).detach()
+    return loss, chosen_reward, rejected_reward
+```
+
+`beta` plays the same role as the KL coefficient in PPO — higher `beta` keeps `π_θ` closer to `π_ref` (more conservative updates); lower `beta` allows bigger departures. Only two models are ever in memory (policy + frozen reference), training is a standard supervised loop, and it's dramatically more stable in practice — which is why DPO (and its variants: IPO, KTO, ORPO) displaced PPO-based RLHF as the default preference-tuning method for most production pipelines.
+
+| | RLHF (PPO) | DPO |
+|---|---|---|
+| Models in memory | 4 (policy, reference, reward, value) | 2 (policy, reference) |
+| Needs online sampling | Yes, every step | No — static offline dataset |
+| Training loop | RL (clipped surrogate, advantage est.) | Standard supervised classification |
+| Reward model | Explicit, trained separately | Implicit, folded into the loss |
+| Failure modes | Reward hacking, instability, KL collapse | Fewer moving parts, but reference-quality-dependent |
+
+## Curating a Fine-Tuning Dataset
+
+### Quality over quantity, with a real reference point
+
+Zhou et al.'s **LIMA** (2023) fine-tuned a 65B base model on just **1,000** carefully hand-curated prompt-response pairs — no RLHF, no massive instruction corpus — and it matched or beat models trained on orders of magnitude more data on human preference comparisons. The mechanism: pretraining already encodes almost all the knowledge and capability; SFT's job is narrow — teach the *format and distribution* of good responses. A thousand consistently excellent examples teach that distribution better than a million noisy, inconsistent ones, because noise in the target distribution is exactly what the model learns to reproduce.
+
+### Deduplication
+
+Exact duplicates first — cheap and catches scraped/templated data:
+
+```python
+seen = set()
+deduped = []
+for ex in dataset:
+    key = (ex["instruction"].strip().lower(), ex["output"].strip().lower())
+    if key not in seen:
+        seen.add(key)
+        deduped.append(ex)
+```
+
+Near-duplicates (paraphrases, templated variations with swapped entities) need fuzzy matching. MinHash + LSH is the standard scalable approach:
+
+```python
+from datasketch import MinHash, MinHashLSH
+
+def minhash_for(text, num_perm=128, shingle_size=5):
+    m = MinHash(num_perm=num_perm)
+    tokens = text.split()
+    for i in range(len(tokens) - shingle_size + 1):
+        m.update(" ".join(tokens[i:i+shingle_size]).encode("utf8"))
+    return m
+
+lsh = MinHashLSH(threshold=0.85, num_perm=128)
+kept = []
+for idx, ex in enumerate(deduped):
+    mh = minhash_for(ex["instruction"] + " " + ex["output"])
+    if lsh.query(mh):          # a near-duplicate is already kept
+        continue
+    lsh.insert(str(idx), mh)
+    kept.append(ex)
+```
+
+Also run **decontamination**: n-gram overlap between your fine-tuning set and any benchmark or eval set you report results on (the eval harness you built in Tier 2 is the natural place to run this check). Training on near-copies of your eval questions gives you an inflated score that doesn't reflect deployed behavior.
+
+### Bad example vs. good example
+
+Bad — hedging, filler, self-referential disclaimers that teach the model to pad every factual answer:
+
+```json
+{
+  "instruction": "What's the capital of France?",
+  "output": "Great question! As an AI language model, I don't have personal opinions, but many sources suggest the capital of France is generally considered to be Paris, though this could vary by context — I'd recommend double-checking with an official source."
+}
+```
+
+Good — matches the actual behavior you want deployed:
+
+```json
+{
+  "instruction": "What's the capital of France?",
+  "output": "Paris."
+}
+```
+
+The failure in the bad example isn't factual — it's *distributional*. Every one of those hedging phrases becomes a pattern the model reproduces on unrelated prompts, because SFT teaches style as much as content. A dataset with inconsistent formatting (some examples in markdown, some plain text, when your production system prompt specifies one), inconsistent verbosity, or randomly scattered refusals on benign requests will produce a model with exactly that inconsistency baked in — it has no way to know which behavior was the "real" target.
+
+Curation checklist for a production set:
+- **Task diversity** proportional to real traffic distribution, not proportional to what's easy to scrape.
+- **Format consistency** with the exact chat template and system prompt used at inference — training/serving template mismatch is a common, hard-to-debug quality regression.
+- **Length distribution** matching the target use case — training mostly on short Q&A won't produce good long-form generation.
+- **Consistent refusal behavior**: refusals attached to genuinely out-of-scope/unsafe requests, not sprinkled onto benign ones (which teaches over-refusal).
+- **Decontamination** against any eval or benchmark set you'll report numbers against.
+
+## Exercise
+
+You're handed this six-example slice of a candidate fine-tuning set:
+
+```json
+[
+  {"id": 1, "instruction": "Convert 75 Fahrenheit to Celsius.", "output": "23.9°C."},
+  {"id": 2, "instruction": "What is 75°F in Celsius?", "output": "That's approximately 23.9°C."},
+  {"id": 3, "instruction": "Explain what a race condition is.", "output": "## Race Conditions\n\nA race condition occurs when...\n\n### Example\n```python\n...\n```"},
+  {"id": 4, "instruction": "What's 12 * 8?", "output": "Well, multiplication can be tricky, but if I had to guess, I'd say it's probably around 96, though you should verify this yourself."},
+  {"id": 5, "instruction": "Summarize: 'The Federal Reserve raised interest rates by 0.25% citing persistent inflation concerns.'", "output": "The Fed raised rates 25bps due to inflation."},
+  {"id": 6, "instruction": "What is the time complexity of binary search on a sorted array of size n?", "output": "O(log n)."}
+]
+```
+
+Your production system uses plain-text responses (no markdown headers) and a direct, non-hedging tone. Decide, for each example, whether to **keep**, **drop as a near-duplicate**, or **rewrite**, and give a one-sentence reason for each call.
+
+*Hint*: run the exact-dedup and MinHash steps above on examples 1 and 2 before eyeballing them — don't just rely on the instructions looking different. Separately, check every example's *output* against the single fixed criterion "does this match the format and tone my system prompt promises," not against whether the answer is factually correct.

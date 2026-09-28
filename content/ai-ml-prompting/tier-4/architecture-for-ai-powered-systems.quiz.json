@@ -1,0 +1,98 @@
+[
+  {
+    "id": "ai-ml-prompting/tier-4/architecture-for-ai-powered-systems/q1",
+    "type": "multiple_choice",
+    "prompt": "In the exact-match LLM response cache pattern, why must the cache key include the prompt_version, not just the user's input text?",
+    "choices": [
+      "Because Redis requires composite keys to support a TTL",
+      "So that a change to the system prompt or template automatically invalidates stale cached responses generated under the old prompt, instead of serving outdated wording as if it were current",
+      "Because raw user input strings are too long to hash on their own",
+      "To make the cache key easier to read in log output"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-4/architecture-for-ai-powered-systems/q2",
+    "type": "multiple_choice",
+    "prompt": "Why is a semantic (embedding-similarity) cache risky to use outside narrow, stable, non-personalized queries like FAQs?",
+    "choices": [
+      "Embedding models are too computationally expensive to run at request time",
+      "It can confidently serve a cached answer for a query that is semantically close but not actually the same question, and the similarity score alone can't distinguish the two",
+      "Semantic caches cannot be invalidated when the prompt version changes",
+      "It only works correctly when temperature is set above 0.7"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-4/architecture-for-ai-powered-systems/q3",
+    "type": "multiple_choice",
+    "prompt": "A fallback chain has an 8s timeout on the primary model and a 4s timeout on the secondary model, inside a 12s overall budget. The primary model's circuit breaker just opened after 5 consecutive timeouts. What should happen on the next incoming request?",
+    "choices": [
+      "Retry the primary model anyway, since circuit breakers only apply to the secondary tier",
+      "Skip the primary model immediately and go straight to the secondary tier, saving the 8s timeout budget instead of spending it on a provider that is currently down",
+      "Block the request entirely until the circuit breaker closes",
+      "Double the primary model's timeout so it has more time to recover"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-4/architecture-for-ai-powered-systems/q4",
+    "type": "multiple_choice",
+    "prompt": "What is the main architectural reason to enforce output via a strict schema (structured output plus a validation library) instead of regex-scanning free-text model output for policy compliance?",
+    "choices": [
+      "Regex execution is more computationally expensive than schema validation",
+      "A constrained, typed shape is mechanically checkable, closing off the room unstructured prose gives a compromised generation to smuggle unvalidated content past the boundary",
+      "Schema validation removes the need for any input-side guardrails",
+      "Regular expressions cannot be applied to JSON-formatted text"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-4/architecture-for-ai-powered-systems/q5",
+    "type": "multiple_choice",
+    "prompt": "A cloud LLM call costs $0.0085 per request at 40,000 requests/day. Roughly what is the resulting monthly (30-day) cost?",
+    "choices": [
+      "$340",
+      "$2,550",
+      "$10,200",
+      "$102,000"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "ai-ml-prompting/tier-4/architecture-for-ai-powered-systems/q6",
+    "type": "multiple_choice",
+    "prompt": "In the worked mobile deployment example, why does routing every RAG-heavy query to a 3B on-device model fail to meet a 3.5s p95 interactive latency budget, even though the model itself is small?",
+    "choices": [
+      "Small on-device models are architecturally incapable of producing JSON output",
+      "Phone NPUs cannot execute int4-quantized weights at all",
+      "Prompt processing of the full retrieved context plus slow token-by-token decode on a phone NPU together add up to well over the latency budget once a full RAG context is involved, not just the model's parameter count",
+      "On-device models must re-download their weights over the network before every single request"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "ai-ml-prompting/tier-4/architecture-for-ai-powered-systems/q7",
+    "type": "multiple_choice",
+    "prompt": "A support-bot request comes back with unexpectedly high latency. Which combination of logged data lets you tell, without re-running the request, whether the delay came from the model call itself versus a fallback cascade or a slow pipeline stage?",
+    "choices": [
+      "The cache_hit boolean alone",
+      "The served_by/degraded tier field showing which model in the fallback chain actually answered, combined with per-stage span timings (retrieval, guardrail, model call)",
+      "The raw text of the user's original input",
+      "The HTTP status code returned to the client"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-4/architecture-for-ai-powered-systems/q8",
+    "type": "multiple_choice",
+    "prompt": "The lesson recommends keeping user input, tool output, and retrieved RAG content in clearly separated message roles rather than concatenating them into one string with the system instructions. What production risk does this specifically defend against?",
+    "choices": [
+      "Token usage being miscounted for billing purposes",
+      "Embedding generation running slower than expected",
+      "Content injected via user input or retrieved documents being mistaken for privileged system instructions, since role separation is what lets the model and downstream checks distinguish instruction from untrusted data",
+      "Cache keys becoming too long for the hashing function to accept"
+    ],
+    "correctIndex": 2
+  }
+]

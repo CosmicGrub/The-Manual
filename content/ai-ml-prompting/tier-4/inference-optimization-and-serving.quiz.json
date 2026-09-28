@@ -1,0 +1,98 @@
+[
+  {
+    "id": "ai-ml-prompting/tier-4/inference-optimization-and-serving/q1",
+    "type": "multiple_choice",
+    "prompt": "For a 7B-parameter model, roughly what is the weight memory footprint at fp16 versus int4?",
+    "choices": [
+      "~28 GB fp16 vs ~7 GB int4",
+      "~14 GB fp16 vs ~3.5 GB int4",
+      "~7 GB fp16 vs ~1.75 GB int4",
+      "~14 GB fp16 vs ~7 GB int4"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-4/inference-optimization-and-serving/q2",
+    "type": "multiple_choice",
+    "prompt": "What is the primary mechanism by which a KV cache speeds up autoregressive generation?",
+    "choices": [
+      "It reduces the number of parameters in the model",
+      "It avoids recomputing the key/value projections for previously generated tokens at every decoding step",
+      "It compresses the model weights to a lower numeric precision",
+      "It automatically increases the serving batch size"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-4/inference-optimization-and-serving/q3",
+    "type": "multiple_choice",
+    "prompt": "Without a KV cache, generating n tokens autoregressively costs roughly O(n^2) token-forward-equivalents; with a KV cache it costs roughly O(n). What does this imply in practice?",
+    "choices": [
+      "The two approaches converge at large n, so caching only matters for short sequences",
+      "The advantage of caching grows with sequence length, so caching matters far more for long-context generation than short",
+      "Caching only saves memory, not compute, so per-token latency is unaffected",
+      "The difference is dominated by GPU compute rather than memory bandwidth, so it rarely matters in production"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-4/inference-optimization-and-serving/q4",
+    "type": "multiple_choice",
+    "prompt": "At batch size 1, LLM decoding is typically bottlenecked by:",
+    "choices": [
+      "Floating-point compute throughput (FLOPS)",
+      "Memory bandwidth needed to stream model weights from HBM for every generated token",
+      "Network bandwidth between GPUs in a multi-GPU setup",
+      "Disk I/O while loading the model checkpoint"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-4/inference-optimization-and-serving/q5",
+    "type": "multiple_choice",
+    "prompt": "A team raises serving batch size from 1 to 32 and sees aggregate throughput jump nearly 20x while per-token latency rises only modestly. What best explains this?",
+    "choices": [
+      "Larger batches reduce the number of parameters that must be loaded from memory",
+      "At small batch sizes the GPU is memory-bandwidth-bound with idle compute; batching reuses the same weight load across more sequences, converting idle compute into useful work until compute itself becomes the bottleneck",
+      "Batching bypasses the KV cache, eliminating per-token overhead",
+      "Quantization is automatically triggered once batch size exceeds 1"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-4/inference-optimization-and-serving/q6",
+    "type": "multiple_choice",
+    "prompt": "What is the core innovation of vLLM's PagedAttention?",
+    "choices": [
+      "It eliminates the need for a KV cache entirely",
+      "It manages the KV cache in fixed-size, non-contiguous blocks (like OS virtual memory paging), reducing fragmentation and enabling larger effective batch sizes",
+      "It quantizes all model activations to int4 automatically",
+      "It replaces self-attention with a linear-time recurrent mechanism"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-4/inference-optimization-and-serving/q7",
+    "type": "multiple_choice",
+    "prompt": "Why would a team reach for vLLM or TGI instead of a loop that calls model.generate() per request?",
+    "choices": [
+      "Hand-rolled loops cannot run inference on a GPU at all",
+      "model.generate() loops typically serve sequentially or with static batching, wasting GPU cycles on padding and idle time; serving frameworks add continuous batching and efficient KV-cache management to keep the GPU saturated",
+      "vLLM and TGI are the only way to load a quantized model",
+      "Hand-rolled loops cannot use models stored in the Hugging Face format"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-4/inference-optimization-and-serving/q8",
+    "type": "multiple_choice",
+    "prompt": "What distinguishes knowledge distillation from quantization as a compression technique?",
+    "choices": [
+      "Distillation changes the numeric precision of an existing model's weights; quantization trains a new, smaller model",
+      "Distillation trains a smaller student model to match a larger teacher model's output distribution, producing a genuinely smaller architecture; quantization keeps the architecture fixed and reduces numeric precision",
+      "They are the same technique under two different names",
+      "Quantization requires training a model from scratch, while distillation requires no training at all"
+    ],
+    "correctIndex": 1
+  }
+]

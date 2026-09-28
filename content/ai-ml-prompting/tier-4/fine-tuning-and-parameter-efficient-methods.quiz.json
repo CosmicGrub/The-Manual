@@ -1,0 +1,98 @@
+[
+  {
+    "id": "ai-ml-prompting/tier-4/fine-tuning-and-parameter-efficient-methods/q1",
+    "type": "multiple_choice",
+    "prompt": "A weight matrix is 4096\u00d74096. Using LoRA with rank r=16, how many trainable parameters does the B and A decomposition add?",
+    "choices": [
+      "131,072",
+      "65,536",
+      "262,144",
+      "16,777,216"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-4/fine-tuning-and-parameter-efficient-methods/q2",
+    "type": "multiple_choice",
+    "prompt": "QLoRA lets you fine-tune a large model on a single consumer GPU where full fine-tuning would need multiple 80GB datacenter GPUs. What's the core mechanism that makes this possible?",
+    "choices": [
+      "The base model's frozen weights are quantized to 4-bit, and only the small LoRA adapters (with their own optimizer state) are trainable in higher precision",
+      "QLoRA reduces the number of transformer layers that are loaded into memory",
+      "QLoRA trains on a shorter context length, which proportionally shrinks the optimizer state",
+      "QLoRA replaces the Adam optimizer with a stateless optimizer for all parameters, including the base weights"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-4/fine-tuning-and-parameter-efficient-methods/q3",
+    "type": "multiple_choice",
+    "prompt": "What is the key structural simplification DPO makes relative to RLHF's reward-model-plus-PPO pipeline?",
+    "choices": [
+      "DPO substitutes the closed-form relationship between optimal policy and reward into the preference loss, so it trains directly on preference pairs with no separate reward model and no RL rollout loop",
+      "DPO still trains an explicit reward model first, but discards it before the RL step",
+      "DPO replaces pairwise preference data with unlabeled text, removing the need for human comparisons entirely",
+      "DPO keeps the reward model and value network but removes the frozen reference policy"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-4/fine-tuning-and-parameter-efficient-methods/q4",
+    "type": "multiple_choice",
+    "prompt": "In a standard RLHF PPO training loop, how many distinct model instances are typically resident in memory at once (policy, reference, reward model, value/critic)?",
+    "choices": [
+      "4",
+      "1",
+      "2",
+      "3"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-4/fine-tuning-and-parameter-efficient-methods/q5",
+    "type": "multiple_choice",
+    "prompt": "You're choosing between 500,000 scraped instruction examples with inconsistent formatting and heavy near-duplication, versus 1,500 hand-curated, diverse, consistently-formatted examples (LIMA-style). Which is more likely to produce a better instruction-following model, and why?",
+    "choices": [
+      "The smaller curated set, because SFT mainly teaches the format and distribution of good responses, and pretraining already supplies most of the underlying knowledge and capability",
+      "The larger scraped set, because instruction tuning requires enough raw volume to teach the model new factual knowledge",
+      "They'll perform identically, since fine-tuning outcomes depend only on total token count, not on example quality",
+      "The larger scraped set, because deduplication only matters for pretraining corpora, not fine-tuning data"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-4/fine-tuning-and-parameter-efficient-methods/q6",
+    "type": "multiple_choice",
+    "prompt": "Why do instruction-tuning pipelines mask the loss on prompt/system/user tokens and compute loss only on the assistant completion tokens?",
+    "choices": [
+      "So the model is only trained to generate appropriate completions, rather than wasting gradient signal on predicting fixed prompt/template tokens it should never need to generate itself",
+      "Masking is required specifically to make LoRA adapters trainable; full fine-tuning doesn't need it",
+      "It reduces GPU memory usage during the forward pass by skipping computation on masked tokens",
+      "Assistant completions are always shorter than prompts, so masking balances the loss magnitude"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-4/fine-tuning-and-parameter-efficient-methods/q7",
+    "type": "multiple_choice",
+    "prompt": "Despite its huge efficiency advantage, what is LoRA's main structural downside relative to full fine-tuning?",
+    "choices": [
+      "The low-rank update constrains how much the weights can shift, so on tasks requiring large representational changes (e.g., absorbing substantial new knowledge or a big distribution shift) it can underperform full fine-tuning at low rank",
+      "LoRA adapters cannot be merged back into the base weights, so they add permanent inference latency",
+      "LoRA is incompatible with quantized base models, which is why QLoRA had to be invented separately",
+      "LoRA always requires more total GPU memory than full fine-tuning because it keeps two copies of every weight matrix"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-4/fine-tuning-and-parameter-efficient-methods/q8",
+    "type": "multiple_choice",
+    "prompt": "In the DPO loss, what does the beta (\u03b2) hyperparameter control?",
+    "choices": [
+      "How strongly the policy is regularized toward staying close to the frozen reference model \u2014 analogous to the KL penalty coefficient in RLHF-PPO",
+      "The learning rate used for the policy network's gradient updates",
+      "The number of preference pairs sampled per training batch",
+      "The rank of the low-rank adapter applied to the policy model"
+    ],
+    "correctIndex": 0
+  }
+]

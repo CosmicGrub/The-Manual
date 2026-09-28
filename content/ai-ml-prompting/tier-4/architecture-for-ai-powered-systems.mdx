@@ -1,0 +1,322 @@
+---
+trackId: ai-ml-prompting
+tier: 4
+title: "Architecture for AI-Powered Systems"
+order: 5
+estimatedHours: 12
+slug: architecture-for-ai-powered-systems
+---
+
+## The System Around the Model Call
+
+By this point in the track you've fine-tuned a model (Tier 4, Fine-Tuning & PEFT), built a real evaluation harness instead of trusting vibes (Tier 4, Model Evaluation & Red-Teaming), and reasoned about quantization, KV-cache, and serving throughput (Tier 4, Inference Optimization). None of that matters if the application wrapped around the model falls over the first time a provider has a bad minute, or if nobody can say which prompt version produced the answer a customer is complaining about. This module is about that wrapper: the architecture that turns "a call to an LLM API" into a production system with predictable cost, predictable latency, and a paper trail.
+
+Five concerns, in the order a request actually passes through them: **caching** (can we skip the call entirely), **guardrails** (is the input safe to send and the output safe to return), **fallback** (what happens when the primary call fails), **prompt versioning** (which exact prompt produced this output), and **observability** (what do we log so the first three are debuggable in production, not just in a demo). Then a cost/latency budget that ties all of it to a number a product manager can hold you to.
+
+## Caching LLM Responses
+
+There are three different things people mean by "cache the LLM," and conflating them causes bugs.
+
+**Exact-match response cache.** For deterministic or near-deterministic calls (low temperature, repeated inputs — FAQ-style questions, classification calls, structured extraction), cache the full response keyed on everything that could change it: model, prompt version, the rendered prompt content, and sampling params. Miss the prompt version and a prompt edit silently keeps serving stale-worded answers.
+
+```python
+import hashlib, json
+import redis
+
+r = redis.Redis(host="localhost", port=6379, db=0)
+
+def exact_cache_key(model: str, prompt_version: str, user_input: str, params: dict) -> str:
+    payload = {
+        "model": model,
+        "prompt_version": prompt_version,
+        "user_input": user_input.strip().lower(),
+        "temperature": params.get("temperature", 0),
+        "top_p": params.get("top_p", 1.0),
+    }
+    blob = json.dumps(payload, sort_keys=True).encode()
+    return "llm:exact:" + hashlib.sha256(blob).hexdigest()
+
+def get_or_call(model, prompt_version, user_input, params, call_fn, ttl=3600):
+    if params.get("temperature", 0) > 0.3:
+        return {**call_fn(), "cache_hit": False}  # too much sampling variance to cache safely
+    key = exact_cache_key(model, prompt_version, user_input, params)
+    if cached := r.get(key):
+        return {**json.loads(cached), "cache_hit": True}
+    result = call_fn()
+    r.setex(key, ttl, json.dumps(result))
+    return {**result, "cache_hit": False}
+```
+
+Bumping `prompt_version` changes every key derived from it, which is exactly the invalidation you want: no manual cache-flush step tied to a deploy.
+
+**Semantic cache.** For paraphrases — "what's your refund policy" vs. "how do refunds work" — embed the query and match against cached (embedding, response) pairs by cosine similarity above a threshold.
+
+```python
+import numpy as np
+
+def semantic_cache_lookup(query_embedding, cache_index: dict, threshold=0.97):
+    best_id, best_sim = None, -1.0
+    for entry_id, (emb, response) in cache_index.items():
+        sim = np.dot(query_embedding, emb) / (
+            np.linalg.norm(query_embedding) * np.linalg.norm(emb)
+        )
+        if sim > best_sim:
+            best_id, best_sim = entry_id, sim
+    if best_sim >= threshold:
+        return cache_index[best_id][1], best_sim
+    return None, best_sim
+```
+
+The threshold is a real production knob, not a formality: at 0.97 with a typical embedding model, true paraphrases cluster tightly but "refund policy" and "refund policy for digital goods" usually stay just under it — good, they're different answers. Drop the threshold to 0.90 to catch more paraphrases and you start conflating distinct questions and serving the wrong cached answer with high confidence, which is worse than a cache miss. Semantic caching only belongs on narrow, stable, non-personalized traffic (support FAQs, product docs) — never on anything involving account state, live inventory, or anything time-sensitive.
+
+**Provider-side prefix caching** (Anthropic's prompt caching, similar features elsewhere) is a different mechanism entirely — it's the serving layer reusing KV-cache state for a repeated prefix (your system prompt, a large retrieved-context block) so the provider doesn't reprocess it every call, at a steep discount on that portion of input tokens. That's the same KV-cache concept from the Inference Optimization module, just exposed as an API-level cost lever here: put your stable system prompt and static instructions first and mark them cacheable; put the variable user turn last.
+
+## Fallback Models and Circuit Breakers
+
+A production system needs a concrete answer to "the primary model call timed out or errored — now what," not a bare `except: pass`. The pattern: a tiered chain of models with per-tier timeout budgets that sum to your overall UX budget, and a circuit breaker per tier so a provider outage doesn't burn your whole timeout budget retrying a dead endpoint on every request.
+
+```python
+import time
+
+class CircuitBreaker:
+    def __init__(self, failure_threshold=5, reset_after_s=30):
+        self.failure_threshold = failure_threshold
+        self.reset_after_s = reset_after_s
+        self.failures = 0
+        self.opened_at = None
+
+    def is_open(self):
+        if self.opened_at is None:
+            return False
+        if time.monotonic() - self.opened_at > self.reset_after_s:
+            self.opened_at = None  # half-open: allow one trial call through
+            self.failures = 0
+            return False
+        return True
+
+    def record_success(self):
+        self.failures = 0
+        self.opened_at = None
+
+    def record_failure(self):
+        self.failures += 1
+        if self.failures >= self.failure_threshold:
+            self.opened_at = time.monotonic()
+
+PRIMARY, SECONDARY = CircuitBreaker(), CircuitBreaker()
+MODEL_CHAIN = [
+    {"name": "claude-sonnet-4.5", "timeout_s": 8, "breaker": PRIMARY},
+    {"name": "claude-haiku-4.5",  "timeout_s": 4, "breaker": SECONDARY},
+]
+
+def call_with_fallback(prompt, overall_budget_s=12.0):
+    start = time.monotonic()
+    for tier in MODEL_CHAIN:
+        remaining = overall_budget_s - (time.monotonic() - start)
+        if remaining <= 0.5 or tier["breaker"].is_open():
+            continue
+        try:
+            response = call_model(tier["name"], prompt, timeout=min(tier["timeout_s"], remaining))
+            tier["breaker"].record_success()
+            return {"text": response, "served_by": tier["name"], "degraded": tier is not MODEL_CHAIN[0]}
+        except (TimeoutError, ModelAPIError):
+            tier["breaker"].record_failure()
+    return {"text": STATIC_FALLBACK_MESSAGE, "served_by": "static_fallback", "degraded": True}
+```
+
+Two details that make this production-grade rather than a toy: the timeouts (8s + 4s = 12s) are chosen to *equal* the overall budget, not add slack on top of it — an unbounded retry chain is how a slow provider turns into a request that hangs for a minute. And every branch returns `served_by` and `degraded` — that's not optional bookkeeping, it's the field your observability layer needs to compute "what fraction of traffic is degraded right now," which is the actual SLO you should be alerting on, not raw error rate.
+
+## Prompt Versioning
+
+The concrete failure mode this fixes: someone edits a system prompt in place, an output six weeks later looks wrong, and nobody can reconstruct which wording actually produced it. Treat prompts as versioned artifacts, exactly like the data/model versioning discipline from the Lightweight MLOps module — same idea (immutable, hashed, diffable versions with a changelog), applied to the prompt template instead of a dataset.
+
+```python
+import hashlib
+from pathlib import Path
+from jinja2 import Template
+
+PROMPTS_DIR = Path("prompts/support_agent")   # v1.jinja2, v2.jinja2, v3.jinja2 — never edited after ship
+
+def load_prompt(version: str) -> tuple[str, str]:
+    text = (PROMPTS_DIR / f"v{version}.jinja2").read_text()
+    content_hash = hashlib.sha256(text.encode()).hexdigest()[:12]
+    return text, content_hash
+
+def render_prompt(version: str, **context) -> dict:
+    text, content_hash = load_prompt(version)
+    return {
+        "prompt_id": "support_agent",
+        "prompt_version": version,
+        "prompt_hash": content_hash,
+        "rendered": Template(text).render(**context),
+    }
+```
+
+Every file is a normal git commit, so `git log prompts/support_agent/` is your prompt changelog for free. The router picks a version by config (a version pin, not a code change), which means rollback is "point the pin back to v2" — no redeploy. And because the version and hash travel with every generation record (next section), any output a user or a reviewer flags is traceable to the exact template that produced it, not "whatever the prompt looked like sometime in September." Before promoting a new version to the pin that live traffic reads, run it through the evaluation harness from the Model Evaluation module against your held-out set — you already built that scoring pipeline; reuse it as a promotion gate instead of eyeballing a few sample outputs.
+
+## Guardrails: Input and Output Validation
+
+Guardrails here means the engineering enforcement layer, not the attack taxonomy — that's the Model Evaluation, Red-Teaming & Safety module's job (role-play framing, instruction-override attempts, indirect injection via retrieved content, and how to test for them). This section is what you build into the pipeline *given* that those attack categories exist, so that even a prompt that partially succeeds against the model is contained by the surrounding code.
+
+**Input side:** bound the input, and never string-concatenate untrusted content (user turns, tool results, RAG-retrieved documents) into the same string as your system instructions — keep them in separate message roles so there's a structural boundary between "instruction" and "data" for the model and for any downstream check to reason about.
+
+```python
+from pydantic import BaseModel, field_validator
+import re
+
+INJECTION_MARKERS = re.compile(
+    r"(ignore (all|previous) instructions|you are now|###\s*system|<\|.*?\|>)",
+    re.IGNORECASE,
+)
+
+class UserTurn(BaseModel):
+    text: str
+
+    @field_validator("text")
+    @classmethod
+    def bounded(cls, v: str) -> str:
+        if len(v) > 4000:
+            raise ValueError("input exceeds 4000 characters")
+        return v
+
+def flag_suspicious_input(text: str) -> bool:
+    # A tripwire for logging/routing, not a security boundary by itself —
+    # it pairs with role separation above, it doesn't replace it.
+    return bool(INJECTION_MARKERS.search(text))
+```
+
+**Output side:** force structured output (tool calling / JSON schema) instead of parsing free-text prose after the fact. A constrained shape is mechanically checkable; open-ended text is not.
+
+```python
+from pydantic import BaseModel, ValidationError
+
+class SupportReply(BaseModel):
+    answer: str
+    escalate_to_human: bool
+    citations: list[str] = []
+
+def validate_output(raw_json: str, max_retries: int = 1) -> SupportReply:
+    for attempt in range(max_retries + 1):
+        try:
+            return SupportReply.model_validate_json(raw_json)
+        except ValidationError as e:
+            if attempt == max_retries:
+                raise
+            raw_json = call_model_for_repair(raw_json, str(e))
+```
+
+Schema validation closes a class of bug that regex scanning of prose can't: a compromised generation would have to produce a value inside a typed field you've already constrained (e.g., `escalate_to_human: bool`), not slip arbitrary unstructured text past a keyword filter. Two rules for the last mile: retrieved RAG content is untrusted input too, so it goes through the same input-side treatment as user text, and any high-stakes action (a refund, an account change) is gated behind a separate deterministic check that doesn't trust the model's `escalate_to_human` flag as the sole authority — a single LLM call should never be the last line of defense for something with real-world consequences.
+
+## Observability: What to Log and Monitor
+
+Log one structured record per generation, with enough fields to answer "why was this slow / wrong / expensive" without re-running the request:
+
+```json
+{
+  "generation_id": "gen_8f21c3",
+  "prompt_id": "support_agent",
+  "prompt_version": "3",
+  "prompt_hash": "9e4a1b7c3d2f",
+  "model": "claude-sonnet-4.5",
+  "served_by_tier": "primary",
+  "degraded": false,
+  "cache_hit": false,
+  "input_tokens": 2120,
+  "output_tokens": 250,
+  "latency_ms": {"ttft": 450, "total": 3260},
+  "guardrail_triggered": null,
+  "cost_usd": 0.0085,
+  "user_feedback": null,
+  "timestamp": "2026-09-28T14:02:11Z"
+}
+```
+
+Aggregate that into dashboards over p50/p95/p99 latency (TTFT and total, separately — they tell you different things), cache hit rate, error rate by tier, guardrail trigger rate by category, and **degraded-response rate** — the fraction of traffic served by a fallback tier or the static fallback. That last one is your real SLO input, not raw uptime.
+
+For multi-step calls (retrieval, guardrail check, model call, possible repair round), a single total-latency number hides where the time went. Trace it with per-step spans:
+
+```python
+from opentelemetry import trace
+tracer = trace.get_tracer("support-agent")
+
+def handle_request(user_input: str):
+    with tracer.start_as_current_span("handle_request") as root:
+        with tracer.start_as_current_span("guardrail.input"):
+            root.set_attribute("guardrail.input.flagged", flag_suspicious_input(user_input))
+        with tracer.start_as_current_span("retrieval"):
+            context = retrieve(user_input)
+            root.set_attribute("retrieval.doc_count", len(context))
+        with tracer.start_as_current_span("model.call") as span:
+            result = call_with_fallback(build_prompt(user_input, context))
+            span.set_attribute("model.served_by", result["served_by"])
+        return result
+```
+
+When p95 latency spikes next month, this is the difference between "the model call is slow" and "retrieval got slow" and "we're stuck in a guardrail repair loop" — three different fixes. Finally, log a `user_feedback` field (thumbs up/down, or an implicit signal like "user re-asked the same question") keyed to `generation_id` — that's what feeds real production data back into the evaluation harness rather than letting eval quality stagnate at whatever the offline test set covered.
+
+## Cost and Latency Budgeting: A Worked Example
+
+Product requirement for "DocAssist," a RAG-backed support assistant: p95 total latency under 3.5s, ship a cloud version, a desktop offline mode, and a mobile app.
+
+**Cloud.** Per request: ~600-token cached system prompt, ~1,400-token retrieved context, ~120-token user question, ~250-token average output. Assume representative pricing of $3.00/M fresh input tokens, $0.30/M cached-read input tokens, $15.00/M output tokens:
+
+```
+fresh_input  = (1400 + 120) / 1e6 * 3.00  = $0.00456
+cached_input =  600        / 1e6 * 0.30  = $0.00018
+output       =  250        / 1e6 * 15.00 = $0.00375
+total ≈ $0.0085 / request
+```
+
+At 40,000 requests/day: `0.0085 * 40,000 = $340/day → ~$10,200/month`. Latency: TTFT ~450ms, decode ~90 tok/s → 250 tokens in ~2.8s, plus ~250ms network/guardrail/retrieval overhead ≈ **3.25s total**, inside budget with thin headroom — the generation phase dominates, which is exactly why `max_tokens` and prompt trimming are latency levers, not just cost levers.
+
+**Desktop (offline mode, local 7B int4 via llama.cpp).** Feeding the full 2,120-token RAG context straight through, prompt processing alone at a representative ~550 tok/s local throughput takes `2120/550 ≈ 3.9s` — before a single output token appears, already over budget on ingestion alone. The fix is architectural, not a bigger machine: trim retrieved context for the local path (fewer, shorter chunks — e.g., top-2 instead of top-8) down to ~700 tokens. Then: prompt eval `700/550 ≈ 1.3s`, decode at a representative ~35 tok/s for 250 tokens ≈ `7.1s`, total **≈ 8.4s**. Marginal cost is $0, but latency is roughly 2.5x the cloud budget — acceptable as an explicit offline/privacy mode, not as the default path.
+
+**Mobile (on-device 3B int4).** Same shape, worse: even after trimming context to ~400 tokens, a representative ~18 tok/s phone-NPU decode speed puts 250 output tokens at `250/18 ≈ 13.9s` — nowhere near 3.5s. The correct mobile architecture isn't "shrink the model until it fits the budget"; it's routing by complexity:
+
+```python
+def choose_deployment_target(query: str, network_available: bool) -> str:
+    is_simple = looks_like_faq(query) and len(query) < 120
+    if is_simple:
+        return "on_device_small_model"       # short templated answer, ~2s, $0, works offline
+    if network_available:
+        return "cloud_api"                   # ~3.25s p95, $0.0085/request
+    return "on_device_small_model_degraded"  # slow fallback, logged as degraded
+```
+
+Short, templated FAQ answers (~40 tokens) on the 3B on-device model finish in `40/18 ≈ 2.2s` — inside budget. Anything that actually needs the full retrieved context goes to the cloud path over the network, at the cost and latency numbers computed above, and only falls back to the slow on-device path when offline — the same `degraded` flag and observability pattern from the fallback-model section, applied across deployment targets instead of across model tiers.
+
+## Assembling the Pipeline
+
+Every piece above composes into one request handler, in the order caching -> input guardrail -> fallback chain -> output guardrail -> logging:
+
+```python
+import uuid, time
+
+def handle_support_request(user_input: str, prompt_version: str) -> dict:
+    gen_id = str(uuid.uuid4())
+    t0 = time.monotonic()
+
+    if flag_suspicious_input(user_input):
+        log_generation(gen_id, event="guardrail_input_block")
+        return {"answer": SAFE_REFUSAL_MESSAGE, "escalate_to_human": True}
+
+    cached = get_or_call(
+        model="claude-sonnet-4.5", prompt_version=prompt_version,
+        user_input=user_input, params={"temperature": 0},
+        call_fn=lambda: call_with_fallback(render_prompt(prompt_version, question=user_input)["rendered"]),
+    )
+
+    reply = validate_output(cached["text"])
+
+    log_generation(gen_id, prompt_version=prompt_version, cache_hit=cached["cache_hit"],
+                    served_by=cached.get("served_by"), latency_ms=int((time.monotonic() - t0) * 1000))
+    return reply.model_dump()
+```
+
+Nothing here is exotic. What makes it production-grade is that every layer writes to the same `gen_id`, so one log line answers "was it cached, which model tier answered, did a guardrail fire, how long did it take, what did it cost" — the entire point of the architecture is that this question has an answer without re-running anything.
+
+## Exercise
+
+You're given a minimal endpoint that calls a single model directly with no caching, fallback, versioning, or logging. Add: (1) an exact-match cache keyed on prompt version, (2) a two-tier fallback chain with a circuit breaker, (3) one input guardrail and one output schema guardrail, and (4) a structured log line per request carrying every field listed in the Observability section.
+
+*Hint:* generate the `gen_id` first, before writing any of the four layers, and thread it through cache lookup, model call, guardrail result, and the final log line. Getting the ID threading right up front is what makes each layer trivial to bolt on independently afterward — build them in any order once that's in place.

@@ -1,0 +1,98 @@
+[
+  {
+    "id": "ai-ml-prompting/tier-4/advanced-prompt-engineering-and-agentic-systems/q1",
+    "type": "multiple_choice",
+    "prompt": "In the supervisor/worker multi-agent pipeline described in this module, why does the Researcher agent not receive the Critic's feedback directly?",
+    "choices": [
+      "Because giving an agent context it doesn't need degrades instruction-following and wastes tokens, so each agent gets only what its subtask requires",
+      "Because the Anthropic API forbids passing critic output to a different agent's context window",
+      "Because the Researcher agent has no text-input capability, only tool-call capability",
+      "Because Critic feedback is only generated after all Researcher calls have already completed and been discarded"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-4/advanced-prompt-engineering-and-agentic-systems/q2",
+    "type": "multiple_choice",
+    "prompt": "A tool call returns HTTP 200 but the JSON body fails Pydantic schema validation. What is the most effective next step?",
+    "choices": [
+      "Retry the identical call up to 5 times with exponential backoff",
+      "Stop retrying mechanically and feed the validation error back to the model as an is_error tool result so it can choose a different action",
+      "Silently substitute a default/empty object for the missing fields and continue",
+      "Restart the entire agent session from the first turn"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-4/advanced-prompt-engineering-and-agentic-systems/q3",
+    "type": "multiple_choice",
+    "prompt": "What is the core structural difference between Reflexion and plain ReAct?",
+    "choices": [
+      "Reflexion never uses tools, while ReAct requires at least one tool",
+      "Reflexion runs multiple episodes and carries forward a natural-language lesson from failed attempts, while ReAct has no memory across separate attempts",
+      "Reflexion always uses a larger context window than ReAct",
+      "Reflexion replaces the language model with a separate reinforcement-learning policy"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-4/advanced-prompt-engineering-and-agentic-systems/q4",
+    "type": "multiple_choice",
+    "prompt": "A team is deciding whether to use Tree-of-Thought instead of plain ReAct for an agent that decomposes a multi-step data pipeline task. When is ToT actually worth its extra cost?",
+    "choices": [
+      "Whenever the task involves more than one tool call",
+      "Whenever the budget allows for more API spend, regardless of task structure",
+      "When the task has real branching (multiple valid partial solutions) and a cheap, reliable way to score partial progress, so backtracking has something to act on",
+      "Never \u2014 ToT is strictly dominated by Reflexion in production systems"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "ai-ml-prompting/tier-4/advanced-prompt-engineering-and-agentic-systems/q5",
+    "type": "multiple_choice",
+    "prompt": "What problem does map-reduce summarization primarily solve?",
+    "choices": [
+      "An input document that is too large to fit in the context window at all, even once",
+      "A tool call that keeps timing out under load",
+      "A prompt that is being resent unchanged on every call and needs cheaper repeat billing",
+      "An agent that loses track of its own prior actions mid-session"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-4/advanced-prompt-engineering-and-agentic-systems/q6",
+    "type": "multiple_choice",
+    "prompt": "You're sending the same 40,000-token internal API reference on every one of hundreds of calls in a session, with only the user's question changing each time. Which technique directly targets this cost problem?",
+    "choices": [
+      "Tree-of-Thought search",
+      "Reflexion's episodic memory buffer",
+      "Prompt caching via cache_control on the static portion of the message",
+      "Increasing beam_width in the planning loop"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "ai-ml-prompting/tier-4/advanced-prompt-engineering-and-agentic-systems/q7",
+    "type": "multiple_choice",
+    "prompt": "What does a circuit breaker on a tool add beyond simple retry-with-backoff?",
+    "choices": [
+      "It converts tool_use blocks into text blocks automatically",
+      "It increases the number of retries allowed for any single failure",
+      "After repeated consecutive failures of the same tool, it stops offering that tool to the model rather than letting retries continue burning turns on a likely-dead endpoint",
+      "It caches every tool result regardless of whether the call succeeded"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "ai-ml-prompting/tier-4/advanced-prompt-engineering-and-agentic-systems/q8",
+    "type": "multiple_choice",
+    "prompt": "In the orchestrate() pipeline example, the critic/writer revision loop is written as for attempt in range(2) rather than while verdict != APPROVED. Why does this matter?",
+    "choices": [
+      "Python does not support while loops inside functions that call an LLM",
+      "An unbounded critique loop is a common source of runaway token spend in multi-agent systems, so bounding it caps worst-case cost even if the critic never approves",
+      "range(2) is required by the Anthropic API's rate limiter",
+      "The critic agent can only be called exactly twice per session by design of the tools parameter"
+    ],
+    "correctIndex": 1
+  }
+]
