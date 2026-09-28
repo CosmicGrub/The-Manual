@@ -1,0 +1,396 @@
+---
+trackId: software-engineering
+tier: 3
+title: "API Design Deep Dive"
+order: 3
+estimatedHours: 10
+slug: api-design-deep-dive
+---
+
+## Where This Sits
+
+Tier 1's REST module covered HTTP verbs, status codes, and building a basic CRUD API. This module assumes that and goes deeper: how to judge whether an API is actually well-designed (not just "it works"), how to evolve it without breaking clients, how to handle the failure modes real APIs hit at scale (duplicate submissions, huge result sets, abusive clients), how to write the spec that makes an API a real contract, and when REST itself is the wrong tool.
+
+## The Richardson Maturity Model
+
+Leonard Richardson's model scores how "RESTful" an API actually is, in four levels (0-3). Most APIs that call themselves REST are actually Level 2.
+
+**Level 0 — The Swamp of POX.** One URL, one HTTP verb (usually POST), the "REST" is fake — it's really RPC over HTTP. Everything is a tunnel:
+
+```http
+POST /api HTTP/1.1
+Content-Type: application/json
+
+{"action": "getUser", "id": 42}
+```
+
+```http
+POST /api HTTP/1.1
+Content-Type: application/json
+
+{"action": "deleteUser", "id": 42}
+```
+
+Same endpoint, same verb, the "real" operation is buried in the body. HTTP is just a transport pipe.
+
+**Level 1 — Resources.** Multiple URLs now exist, one per resource, but every request still uses the same verb (usually POST or GET):
+
+```http
+POST /users/42/get
+POST /users/42/delete
+POST /users/42/update
+```
+
+Progress: the URL now identifies *what* you're acting on. Still no use of HTTP's own vocabulary for *what kind* of action.
+
+**Level 2 — HTTP Verbs.** URLs identify resources, and HTTP methods identify the operation. This is where the vast majority of "REST APIs" in production actually sit, and it's a perfectly legitimate place to stop:
+
+```http
+GET    /users/42        → fetch user 42
+PUT    /users/42        → replace user 42
+PATCH  /users/42        → partially update user 42
+DELETE /users/42        → delete user 42
+POST   /users           → create a new user
+```
+
+Status codes now carry real meaning too (`404` for missing, `409` for conflict, `422` for validation failure) instead of always returning `200` with an error buried in the JSON body.
+
+**Level 3 — HATEOAS** (Hypermedia as the Engine of Application State). Responses include links describing what you can do *next*, so clients discover the API's state machine at runtime instead of hardcoding URLs:
+
+```json
+{
+  "id": 42,
+  "status": "pending_payment",
+  "total": 89.00,
+  "_links": {
+    "self":   { "href": "/orders/42" },
+    "pay":    { "href": "/orders/42/payment", "method": "POST" },
+    "cancel": { "href": "/orders/42/cancel",   "method": "POST" }
+  }
+}
+```
+
+Note `"cancel"` is only present because this order is cancelable in its current state — once it ships, the response stops offering it, and a well-built client no longer needs to know that rule itself.
+
+**Scoring a real example.** Say your team has:
+
+```http
+GET /api/orders/42
+→ 200 { "id": 42, "status": "shipped", "total": 89.00 }
+
+POST /api/orders/42/cancel
+→ 409 { "error": "cannot cancel a shipped order" }
+```
+
+Resources are URLs, verbs are used correctly, status codes are meaningful — that's Level 2. There's no `_links` field telling the client cancellation isn't available before it tries — that would push it to Level 3. Most teams target Level 2 deliberately: Level 3 adds real client flexibility but also real implementation cost, and plenty of internal or narrowly-scoped APIs never need it. Know where you are and why, rather than assuming higher is always better.
+
+## Versioning Strategies
+
+APIs change. Clients you don't control (mobile apps already installed on phones, third-party integrations) can't always update the moment you do. Versioning is how you change the contract without breaking them.
+
+**URI versioning** — simplest, most common, most visible:
+
+```
+GET /v1/users/42
+GET /v2/users/42
+```
+
+Easy to route, easy to see in logs, easy to explain. Downside: the resource's identity now includes its version, which is philosophically messy (is `/v1/users/42` a different resource than `/v2/users/42`?) — but in practice, nobody cares, and this is what you'll see most often.
+
+**Header versioning** — the URL stays clean, the version rides in a custom header or `Accept`:
+
+```http
+GET /users/42
+Accept: application/vnd.myapi.v2+json
+```
+
+Purer REST-wise (a resource has one URL), but harder to test in a browser, harder to grep in logs, easy for clients to forget to set.
+
+**Query-parameter versioning** — `GET /users/42?version=2`. Rare in practice; treated as a fallback, not a primary strategy.
+
+**The real rule that matters more than which scheme you pick:** define a deprecation policy up front — how long an old version stays alive, how you announce sunset dates, and what a breaking vs. non-breaking change actually means for your API. Adding a new optional field to a response is *not* breaking. Removing a field, renaming a field, or changing a field's type *is* breaking and requires a new version.
+
+## Pagination: Offset vs. Cursor
+
+Any endpoint that returns a list needs pagination once the list gets big, or you're one `SELECT * FROM orders` away from a slow response and a memory spike.
+
+**Offset-based** — the intuitive one:
+
+```http
+GET /orders?limit=20&offset=40
+```
+
+```sql
+SELECT * FROM orders ORDER BY created_at DESC LIMIT 20 OFFSET 40;
+```
+
+Simple to implement, and lets a client jump straight to "page 5" or "the last page." The trade-off shows up under write load: if a new order is inserted while a user is paging through, every row after it shifts by one position — the user can see the same item twice, or skip one entirely. It also gets *slower* as the offset grows, because the database still has to scan and discard every row before the offset.
+
+**Cursor-based** — pass a pointer to where you left off instead of a row count:
+
+```http
+GET /orders?limit=20&after=eyJpZCI6ODQwLCJjcmVhdGVkX2F0IjoiMjAyNi0wOS0…}
+```
+
+```sql
+SELECT * FROM orders
+WHERE (created_at, id) < ('2026-09-20T14:03:00Z', 840)
+ORDER BY created_at DESC, id DESC
+LIMIT 20;
+```
+
+The cursor is an opaque, encoded pointer (often base64 of the last row's sort key plus id, to break ties) rather than a raw row count. Because it's anchored to an actual row instead of a position, new inserts don't shift anyone's place in the list — no duplicates, no skips. It's also fast at any depth, since the query never scans rows it's discarding. The cost: you lose "jump to page 5" — cursor pagination is inherently sequential, forward/backward only, which is the right trade for infinite-scroll feeds (Twitter, Slack) and the wrong trade for an admin table with page-number links.
+
+**Rule of thumb:** offset pagination for small, relatively static, randomly-accessed lists (an admin panel with under a few thousand rows); cursor pagination for anything large, frequently-written-to, or consumed as an infinite scroll.
+
+## Idempotency
+
+An operation is idempotent if performing it twice has the same effect as performing it once. `GET`, `PUT`, and `DELETE` are supposed to be idempotent by HTTP's own definition — `PUT /users/42` with the same body twice should leave the user in the same state both times. `POST` is explicitly **not** idempotent by default: `POST /orders` twice creates two orders.
+
+That's a real production problem. A mobile client on a flaky connection sends `POST /payments`, the server processes it and the response gets lost on the way back, the client — seeing what looks like a timeout — retries. Without protection, the customer is charged twice.
+
+**The fix: an idempotency key.** The client generates a unique key (typically a UUID) per *logical* operation, not per HTTP request, and sends it as a header. The server stores the key alongside the result the first time, and on a repeat, returns the stored result instead of redoing the work:
+
+```http
+POST /payments HTTP/1.1
+Idempotency-Key: 8f14e45f-ceea-4a5d-9e8f-2d6c9a7c1b3e
+Content-Type: application/json
+
+{ "amount": 4999, "currency": "usd", "customer_id": "cus_88" }
+```
+
+A minimal server-side implementation:
+
+```python
+import hashlib, json
+from flask import Flask, request, jsonify
+
+app = Flask(__name__)
+idempotency_store = {}  # in production: Redis or a DB table with a TTL
+
+@app.post("/payments")
+def create_payment():
+    key = request.headers.get("Idempotency-Key")
+    if not key:
+        return jsonify(error="Idempotency-Key header required"), 400
+
+    body = request.get_json()
+    body_hash = hashlib.sha256(json.dumps(body, sort_keys=True).encode()).hexdigest()
+
+    cached = idempotency_store.get(key)
+    if cached:
+        if cached["body_hash"] != body_hash:
+            # same key, different payload — the client reused a key incorrectly
+            return jsonify(error="Idempotency-Key already used with a different request body"), 422
+        return jsonify(cached["response"]), cached["status_code"]
+
+    # --- do the real work exactly once ---
+    payment = {"id": "pay_" + key[:8], "amount": body["amount"], "status": "succeeded"}
+
+    idempotency_store[key] = {
+        "body_hash": body_hash,
+        "response": payment,
+        "status_code": 201,
+    }
+    return jsonify(payment), 201
+```
+
+Two details matter beyond the happy path: hash the request body alongside the key, so a client accidentally reusing a key for a *different* payload gets a clear error instead of a silently wrong cached result; and expire keys after a reasonable window (Stripe uses 24 hours) so the store doesn't grow forever.
+
+## Rate Limiting
+
+Rate limiting protects your API from being overwhelmed — by a buggy client retrying in a loop, or a deliberate abuser. The client-facing contract is a set of response headers plus a `429`:
+
+```http
+HTTP/1.1 429 Too Many Requests
+X-RateLimit-Limit: 100
+X-RateLimit-Remaining: 0
+X-RateLimit-Reset: 1727539200
+Retry-After: 42
+
+{ "error": "rate limit exceeded, retry after 42 seconds" }
+```
+
+The most common algorithm is the **token bucket**: each client has a bucket that holds up to N tokens, refilling at a fixed rate; every request costs one token, and a request is rejected when the bucket is empty. It allows short bursts (up to the bucket size) while still enforcing a steady average rate — friendlier than a hard "100 requests per exact minute" window, which either lets a client blow its whole budget in the first second or arbitrarily rejects requests right at a window boundary. A simple implementation with Redis:
+
+```python
+import time
+import redis
+
+r = redis.Redis()
+
+def allow_request(client_id: str, capacity: int = 100, refill_rate: float = 100/60) -> bool:
+    now = time.time()
+    key = f"ratelimit:{client_id}"
+    bucket = r.hgetall(key)
+
+    tokens = float(bucket.get(b"tokens", capacity))
+    last_refill = float(bucket.get(b"last_refill", now))
+
+    tokens = min(capacity, tokens + (now - last_refill) * refill_rate)
+
+    if tokens < 1:
+        r.hset(key, mapping={"tokens": tokens, "last_refill": now})
+        return False
+
+    tokens -= 1
+    r.hset(key, mapping={"tokens": tokens, "last_refill": now})
+    return True
+```
+
+Rate limit per API key or authenticated user, not per IP alone — IPs are shared behind NAT and corporate proxies, so IP-only limiting punishes innocent clients sharing an address with an abusive one.
+
+## Writing a Real OpenAPI Spec
+
+An OpenAPI (formerly Swagger) spec is a machine-readable contract: it drives auto-generated docs, client SDKs, and mock servers, and it's the artifact that lets a frontend team start building against your API before the backend is finished. Here's a complete, valid spec for a small "orders" API covering the concepts above:
+
+```yaml
+openapi: 3.0.3
+info:
+  title: Orders API
+  version: 1.0.0
+  description: A small API for creating and tracking orders.
+servers:
+  - url: https://api.example.com/v1
+
+paths:
+  /orders:
+    get:
+      summary: List orders
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, default: 20, maximum: 100 }
+        - name: after
+          in: query
+          description: Opaque cursor from a previous response's next_cursor
+          schema: { type: string }
+      responses:
+        "200":
+          description: A page of orders
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/Order" }
+                  next_cursor: { type: string, nullable: true }
+    post:
+      summary: Create an order
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/NewOrder" }
+      responses:
+        "201":
+          description: Order created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Order" }
+        "422":
+          description: Validation error or reused idempotency key
+
+  /orders/{orderId}:
+    get:
+      summary: Fetch a single order
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: The order
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Order" }
+        "404":
+          description: No order with that ID
+
+components:
+  schemas:
+    Order:
+      type: object
+      properties:
+        id: { type: integer, example: 42 }
+        status: { type: string, enum: [pending_payment, shipped, cancelled] }
+        total: { type: number, format: float, example: 89.00 }
+    NewOrder:
+      type: object
+      required: [customer_id, items]
+      properties:
+        customer_id: { type: string }
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              sku: { type: string }
+              quantity: { type: integer, minimum: 1 }
+```
+
+A few things worth noticing: `Idempotency-Key` is declared as a required header parameter on `POST /orders`, not just mentioned in prose — a generated client will refuse to compile without providing one. The `422` response is documented as a real possible outcome, not an afterthought. And `$ref` lets `Order` be defined once and reused everywhere it appears, so the schema can't drift out of sync with itself. Run this through `swagger-ui` or `redoc` and you get interactive docs for free — no separate document to keep updated by hand.
+
+## GraphQL vs. REST
+
+GraphQL isn't "REST but better" — it's a different trade-off, and the two solve different problems well.
+
+**Where REST wins.** A simple resource-shaped API (orders, users, products) with predictable access patterns. HTTP caching works for free (`GET` responses are cacheable by any proxy or CDN out of the box; GraphQL, being almost entirely `POST` to a single `/graphql` endpoint, loses that for free and needs its own caching layer). File uploads, webhooks, and simple CRUD are all more natural in REST. And REST's learning curve is lower — any HTTP client, `curl`, or browser can poke at it.
+
+**Where GraphQL wins.** A client that needs *different shapes of the same data* across different screens, and over-fetching or under-fetching in REST is a real, measured cost. Concretely: a mobile app's order list screen needs `{id, status, total}` for 20 orders; the order detail screen needs the full order plus customer, shipping address, and line items. In REST, you either build two separate endpoints (`/orders/summary` and `/orders/:id/full`) or over-fetch on the list screen by reusing the detail endpoint. In GraphQL, one endpoint, two different queries:
+
+```graphql
+# list screen
+query OrderList {
+  orders(first: 20) {
+    id
+    status
+    total
+  }
+}
+```
+
+```graphql
+# detail screen — same endpoint, one round trip, no over-fetch and no separate endpoint
+query OrderDetail($id: ID!) {
+  order(id: $id) {
+    id
+    status
+    total
+    customer { name email }
+    shippingAddress { line1 city postalCode }
+    lineItems { sku quantity price }
+  }
+}
+```
+
+That second query is also the other classic GraphQL win: it replaces what would be an N+1 REST problem (`GET /orders/42`, then `GET /customers/88`, then `GET /addresses/12`, then `GET /orders/42/line-items` — four round trips) with one request.
+
+**The real cost of GraphQL:** every field is technically resolvable in any combination, which means the server has to guard against a client asking for something absurdly expensive (deeply nested relations fetched for a thousand orders at once) — this is why production GraphQL servers need query complexity limits and depth limiting that a REST endpoint, with its fixed, known query shape, never has to think about. It also pushes HTTP status codes and caching semantics into the response body instead of the transport layer, which is a real loss of the tooling REST gets for free.
+
+**The concrete decision:** a single mobile app with several very different views over the same underlying data, built by a team willing to own a GraphQL server's complexity budget — GraphQL earns its keep. A backend serving a handful of predictable CRUD resources to a web dashboard, or an API meant to be trivially consumed by third parties with `curl` — REST is simpler, cacheable, and the right default. Most systems, including large ones, are still better served by REST; reach for GraphQL when you can name the specific over-fetching or under-fetching problem it solves for you, not because it's newer.
+
+## Exercise
+
+Take this existing endpoint from a small "reviews" API:
+
+```http
+POST /api
+Content-Type: application/json
+
+{ "action": "list_reviews", "product_id": 501, "page": 3 }
+```
+
+1. Redesign it as a proper Level 2 REST endpoint (correct URL, correct verb, correct status codes for "product not found" and "no reviews on this page").
+2. Add pagination — pick offset or cursor, and justify the choice given that reviews are frequently added (a popular product might get dozens of new reviews per hour) and users mostly browse recent-first rather than jumping to specific pages.
+3. Write the OpenAPI `paths` entry for your redesigned endpoint, including the pagination parameter and a `200` response schema.
+
+**Hint:** the "frequently added, browsed recent-first" detail is the whole trade-off from the pagination section — decide which failure mode (duplicates/skips from inserts, or losing the ability to jump to a specific page) this product can actually tolerate, and let that decide the strategy rather than defaulting to whichever one is easier to code.

@@ -1,0 +1,98 @@
+[
+  {
+    "id": "software-engineering/tier-3/api-design-deep-dive/q1",
+    "type": "multiple_choice",
+    "prompt": "An API uses meaningful URLs per resource (/users/42, /orders/17) and correct HTTP verbs (GET, PUT, DELETE) with correct status codes, but responses never include links describing what actions are available next. Where does this land on the Richardson Maturity Model?",
+    "choices": [
+      "Level 0 (Swamp of POX)",
+      "Level 1 (Resources)",
+      "Level 2 (HTTP Verbs)",
+      "Level 3 (HATEOAS)"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "software-engineering/tier-3/api-design-deep-dive/q2",
+    "type": "multiple_choice",
+    "prompt": "An API exposes a single endpoint, POST /api, where every request includes an \"action\" field like \"getUser\" or \"deleteUser\" in the JSON body. What Richardson Maturity Level is this?",
+    "choices": [
+      "Level 0",
+      "Level 1",
+      "Level 2",
+      "Level 3"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "software-engineering/tier-3/api-design-deep-dive/q3",
+    "type": "multiple_choice",
+    "prompt": "A social feed shows an infinite-scrolling list of posts that are inserted constantly, and users only ever scroll forward from most recent. Which pagination approach fits best, and why?",
+    "choices": [
+      "Offset-based, because LIMIT/OFFSET is simpler to implement",
+      "Cursor-based, because it's anchored to a specific row so new inserts don't shift a user's position or cause duplicates/skips",
+      "Offset-based, because it allows jumping directly to page 50",
+      "Neither is needed since the dataset is small"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-3/api-design-deep-dive/q4",
+    "type": "multiple_choice",
+    "prompt": "Why does idempotency matter specifically for POST requests but not usually for GET?",
+    "choices": [
+      "POST requests are always slower than GET requests",
+      "GET is defined to be safe and idempotent by HTTP's own semantics, while POST creates a new resource each time by default, so a retried POST (e.g. after a lost response) can duplicate an action like a payment",
+      "GET requests cannot include a request body, so they never need protection",
+      "POST requests are never retried by clients"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-3/api-design-deep-dive/q5",
+    "type": "multiple_choice",
+    "prompt": "In an idempotency-key implementation, a client sends the same Idempotency-Key twice but with a different request body the second time. What should the server do?",
+    "choices": [
+      "Silently process the second request as a new operation",
+      "Return the cached response from the first request without checking the body",
+      "Reject the request with an error, since reusing a key with a different payload signals a client-side bug",
+      "Merge the two request bodies before processing"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "software-engineering/tier-3/api-design-deep-dive/q6",
+    "type": "multiple_choice",
+    "prompt": "What is the main advantage of a token bucket algorithm over a fixed-window rate limit (e.g. exactly 100 requests per calendar minute)?",
+    "choices": [
+      "It never rejects any requests",
+      "It requires no server-side state",
+      "It allows short bursts up to the bucket capacity while still enforcing a steady average rate, avoiding the abrupt reset/dogpile behavior of a hard window boundary",
+      "It only works for authenticated clients"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "software-engineering/tier-3/api-design-deep-dive/q7",
+    "type": "multiple_choice",
+    "prompt": "In an OpenAPI spec, what is the purpose of using $ref to point to a components/schemas definition like Order instead of inlining the same object structure in every response?",
+    "choices": [
+      "It makes the API run faster at request time",
+      "It's required syntax with no functional benefit",
+      "It defines the shape once and reuses it everywhere referenced, preventing the schema from drifting out of sync across endpoints",
+      "It automatically adds authentication to the endpoint"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "software-engineering/tier-3/api-design-deep-dive/q8",
+    "type": "multiple_choice",
+    "prompt": "A mobile app needs a lightweight order-list view (id, status, total) and a heavy order-detail view (order plus customer, address, and line items) from the same backend. Which statement best captures the realistic REST-vs-GraphQL trade-off here?",
+    "choices": [
+      "GraphQL is always the wrong choice for mobile apps",
+      "REST requires either two separate endpoints or over-fetching on the list view, while a single GraphQL endpoint can request exactly the fields each screen needs in one round trip \u2014 this is a case where GraphQL's flexibility genuinely pays off",
+      "REST cannot support more than one endpoint per resource, so this isn't possible in REST at all",
+      "GraphQL eliminates the need for any server-side validation or rate limiting"
+    ],
+    "correctIndex": 1
+  }
+]

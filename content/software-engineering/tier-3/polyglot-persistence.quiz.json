@@ -1,0 +1,98 @@
+[
+  {
+    "id": "software-engineering/tier-3/polyglot-persistence/q1",
+    "type": "multiple_choice",
+    "prompt": "In the Threadline architecture, why does session/cart data go in Redis rather than Postgres?",
+    "choices": [
+      "Redis enforces foreign keys more strictly than Postgres",
+      "It's small, read/written on nearly every request, naturally expires, and doesn't need durability guarantees or joins",
+      "Postgres cannot store JSON-shaped data",
+      "Redis provides stronger ACID transaction guarantees than Postgres"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-3/polyglot-persistence/q2",
+    "type": "multiple_choice",
+    "prompt": "What does the cache-aside pattern do?",
+    "choices": [
+      "Always write to the cache and the database at the same time, in one transaction",
+      "Check the cache first; on a miss, read the source of truth and populate the cache for next time",
+      "Replace the database entirely with an in-memory store",
+      "Store every read result permanently with no expiration"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-3/polyglot-persistence/q3",
+    "type": "multiple_choice",
+    "prompt": "In the checkout function, why does the inventory decrement and order insert happen inside one Postgres transaction with `FOR UPDATE`, instead of as separate independent writes?",
+    "choices": [
+      "Because Postgres requires every query to run inside a transaction",
+      "Because JavaScript cannot make two database calls without a transaction wrapping them",
+      "So the stock check-and-decrement is atomic and locked against concurrent checkouts, preventing two orders from selling the same last unit",
+      "Because MongoDB cannot be used for order data at all"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "software-engineering/tier-3/polyglot-persistence/q4",
+    "type": "multiple_choice",
+    "prompt": "After the checkout transaction commits, the code deletes the cached product page and increments a Redis trending counter. Why is a brief staleness window here acceptable rather than a bug?",
+    "choices": [
+      "Because Redis data is never actually read by users",
+      "Because the real sale was already guarded by the Postgres transaction; the cache and counter are displays/approximations, not the source of truth for stock correctness",
+      "Because eventual consistency guarantees the cache updates instantly",
+      "Because trending counts are recalculated from scratch on every page load anyway"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-3/polyglot-persistence/q5",
+    "type": "multiple_choice",
+    "prompt": "The `badCheckout` example reads a Redis stock value, checks it, then separately decrements it. Two concurrent requests both oversell the last unit. What makes this a genuine bug rather than an acceptable eventual-consistency trade-off?",
+    "choices": [
+      "Redis's DECR command is not atomic",
+      "The check-then-act sequence across two separate commands isn't atomic, so it fails to protect the actual fact (available stock) that correctness depends on",
+      "Postgres should have been used to store the session instead",
+      "The bug only happens if Redis is restarted mid-request"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-3/polyglot-persistence/q6",
+    "type": "multiple_choice",
+    "prompt": "A user record needs a uniqueness constraint on email and foreign keys to orders, plus a small, variable bundle of notification preferences that differs per user. What does this lesson recommend over adding a fourth database?",
+    "choices": [
+      "Store preferences as a comma-separated string in a TEXT column",
+      "Use a JSONB column on the existing users table for the preferences, keeping core identity fields relational",
+      "Move the entire users table into MongoDB",
+      "Store preferences in Redis with no expiration"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-3/polyglot-persistence/q7",
+    "type": "multiple_choice",
+    "prompt": "According to this lesson, what's the main cost of adding a third (or fourth) specialized data store to a system, beyond the data modeling itself?",
+    "choices": [
+      "Specialized stores are always slower than a single database for every workload",
+      "Ongoing operational burden: another service to provision, monitor, back up, patch, and reason about failure modes for",
+      "SQL and NoSQL databases cannot run on the same server",
+      "Adding a new store automatically breaks ACID guarantees in the existing ones"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-3/polyglot-persistence/q8",
+    "type": "multiple_choice",
+    "prompt": "Per the CAP framing given in this lesson, what trade-off does a real distributed system actually face once a network partition happens?",
+    "choices": [
+      "Whether to use SQL or NoSQL syntax",
+      "Choosing, for each piece of data, between staying fully consistent or staying available during the partition \u2014 partition tolerance itself isn't optional",
+      "Whether to enable encryption at rest",
+      "Whether to use a relational or document schema for logging"
+    ],
+    "correctIndex": 1
+  }
+]

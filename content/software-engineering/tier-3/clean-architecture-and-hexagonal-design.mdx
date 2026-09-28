@@ -1,0 +1,396 @@
+---
+trackId: software-engineering
+tier: 3
+title: "Clean Architecture & Hexagonal Design"
+order: 1
+estimatedHours: 10
+slug: clean-architecture-and-hexagonal-design
+---
+
+## Two names for the same idea
+
+"Clean Architecture" (Robert C. Martin) and "Hexagonal Architecture" / "Ports & Adapters" (Alistair Cockburn) get taught as if they're different things. They aren't. Both say the same thing in different vocabulary: **your business logic should not know that a database, a web framework, or a phone app exists.** Everything that isn't a business rule — SQL, HTTP, file I/O, a UI toolkit — is a *detail*, and details depend on your core, never the other way around.
+
+That's the whole lesson. The rest of this module is one worked example that makes it concrete, because a hexagon diagram with "Domain" in the middle teaches you nothing about how to actually write the code.
+
+We'll build a small library checkout system: check out a book, return it, get charged a late fee. Then we'll run the exact same business logic behind two different front ends — a CLI and a REST API — changing zero lines of the core.
+
+## The three layers, concretely
+
+- **Domain** — entities and business rules. No imports from anything outside the standard library. This code doesn't know it's running in a web server.
+- **Application** — use cases. They orchestrate domain objects and ports to accomplish one thing a user wants ("check out a book"). No SQL, no HTTP, no `print()`.
+- **Infrastructure** — adapters. Concrete implementations of persistence, web frameworks, CLIs — everything that talks to the outside world.
+
+Here's the file layout we're building:
+
+```
+domain/
+  model.py       # Book, Member, Loan, business rules, domain errors
+  ports.py       # interfaces infrastructure must implement
+application/
+  checkout_book.py
+  return_book.py
+infrastructure/
+  in_memory_repos.py   # fast adapters, used in tests
+  sqlite_repos.py       # real adapters, used in production
+  cli.py / main_api.py  # driving adapters — entry points
+```
+
+## Domain: entities and the rules that govern them
+
+```python
+# domain/model.py
+from dataclasses import dataclass
+from datetime import date
+
+LOAN_PERIOD_DAYS = 14
+LATE_FEE_PER_DAY_CENTS = 25
+MAX_ACTIVE_LOANS_PER_MEMBER = 3
+
+
+class LibraryError(Exception):
+    """Base class for domain-level failures."""
+
+
+class BookNotAvailable(LibraryError):
+    pass
+
+
+class MemberLoanLimitReached(LibraryError):
+    pass
+
+
+class LoanNotFound(LibraryError):
+    pass
+
+
+@dataclass
+class Book:
+    isbn: str
+    title: str
+    available_copies: int
+
+
+@dataclass
+class Member:
+    member_id: str
+    name: str
+
+
+@dataclass
+class Loan:
+    loan_id: str
+    isbn: str
+    member_id: str
+    checked_out_on: date
+    due_on: date
+    returned_on: date | None = None
+
+    def is_overdue(self, as_of: date) -> bool:
+        return self.returned_on is None and as_of > self.due_on
+
+    def late_fee_cents(self, as_of: date) -> int:
+        if not self.is_overdue(as_of):
+            return 0
+        days_late = (as_of - self.due_on).days
+        return days_late * LATE_FEE_PER_DAY_CENTS
+```
+
+Notice what's *not* here: no `import sqlite3`, no `import requests`, no `import flask`. `Loan.late_fee_cents` is a real business rule — it belongs in the domain because it's a fact about how a library works, independent of whether that library ever gets a website.
+
+## Ports: the interface the domain/application owns
+
+A **port** is an interface describing a capability the core needs from the outside world — "persist a book," "find a loan" — defined by the side that needs it, not the side that provides it. This is dependency inversion in practice: the high-level policy (the use case) declares the contract, and low-level details (SQLite, Postgres, an in-memory dict) are the ones forced to conform to it.
+
+```python
+# domain/ports.py
+from abc import ABC, abstractmethod
+from typing import Optional
+from .model import Book, Loan
+
+
+class BookRepository(ABC):
+    @abstractmethod
+    def get(self, isbn: str) -> Optional[Book]: ...
+
+    @abstractmethod
+    def save(self, book: Book) -> None: ...
+
+
+class LoanRepository(ABC):
+    @abstractmethod
+    def save(self, loan: Loan) -> None: ...
+
+    @abstractmethod
+    def find(self, loan_id: str) -> Optional[Loan]: ...
+
+    @abstractmethod
+    def count_active_for_member(self, member_id: str) -> int: ...
+```
+
+These live in `domain/`, not `infrastructure/`. That placement is the entire trick of the pattern: infrastructure will *import* `domain.ports` to implement it, but `domain` will never import anything from `infrastructure`. If you ever see an arrow pointing the other way, the architecture has already broken.
+
+## Application: use cases orchestrate, they don't decide storage
+
+```python
+# application/checkout_book.py
+import uuid
+from datetime import date, timedelta
+from domain.model import Loan, LOAN_PERIOD_DAYS, MAX_ACTIVE_LOANS_PER_MEMBER, BookNotAvailable, MemberLoanLimitReached
+from domain.ports import BookRepository, LoanRepository
+
+
+class CheckOutBook:
+    """Pure orchestration. Every rule it enforces reads state through a
+    port and delegates the actual decision to the domain or itself —
+    it never touches a database driver or an HTTP request directly."""
+
+    def __init__(self, books: BookRepository, loans: LoanRepository):
+        self._books = books
+        self._loans = loans
+
+    def execute(self, isbn: str, member_id: str, today: date | None = None) -> Loan:
+        today = today or date.today()
+
+        book = self._books.get(isbn)
+        if book is None or book.available_copies < 1:
+            raise BookNotAvailable(f"No copies of {isbn} available")
+
+        if self._loans.count_active_for_member(member_id) >= MAX_ACTIVE_LOANS_PER_MEMBER:
+            raise MemberLoanLimitReached(f"{member_id} already has {MAX_ACTIVE_LOANS_PER_MEMBER} books out")
+
+        loan = Loan(
+            loan_id=str(uuid.uuid4()),
+            isbn=isbn,
+            member_id=member_id,
+            checked_out_on=today,
+            due_on=today + timedelta(days=LOAN_PERIOD_DAYS),
+        )
+        book.available_copies -= 1
+        self._books.save(book)
+        self._loans.save(loan)
+        return loan
+```
+
+```python
+# application/return_book.py
+from datetime import date
+from domain.model import LoanNotFound
+from domain.ports import BookRepository, LoanRepository
+
+
+class ReturnBook:
+    def __init__(self, books: BookRepository, loans: LoanRepository):
+        self._books = books
+        self._loans = loans
+
+    def execute(self, loan_id: str, today: date | None = None) -> int:
+        """Returns the late fee owed, in cents."""
+        today = today or date.today()
+        loan = self._loans.find(loan_id)
+        if loan is None:
+            raise LoanNotFound(loan_id)
+
+        fee = loan.late_fee_cents(today)
+        loan.returned_on = today
+        self._loans.save(loan)
+
+        book = self._books.get(loan.isbn)
+        if book:
+            book.available_copies += 1
+            self._books.save(book)
+
+        return fee
+```
+
+`CheckOutBook` and `ReturnBook` only ever talk to `BookRepository` and `LoanRepository` — the abstractions. They have no idea whether those are backed by SQLite, Postgres, or a Python dict.
+
+## Infrastructure: adapters implement the ports
+
+For fast tests, an in-memory adapter:
+
+```python
+# infrastructure/in_memory_repos.py
+from typing import Optional
+from domain.model import Book, Loan
+from domain.ports import BookRepository, LoanRepository
+
+
+class InMemoryBookRepository(BookRepository):
+    def __init__(self):
+        self._books: dict[str, Book] = {}
+
+    def get(self, isbn: str) -> Optional[Book]:
+        return self._books.get(isbn)
+
+    def save(self, book: Book) -> None:
+        self._books[book.isbn] = book
+
+
+class InMemoryLoanRepository(LoanRepository):
+    def __init__(self):
+        self._loans: dict[str, Loan] = {}
+
+    def save(self, loan: Loan) -> None:
+        self._loans[loan.loan_id] = loan
+
+    def find(self, loan_id: str) -> Optional[Loan]:
+        return self._loans.get(loan_id)
+
+    def count_active_for_member(self, member_id: str) -> int:
+        return sum(1 for l in self._loans.values() if l.member_id == member_id and l.returned_on is None)
+```
+
+For production, a real SQLite adapter implementing the *same* interface:
+
+```python
+# infrastructure/sqlite_repos.py
+import sqlite3
+from datetime import date
+from typing import Optional
+from domain.model import Book, Loan
+from domain.ports import BookRepository, LoanRepository
+
+
+class SqliteBookRepository(BookRepository):
+    def __init__(self, conn: sqlite3.Connection):
+        self._conn = conn
+        self._conn.execute(
+            "CREATE TABLE IF NOT EXISTS books (isbn TEXT PRIMARY KEY, title TEXT, available_copies INTEGER)"
+        )
+
+    def get(self, isbn: str) -> Optional[Book]:
+        row = self._conn.execute(
+            "SELECT isbn, title, available_copies FROM books WHERE isbn = ?", (isbn,)
+        ).fetchone()
+        return Book(*row) if row else None
+
+    def save(self, book: Book) -> None:
+        self._conn.execute(
+            "INSERT INTO books VALUES (?, ?, ?) "
+            "ON CONFLICT(isbn) DO UPDATE SET available_copies = excluded.available_copies",
+            (book.isbn, book.title, book.available_copies),
+        )
+        self._conn.commit()
+
+
+class SqliteLoanRepository(LoanRepository):
+    def __init__(self, conn: sqlite3.Connection):
+        self._conn = conn
+        self._conn.execute(
+            "CREATE TABLE IF NOT EXISTS loans "
+            "(loan_id TEXT PRIMARY KEY, isbn TEXT, member_id TEXT, "
+            "checked_out_on TEXT, due_on TEXT, returned_on TEXT)"
+        )
+
+    def save(self, loan: Loan) -> None:
+        self._conn.execute(
+            "INSERT INTO loans VALUES (?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT(loan_id) DO UPDATE SET returned_on = excluded.returned_on",
+            (loan.loan_id, loan.isbn, loan.member_id, loan.checked_out_on.isoformat(),
+             loan.due_on.isoformat(), loan.returned_on.isoformat() if loan.returned_on else None),
+        )
+        self._conn.commit()
+
+    def find(self, loan_id: str) -> Optional[Loan]:
+        row = self._conn.execute(
+            "SELECT loan_id, isbn, member_id, checked_out_on, due_on, returned_on FROM loans WHERE loan_id = ?",
+            (loan_id,),
+        ).fetchone()
+        if not row:
+            return None
+        lid, isbn, mid, out_on, due_on, ret_on = row
+        return Loan(lid, isbn, mid, date.fromisoformat(out_on), date.fromisoformat(due_on),
+                    date.fromisoformat(ret_on) if ret_on else None)
+
+    def count_active_for_member(self, member_id: str) -> int:
+        row = self._conn.execute(
+            "SELECT COUNT(*) FROM loans WHERE member_id = ? AND returned_on IS NULL", (member_id,)
+        ).fetchone()
+        return row[0]
+```
+
+`SqliteBookRepository` and `InMemoryBookRepository` are interchangeable — both satisfy `BookRepository`. `CheckOutBook` never knows which one it's holding.
+
+## Proof: swap the driving adapter, keep the core untouched
+
+The pieces above are **driven adapters** (infrastructure the core calls out to). Now let's swap a **driving adapter** — infrastructure that calls *into* the core — from a CLI to a REST API, and watch `CheckOutBook` not change by a single character.
+
+```python
+# main_cli.py — composition root for the CLI
+import sqlite3
+from application.checkout_book import CheckOutBook
+from infrastructure.sqlite_repos import SqliteBookRepository, SqliteLoanRepository
+from domain.model import BookNotAvailable, MemberLoanLimitReached
+
+def main():
+    conn = sqlite3.connect("library.db")
+    checkout = CheckOutBook(SqliteBookRepository(conn), SqliteLoanRepository(conn))
+
+    isbn = input("ISBN: ")
+    member_id = input("Member ID: ")
+    try:
+        loan = checkout.execute(isbn, member_id)
+        print(f"Checked out. Due {loan.due_on}.")
+    except (BookNotAvailable, MemberLoanLimitReached) as e:
+        print(f"Cannot check out: {e}")
+
+if __name__ == "__main__":
+    main()
+```
+
+```python
+# main_api.py — composition root for the REST API
+import sqlite3
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+from application.checkout_book import CheckOutBook
+from infrastructure.sqlite_repos import SqliteBookRepository, SqliteLoanRepository
+from domain.model import BookNotAvailable, MemberLoanLimitReached
+
+app = FastAPI()
+conn = sqlite3.connect("library.db", check_same_thread=False)
+checkout_use_case = CheckOutBook(SqliteBookRepository(conn), SqliteLoanRepository(conn))
+
+
+class CheckoutRequest(BaseModel):
+    isbn: str
+    member_id: str
+
+
+@app.post("/loans")
+def checkout(req: CheckoutRequest):
+    try:
+        loan = checkout_use_case.execute(req.isbn, req.member_id)
+    except BookNotAvailable as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except MemberLoanLimitReached as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    return {"loan_id": loan.loan_id, "due_on": loan.due_on.isoformat()}
+```
+
+Same `CheckOutBook`. Same `Book`, `Loan`, business rules. Same `SqliteBookRepository`. The only thing that changed is the thin translation layer at the edge: "read stdin, print to stdout" versus "parse JSON, return an HTTP status." That's the payoff — the 14-day loan period, the 3-book limit, the late-fee formula exist in exactly one place, and a bug fix to any of them fixes it everywhere at once.
+
+A **mobile SDK** adapter follows the identical pattern, just further out: it's either a thin client that calls the same `/loans` endpoint over HTTP, or — if the core needs to run on-device — a native wrapper (Kotlin/Swift) whose only job is translating a button tap into a call to the same use case and translating the result back into UI state. It contains no business rules either way, for the same reason the CLI and API adapters don't.
+
+## Why this survives code review
+
+When a reviewer opens a diff and domain code now imports `requests` or `sqlite3`, that's a one-line, unambiguous finding — not a judgment call about style. Ports and layers turn "is this architecturally sound?" into something you can check mechanically: what does this file import, and does that match its layer? That's a large part of why teams that adopt this structure end up with faster reviews on the business-logic files, even though the infrastructure files stay ordinary.
+
+## Exercise: add a notification port
+
+Extend `ReturnBook` so that when a fee is owed, it notifies the member — without `ReturnBook` importing anything infrastructure-specific (no `smtplib`, no `print`, no SDK).
+
+1. Define a `NotificationPort` in `domain/ports.py` with one method, e.g. `notify_fee_due(member_id: str, cents: int) -> None`.
+2. Inject it into `ReturnBook.__init__` alongside `books` and `loans`.
+3. Write two adapters in `infrastructure/`: a `ConsoleNotifier` that prints, and a `FakeNotifier` (for tests) that just records calls in a list.
+4. Write a test that uses `FakeNotifier` to assert `notify_fee_due` was called with the right amount — with no console output and no real notification system involved.
+
+**Hint:** the shape should mirror `BookRepository` exactly — an abstract method in `domain/ports.py`, a concrete class in `infrastructure/` per adapter, and a constructor parameter on the use case. If your test needs to mock anything with a mocking library, you've probably put the interface in the wrong place.
+
+## Recap
+
+- **Domain** = entities + rules, zero outside imports. **Application** = use cases that orchestrate domain objects through **ports**. **Infrastructure** = adapters that implement those ports.
+- A port is an interface the *core* defines because it needs a capability; an adapter is infrastructure's concrete answer to that interface. Dependency inversion means infrastructure depends on the core's abstractions, never the reverse.
+- **Driven adapters** (repositories, external services) are called by the core. **Driving adapters** (CLI, REST, mobile) call into the core. Swapping either kind — as long as it satisfies the same port/use-case contract — costs you a small, isolated file, not a rewrite.
+- The composition root (`main_cli.py`, `main_api.py`) is the one place allowed to know about every concrete class at once — it's where the wiring happens, and nowhere else.

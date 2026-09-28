@@ -1,0 +1,98 @@
+[
+  {
+    "id": "software-engineering/tier-3/clean-architecture-and-hexagonal-design/q1",
+    "type": "multiple_choice",
+    "prompt": "In the ports & adapters pattern, which statement about dependencies is correct?",
+    "choices": [
+      "Infrastructure code depends on domain/application interfaces; domain and application never import infrastructure.",
+      "Domain code depends on infrastructure so it can save data to a database.",
+      "All three layers depend equally on each other for flexibility.",
+      "The application layer depends on the UI framework to format its responses."
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "software-engineering/tier-3/clean-architecture-and-hexagonal-design/q2",
+    "type": "multiple_choice",
+    "prompt": "What is a 'port' in this architecture?",
+    "choices": [
+      "A network socket the application listens on.",
+      "An interface, owned by the domain or application layer, describing a capability infrastructure must provide.",
+      "An infrastructure class that talks directly to a database.",
+      "A configuration file listing environment variables."
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-3/clean-architecture-and-hexagonal-design/q3",
+    "type": "multiple_choice",
+    "prompt": "In the worked example (CheckOutBook, BookRepository, SqliteBookRepository), which class is the adapter?",
+    "choices": [
+      "CheckOutBook",
+      "BookRepository",
+      "SqliteBookRepository",
+      "Book (the dataclass)"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "software-engineering/tier-3/clean-architecture-and-hexagonal-design/q4",
+    "type": "multiple_choice",
+    "prompt": "A teammate wants to add a mobile app that reuses the library's checkout logic. Per the pattern in this lesson, what's the correct move?",
+    "choices": [
+      "Rewrite CheckOutBook in Swift or Kotlin so it runs natively on the phone.",
+      "Add a new driving adapter \u2014 a thin client calling the same use case or REST endpoint \u2014 while leaving CheckOutBook, Book, and Loan untouched.",
+      "Copy application/checkout_book.py into the mobile codebase and modify it to fit the UI.",
+      "Move the checkout logic into SqliteBookRepository so it's closer to the data."
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-3/clean-architecture-and-hexagonal-design/q5",
+    "type": "multiple_choice",
+    "prompt": "A code reviewer notices `import sqlite3` at the top of domain/model.py. What should they flag?",
+    "choices": [
+      "Nothing \u2014 the domain layer can use any standard library module freely.",
+      "That the domain layer now depends on a specific persistence technology, breaking the dependency-inversion boundary the architecture relies on.",
+      "That sqlite3 should instead be imported in application/checkout_book.py.",
+      "That the import will cause a circular import error at runtime."
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-3/clean-architecture-and-hexagonal-design/q6",
+    "type": "multiple_choice",
+    "prompt": "In CheckOutBook.execute, where does the rule 'a book can't be checked out with zero available copies' actually live?",
+    "choices": [
+      "Inside SqliteBookRepository's SQL query.",
+      "In the use case itself, checked against state it read through the BookRepository port.",
+      "Inside the FastAPI route handler in main_api.py.",
+      "Enforced only by a database CHECK constraint."
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-3/clean-architecture-and-hexagonal-design/q7",
+    "type": "multiple_choice",
+    "prompt": "You swap InMemoryLoanRepository for SqliteLoanRepository between tests and production. What should NOT need to change?",
+    "choices": [
+      "The CheckOutBook and ReturnBook use cases, and the domain model.",
+      "The LoanRepository interface definition.",
+      "The database schema.",
+      "The SQL queries inside the repository."
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "software-engineering/tier-3/clean-architecture-and-hexagonal-design/q8",
+    "type": "multiple_choice",
+    "prompt": "Which pair of terms describes essentially the same architectural idea, using different vocabulary?",
+    "choices": [
+      "MVC and REST",
+      "Clean Architecture's 'entities / use cases / interface adapters / frameworks' and Hexagonal Architecture's 'domain-application / ports / adapters'",
+      "Microservices and monoliths",
+      "Continuous integration and continuous deployment"
+    ],
+    "correctIndex": 1
+  }
+]

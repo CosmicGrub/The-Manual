@@ -1,0 +1,98 @@
+[
+  {
+    "id": "software-engineering/tier-3/end-to-end-and-contract-testing/q1",
+    "type": "multiple_choice",
+    "prompt": "In the test pyramid, which characteristic generally increases as you move from unit tests up to end-to-end tests?",
+    "choices": [
+      "Realism and confidence that the whole system works together as deployed",
+      "Speed of execution",
+      "Ease of pinpointing exactly which line of code failed",
+      "How many of them you should write relative to unit tests"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "software-engineering/tier-3/end-to-end-and-contract-testing/q2",
+    "type": "multiple_choice",
+    "prompt": "What is the main practical cost of the 'ice cream cone' anti-pattern (few unit tests, heavy reliance on UI-driven e2e tests)?",
+    "choices": [
+      "Slow, brittle suites that give feedback late and are expensive to debug and maintain",
+      "Too much test coverage on business logic",
+      "Contract tests become unnecessary once you have enough e2e tests",
+      "Unit tests start passing even when the code is broken"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "software-engineering/tier-3/end-to-end-and-contract-testing/q3",
+    "type": "multiple_choice",
+    "prompt": "When you write `await expect(locator).toHaveText('3')` in Playwright, what happens before the assertion is reported as failed?",
+    "choices": [
+      "Playwright retries the assertion against the live DOM for a timeout window until it passes or the window expires",
+      "It checks once immediately and fails right away if the text doesn't match yet",
+      "It waits for exactly one requestAnimationFrame and checks once",
+      "It restarts the whole test from the beginning"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "software-engineering/tier-3/end-to-end-and-contract-testing/q4",
+    "type": "multiple_choice",
+    "prompt": "Why might a team write an API-level e2e test with Playwright's `request` fixture instead of driving the same flow through a full browser page?",
+    "choices": [
+      "It exercises the real backend with much less overhead than rendering a browser, at the cost of not verifying the UI itself",
+      "It gives identical confidence to a browser test but runs slower",
+      "It removes the need for any unit tests in the codebase",
+      "Playwright requires an API test to pass before any browser test can run"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "software-engineering/tier-3/end-to-end-and-contract-testing/q5",
+    "type": "multiple_choice",
+    "prompt": "What does a consumer-driven contract test (e.g. with Pact) actually verify?",
+    "choices": [
+      "That the provider's real response for the exact interactions the consumer recorded still matches what the consumer expects",
+      "That the provider's entire API surface is free of bugs",
+      "That the two services behave correctly together under production load",
+      "That the consumer's own business logic is correct"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "software-engineering/tier-3/end-to-end-and-contract-testing/q6",
+    "type": "multiple_choice",
+    "prompt": "order-service's Pact contract with inventory-service passes on both sides in CI, but production breaks after inventory-service ships a change. What's the most likely explanation?",
+    "choices": [
+      "order-service started relying on a call or field that was never recorded in any pact interaction, so it fell outside what verification checked",
+      "Pact tests are inherently unreliable and shouldn't be trusted in CI",
+      "The provider verification must have run against the wrong port",
+      "Contract tests always catch this kind of break when both sides are green"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "software-engineering/tier-3/end-to-end-and-contract-testing/q7",
+    "type": "multiple_choice",
+    "prompt": "A test that clicks 'Add to cart' three times intermittently ends with the wrong badge count in CI, because the three add-to-cart requests can return in a different order than they were sent. What is the actual bug?",
+    "choices": [
+      "The client blindly applies whichever server response arrives last in wall-clock time, instead of applying only the response for the most recently sent request",
+      "The test doesn't wait long enough before making its assertion",
+      "The Playwright locator for the button isn't using auto-wait",
+      "The server is returning the wrong HTTP status code"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "software-engineering/tier-3/end-to-end-and-contract-testing/q8",
+    "type": "multiple_choice",
+    "prompt": "Why is inserting an arbitrary `waitForTimeout(5000)` a bad fix for a flaky test caused by an out-of-order async response race?",
+    "choices": [
+      "It only lowers the odds of hitting the race without fixing the defect, so the same bug can still surface under real production timing or load",
+      "Playwright test files don't support waitForTimeout at all",
+      "It makes the test suite finish noticeably faster",
+      "It permanently fixes the race by guaranteeing correct response ordering"
+    ],
+    "correctIndex": 0
+  }
+]

@@ -1,0 +1,74 @@
+[
+  {
+    "id": "software-engineering/tier-3/what-ci-is-just-enough-to-work-on-a-team/q1",
+    "type": "multiple_choice",
+    "prompt": "In a GitHub Actions workflow YAML file, what does the `on:` key control?",
+    "choices": [
+      "Which virtual machine image the job runs on",
+      "The events that trigger the workflow to run (e.g. push, pull_request)",
+      "Whether the job's steps run in parallel or in sequence",
+      "The branch that the workflow's results get posted to"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-3/what-ci-is-just-enough-to-work-on-a-team/q2",
+    "type": "multiple_choice",
+    "prompt": "A workflow has three steps in order: checkout, install dependencies, run tests. The install step fails. What happens to the run tests step?",
+    "choices": [
+      "It runs anyway, using whatever dependencies were installed from a previous run",
+      "It is skipped, and the job is marked failed",
+      "It runs in a fresh VM with no dependencies and fails immediately",
+      "It runs first, before the install step, to save time"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-3/what-ci-is-just-enough-to-work-on-a-team/q3",
+    "type": "multiple_choice",
+    "prompt": "A repository marks the `test` job as a required status check on `main`. A contributor's PR has one approving review, but their latest commit fails that check. What happens when they try to merge?",
+    "choices": [
+      "The merge proceeds normally since a human already approved it",
+      "The merge button is disabled until the check passes on the latest commit",
+      "GitHub merges it but opens an automatic issue to track the failure",
+      "The approval is revoked and the reviewer must re-review from scratch"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-3/what-ci-is-just-enough-to-work-on-a-team/q4",
+    "type": "multiple_choice",
+    "prompt": "A contributor pushes a new commit to a PR that was already approved and had a green CI check on the previous commit. Does the required status check need to pass again?",
+    "choices": [
+      "No, the earlier green check still counts for the whole PR",
+      "Yes, the check re-runs and must pass on the new commit specifically",
+      "Only if the new commit touches a test file",
+      "Only if a maintainer manually re-triggers it"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-3/what-ci-is-just-enough-to-work-on-a-team/q5",
+    "type": "multiple_choice",
+    "prompt": "A CI log shows this near the top, before any of your own test output appears: `npm error code EJSONPARSE / npm error Unexpected token } in JSON at position 412`. What's the most likely cause?",
+    "choices": [
+      "A test assertion failed on line 412 of a test file",
+      "package.json is malformed, so dependency install failed before tests could run",
+      "The test suite is flaky and needs to be re-run",
+      "A required status check is misconfigured in the branch protection settings"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-3/what-ci-is-just-enough-to-work-on-a-team/q6",
+    "type": "multiple_choice",
+    "prompt": "Why is `pull_request` typically included alongside `push` in a CI workflow's `on:` triggers, rather than relying on `push` alone?",
+    "choices": [
+      "pull_request triggers run faster than push triggers",
+      "It makes CI run on the PR's proposed changes before merge, not only after code lands on main",
+      "push triggers are being deprecated by GitHub",
+      "pull_request is required for branch protection rules to exist at all"
+    ],
+    "correctIndex": 1
+  }
+]

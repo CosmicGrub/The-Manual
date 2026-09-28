@@ -1,0 +1,259 @@
+---
+trackId: software-engineering
+tier: 3
+title: "End-to-End & Contract Testing"
+order: 2
+estimatedHours: 8
+slug: end-to-end-and-contract-testing
+---
+
+## The pyramid, and what it's actually trading off
+
+You already know how to write a unit test. What you haven't had to reckon with yet is that unit, integration, and end-to-end tests aren't just "more vs. less thorough" — they trade off three different resources, and picking the wrong layer for a given risk wastes all three.
+
+| Layer | Speed | Confidence it gives you | Brittleness | What breaks it |
+|---|---|---|---|---|
+| Unit | Milliseconds, thousands in parallel | Confidence in one function/class in isolation | Low — only breaks when that unit's contract changes | Logic bugs in the unit itself |
+| Integration | Tens of ms to seconds | Confidence that two real collaborators (your code + a real DB, a real queue) work together | Medium — breaks on schema drift, config drift | Wiring between components |
+| End-to-end | Seconds to minutes, hard to parallelize cheaply | Confidence the whole system, as deployed, does the thing a user needs | High — breaks on unrelated UI changes, timing, environment flakiness, third-party outages | Anything, anywhere in the stack |
+
+The "ice cream cone" anti-pattern — a thin sliver of unit tests and a mountain of UI-driven e2e tests — isn't wrong because e2e tests are bad. It's wrong because it puts your slowest, flakiest, most expensive-to-debug layer in the position of catching bugs that a unit test would catch in 2ms for free. The rule that actually holds up in practice: **push a check as far down the pyramid as it can go and still tell you the truth.** Reserve e2e tests for the things only e2e tests can verify — that the pieces you own actually agree with each other once wired together for real, and that critical user journeys (login, checkout, the thing that makes you money) work end to end. Reserve contract tests for the seam between services you don't fully control together. We'll build both this module.
+
+## Browser and API e2e testing with Playwright
+
+Playwright drives a real browser (Chromium, Firefox, WebKit) and also ships an API-testing client, so you can write both flavors of e2e test in one framework.
+
+Install and scaffold:
+
+```bash
+npm init playwright@latest
+```
+
+A browser e2e test for a login flow:
+
+```ts
+// e2e/login.spec.ts
+import { test, expect } from '@playwright/test';
+
+test('a user can log in and see their dashboard', async ({ page }) => {
+  await page.goto('/login');
+
+  await page.getByLabel('Email').fill('dana@example.com');
+  await page.getByLabel('Password').fill('correct-horse-battery-staple');
+  await page.getByRole('button', { name: 'Sign in' }).click();
+
+  await expect(page).toHaveURL('/dashboard');
+  await expect(page.getByRole('heading', { name: 'Welcome, Dana' })).toBeVisible();
+});
+```
+
+Two things matter here that unit tests never taught you. First, `page.getByLabel(...)` and `page.getByRole(...)` query the accessibility tree, not CSS selectors — they break less often when someone reshuffles a `<div>`. Second, `expect(locator).toBeVisible()` isn't a one-shot check: Playwright polls the assertion against the live DOM for up to its timeout (5s by default) before failing. That auto-retry eliminates an entire category of flakiness (element not rendered *yet*) without you writing a single `sleep`. It does **not** eliminate flakiness caused by your application doing the wrong thing eventually and consistently — more on that below.
+
+An API-level e2e test, using Playwright's `request` fixture instead of a browser page, checks the same kind of "does the real system work" question but skips rendering entirely:
+
+```ts
+// e2e/orders-api.spec.ts
+import { test, expect } from '@playwright/test';
+
+test('creating an order returns 201 with a valid order id', async ({ request }) => {
+  const res = await request.post('/api/orders', {
+    data: { sku: 'sku-42', quantity: 2 },
+  });
+
+  expect(res.status()).toBe(201);
+  const body = await res.json();
+  expect(body).toMatchObject({ sku: 'sku-42', quantity: 2 });
+  expect(body.id).toMatch(/^ord_[a-z0-9]+$/);
+});
+```
+
+This hits a real running server — real routing, real validation, real database — but costs a fraction of a browser test's time because there's no rendering, no waiting on animations, no flaky selectors. Use API-level e2e tests for anything that doesn't specifically need to prove the *UI* works, and save browser tests for journeys where the UI itself is the risk.
+
+## Contract testing: verifying the seam without booting both services
+
+E2e tests don't scale across a microservice boundary the way they do inside one app. If `order-service` calls `inventory-service`, a true e2e test needs both services (and their dependencies) running together — for every combination of versions, in every branch's CI run. That's the combinatorial trap contract testing exists to avoid.
+
+A consumer-driven contract test works like this: the **consumer** (`order-service`) writes a test describing exactly what it expects from a call to the **provider** (`inventory-service`) — request shape, response shape, status codes. Running that test against a mock produces a "pact" file. The **provider** then replays every recorded interaction from that pact against its *real* implementation, in its own CI, with no consumer code running at all.
+
+Consumer side, in `order-service`:
+
+```js
+// order-service/test/inventory-client.pact.test.js
+const path = require('path');
+const { PactV3, MatchersV3 } = require('@pact-foundation/pact');
+const { InventoryClient } = require('../src/inventory-client');
+
+const { integer, like } = MatchersV3;
+
+const provider = new PactV3({
+  consumer: 'order-service',
+  provider: 'inventory-service',
+  dir: path.resolve(process.cwd(), 'pacts'),
+});
+
+describe('InventoryClient contract with inventory-service', () => {
+  it('returns availability for a known SKU', async () => {
+    provider
+      .given('SKU sku-42 has 7 units in stock')
+      .uponReceiving('a request for stock level of sku-42')
+      .withRequest({ method: 'GET', path: '/inventory/sku-42' })
+      .willRespondWith({
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: { sku: 'sku-42', available: integer(7), warehouse: like('west-1') },
+      });
+
+    await provider.executeTest(async (mockServer) => {
+      const client = new InventoryClient(mockServer.url);
+      const result = await client.getAvailability('sku-42');
+      expect(result).toEqual({ sku: 'sku-42', available: 7, warehouse: 'west-1' });
+    });
+  });
+});
+```
+
+That test writes `pacts/order-service-inventory-service.json` — a machine-readable record of the interaction. Provider side, in `inventory-service`'s own repo:
+
+```js
+// inventory-service/test/pact-verify.test.js
+const path = require('path');
+const { Verifier } = require('@pact-foundation/pact');
+const { startServer } = require('../src/server');
+const { seedInventory } = require('../test/helpers');
+
+describe('Pact verification: inventory-service', () => {
+  let server;
+  beforeAll(async () => { server = await startServer({ port: 8080 }); });
+  afterAll(() => server.close());
+
+  it('satisfies the order-service contract', () => {
+    return new Verifier({
+      provider: 'inventory-service',
+      providerBaseUrl: 'http://localhost:8080',
+      pactUrls: [path.resolve(process.cwd(), '../order-service/pacts/order-service-inventory-service.json')],
+      stateHandlers: {
+        'SKU sku-42 has 7 units in stock': () => seedInventory({ sku: 'sku-42', available: 7, warehouse: 'west-1' }),
+      },
+    }).verifyProvider();
+  });
+});
+```
+
+`stateHandlers` is the key mechanism: the provider spins up its real, running code and seeds whatever data the recorded interaction assumes, then checks its real response byte-for-byte against what the consumer recorded.
+
+Be precise about what this actually proves, because teams routinely oversell it. A passing contract test proves: for every interaction the consumer has *actually coded against*, the provider's real response still matches. It does **not** prove the provider is bug-free, that the two services behave correctly under concurrent load, or that some *new* call pattern the consumer hasn't written a pact for will work — if `order-service` starts hitting a field or endpoint it never recorded, the contract says nothing about it, and it can still break in production even with both sides green. Contract tests replace a slow, flaky cross-service e2e suite with something fast and precise; they don't replace end-to-end tests for the handful of journeys where you genuinely need to prove the whole chain works. (Wiring this verification step into a shared pipeline — publishing pacts to a broker, gating provider deploys on verification — is CI/CD pipeline design and belongs to the DevOps track; here you only need to know what the test itself checks.)
+
+## Diagnosing a real flaky test: the out-of-order response race
+
+Here's the buggy client code for an "Add to cart" button:
+
+```js
+// public/cart.js
+let cartCount = 0;
+
+function addToCart(sku) {
+  cartCount += 1;
+  renderBadge(cartCount);
+
+  fetch('/api/cart/add', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sku }),
+  })
+    .then((res) => res.json())
+    .then((data) => {
+      cartCount = data.count;   // reconcile with server truth
+      renderBadge(cartCount);
+    });
+}
+
+function renderBadge(count) {
+  document.getElementById('cart-badge').textContent = String(count);
+}
+```
+
+And the test that fails about once every fifteen CI runs, never locally:
+
+```ts
+// e2e/cart.spec.ts
+import { test, expect } from '@playwright/test';
+
+test('adding three items updates the badge to 3', async ({ page }) => {
+  await page.goto('/shop');
+  const add = page.getByRole('button', { name: 'Add mug' });
+  await add.click();
+  await add.click();
+  await add.click();
+
+  await expect(page.locator('#cart-badge')).toHaveText('3');
+});
+```
+
+Adding a longer timeout or a `waitForTimeout` does nothing here, because the problem isn't that the badge *hasn't settled yet* — Playwright's retrying assertion already handles that. The problem is that it settles on the **wrong value**. Three `fetch` calls go out nearly simultaneously; under real network jitter (exactly what CI's shared infrastructure produces and your laptop doesn't), their responses can arrive in a different order than they were sent. Whichever response lands *last in wall-clock time* wins, overwriting `cartCount` with a possibly-stale number.
+
+Don't guess — make the race reproduce on demand by controlling response timing with route interception:
+
+```ts
+test('reproduces the response-reordering race deterministically', async ({ page }) => {
+  let n = 0;
+  const delayMs = [0, 300, 50, 150]; // request 2's response is delayed past request 3's
+  await page.route('**/api/cart/add', async (route) => {
+    n += 1;
+    await new Promise((r) => setTimeout(r, delayMs[n]));
+    await route.fulfill({ json: { count: n } });
+  });
+
+  await page.goto('/shop');
+  const add = page.getByRole('button', { name: 'Add mug' });
+  await add.click(); await add.click(); await add.click();
+
+  await page.waitForTimeout(500); // all three responses have definitely landed
+  await expect(page.locator('#cart-badge')).toHaveText('2'); // proves the bug: not '3'
+});
+```
+
+Now the fix — the client must apply only the response for the most recently *sent* request, not whichever response arrives last:
+
+```js
+let cartCount = 0;
+let latestRequestId = 0;
+
+function addToCart(sku) {
+  cartCount += 1;
+  renderBadge(cartCount);
+  const requestId = ++latestRequestId;
+
+  fetch('/api/cart/add', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sku }) })
+    .then((res) => res.json())
+    .then((data) => {
+      if (requestId !== latestRequestId) return; // a newer request superseded this one; ignore
+      cartCount = data.count;
+      renderBadge(cartCount);
+    });
+}
+```
+
+Rerun the deterministic reproduction test above against the fix and it now passes every time, regardless of the delay array — because it no longer depends on timing at all. Keep that reproduction test in the suite permanently; it's now a regression test for a real concurrency bug, not a flaky test you tolerated. This is the general lesson: a flaky test is evidence of a real defect (a race, an unhandled promise order, shared mutable state between test runs, a clock dependency) until you've proven otherwise by making it fail on command. "Add a wait" only lowers the odds of *observing* the bug — it ships the same defect to users on a slow network or a loaded server.
+
+## Exercise
+
+You're handed this Playwright test for a live search box, and it fails roughly 1 run in 20 in CI, never locally:
+
+```ts
+test('typing "cam" shows camera results', async ({ page }) => {
+  await page.goto('/search');
+  await page.getByRole('searchbox').pressSequentially('cam');
+  await expect(page.getByTestId('results')).toContainText('Camera');
+});
+```
+
+The app debounces each keystroke by 250ms before firing `fetch('/api/search?q=...')`, and cancels nothing — every keystroke can produce its own in-flight request. CI machines are slower and more variable than your laptop, so keystroke timing and network latency vary more there.
+
+Diagnose the actual race (hint: with no cancellation, what happens if the request for `"c"` resolves *after* the request for `"cam"`?) and fix it — either by making the client ignore/abort stale in-flight searches, or by writing a deterministic reproduction test with `page.route` that forces the "c" response to arrive last, proving the bug before you fix it. Don't reach for a longer `waitForTimeout`.
+
+## Key takeaways
+
+- Speed, confidence, and brittleness trade off by layer — put each check as low in the pyramid as it can go and still tell the truth; save e2e for what only e2e can prove.
+- Playwright's locator assertions auto-retry against real DOM state, which kills "not rendered yet" flakiness for free but proves nothing about "rendered wrong."
+- A consumer-driven contract test verifies exactly the interactions a consumer recorded against a provider's real behavior — it's precise and fast, but silent about anything outside those recorded interactions.
+- A flaky test is a bug report, not an inconvenience. Reproduce it deterministically (control timing, don't hope for it) before you decide what "fixed" means.

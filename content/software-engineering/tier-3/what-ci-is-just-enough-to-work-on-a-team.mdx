@@ -1,0 +1,91 @@
+---
+trackId: software-engineering
+tier: 3
+title: "What CI Is (Just Enough to Work on a Team)"
+order: 7
+estimatedHours: 2
+slug: what-ci-is-just-enough-to-work-on-a-team
+---
+
+## The job of CI, for a contributor
+
+You don't need to design a pipeline to work on a team — you need to know what happens when you push a branch, why a red X blocks your PR, and how to find out what actually broke. That's this whole module. Pipeline architecture (multi-stage builds, deployment strategies, caching, matrix testing) is covered in depth in the DevOps track. Here you're learning to read and trust the machine, not build it.
+
+## A minimal GitHub Actions workflow
+
+GitHub Actions runs YAML files in `.github/workflows/`. Here's a complete, real one that runs tests and a linter on every push and pull request:
+
+```yaml
+# .github/workflows/ci.yml
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+```
+
+Walk through it top to bottom:
+
+- **`on`** — the triggers. This one fires on any push to `main` and on any pull request targeting `main`. That second trigger is the important one for teamwork: it means CI runs on *every PR*, not just after merge.
+- **`jobs.test.runs-on`** — a fresh virtual machine, spun up from scratch, every run. Nothing persists between runs unless you explicitly cache it.
+- **`steps`** — run in order, top to bottom, and stop at the first failure. `actions/checkout@v4` pulls your repo's code onto that fresh machine (without it, there's no code to test). `actions/setup-node@v4` installs Node and caches `npm` dependencies between runs so `npm ci` is fast. Then three plain shell commands: install exact dependency versions, lint, test.
+
+Each `run:` step is just a shell command. If it exits non-zero, the step — and the whole job — is marked failed. That's the entire mental model. No magic.
+
+## Branch protection and "required status checks"
+
+A workflow running is useless if people can ignore it. Branch protection rules (Settings → Branches → Branch protection rules, on GitHub) close that gap. The one that matters day to day is **required status checks**.
+
+When you mark a job (like `test` above) as a required status check on `main`, GitHub will not let a PR merge — the merge button is literally disabled — until that job reports success on the PR's latest commit. Practically, this means:
+
+- Push a commit that fails lint or tests → the check goes red → you cannot merge, even if a human reviewer already approved.
+- Push a new commit to an already-approved PR → the check re-runs on the new commit. An old green checkmark doesn't carry over.
+- "Required" is a name, not a suggestion — there's no override button for a contributor. Someone with admin rights can bypass it, but that's an escape hatch, not the normal path.
+
+This is why "just push a fix and I'll merge it" doesn't work if CI is still red — the merge is blocked at the platform level, not by a human remembering to check.
+
+## Reading a failed build
+
+When the check goes red, click into it. Don't guess — read it. The Actions log is a list of your steps; the ones with a green check passed, the one with a red X is where it stopped. Expand that step.
+
+Two failure shapes come up constantly:
+
+**Test failure** — the log shows your test runner's own output, same as running it locally:
+```
+FAIL  src/cart.test.js
+  ✕ applies discount code (12 ms)
+    Expected total to be 90, received 100
+```
+Read this like a local failure, because it is one — CI just ran the same command you'd run yourself.
+
+**Environment/setup failure** — the failure is before your code even runs:
+```
+npm error code EJSONPARSE
+npm error Unexpected token } in JSON at position 412
+```
+This means `package.json` is malformed, or a dependency didn't resolve — not a logic bug. The fix is usually a config file, not your feature code.
+
+The instinct to resist: re-running the job and hoping it goes green. Sometimes CI is flaky, but if you re-run more than once without reading the log, you're gambling instead of debugging.
+
+## Exercise
+
+Take a small repo (or create one) with a `package.json` that has a `test` script. Write `.github/workflows/ci.yml` so it runs on push and pull_request, installs dependencies, and runs `npm test`. Push a commit that makes a test fail on purpose, open a PR, and watch the check go red. Then click into the log and find the exact line that names the failing assertion — not just "it failed," the specific expected-vs-received line.
+
+*Hint: the step that fails is the one without a green checkmark in the Actions tab; you don't need to read the steps before it.*

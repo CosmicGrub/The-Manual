@@ -1,0 +1,98 @@
+[
+  {
+    "id": "software-engineering/tier-3/code-review-as-a-practiced-discipline/q1",
+    "type": "multiple_choice",
+    "prompt": "A PR passes all CI checks and the feature works when manually tested. According to this lesson, what does that tell you?",
+    "choices": [
+      "The review is effectively done; CI passing is the main signal that matters",
+      "Only that the code compiles and the happy path works \u2014 review still needs to check correctness on edge cases, readability, test quality, security patterns, and architectural fit",
+      "That the tests are sufficient, so review should focus only on style",
+      "That security review is unnecessary since a working build implies no injection risks"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-3/code-review-as-a-practiced-discipline/q2",
+    "type": "multiple_choice",
+    "prompt": "Which review comment is written in the actionable style described in this lesson?",
+    "choices": [
+      "\"This function is messy, please clean it up.\"",
+      "\"Not a fan of this approach.\"",
+      "\"Line 14 concatenates `filename` directly into the shell command via f-string \u2014 if `filename` ever comes from user input, this is command injection. Use `subprocess.run([cmd, filename])` instead of a shell string.\"",
+      "\"Security issue here, fix before merging.\""
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "software-engineering/tier-3/code-review-as-a-practiced-discipline/q3",
+    "type": "multiple_choice",
+    "prompt": "Why does the lesson recommend reviewing against a checklist instead of reading a diff and commenting on whatever stands out?",
+    "choices": [
+      "Checklists are required by most CI systems",
+      "Vibe review is slower because reviewers overthink every line",
+      "A checklist forces you to check categories that don't naturally catch your eye, so the same class of bug (missing null check, unhandled error path, undiscussed new dependency) doesn't keep slipping through",
+      "Checklists eliminate the need for a human reviewer entirely"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "software-engineering/tier-3/code-review-as-a-practiced-discipline/q4",
+    "type": "multiple_choice",
+    "prompt": "You're reviewing this code: `db.query(f\"SELECT * FROM users WHERE id = {user_id}\")` where `user_id` comes from a URL path parameter. What's the correct actionable feedback?",
+    "choices": [
+      "No comment needed \u2014 f-strings are just a Python formatting convenience",
+      "\"This is bad practice.\"",
+      "Point out that `user_id` is interpolated directly into the SQL string, which is a SQL injection risk since it comes from user-controlled input, and suggest a parameterized query instead",
+      "Suggest renaming `user_id` to something clearer"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "software-engineering/tier-3/code-review-as-a-practiced-discipline/q5",
+    "type": "multiple_choice",
+    "prompt": "A loop in a PR issues one database query per item in a list that can have hundreds of entries. What pattern is this, and what's the fix direction?",
+    "choices": [
+      "This is expected behavior; databases are optimized for many small queries",
+      "N+1 queries \u2014 fix by fetching all the needed rows in a single batched query (e.g. an IN/ANY clause) instead of one query per item",
+      "A race condition \u2014 fix by adding a lock around the loop",
+      "A memory leak \u2014 fix by adding garbage collection calls inside the loop"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-3/code-review-as-a-practiced-discipline/q6",
+    "type": "multiple_choice",
+    "prompt": "According to this lesson, why is vague feedback like \"needs more tests\" actually the less kind option, not just the less useful one?",
+    "choices": [
+      "Because it's technically incorrect \u2014 the code never needs more tests",
+      "Because it dumps the diagnostic work of figuring out what's actually missing back onto the author while still implying their work was inadequate, instead of naming the specific gap",
+      "Because vague comments take longer to write than specific ones",
+      "Because reviewers should never ask for more tests under any circumstance"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-3/code-review-as-a-practiced-discipline/q7",
+    "type": "multiple_choice",
+    "prompt": "A reviewer notices a PR adds a brand-new HTTP client library to make one API call, when the codebase already has a shared HTTP client used everywhere else. Which review category does this fall under, and what should the reviewer do?",
+    "choices": [
+      "Readability \u2014 suggest renaming the new client for clarity",
+      "Architectural fit \u2014 flag that this duplicates an existing solution and ask the author to use the shared client instead, or explain why it doesn't fit here",
+      "Test coverage \u2014 the main issue is that the new library isn't tested",
+      "This isn't something code review should catch; it's a build/tooling concern"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-3/code-review-as-a-practiced-discipline/q8",
+    "type": "multiple_choice",
+    "prompt": "A reviewer leaves a comment reading \"Nit: could shorten this with a list comprehension, up to you\" versus \"Blocking: this will throw an unhandled exception on a missing user.\" What is the purpose of explicitly labeling comments this way?",
+    "choices": [
+      "It has no real purpose beyond formatting preference",
+      "It lets the author distinguish must-fix issues from optional suggestions, so they don't have to either fight every comment or ignore all of them",
+      "It's required by most code review tools to sort comments automatically",
+      "It signals which comments the reviewer personally wrote versus ones generated by a linter"
+    ],
+    "correctIndex": 1
+  }
+]

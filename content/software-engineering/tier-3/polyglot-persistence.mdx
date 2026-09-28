@@ -1,0 +1,205 @@
+---
+trackId: software-engineering
+tier: 3
+title: "Polyglot Persistence"
+order: 4
+estimatedHours: 8
+slug: polyglot-persistence
+---
+
+# Polyglot Persistence
+
+## One System, Three Stores in Concert
+
+Tier 1 showed you Postgres for structured, relational data and MongoDB for nested, variable-shape documents — as two separate options for two separate demos. That's not how a real backend uses them. A real backend runs several stores **at the same time**, each holding the slice of data it's actually good at, wired together behind one API.
+
+This module builds one running example: **Threadline**, a mid-size online store's backend. Three data stores, three jobs:
+
+- **PostgreSQL** — orders, payments, inventory counts. Anything where money or stock correctness depends on atomic, all-or-nothing writes.
+- **MongoDB** — the product catalog. A t-shirt has size and color; a laptop has RAM and battery life. Every category shares almost nothing structurally.
+- **Redis** — sessions, carts, and a cache in front of the catalog. Data that's read constantly, changes shape-lessly, and doesn't need to survive a server restart.
+
+None of these decisions is arbitrary. Each one follows from how that data is actually shaped and how it's actually read and written — which is the whole discipline this module teaches.
+
+## Redis: The Store You Haven't Met Yet
+
+Redis is an in-memory key-value store. Every value lives in RAM, which makes reads and writes fast (sub-millisecond, typically), at the cost of capacity — you don't put your whole order history in Redis. Keys aren't just strings-to-strings; Redis ships a handful of built-in data structures that map cleanly onto real problems:
+
+- **Strings** — a single value, optionally with a TTL (`SET session:abc "..." EX 3600`).
+- **Hashes** — a flat key-value map under one key, good for "an object with a few fields" (a session, a cart).
+- **Sorted sets** — members ranked by a numeric score, with O(log n) rank lookups — perfect for leaderboards and "trending this week."
+
+The property that matters most: **almost everything in Redis has a TTL (time-to-live) or is disposable.** If Redis is wiped, the system should degrade — sessions log out, caches go cold — not lose data that mattered. That single fact is what tells you what belongs there and what doesn't.
+
+## Matching Data Shape to Store — Three Concrete Calls
+
+### Session data → Redis
+
+A session is small, read on nearly every request, written constantly (every cart update), and has a natural expiry. It never needs a `JOIN`, never needs to survive a disaster recovery restore with zero data loss, and losing an idle session after 24 hours is a feature, not a bug.
+
+```javascript
+const { v4: uuidv4 } = require("uuid");
+
+async function createSession(userId) {
+  const sessionId = uuidv4();
+  await redis.hset(`session:${sessionId}`, { userId, cart: JSON.stringify([]) });
+  await redis.expire(`session:${sessionId}`, 60 * 60 * 24); // 24h TTL
+  return sessionId;
+}
+
+async function addToCart(sessionId, productId, qty) {
+  const raw = await redis.hget(`session:${sessionId}`, "cart");
+  const cart = JSON.parse(raw || "[]");
+  cart.push({ productId, qty });
+  await redis.hset(`session:${sessionId}`, "cart", JSON.stringify(cart));
+  await redis.expire(`session:${sessionId}`, 60 * 60 * 24); // touch = sliding expiry
+}
+```
+
+Putting this in Postgres would mean a `sessions` table you constantly `DELETE FROM ... WHERE expires_at < now()`, fighting the database's durability guarantees to simulate something Redis gives you for free.
+
+### Product catalog → MongoDB
+
+This is the case Tier 1 already made: category-specific attributes don't fit fixed columns without either a wall of nullable fields or an EAV table. A product page reads one document, shaped exactly the way it renders. Nothing new here except that it's now one piece of a bigger picture, not the whole lesson.
+
+Redis sits **in front of** this store as a cache, because catalog reads vastly outnumber catalog writes — a product's price changes far less often than its page gets viewed:
+
+```javascript
+async function getProduct(productId) {
+  const cacheKey = `product:${productId}`;
+  const cached = await redis.get(cacheKey);
+  if (cached) return JSON.parse(cached);
+
+  const product = await catalogDb.collection("products").findOne({ _id: productId });
+  if (!product) return null;
+
+  await redis.set(cacheKey, JSON.stringify(product), "EX", 300); // 5 min TTL
+  return product;
+}
+```
+
+This is the **cache-aside** pattern: check the cache first; on a miss, read the real store, then populate the cache for next time. Mongo is the source of truth. Redis is a disposable accelerator — delete every key in it right now, and the app is slower for five minutes, not wrong.
+
+### User accounts → PostgreSQL (and when a JSONB column beats a fourth database)
+
+A user's core identity — email, password hash, account id — needs a uniqueness constraint and foreign-key relationships to orders and payments. That's Postgres, no debate.
+
+But real user records also carry a pile of loosely-structured extras: notification preferences, UI settings, marketing opt-ins — a shape that varies and grows over time, which sounds exactly like "reach for a document store." The Tier-3 instinct is to check whether you need a *whole second database* for that, or just a document-shaped column inside the one you already have:
+
+```sql
+CREATE TABLE users (
+  id            BIGSERIAL PRIMARY KEY,
+  email         TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  preferences   JSONB NOT NULL DEFAULT '{}',
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_users_preferences ON users USING GIN (preferences);
+
+-- schema-on-read, inside a schema-on-write table:
+SELECT id, email FROM users WHERE preferences @> '{"newsletter": true}';
+```
+
+`preferences` is schema-on-read — it can hold anything, and the app enforces its shape. Everything around it is still schema-on-write, transactional, and foreign-keyed. You get the flexibility MongoDB would give you, with zero extra infrastructure, because this data never needed to leave Postgres in the first place. Reach for a genuinely separate store only when the data's *access pattern*, not just its shape, demands it — the catalog needs its own store because it's queried and paginated independently of users; preferences don't.
+
+## The Checkout: Where a Transaction Is Non-Negotiable
+
+Placing an order touches money and stock at once. It must succeed or fail as a single unit — half-decrementing inventory while the order insert fails would sell a product that was never actually reserved. This is exactly what a relational transaction exists for:
+
+```javascript
+async function checkout(userId, items) {
+  const client = await pg.connect();
+  try {
+    await client.query("BEGIN");
+
+    const { rows: [order] } = await client.query(
+      `INSERT INTO orders (user_id, status) VALUES ($1, 'pending') RETURNING id`,
+      [userId]
+    );
+
+    for (const { productId, qty } of items) {
+      const { rows } = await client.query(
+        `SELECT quantity FROM inventory WHERE product_id = $1 FOR UPDATE`,
+        [productId]
+      );
+      if (!rows.length || rows[0].quantity < qty) {
+        throw new Error(`insufficient stock for product ${productId}`);
+      }
+      await client.query(
+        `UPDATE inventory SET quantity = quantity - $1 WHERE product_id = $2`,
+        [qty, productId]
+      );
+      await client.query(
+        `INSERT INTO order_items (order_id, product_id, qty) VALUES ($1, $2, $3)`,
+        [order.id, productId, qty]
+      );
+    }
+
+    await client.query(`UPDATE orders SET status = 'confirmed' WHERE id = $1`, [order.id]);
+    await client.query("COMMIT");
+    return order.id;
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+```
+
+`FOR UPDATE` locks the inventory row for the rest of the transaction, so a second, concurrent checkout for the same product has to wait its turn instead of reading a stale quantity. Either every write in this function lands, or none of them do. That guarantee — atomicity, isolation from other concurrent transactions — is what "ACID transaction" buys you, and it's non-negotiable here because the cost of getting it wrong is real money and oversold stock.
+
+## After Commit: Eventual Consistency, On Purpose
+
+Once that transaction commits, two more things need to happen: the cached product page is now stale, and a "trending this week" leaderboard should reflect the sale. Neither of those needs to happen *before* the customer sees "order confirmed":
+
+```javascript
+// order is committed — everything below is deliberately eventually consistent
+for (const { productId } of items) {
+  await redis.del(`product:${productId}`);           // stale cache entry, cleared
+  await redis.zincrby("trending:week", 1, productId); // approximate rank — fine to lag
+}
+```
+
+For a few hundred milliseconds (or until the next cache read repopulates it), someone could load the product page and see a stock badge that's one unit too high. That's not a bug — it's a deliberate trade-off. The badge is a *display*, not the *source of truth*. The actual sale was already guarded by the Postgres transaction and its row lock, so nobody can oversell no matter how stale the cache gets. You're trading a brief, cosmetic staleness for not having to pay transactional overhead on every catalog page view — a page loaded thousands of times a minute for a fact that changes rarely.
+
+## When Eventual Consistency Would Actually Be a Bug
+
+Contrast that with getting this backwards — using an eventually-consistent read-then-write as the *actual* stock check, instead of the Postgres transaction:
+
+```javascript
+// DON'T use this as the source of truth for stock
+async function badCheckout(productId) {
+  const stock = await redis.get(`stock:${productId}`); // reads "1"
+  if (Number(stock) > 0) {
+    await redis.decr(`stock:${productId}`); // two requests can both pass the check above first
+  }
+}
+```
+
+Two customers hit `badCheckout` at nearly the same moment. Both `GET` see `"1"`. Both pass the `if`. Both `DECR`. You just sold the same last unit twice. The individual Redis commands are atomic, but the *check-then-act* sequence across two separate commands is not — that's a race condition, not a consistency trade-off, because nobody decided "a brief lag here is acceptable." The difference between the two examples in this lesson isn't "Postgres good, Redis bad." It's that one path (checkout) protects a fact where staleness causes real harm, and the other (cache, trending count) doesn't — and the architecture makes that distinction on purpose, in the code, rather than by accident.
+
+## CAP, in One Paragraph
+
+You'll hear "CAP theorem" used to justify this kind of choice: in a distributed system, network partitions will happen (that part isn't optional), so every store ends up choosing, moment to moment, between staying fully consistent or staying available during a partition. Postgres, used the way it is above (one primary, transactions, row locks), leans toward consistency. A cache that just serves whatever it has, even if slightly stale, leans toward availability. You don't need the full theorem to use this well — you need to know, for each piece of data, which failure you'd rather have: a slow/rejected request, or a briefly wrong answer.
+
+## The Bill: Operational Cost of Running Three Databases
+
+None of this is free. Three data stores means three things to provision, monitor, back up, patch, and understand under load — three sets of connection pools, three failure modes, three dashboards to check at 3 a.m. A cache that's "just an optimization" still needs someone to notice when it's evicting too aggressively or its hit rate collapses. Every store you add to an architecture is a store your team now operationally owns for the life of the system.
+
+That's the real argument for the JSONB-instead-of-a-fourth-database move earlier in this lesson: start with the fewest stores that correctly represent your data's shape and access patterns, and add a specialized one only when you hit a concrete, measured pain point — a catalog with genuinely category-varying attributes, a cache genuinely needed because a read path is hot. Polyglot persistence is a response to real constraints, not a default architecture to reach for on day one.
+
+## Exercise
+
+Design the persistence layer for **SocialReads**, a book-review app, with these pieces:
+
+- User accounts (email, password, plus per-user settings like default sort order and email digest frequency).
+- A book catalog, where entries vary a lot: a physical book has an ISBN and page count, an audiobook has a narrator and runtime, an ebook has a file format and DRM flag.
+- Reviews and star ratings — written far more often than the account or catalog data changes, and read on every book page.
+- A "currently reading" indicator per user that expires if they go inactive for 60 days.
+- A "trending this week" list of the 10 most-reviewed books.
+
+For each piece: name the store (Postgres, MongoDB, Redis, or a JSONB column inside Postgres) and justify it using shape and access pattern, not vibes. Then design the "submit a review" flow end to end: which write(s) must be transactional, and which downstream updates (if any) are safe to apply after the fact, eventually consistent, and why that's safe rather than sloppy.
+
+**Hint:** not everything here needs its own database. At least one of these five pieces is a strong candidate for a JSONB column on a table you already have, the same way `preferences` was for Threadline's users — look for the piece that's read/written as a small blob attached to one row, not queried independently across the whole dataset.

@@ -266,3 +266,14 @@ All notable changes to The Manual (curriculum + app) are logged here. This file 
 **Result:** `npm run build` passed clean on the first attempt. 94 unique slugs verified repo-wide.
 
 **Status:** Software Engineering Tier 2 complete (48h, 6 lessons). Software Engineering is now 3/6 tiers content-complete (Tiers 0-2, 96h); Tiers 3-5 remain.
+
+## [0.19.0] — 2026-09-28 — Software Engineering Tier 3: complete (Practitioner level)
+
+**Context:** Continuing the tier-by-tier pattern. This tier moves to real-system scale — multi-file, multi-service thinking — and includes a deliberately light "just enough CI to work on a team" module that stays out of DevOps Tier 2's canonical CI/CD territory on purpose.
+
+**Added**
+- `content/software-engineering/tier-3/*.mdx` (7 files) + matching quizzes: Clean Architecture & Hexagonal Design (a full worked example — a library checkout system with domain/application/infrastructure layers, swapping a CLI adapter for a REST adapter with zero core changes), End-to-End & Contract Testing, API Design Deep Dive (Richardson Maturity Model, pagination/idempotency/rate limiting, a real OpenAPI spec, REST vs. GraphQL), Polyglot Persistence, Reading & Contributing to Open Source, Code Review as a Practiced Discipline, What CI Is (Just Enough to Work on a Team) — intentionally scoped light, deferring pipeline design to DevOps Tier 2.
+
+**Result:** `npm run build` passed clean on the first attempt. 101 unique slugs verified repo-wide.
+
+**Status:** Software Engineering Tier 3 complete (51h, 7 lessons). Software Engineering is now 4/6 tiers content-complete (Tiers 0-3, 147h); Tiers 4-5 remain.

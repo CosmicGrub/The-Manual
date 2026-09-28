@@ -1,0 +1,98 @@
+[
+  {
+    "id": "software-engineering/tier-3/reading-and-contributing-to-open-source/q1",
+    "type": "multiple_choice",
+    "prompt": "You've just cloned a large, unfamiliar codebase. What should you do before reading any implementation file?",
+    "choices": [
+      "Read README.md and CONTRIBUTING.md (and ARCHITECTURE.md if present) to learn intent and local conventions",
+      "Open the largest file in the repo, since it's likely the most important",
+      "Rewrite one module in your preferred style to see how the tests react",
+      "Skip straight to the issue tracker and pick any open bug"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "software-engineering/tier-3/reading-and-contributing-to-open-source/q2",
+    "type": "multiple_choice",
+    "prompt": "Why are a project's tests useful as documentation of intended behavior?",
+    "choices": [
+      "They're always kept perfectly in sync with a written spec document",
+      "They encode, in executable form, the specific behaviors maintainers cared enough to protect \u2014 including contracts the implementation doesn't state explicitly",
+      "They replace the need to ever read CONTRIBUTING.md",
+      "They guarantee the code has no bugs"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-3/reading-and-contributing-to-open-source/q3",
+    "type": "multiple_choice",
+    "prompt": "A code comment looks odd and you want to know why it was written that way. What's the most direct way to find out?",
+    "choices": [
+      "Delete it and see if any test fails",
+      "Ask in the project's chat and wait, without checking history first",
+      "Use git blame on that line, then git log -p on the file to read the commit and linked discussion that introduced it",
+      "Assume it's dead code and remove it in your first PR"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "software-engineering/tier-3/reading-and-contributing-to-open-source/q4",
+    "type": "multiple_choice",
+    "prompt": "Which issue is best described as a 'trap' rather than a well-scoped good-first-issue?",
+    "choices": [
+      "One file named, a specific function, a concrete expected output, and a maintainer comment describing exactly what to add",
+      "Opened 14 months ago, vague ('the CLI should be more intuitive'), no maintainer reply, and multiple commenters proposing conflicting redesigns",
+      "Has a clear reproduction case and is labeled 'good first issue' with a recent maintainer triage comment",
+      "Scoped to a single small function with an existing test file to extend"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-3/reading-and-contributing-to-open-source/q5",
+    "type": "multiple_choice",
+    "prompt": "Before writing any code for a good-first-issue candidate, what should you do?",
+    "choices": [
+      "Nothing \u2014 just open a PR once it's done, since that's the fastest way to show initiative",
+      "Comment on the issue to confirm it's still wanted, briefly state your approach, and ask to be assigned",
+      "Fork the repo, implement it, and open a PR without commenting on the issue at all",
+      "Wait for the maintainer to assign it to you without any comment from you"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-3/reading-and-contributing-to-open-source/q6",
+    "type": "multiple_choice",
+    "prompt": "In a GitHub pull request description, what does writing 'Fixes #482' actually do?",
+    "choices": [
+      "Nothing functional \u2014 it's purely a stylistic convention with no effect",
+      "It automatically closes issue #482 when the PR is merged",
+      "It prevents the PR from being merged until issue #482 is manually closed",
+      "It assigns issue #482 to the PR author"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-3/reading-and-contributing-to-open-source/q7",
+    "type": "multiple_choice",
+    "prompt": "A maintainer requests a change on round two of review, and you disagree with it. What's the most constructive response?",
+    "choices": [
+      "Silently ignore the comment and hope it isn't blocking",
+      "Make the change without comment to avoid conflict, even though you think it's wrong",
+      "Explain your reasoning with concrete evidence (a test case, a benchmark, a relevant doc line) rather than just repeating your original code",
+      "Close the PR since disagreement means it won't be merged"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "software-engineering/tier-3/reading-and-contributing-to-open-source/q8",
+    "type": "multiple_choice",
+    "prompt": "During an active review with multiple rounds of feedback, what's the recommended git workflow?",
+    "choices": [
+      "Force-push a rewritten history after every single review comment",
+      "Push new commits addressing each round of feedback, and only squash/rewrite history later if the maintainer asks or the project's process calls for it",
+      "Open a brand new PR for each round of feedback",
+      "Wait until all feedback across all rounds is collected, then submit one massive final commit with no incremental pushes"
+    ],
+    "correctIndex": 1
+  }
+]

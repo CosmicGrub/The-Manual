@@ -1,0 +1,171 @@
+---
+trackId: software-engineering
+tier: 3
+title: "Reading & Contributing to Open Source"
+order: 5
+estimatedHours: 8
+slug: reading-and-contributing-to-open-source
+---
+
+## Landing in a codebase you didn't write
+
+Every codebase you'll work in professionally was written by someone else, mostly. The skill of "understanding a new codebase fast" is different from the skill of writing code — it's closer to archaeology. You're reconstructing intent from artifacts.
+
+Start outside the code. `README.md` tells you what the project is for. `CONTRIBUTING.md` tells you the local rules — how to run tests, what the commit message format is, whether there's a CLA. If there's an `ARCHITECTURE.md` or a `docs/` folder, read it before you read a single `.py` or `.ts` file. Skipping this step is the single most common reason first-time contributors waste a week.
+
+Then find the entry point — the thread you can pull to unravel everything else.
+
+```bash
+# Python project: where does execution actually start?
+find . -name "__main__.py"
+grep -A3 "console_scripts\|entry_points" setup.py pyproject.toml
+
+# Node project
+grep -E '"main"|"bin"' package.json
+
+# Go project
+grep -rl "^func main(" cmd/
+```
+
+Once you have an entry point, trace one concrete path through it rather than trying to read the whole tree. Pick something you can point to — "what happens when a user runs `mytool --verbose`" — and follow it with a code search tool:
+
+```bash
+rg "verbose" -t py -l          # which files even mention it
+rg "def load_config" -t py     # jump straight to the definition
+```
+
+`git log` and `git blame` are navigation tools, not just history tools. If a piece of code looks weird, don't guess why — find out:
+
+```bash
+git log --oneline --follow -- src/parser.py | head -20
+git blame -L 40,60 src/parser.py
+git log -p --follow -- src/parser.py | less   # full diffs, oldest to newest
+```
+
+Nine times out of ten, the "weird" code is defending against a bug fixed two years ago, and the commit message or linked issue explains exactly what. Reading that context before you touch the code is what separates a contributor from someone who reverts a fix by accident.
+
+## Tests are the specification nobody wrote down
+
+Most real-world projects don't have a formal spec. What they have is a test suite that encodes, in executable form, every behavior a maintainer cared enough about to protect. Read the tests before you read the implementation — they tell you the *contract*, and the implementation just tells you *how* that contract is currently met (which might change).
+
+```python
+# tests/test_rate_limiter.py
+
+def test_allows_requests_under_limit():
+    limiter = RateLimiter(max_requests=3, window_seconds=60)
+    assert limiter.allow("user-1") is True
+    assert limiter.allow("user-1") is True
+    assert limiter.allow("user-1") is True
+
+def test_blocks_requests_over_limit():
+    limiter = RateLimiter(max_requests=2, window_seconds=60)
+    limiter.allow("user-1")
+    limiter.allow("user-1")
+    assert limiter.allow("user-1") is False
+
+def test_resets_after_window_expires(monkeypatch):
+    limiter = RateLimiter(max_requests=1, window_seconds=60)
+    limiter.allow("user-1")
+    assert limiter.allow("user-1") is False
+    monkeypatch.setattr(time, "time", lambda: time.time() + 61)
+    assert limiter.allow("user-1") is True
+
+def test_tracks_users_independently():
+    limiter = RateLimiter(max_requests=1, window_seconds=60)
+    assert limiter.allow("user-1") is True
+    assert limiter.allow("user-2") is True
+```
+
+Without opening `rate_limiter.py`, you now know: requests are keyed by an arbitrary string id, counters are per-key and independent, the limiter returns a plain `bool` rather than raising, and the window is time-based and resettable. If you're asked to add a "burst allowance" feature, you write the fifth test in this same style *first* — that's how you find out whether your mental model of the existing behavior is actually correct, before you've written a line of implementation.
+
+Run a single test in isolation while you're exploring — it's faster feedback than reading:
+
+```bash
+pytest tests/test_rate_limiter.py -k resets_after_window -v
+```
+
+If a test's *name* doesn't match what it actually checks, that's often the first real bug you'll find in an unfamiliar codebase — and a reasonable thing to flag in a PR of its own.
+
+## Finding a good first issue (and spotting the traps)
+
+"Good first issue" labels are not a reliability guarantee — they're a maintainer's best guess, sometimes stale by a year. You still have to evaluate scope yourself.
+
+**Well-scoped, real example:**
+
+> **Title:** `--verbose` doesn't print the resolved config file path
+> The `--verbose` flag prints the options in effect but never shows which config file was actually loaded — the #1 question we get asked for debugging precedence issues.
+> **Where to look:** `src/cli.py`, `load_config()`, around the existing verbose block.
+> **Expected:** add a line like `Loaded config from: <path>`.
+> Labels: `good first issue`, `cli`
+
+This is scoped: one file, one function, a concrete before/after, a maintainer who clearly knows what they want. You could start coding in ten minutes.
+
+**A trap, also a real pattern:**
+
+> **Title:** CLI should be more intuitive
+> Several users have said the CLI could be friendlier. Maybe we redesign the flag scheme?
+> *(opened 14 months ago, no maintainer reply, three commenters proposing conflicting redesigns)*
+
+No repro, no acceptance criteria, touches a core user-facing abstraction, and the comment thread shows unresolved disagreement about direction — meaning any PR you open will get relitigated in review, or the issue will be closed as "won't fix" out from under you. Other trap signals: the issue requires a new dependency, implies a breaking API change, is tagged "help wanted" but actually needs deep domain knowledge the description doesn't mention, or a PR already exists and stalled (search closed PRs for the issue number before you start).
+
+Before writing any code, comment on the issue: confirm it's still wanted, state your approach in a sentence or two, and ask to be assigned. This costs five minutes and prevents you from duplicating someone else's half-finished work or building the wrong thing.
+
+## Writing a PR that respects the maintainer's time
+
+Keep the diff to one logical change. A PR that fixes a bug *and* reformats an unrelated file *and* upgrades a dependency is three PRs pretending to be one, and it will sit in review longest.
+
+Match the project's existing conventions exactly — indentation, naming, commit message format, whether they want `fix:`/`feat:` conventional commits. Run whatever linter and test command `CONTRIBUTING.md` specifies before you push, not after CI fails.
+
+Write the PR description like a domain expert who's short on time will read it once:
+
+```markdown
+## What
+Adds the resolved config file path to `--verbose` output.
+
+## Why
+Fixes #482. Users debugging config precedence had no way to confirm
+which file was actually loaded.
+
+## How I tested it
+- Added `test_verbose_prints_config_path` in `tests/test_cli.py`
+- Ran `pytest tests/test_cli.py -k verbose` locally — passing
+- Manually ran `mytool --verbose` with and without `--config custom.toml`
+
+Fixes #482
+```
+
+`Fixes #482` (or `Closes #482`) isn't decorative — GitHub auto-closes the linked issue when the PR merges, which is exactly the behavior you want and nothing more.
+
+## Surviving multiple rounds of review
+
+A PR that needs three rounds of feedback isn't a bad PR — it's a normal one on any project with a careful maintainer. Treat review as the actual collaboration, not as a gate you failed.
+
+Reply to every comment, even the trivial ones — a silent commit with no response reads as "I ignored this." Distinguish blocking requests from polish; many maintainers literally prefix optional ones with `nit:`. If feedback is genuinely ambiguous, ask rather than guessing and resubmitting the wrong fix twice:
+
+> **Maintainer:** "This breaks if `max_requests` is 0 — can you guard against that?"
+> **You:** "Good catch — added a `ValueError` in the constructor plus a test, in `a1b2c3d`. Happy to clamp to 1 instead of raising if you'd prefer that behavior — let me know."
+
+That reply does three things: it fixes the issue, points to the exact commit, and offers an alternative without being defensive about the original choice.
+
+During review, push new commits rather than force-pushing over history — it lets the maintainer see exactly what changed since their last pass:
+
+```bash
+git add src/cli.py
+git commit -m "address review: guard against max_requests=0"
+git push origin add-config-path-to-verbose
+```
+
+Only rewrite history once review is done and someone asks for a clean history before merge (many projects squash-merge automatically via the GitHub UI and don't need this at all — check first):
+
+```bash
+git rebase -i main
+git push --force-with-lease origin add-config-path-to-verbose
+```
+
+If you disagree with a requested change, say so with evidence — a test that would start failing, a benchmark, a linked line from `CONTRIBUTING.md` — instead of just repeating your original code. Maintainers change their minds on real evidence far more often than on repetition.
+
+## Exercise
+
+Pick a real, active repository on GitHub in a language you know. Filter its issues by `label:"good first issue"` and find three candidates. For each, write two or three sentences: is it well-scoped or a trap, and what specific evidence in the issue tells you that? Then, for your best candidate, write the PR description (`What` / `Why` / `How I tested it`) you would open — before writing any code.
+
+*Hint: read the last ten *closed* (merged) PRs in that repo first. They show you the actual review temperature and description style maintainers expect there, which is often stricter — or looser — than `CONTRIBUTING.md` suggests.*

@@ -1,0 +1,133 @@
+---
+trackId: software-engineering
+tier: 3
+title: "Code Review as a Practiced Discipline"
+order: 6
+estimatedHours: 5
+slug: code-review-as-a-practiced-discipline
+---
+
+## "Does It Run" Is the Floor, Not the Bar
+
+A pull request that runs, passes CI, and does roughly what the ticket asked for can still be a liability. It can leak data through an injection hole, quietly do 200 database round-trips where one would do, or bolt a one-off solution onto a codebase that already solved this problem somewhere else. Code review exists to catch what "it works on my machine, tests are green" cannot: the stuff that only shows up when someone who didn't write the code reads it with intent.
+
+This module is about turning review from a rubber stamp into a discipline you can repeat under time pressure, on code you didn't write, without it becoming either a nitpicking exercise or a personality contest.
+
+## What You're Actually Checking For
+
+Five things, roughly in the order you should look for them:
+
+**Correctness.** Does the logic do what it claims, including the cases nobody wrote a happy-path test for? Off-by-ones, null/undefined handling, race conditions between an async write and the read right after it, error paths that swallow exceptions instead of handling them.
+
+**Readability.** Could someone with no context understand this in six months, including the author? Names that lie about what they hold, functions that do three unrelated things, control flow you have to trace with a finger to follow.
+
+**Test coverage.** Not "are there tests" but "do the tests prove the risky part works." A test that only exercises the happy path on a function whose entire reason for existing is handling an edge case is decoration, not coverage.
+
+**Security-sensitive patterns.** You are not doing a full security audit in every review (that's a dedicated practice with its own tooling and process). You are pattern-matching for the handful of things that show up constantly: unsanitized input reaching a query or shell command, secrets or tokens in code instead of config/secret storage, missing authorization checks on an endpoint that has an obvious one nearby, and trust boundaries being crossed without validation.
+
+**Architectural fit.** Does this change belong where it's going? A new HTTP client added when the codebase has one already. A service reaching directly into another service's database instead of calling its API. A "quick" synchronous call added to a path that's supposed to stay async. This is the category junior reviewers skip because it takes system-level context to see — which is exactly why it matters most at this tier.
+
+## A Worked Example
+
+Here's a diff someone opened for review:
+
+```python
+def get_user_orders(user_id):
+    user = db.query(f"SELECT * FROM users WHERE id = {user_id}")
+    orders = []
+    for order_id in user["order_ids"]:
+        orders.append(db.query(f"SELECT * FROM orders WHERE id = {order_id}"))
+    return orders
+```
+
+Running the checklist against it:
+
+- **Correctness**: no handling for `user` being `None` (bad `user_id`) — will crash on `user["order_ids"]`.
+- **Security**: `user_id` is interpolated straight into SQL. If it ever comes from a URL path or request body, this is a textbook SQL injection.
+- **Correctness/architecture**: the loop issues one query per order — an N+1 pattern that turns a 200-order user into 200 round-trips.
+- **Tests**: none included, and the function has no test for the missing-user case.
+
+## Vague Feedback vs. Actionable Feedback
+
+The difference between a review that helps and one that just generates friction is almost never about how many issues you find — it's about how you write the comment.
+
+**Vague** (forces the author to do your analysis for you):
+
+> This could be a security issue.
+
+**Actionable** (names the exact risk, the exact line, and a fix):
+
+> Line 2 builds the SQL string with an f-string, so `user_id` gets concatenated directly into the query. If this ever comes from user input (URL param, request body), it's SQL injection. Swap to a parameterized query: `db.query("SELECT * FROM users WHERE id = %s", (user_id,))`.
+
+**Vague:**
+
+> Perf issue here.
+
+**Actionable:**
+
+> This loops and issues one query per order — N+1. For a user with a few hundred orders that's a few hundred round-trips on a request that should be one. Fetch them in a single query instead: `db.query("SELECT * FROM orders WHERE id = ANY(%s)", (user["order_ids"],))`. Flagging as blocking since this endpoint is already on the dashboard's hot path.
+
+**Vague:**
+
+> Needs more tests.
+
+**Actionable:**
+
+> No test covers `user_id` for a user that doesn't exist — right now that's an unhandled `TypeError` instead of a 404. Can you add a case for that, plus one for a user with zero orders (empty list vs. the current code path)?
+
+Notice the pattern in every actionable version: it names the specific line or behavior, explains *why* it matters (not just that it's wrong), and either gives a concrete fix or asks a concrete question. None of them attack the author — they attack the code. "This f-string builds unsafe SQL" lands very differently than "you wrote unsafe SQL." The first is a fact about three lines of text; the second is a fact about a person. Kind and direct are not in tension here — vague feedback is usually the *unkind* option, because it dumps the diagnostic work back on the author while still making them feel judged.
+
+One more distinction worth making explicit in the comment itself: is this blocking or a suggestion? "Blocking: this will 500 on a missing user" reads very differently from "Nit: could shorten this with a list comprehension, up to you." Reviewers who don't separate the two train authors to either fight every comment or ignore all of them.
+
+## Reviewing by Checklist, Not by Vibe
+
+"Vibe" review means you read the diff top to bottom, comment on whatever catches your eye, and stop when it feels done. It's fast, and it's exactly why the same category of bug (missing null check, no error handling on a new I/O call, a new dependency nobody discussed) keeps getting through — your eye catches what it happened to notice that day, not what's actually risky.
+
+A checklist forces you to check the boxes that don't naturally catch your eye. It doesn't replace judgment; it directs it. A practical one for a typical service-layer PR:
+
+```
+Correctness
+[ ] Handles the null/empty/not-found case, not just the happy path
+[ ] No unhandled exception path (caught-and-ignored counts as unhandled)
+[ ] Concurrent access considered if this touches shared state
+
+Readability
+[ ] Names describe what the thing is/does, not how it's implemented
+[ ] No function doing more than one job that should be split
+
+Tests
+[ ] New logic has a test, and the test would fail if the logic were wrong
+[ ] The risky edge case (not just the happy path) is covered
+
+Security-sensitive patterns
+[ ] No string-built queries/commands from unsanitized input
+[ ] No secrets/tokens/keys committed
+[ ] Auth/authorization check present if a sibling endpoint has one
+
+Architectural fit
+[ ] Doesn't duplicate an existing client/service/util that does this already
+[ ] Doesn't cross a service boundary the architecture says shouldn't be crossed
+[ ] Scope matches the PR description — no unrelated changes riding along
+```
+
+Run this against every non-trivial PR, in order, before you write a single comment. It's slower the first few times and faster than vibe review within a week, because you stop re-discovering the same categories of bug from scratch each time. Teams that codify this as a PR template checklist (checked off by the author before requesting review, verified by the reviewer) catch more with less reviewer fatigue than teams that rely on reviewers remembering to think of everything.
+
+## Exercise
+
+Below is a real PR diff. Write two review comments for it: one on the SQL/security issue, one on the design issue — each written in the actionable style above (specific line, why it matters, a concrete fix or question), not the vague style.
+
+```python
+@app.route("/api/reports/<report_name>")
+def get_report(report_name):
+    path = f"/var/reports/{report_name}.pdf"
+    with open(path, "rb") as f:
+        return f.read()
+```
+
+Then run the checklist against it and list every box it fails — there are at least three.
+
+**Hint:** think about what `report_name` could contain if it comes straight from the URL, and what happens to `open()` when it does. Separately, think about what this handler does *not* do that a file-serving endpoint on the internet almost always needs.
+
+## Where This Sits
+
+The checklist habit you're building here is the same one that scales up to architecture review later in this track — the categories don't change, only the size of the thing you're pointing them at. What you should *not* do is turn every review into a security audit or a CI/CD gate rebuild: security-sensitive-pattern review here means eyeballing for the handful of common footguns, not standing up threat modeling, and pipeline enforcement of these checks (linting, SAST scanning, required checks) is its own discipline covered elsewhere.
