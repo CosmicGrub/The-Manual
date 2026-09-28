@@ -1,0 +1,230 @@
+---
+trackId: ai-ml-prompting
+tier: 3
+title: "Reading Real Code"
+order: 6
+estimatedHours: 8
+slug: reading-real-code
+---
+
+# Reading Real Code
+
+## What "reading code" means when the code trains a neural net
+
+Tier 3 of CS Foundations already built the actual technique for reading a codebase you didn't write: orient top-down from the public API before touching a function body, use grep and go-to-definition to answer "where is this defined" and "everywhere it's used," trace a real execution path by hand and confirm it with a live debugger, and use `git blame` plus the linked PR/issue to recover *why* code looks the way it does. This module does not re-teach any of that. It applies it to a different kind of artifact: a model.
+
+The difference matters. In `requests`, the thing you trace through a call chain is control flow — which function runs next. In a neural network codebase, the thing you trace is a **tensor and its shape**. A static trace of ML code isn't finished when you can list the function calls in order; it's finished when you can write down, at every hop, the exact shape of what's flowing through — `(batch, sequence_length, embedding_dim)` and how each layer transforms it. That's a genuinely different skill, and it's the one this module builds.
+
+The target is [karpathy/nanoGPT](https://github.com/karpathy/nanoGPT), for a specific reason: it's small enough to read *completely*, in an afternoon, and it's real enough that its exact shape — `model.py` for the architecture, `train.py` for the training loop, `sample.py` for inference — is the same three-file split you'll find (scaled up by a thousand times) in most production LLM training stacks. One honest note before you start: the repo now carries a banner pointing at a newer, actively developed successor, `nanochat`, and calls nanoGPT itself "old and deprecated, left up for posterity." That's actually a point in its favor for this exercise — a frozen, complete, unchanging repo is *easier* to read reliably than a fast-moving one, which is exactly what you want when the goal is the reading technique, not the latest training tricks.
+
+## Orienting in nanoGPT
+
+Clone it and don't read a single function body yet:
+
+```bash
+git clone https://github.com/karpathy/nanoGPT.git
+cd nanoGPT
+wc -l model.py train.py sample.py configurator.py
+#  330 model.py
+#  336 train.py
+#   89 sample.py
+#   47 configurator.py
+```
+
+Four files, under 800 lines combined. Before opening any of them, predict each one's job from its name and the README's one-line description ("`train.py` is a ~300-line boilerplate training loop and `model.py` a ~300-line GPT model definition"):
+
+- `model.py` — the architecture: every `nn.Module` class, instantiated identically by both training and sampling
+- `train.py` — the training loop: data loading, optimizer, gradient steps, checkpointing
+- `sample.py` — loads a trained checkpoint and generates text from it
+- `configurator.py` — some kind of command-line/config-file override mechanism (the name alone tells you this much)
+
+Open `model.py`'s top: it defines, in order, `LayerNorm`, `CausalSelfAttention`, `MLP`, `Block`, `GPTConfig`, and `GPT`. Notice what's *not* here: there's no separate `EncoderGPT`/`DecoderGPT` split, no attention variant classes. One `GPT` class, built from one `Block`, used verbatim by both `train.py` (to compute a loss) and `sample.py` (to generate). That single-model-two-callers structure is itself a fact you just extracted by orienting before reading — confirm it with grep:
+
+```bash
+grep -n "GPT(" train.py sample.py
+# train.py:   model = GPT(gptconf)
+# sample.py:  model = GPT(gptconf)
+```
+
+## Trace: from a prompt string to the first generated token
+
+`sample.py` is the entry point a user actually runs. Read it top-down and you find the real execution path, with real shapes, for the default GPT-2 124M config (`n_layer=12, n_head=12, n_embd=768, block_size=1024, vocab_size=50304`):
+
+```python
+# sample.py
+start_ids = encode(start)                                    # e.g. "Once upon a time" -> 4 token ids
+x = (torch.tensor(start_ids, dtype=torch.long, device=device)[None, ...])   # shape (1, 4)
+
+with torch.no_grad():
+    with ctx:
+        for k in range(num_samples):
+            y = model.generate(x, max_new_tokens, temperature=temperature, top_k=top_k)
+```
+
+`model.generate` (`model.py`, lines 306–330) is a plain Python loop, not a fused kernel — read it and you can predict every shape by hand:
+
+```python
+@torch.no_grad()
+def generate(self, idx, max_new_tokens, temperature=1.0, top_k=None):
+    for _ in range(max_new_tokens):
+        idx_cond = idx if idx.size(1) <= self.config.block_size else idx[:, -self.config.block_size:]
+        logits, _ = self(idx_cond)                     # calls GPT.forward
+        logits = logits[:, -1, :] / temperature
+        if top_k is not None:
+            v, _ = torch.topk(logits, min(top_k, logits.size(-1)))
+            logits[logits < v[:, [-1]]] = -float('Inf')
+        probs = F.softmax(logits, dim=-1)
+        idx_next = torch.multinomial(probs, num_samples=1)
+        idx = torch.cat((idx, idx_next), dim=1)
+    return idx
+```
+
+`self(idx_cond)` calls `GPT.forward` (`model.py`, lines 170–193). Trace the shapes with `idx` at `(1, 4)`:
+
+```python
+def forward(self, idx, targets=None):
+    b, t = idx.size()                                   # b=1, t=4
+    pos = torch.arange(0, t, dtype=torch.long, device=device)      # shape (4,)
+    tok_emb = self.transformer.wte(idx)                  # (1, 4, 768)
+    pos_emb = self.transformer.wpe(pos)                  # (4, 768), broadcasts to (1, 4, 768)
+    x = self.transformer.drop(tok_emb + pos_emb)          # (1, 4, 768)
+    for block in self.transformer.h:                      # 12 blocks, shape unchanged in/out
+        x = block(x)                                       # (1, 4, 768) -> (1, 4, 768)
+    x = self.transformer.ln_f(x)                            # (1, 4, 768)
+    if targets is not None:
+        logits = self.lm_head(x)                              # (1, 4, 50304)
+        loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1)
+    else:
+        logits = self.lm_head(x[:, [-1], :])                     # (1, 1, 50304) — only the last position
+        loss = None
+    return logits, loss
+```
+
+That `else` branch is worth stopping on: during generation `targets is None`, and the code deliberately runs `lm_head` (a `Linear(768, 50304)`, i.e. ~38.6M multiply-adds) on only the *last* position instead of all four, because at inference time nothing else is used. That's a real, load-bearing optimization hiding in a one-line comment — "inference-time mini-optimization" — that you'd only notice by actually reading the branch, not by skimming.
+
+`vocab_size=50304` is itself worth grepping for. GPT-2's real vocabulary is 50,257 tokens; nanoGPT pads it to 50,304:
+
+```python
+vocab_size: int = 50304  # GPT-2 vocab_size of 50257, padded up to nearest multiple of 64 for efficiency
+```
+
+50,304 = 786 × 64. GPU matrix multiplies tile in blocks of powers of two; a vocab size that isn't a multiple of 64 forces the embedding and `lm_head` matmuls into an inefficient tile shape. That's a genuine "why is this number here" reading question, answered in one comment, that a static analysis tool would never flag for you.
+
+## Inside one block: `CausalSelfAttention.forward`, line by line
+
+Every `Block` runs `x = x + self.attn(self.ln_1(x))` then `x = x + self.mlp(self.ln_2(x))` — pre-norm residual connections, the architecture you already know from the Transformer module. What's new here is reading a real attention *implementation*, not the diagram. `model.py`, lines 52–76:
+
+```python
+def forward(self, x):
+    B, T, C = x.size()                                            # B=1, T=4, C=768
+    q, k, v = self.c_attn(x).split(self.n_embd, dim=2)             # c_attn: (1,4,768)->(1,4,2304), split into 3x(1,4,768)
+    k = k.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)  # (1, 12, 4, 64)
+    q = q.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)  # (1, 12, 4, 64)
+    v = v.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)  # (1, 12, 4, 64)
+
+    if self.flash:
+        y = torch.nn.functional.scaled_dot_product_attention(
+            q, k, v, attn_mask=None, dropout_p=self.dropout if self.training else 0, is_causal=True)
+    else:
+        att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))   # (1, 12, 4, 4)
+        att = att.masked_fill(self.bias[:, :, :T, :T] == 0, float('-inf'))
+        att = F.softmax(att, dim=-1)
+        att = self.attn_dropout(att)
+        y = att @ v                                                    # (1, 12, 4, 64)
+    y = y.transpose(1, 2).contiguous().view(B, T, C)                     # back to (1, 4, 768)
+    y = self.resid_dropout(self.c_proj(y))
+    return y
+```
+
+Two things this reading exercise trains that a diagram never will:
+
+**Two code paths compute one identical answer.** `self.flash` is set once, in `__init__`, by `hasattr(torch.nn.functional, 'scaled_dot_product_attention')` — a PyTorch-version check. When it's available, the whole `att = ... ; softmax ; att @ v` block is skipped entirely in favor of one fused, memory-efficient CUDA kernel that produces the same output. Reading real ML code means recognizing "this `if/else` isn't two different algorithms, it's one algorithm with a fast kernel and a reference fallback" — and that the reference fallback (the `else` branch) is the one worth reading closely, because it's the one that spells out the math in Python you can actually execute by hand.
+
+**The causal mask, computed for real.** `self.bias` is `torch.tril(torch.ones(block_size, block_size))` — a lower-triangular matrix of 1s. Shrink it to 3 tokens and compute the actual masked, softmaxed attention weights for one head:
+
+```python
+att = [[2.0, 1.0, 0.1],
+       [0.5, 1.5, -0.2],
+       [1.0, 0.3, 2.2]]
+mask = [[1,0,0],[1,1,0],[1,1,1]]     # tril: token i can only see tokens <= i
+
+# after masked_fill(mask == 0, -inf):
+# [2.0, -inf, -inf]
+# [0.5,  1.5, -inf]
+# [1.0,  0.3,  2.2]
+
+# after F.softmax(dim=-1), row by row:
+# token 0: [1.0000, 0.0000, 0.0000]
+# token 1: [0.2689, 0.7311, 0.0000]
+# token 2: [0.2076, 0.1031, 0.6893]
+```
+
+Token 0's row sums to 100% on itself, because it's the only thing it's allowed to see. Token 1 splits attention between tokens 0 and 1 and puts exactly `0.0000` on token 2 — not approximately zero, *exactly* zero, because `-inf` through `softmax` is `0` in floating point, not a small number. That's the actual mechanism behind "the model can't cheat by looking at the future," verified with real numbers instead of taken on faith.
+
+## A design decision hiding in `configure_optimizers`
+
+`GPT.configure_optimizers` (`model.py`, lines 263–286) splits every trainable parameter into two optimizer groups:
+
+```python
+decay_params = [p for n, p in param_dict.items() if p.dim() >= 2]
+nodecay_params = [p for n, p in param_dict.items() if p.dim() < 2]
+optim_groups = [
+    {'params': decay_params, 'weight_decay': weight_decay},
+    {'params': nodecay_params, 'weight_decay': 0.0},
+]
+```
+
+Why `p.dim() >= 2`? Every `Linear` weight and every embedding table is 2D (`out_features x in_features`, or `vocab_size x n_embd`). Every bias and every `LayerNorm` gain is 1D. The comment above it says exactly this: *"all weight tensors in matmuls + embeddings decay, all biases and layernorms don't."* Regularizing a bias toward zero doesn't prevent overfitting the way regularizing a weight matrix does — it just shifts every output by a constant — so applying weight decay to it is pure waste. This is a real, non-obvious training detail that you'd only catch by reading `configure_optimizers` instead of assuming "the optimizer just does Adam."
+
+## A different reading skill: `train.py`'s self-mutating `configurator.py`
+
+Near the top of `train.py`:
+
+```python
+exec(open('configurator.py').read())
+```
+
+`configurator.py` is 47 lines, and its own docstring is refreshingly honest about what it is: *"Poor Man's Configurator. Probably a terrible idea."* It reads `sys.argv`, and for each `--key=value` argument, does `globals()[key] = literal_eval(val)` **into `train.py`'s own namespace**, after checking the key already exists there and the type matches:
+
+```python
+key, val = arg.split('=')
+key = key[2:]
+if key in globals():
+    attempt = literal_eval(val)
+    assert type(attempt) == type(globals()[key])
+    globals()[key] = attempt
+```
+
+This is a distinct reading skill from tracing function calls: recognizing that `exec()` of one file's contents *inside* another file's scope means the two files share one flat namespace, and that "where is `batch_size` defined" has no single answer — it's defined once at the top of `train.py` as a default, then potentially overwritten by any config file or `--batch_size=N` argument on the command line, in the order they appear. A grep for `batch_size =` will find the default; it won't find every place it can change. When you trace variable state through a script like this, you have to read the *execution order*, not just the definitions.
+
+## Contributing a small, real fix: what "well-scoped" means right now
+
+Every ML/LLM tooling repo has its own contribution norms, but Hugging Face's `transformers` — one of the largest, most active ML tooling repos that exists — documents its current norms explicitly, and reading its `CONTRIBUTING.md` is itself a worthwhile code-reading exercise, because it tells you exactly what a maintainer's mental model of "a good PR" looks like:
+
+1. **Fork, add `upstream`, branch off `main`.** `git remote add upstream https://github.com/huggingface/transformers.git`, then `git checkout main && git pull upstream main`, then `git switch -c a-descriptive-name-for-my-branch`. Never commit to your fork's `main` directly — it makes rebasing on upstream changes painful later.
+2. **Install in editable mode**, scoped to what you're touching: `pip install -e ".[quality]"` for docs or small fixes, `pip install -e ".[torch,testing]"` for anything touching model code.
+3. **Start from a labeled issue, don't invent scope.** [`Good First Issue`](https://github.com/huggingface/transformers/labels/Good%20First%20Issue) is maintainer-curated, beginner-scoped, and — critically — means someone has already agreed the change is wanted. Opening a PR for a problem nobody confirmed is real is the single most common way a first PR gets closed unreviewed.
+4. **Run the project's own checks before opening the PR**, not after: `make style` (auto-fixes formatting), `make quality` (linting + typing), and the test files the tests-fetcher identifies as covering your change. A PR whose CI is red on the first push tells a reviewer nothing about whether your fix works.
+5. **Minimize the diff.** The guide is explicit: "if your PR can be a 1-line fix, make it a 1-line fix." A 40-line diff for a 1-line bug buries the actual fix in noise a reviewer has to wade through.
+
+One more thing worth reading closely, because it's current as of this writing and directly relevant to you as someone with an AI coding assistant: `transformers`' guide now has an explicit **agentic contributions** policy. AI-assisted contributions are welcome, but a "pure agent" PR — where you ran an agent, got a diff, and opened a PR without doing anything a reviewer couldn't have gotten by running the agent themselves — is not. If you use an AI tool, the guide asks you to disclose it in the PR description along with the test commands and results, to review every changed line yourself, and to bundle mechanical cleanups (typos, isolated style fixes) rather than opening one-off "busywork" PRs for each. The bar for a useful human-plus-agent contribution, per the maintainers themselves, is doing the parts an agent can't: tracking a bug down to its root cause (ideally with `git bisect`), reproducing it with a minimal script before proposing a fix, and checking whether the same bug pattern exists in similar code elsewhere in the repo.
+
+A well-scoped first PR, concretely, looks like this shape: you find (via the techniques above — grepping a function, tracing its callers, reading its docstring against its actual default) that a function's docstring claims a default value the code doesn't actually use, or that an edge-case input (an empty string, `top_k` larger than the vocabulary, a zero-length sequence) crashes instead of degrading gracefully. You write a two-line script that reproduces it, confirm the fix with that script, keep the diff to the smallest change that fixes exactly that case, add or update one test that would have caught it, and write a PR description that states: what broke, the minimal repro, and what changed — no more.
+
+## Exercise
+
+Run nanoGPT's own CPU recipe end to end:
+
+```bash
+python data/shakespeare_char/prepare.py
+python train.py config/train_shakespeare_char.py \
+  --device=cpu --compile=False --eval_iters=20 --log_interval=1 \
+  --block_size=64 --batch_size=12 --n_layer=4 --n_head=4 --n_embd=128 \
+  --max_iters=2000 --lr_decay_iters=2000 --dropout=0.0
+```
+
+(This is the exact recipe from the README — about 3 minutes on a laptop CPU, landing around a validation loss of 1.88.) Then, instead of running `sample.py` unmodified, copy it and instrument it: right before the `idx_next = torch.multinomial(probs, num_samples=1)` line inside `generate`, add a one-off print (only for the very first generated token) of the top 5 characters and their probabilities — `torch.topk(probs, 5)`, then decode each returned index back to a character with the `meta.pkl` mapping `sample.py` already loads.
+
+Run it starting from a single newline character as the prompt. Look at what the top 5 candidates actually are, and write one paragraph explaining why they make sense (or don't) for a model that has only ever seen Shakespeare's text at the character level, trained for 2000 iterations.
+
+**Hint:** the shape you're decoding from is `probs`, which by the time you reach that line in `generate` is already `(1, vocab_size)` for this single-character vocabulary (not 50,304 — check `meta.pkl`'s actual `vocab_size` for this dataset). Don't reshape anything; you just need `probs[0]` to index into your `itos` dict.

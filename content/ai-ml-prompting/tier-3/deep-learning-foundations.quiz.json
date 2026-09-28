@@ -1,0 +1,98 @@
+[
+  {
+    "id": "ai-ml-prompting/tier-3/deep-learning-foundations/q1",
+    "type": "multiple_choice",
+    "prompt": "In the worked backprop example, delta_h1 (dL/dh1_in) is computed as dL/dh1 times h1(1-h1), where dL/dh1 = delta_o * w5. Why multiply by w5 and not by h1 at this step?",
+    "choices": [
+      "Because o_in = w5*h1 + w6*h2 + b_o, so the rate at which o_in changes as h1 changes is exactly w5 (do_in/dh1 = w5) \u2014 the chain rule requires that local derivative",
+      "Because w5 is always the largest weight in the network and dominates the gradient",
+      "Because h1 has already been consumed by the forward pass and can no longer appear in a derivative",
+      "Because multiplying by the weight instead of the activation is a simplification that only works for sigmoid networks"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-3/deep-learning-foundations/q2",
+    "type": "multiple_choice",
+    "prompt": "Given the forward pass values h1 = 0.569546 and o = 0.594894 from the lesson's example network, what is the sigmoid derivative do/do_in = o(1-o), rounded to 4 decimal places?",
+    "choices": [
+      "0.2410",
+      "0.5949",
+      "0.4051",
+      "0.5695"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-3/deep-learning-foundations/q3",
+    "type": "multiple_choice",
+    "prompt": "predictions = [2.5, 0.0, 2.1, 7.8], targets = [3.0, -0.5, 2.0, 7.5]. What does F.mse_loss(predictions, targets) return?",
+    "choices": [
+      "0.1500",
+      "0.6000",
+      "0.2500",
+      "0.0900"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-3/deep-learning-foundations/q4",
+    "type": "multiple_choice",
+    "prompt": "Softmax over logits [2.0, 0.5, -1.0] gives probabilities [0.7856, 0.1753, 0.0391] for classes [0, 1, 2]. If the true class is 0, what is the cross-entropy loss -log(p_true)?",
+    "choices": [
+      "about 0.24",
+      "about 0.79",
+      "about 1.75",
+      "about 3.24"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-3/deep-learning-foundations/q5",
+    "type": "multiple_choice",
+    "prompt": "Same setup as the previous question, but now the logits are flipped to [-1.0, 0.5, 2.0] (same true class, 0), so p_true drops to 0.0391 and the loss jumps to about 3.24. Why does cross-entropy punish this case so much more heavily than a merely uncertain prediction?",
+    "choices": [
+      "Because -log(p) grows steeply as p approaches 0, so confidently assigning low probability to the correct class produces a very large loss, while -log(p) is comparatively flat near p=1",
+      "Because cross-entropy squares the error the way MSE does, amplifying any large deviation",
+      "Because softmax renormalizes the wrong-class probabilities to be higher than they really are",
+      "Because the gradient of cross-entropy is undefined when a prediction is wrong, so PyTorch substitutes a large penalty value"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-3/deep-learning-foundations/q6",
+    "type": "multiple_choice",
+    "prompt": "Adam maintains two running statistics per parameter, m_t and v_t. What does each one track?",
+    "choices": [
+      "m_t is an exponential moving average of the raw gradients (momentum); v_t is an exponential moving average of the squared gradients, used to scale the step size per parameter",
+      "m_t is the current gradient; v_t is the previous gradient, and Adam simply averages the two",
+      "m_t is the learning rate; v_t is the batch size, both adjusted automatically during training",
+      "m_t tracks the loss value; v_t tracks the accuracy, and both are used to decide when to stop training"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-3/deep-learning-foundations/q7",
+    "type": "multiple_choice",
+    "prompt": "In the single-parameter Adam example (lr=0.1, gradients fed in as 0.50, 0.40, 0.45), the actual parameter update sizes came out to roughly 0.100, 0.099, and 0.099 \u2014 nearly identical to each other despite the differing gradient magnitudes. Plain SGD with the same lr on the same gradients produced updates of 0.050, 0.040, and 0.045 instead. What explains Adam's near-constant step size here?",
+    "choices": [
+      "Dividing by sqrt(v_hat) (the RMS of recent squared gradients) normalizes the step so that, for consistently-signed gradients, the update size stays close to the learning rate regardless of the gradient's raw magnitude",
+      "Adam clips all gradients to a maximum of 0.1 before applying them, regardless of the optimizer's learning rate",
+      "Bias correction cancels out the effect of the gradient entirely after the first step",
+      "Adam ignores the gradient magnitude completely and only uses its sign, so a lr of 0.1 always produces a step of exactly 0.1"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-3/deep-learning-foundations/q8",
+    "type": "multiple_choice",
+    "prompt": "A model was trained with nn.Dropout(p=0.5) and nn.BatchNorm1d in its layers. At inference time, someone forgets to call model.eval() before running predictions. What goes wrong?",
+    "choices": [
+      "Dropout keeps randomly zeroing activations and batch norm keeps normalizing using per-batch statistics instead of its accumulated running statistics, so predictions become noisy and batch-dependent instead of deterministic",
+      "Nothing changes \u2014 eval() only affects whether gradients are tracked, not the numerical output of dropout or batch norm layers",
+      "The model throws a runtime error because dropout and batch norm require eval() to be called before they can run at all",
+      "Dropout and batch norm both automatically detect that no loss.backward() has been called and switch themselves to inference behavior"
+    ],
+    "correctIndex": 0
+  }
+]

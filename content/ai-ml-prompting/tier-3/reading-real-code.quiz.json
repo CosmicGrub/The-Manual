@@ -1,0 +1,98 @@
+[
+  {
+    "id": "ai-ml-prompting/tier-3/reading-real-code/q1",
+    "type": "multiple_choice",
+    "prompt": "In nanoGPT, which file defines the GPT class (LayerNorm, CausalSelfAttention, MLP, Block, GPT) that both train.py and sample.py instantiate identically?",
+    "choices": [
+      "configurator.py",
+      "model.py",
+      "train.py",
+      "sample.py"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-3/reading-real-code/q2",
+    "type": "multiple_choice",
+    "prompt": "For nanoGPT's GPT-2 124M config (n_embd=768, n_head=12), what is the size of each attention head's q/k/v vectors after the reshape in CausalSelfAttention.forward?",
+    "choices": [
+      "768",
+      "128",
+      "64",
+      "12"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "ai-ml-prompting/tier-3/reading-real-code/q3",
+    "type": "multiple_choice",
+    "prompt": "nanoGPT's GPTConfig sets vocab_size to 50304 instead of GPT-2's real vocabulary size of 50257. Why?",
+    "choices": [
+      "50304 is padded up to the nearest multiple of 64, which keeps the embedding/lm_head matmuls tile-efficient on GPU",
+      "GPT-2's tokenizer actually has 50304 tokens; 50257 was a documentation error",
+      "It reserves 47 extra token ids for special tokens nanoGPT adds itself",
+      "It matches the block_size so the position and token embedding tables are the same shape"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-3/reading-real-code/q4",
+    "type": "multiple_choice",
+    "prompt": "For a batch size of 1, sequence length of 4, and n_head=12, what is the shape of the raw attention score matrix `att = q @ k.transpose(-2, -1)` inside CausalSelfAttention?",
+    "choices": [
+      "(1, 4, 4)",
+      "(1, 12, 4, 64)",
+      "(1, 12, 4, 4)",
+      "(12, 4, 4)"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "ai-ml-prompting/tier-3/reading-real-code/q5",
+    "type": "multiple_choice",
+    "prompt": "GPT.configure_optimizers splits parameters into a weight-decay group and a no-decay group using `p.dim() >= 2`. What does this split correspond to?",
+    "choices": [
+      "Weight matrices and embedding tables (2D) get decay; biases and LayerNorm gains (1D) don't",
+      "Parameters in the first half of the network get decay; the second half doesn't",
+      "Attention parameters get decay; MLP parameters don't",
+      "It separates parameters that require grad from those that don't"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-3/reading-real-code/q6",
+    "type": "multiple_choice",
+    "prompt": "Given a 3-token causal mask and the masked, softmaxed attention row for token index 1 computed as [0.2689, 0.7311, 0.0000], what attention weight does token 1 place on token 2 (index 2), and why?",
+    "choices": [
+      "0.0000, because masked_fill sets its score to -inf before softmax, and softmax maps -inf to exactly 0",
+      "0.0000, because token 2 has the lowest raw attention score in the row",
+      "A small positive number close to zero, due to floating-point rounding in softmax",
+      "0.7311, because softmax always assigns the largest weight to the most recent token"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-3/reading-real-code/q7",
+    "type": "multiple_choice",
+    "prompt": "How does nanoGPT's configurator.py apply a `--batch_size=32` command-line override to train.py?",
+    "choices": [
+      "It parses train.py's AST and rewrites the batch_size assignment before execution",
+      "It calls exec() on the argument, which sets globals()['batch_size'] directly inside train.py's own namespace",
+      "It writes a temporary config.py file that train.py imports at startup",
+      "It passes batch_size as a function argument to a train(config) entrypoint"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-3/reading-real-code/q8",
+    "type": "multiple_choice",
+    "prompt": "Per Hugging Face transformers' current CONTRIBUTING.md policy on AI-assisted contributions, what is required if you used a coding agent to help write a PR?",
+    "choices": [
+      "Nothing extra \u2014 agent-written PRs are reviewed exactly like any other PR",
+      "The PR must be fully generated and submitted by the agent itself, without human editing",
+      "Disclose the AI assistance in the PR description with test commands/results, and personally review every changed line rather than submitting a 'pure agent' PR",
+      "Agent-assisted PRs are banned outright and closed on sight regardless of content"
+    ],
+    "correctIndex": 2
+  }
+]

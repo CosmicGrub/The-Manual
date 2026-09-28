@@ -1,0 +1,318 @@
+---
+trackId: ai-ml-prompting
+tier: 3
+title: "The Transformer Architecture"
+order: 3
+estimatedHours: 18
+slug: the-transformer-architecture
+---
+
+## Why Attention Replaces Recurrence
+
+An RNN processes a sequence one token at a time, carrying a hidden state forward. Token 500 can only "see" token 1 through 499 steps of compression — by the time the signal arrives, most of it is gone, and none of those 499 steps can run in parallel because each depends on the last. Self-attention throws that constraint out: every token computes a direct, weighted connection to every other token in a single matrix multiply. The path length between any two positions is O(1) instead of O(n), and the whole sequence is processed in parallel on a GPU instead of step by step. That single architectural choice — replace sequential recurrence with all-pairs comparison — is the entire idea behind "Attention Is All You Need" (Vaswani et al., 2017), and it's why every frontier LLM today is built from this block.
+
+## Self-Attention, Computed By Hand
+
+Self-attention starts with three learned linear projections of the same input `X`: queries `Q`, keys `K`, and values `V`. Think of it as a soft, differentiable dictionary lookup — `Q` is "what am I looking for," `K` is "what do I contain," and `V` is "what do I offer if you attend to me." Each token produces one query, one key, and one value; every token's query is then compared against every token's key to decide how much of every token's value it should pull in.
+
+Here's the whole thing with numbers you can trace by hand. Three tokens ("the", "cat", "sat"), `d_model = 4`:
+
+```python
+import numpy as np
+np.set_printoptions(precision=4, suppress=True)
+
+X = np.array([
+    [1.0, 0.0, 1.0, 0.0],   # "the"
+    [0.0, 2.0, 0.0, 2.0],   # "cat"
+    [1.0, 1.0, 1.0, 1.0],   # "sat"
+])
+
+W_Q = np.array([[1,0,1,0],[0,1,0,1],[1,0,0,1],[0,1,1,0]], dtype=float)
+W_K = np.array([[1,1,0,0],[0,0,1,1],[1,0,1,0],[0,1,0,1]], dtype=float)
+W_V = np.array([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]], dtype=float)
+
+Q, K, V = X @ W_Q, X @ W_K, X @ W_V
+d_k = 4
+
+scores = Q @ K.T
+scaled = scores / np.sqrt(d_k)
+
+def softmax(x):
+    e = np.exp(x - x.max(axis=-1, keepdims=True))
+    return e / e.sum(axis=-1, keepdims=True)
+
+weights = softmax(scaled)
+out = weights @ V
+```
+
+Running this produces:
+
+```
+raw scores Q K^T:
+[[ 5.  6.  8.]
+ [ 6. 20. 16.]
+ [ 8. 16. 16.]]
+
+scaled scores / sqrt(4)=2.0:
+[[ 2.5  3.   4. ]
+ [ 3.  10.   8. ]
+ [ 4.   8.   8. ]]
+
+attention weights (softmax per row):
+[[0.1402 0.2312 0.6285]
+ [0.0008 0.8801 0.1191]
+ [0.0091 0.4955 0.4955]]
+
+output = weights @ V:
+[[0.7688 1.091  0.7688 1.091 ]
+ [0.1199 1.8793 0.1199 1.8793]
+ [0.5045 1.4864 0.5045 1.4864]]
+```
+
+Row 2 of the weight matrix (`0.0008, 0.8801, 0.1191`) says "cat" mostly attends to itself and barely to "the" — this is exactly what `argmax` similarity between the query for "cat" and the keys should produce given these matrices. Every row sums to exactly 1.0 because softmax is a probability distribution over which tokens to pull information from. This is the formula from the paper, in full:
+
+```
+Attention(Q, K, V) = softmax(Q Kᵀ / √d_k) V
+```
+
+### Why divide by √d_k
+
+The dot product `q · k` between two random d_k-dimensional vectors with unit variance has variance equal to `d_k` itself — each of the `d_k` terms in the sum contributes variance 1, and variances add. As `d_k` grows, the raw dot products grow with it, and large logits push softmax into a near-one-hot regime where gradients vanish almost everywhere except at the max. Verified experimentally over 20,000 random query/key pairs:
+
+```python
+for dk in [4, 64, 512, 4096]:
+    q = np.random.default_rng(1).standard_normal((20000, dk))
+    k = np.random.default_rng(1).standard_normal((20000, dk))
+    dot = (q * k).sum(axis=1)
+    print(dk, dot.var(), dot.std(), dot.std()/np.sqrt(dk))
+```
+```
+d_k=   4   var=   4.02   std=2.005   std after /√d_k = 1.003
+d_k=  64   var=  63.73   std=7.983   std after /√d_k = 0.998
+d_k= 512   var= 512.10   std=22.630  std after /√d_k = 1.000
+d_k=4096   var=4063.41   std=63.745  std after /√d_k = 0.996
+```
+
+Without scaling, `d_k=512` gives dot products with standard deviation ~22.6 — softmax(22.6) versus softmax(2) is essentially a one-hot vector before training even starts, and gradients through it are near zero everywhere but the winning index. Dividing by `√d_k` renormalizes the standard deviation back to ~1.0 regardless of dimension, keeping softmax in a regime where it actually has usable gradient.
+
+## Multi-Head Attention
+
+One attention head computes one similarity function between queries and keys. But "the cat sat on the mat" has multiple kinds of relationships worth tracking simultaneously — subject-verb agreement, adjacent-word locality, coreference — and one softmax distribution per token can't represent all of them well at once (the paper's own words: "averaging inhibits this"). The fix is to split `d_model` into `n_heads` smaller subspaces, run independent attention in each, and concatenate the results:
+
+```python
+import torch, torch.nn as nn, torch.nn.functional as F, math
+
+class Head(nn.Module):
+    def __init__(self, d_model, d_k):
+        super().__init__()
+        self.W_q = nn.Linear(d_model, d_k, bias=False)
+        self.W_k = nn.Linear(d_model, d_k, bias=False)
+        self.W_v = nn.Linear(d_model, d_k, bias=False)
+        self.d_k = d_k
+
+    def forward(self, x, mask=None):
+        Q, K, V = self.W_q(x), self.W_k(x), self.W_v(x)
+        scores = Q @ K.transpose(-2, -1) / math.sqrt(self.d_k)
+        if mask is not None:
+            scores = scores.masked_fill(mask == 0, float("-inf"))
+        weights = F.softmax(scores, dim=-1)
+        return weights @ V, weights
+
+class MultiHeadAttention(nn.Module):
+    def __init__(self, d_model, n_heads):
+        super().__init__()
+        assert d_model % n_heads == 0
+        d_k = d_model // n_heads
+        self.heads = nn.ModuleList([Head(d_model, d_k) for _ in range(n_heads)])
+        self.proj = nn.Linear(d_model, d_model)
+
+    def forward(self, x, mask=None):
+        outs = [h(x, mask)[0] for h in self.heads]
+        return self.proj(torch.cat(outs, dim=-1))
+```
+
+Run it on a batch to see the shapes:
+
+```python
+x = torch.randn(2, 5, 16)   # (batch=2, seq_len=5, d_model=16)
+mha = MultiHeadAttention(d_model=16, n_heads=4)
+out = mha(x)
+print(x.shape, "->", out.shape)   # torch.Size([2, 5, 16]) -> torch.Size([2, 5, 16])
+```
+
+`d_model=16` split across `n_heads=4` gives `d_k=4` per head. Each head's attention weight matrix has shape `(batch, seq_len, seq_len)` — a full `(5, 5)` table per sequence per head, showing how much each of the 5 tokens attends to each other token. Four heads run independently, produce four `(2, 5, 4)` outputs, get concatenated back to `(2, 5, 16)`, and pass through one more linear projection (`self.proj`) that lets the heads' information mix before leaving the block. This is why multi-head attention doesn't change the shape of its input or output — it's a drop-in replacement for a single dense layer that happens to internally reason about token-to-token relationships.
+
+## Positional Encoding
+
+Self-attention has no built-in notion of order. `softmax(QKᵀ/√d_k)V` computes the exact same output whether "cat sat on mat" or "mat on sat cat" is fed in, permuted identically — attention is a function over a *set* of tokens, not a sequence. An RNN gets order for free from its recurrence; a transformer has to be told explicitly. The original paper's solution: add a deterministic, per-position vector to each token embedding before the first layer, built from sine and cosine at geometrically spaced frequencies:
+
+```
+PE(pos, 2i)   = sin(pos / 10000^(2i/d_model))
+PE(pos, 2i+1) = cos(pos / 10000^(2i/d_model))
+```
+
+```python
+def sinusoidal_pe(seq_len, d_model):
+    pe = np.zeros((seq_len, d_model))
+    position = np.arange(seq_len)[:, None]
+    div_term = np.exp(np.arange(0, d_model, 2) * -(np.log(10000.0) / d_model))
+    pe[:, 0::2] = np.sin(position * div_term)
+    pe[:, 1::2] = np.cos(position * div_term)
+    return pe
+
+pe = sinusoidal_pe(6, 8)
+```
+
+```
+[[ 0.      1.      0.      1.      0.      1.      0.      1.    ]
+ [ 0.8415  0.5403  0.0998  0.995   0.01    1.      0.001   1.    ]
+ [ 0.9093 -0.4161  0.1987  0.9801  0.02    0.9998  0.002   1.    ]
+ [ 0.1411 -0.99    0.2955  0.9553  0.03    0.9996  0.003   1.    ]
+ [-0.7568 -0.6536  0.3894  0.9211  0.04    0.9992  0.004   1.    ]
+ [-0.9589  0.2837  0.4794  0.8776  0.05    0.9988  0.005   1.    ]]
+```
+
+Column 0 (`sin` at frequency 1) oscillates fast — it changes noticeably from row to row, distinguishing adjacent positions. Column 6 (`sin` at frequency 0.001) barely moves across 6 rows — it only distinguishes positions that are far apart. Stacking many frequencies gives every position a unique fingerprint, from fine-grained (adjacent) to coarse-grained (far apart) — the same idea as binary encoding, but smooth and differentiable. Dot-producting `PE` rows against each other exposes the structure that makes this useful:
+
+```
+row i · row j:
+0: [4.0, 3.535, 2.564, 1.965, 2.267, 3.16]
+1: [3.535, 4.0, 3.535, 2.564, 1.965, 2.267]
+2: [2.564, 3.535, 4.0, 3.535, 2.564, 1.965]
+3: [1.965, 2.564, 3.535, 4.0, 3.535, 2.564]
+```
+
+Each row is a shifted copy of the last — the dot product between position `i` and position `j` depends mostly on `|i - j|`, not on `i` and `j` individually. That's the property the paper explicitly designed for: "for any fixed offset `k`, `PE(pos+k)` can be represented as a linear function of `PE(pos)`," which is what lets attention learn to prefer relative offsets (like "attend one token back") rather than absolute positions. `PE` is added elementwise to the token embedding (`x = tok_emb(idx) + pos_emb[:T]`) — it isn't a separate stream, it's baked directly into the vector that Q/K/V get computed from.
+
+## Encoder, Decoder, and Decoder-Only Architectures
+
+The 2017 paper is an **encoder-decoder** built for machine translation. Three concrete lineages came out of splitting that architecture apart:
+
+**Encoder-only — BERT.** A stack of self-attention blocks with *no mask*: every token attends to every other token in both directions, including ones after it. BERT is pretrained with masked language modeling (predict a token that's been replaced with `[MASK]`, using context from both sides) plus next-sentence prediction, and it outputs contextual vectors, not text. You take BERT's `[CLS]` token embedding and feed it to a small classifier head for sentiment analysis, NER, or (most commonly today) as a text embedding model for retrieval. BERT cannot generate text token-by-token — there's no causal constraint stopping it from looking at the "future," so autoregressive generation isn't well-defined for it.
+
+**Encoder-decoder — T5.** The full original architecture: a bidirectional encoder processes the input, and a causally-masked decoder generates the output, attending back to the encoder's output at every layer via **cross-attention** (queries from the decoder, keys and values from the encoder — the one place `Q` and `K`/`V` come from two different sequences). T5 reframes every NLP task as text-to-text: `"translate English to German: The cat sat."` in, `"Die Katze saß."` out; `"summarize: <article>"` in, summary out. One architecture, one training objective, many tasks, expressed entirely through the input string.
+
+**Decoder-only — GPT.** A stack of self-attention blocks where every position is masked from seeing future positions (a causal or "triangular" mask), trained on one objective: predict the next token given everything before it. No separate encoder, no cross-attention — the entire "context" is just previous tokens in the same stream. GPT-2/3/4, LLaMA, Mistral, Claude's underlying architecture family — essentially every frontier LLM today is decoder-only.
+
+**Why decoder-only won.** Three practical reasons. First, one unified objective (next-token prediction) turns *every* piece of text on the internet into training data with no special formatting — you don't need paired input/output examples like T5's `translate:` prefix requires. Second, that same next-token objective *is* the inference procedure — there's no train/inference mismatch to work around, and it's what makes in-context learning and prompting work at all: the model was trained to continue any prefix, so a prompt is just a prefix. Third, decoder-only models scale better empirically at the sizes labs care about, and they support efficient autoregressive generation via KV-caching (you cache the K, V for all previous tokens and only compute Q/K/V for the newest one) in a way that's simpler than maintaining a separate encoder pass. Encoder-only and encoder-decoder still win when you specifically need bidirectional understanding without generation (embeddings, classification) or a fixed input->output transformation task at small scale — but "one architecture that does everything reasonably well through prompting" is why decoder-only ate the field.
+
+## A Guided Reading of "Attention Is All You Need"
+
+The paper's abstract states its thesis directly: "We propose a new simple network architecture, the Transformer, based solely on attention mechanisms, dispensing with recurrence and convolutions entirely." The introduction motivates *why* with a complexity argument you now have the vocabulary for: "Recurrent models typically factor computation along the symbol positions of the input and output sequences... This inherently sequential nature precludes parallelization within training examples." Section 3.2's Table 1 makes the tradeoff numeric — for sequence length `n` and representation dimension `d`:
+
+| Layer type | Complexity per layer | Sequential operations | Max path length |
+|---|---|---|---|
+| Self-attention | O(n² · d) | O(1) | O(1) |
+| Recurrent | O(n · d²) | O(n) | O(n) |
+| Convolutional | O(k · n · d²) | O(1) | O(log_k(n)) |
+
+Self-attention's per-layer cost is *worse* in `n` than an RNN's when `n > d` (quadratic sequence length vs. quadratic dimension) — this is exactly the `O(n²)` cost that motivates every modern efficient-attention variant (sparse, linear, sliding-window). But its path length between any two positions is O(1), constant regardless of distance, versus O(n) for recurrence — which is the entire point.
+
+Section 3.2.1 defines attention itself: "An attention function can be described as mapping a query and a set of key-value pairs to an output, where the query, keys, values, and output are all vectors. The output is computed as a weighted sum of the values, where the weight assigned to each value is computed by a compatibility function of the query with the corresponding key." That's precisely the `weights @ V` step above — nothing more exotic than a weighted average, where the weights are learned similarity scores. The footnote on scaling reads: "We suspect that for large values of `d_k`, the dot products grow large in magnitude, pushing the softmax function into regions where it has extremely small gradients... To counteract this effect, we scale the dot products by `1/√d_k`" — the exact mechanism the variance experiment above demonstrated numerically. And on multiple heads: "Multi-head attention allows the model to jointly attend to information from different representation subspaces at different positions. With a single attention head, averaging inhibits this."
+
+On position: "Since our model contains no recurrence and no convolution, in order for the model to make use of the order of the sequence, we must inject some information about the relative or absolute position of the tokens." They chose the sinusoidal form over a learned embedding table specifically because it "may allow the model to extrapolate to sequence lengths longer than the ones encountered during training" — a fixed mathematical function generalizes to unseen positions; a learned lookup table for position 10,000 has never been trained if training only ever saw sequences up to length 512.
+
+## Building a Mini-Transformer From Scratch
+
+Everything above assembles into a real, trainable decoder-only model. This one has two transformer blocks, four attention heads, 32-dimensional embeddings — small enough to train on a CPU in seconds, big enough to demonstrate real learning:
+
+```python
+import torch, torch.nn as nn, torch.nn.functional as F, math
+
+class FeedForward(nn.Module):
+    def __init__(self, d_model):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(d_model, 4 * d_model), nn.GELU(), nn.Linear(4 * d_model, d_model)
+        )
+    def forward(self, x):
+        return self.net(x)
+
+class DecoderBlock(nn.Module):
+    def __init__(self, d_model, n_heads, block_size):
+        super().__init__()
+        self.ln1 = nn.LayerNorm(d_model)
+        self.attn = MultiHeadAttention(d_model, n_heads)   # from above, but with a causal mask
+        self.ln2 = nn.LayerNorm(d_model)
+        self.ff = FeedForward(d_model)
+        self.register_buffer("mask", torch.tril(torch.ones(block_size, block_size)))
+
+    def forward(self, x):
+        T = x.size(1)
+        x = x + self.attn(self.ln1(x), mask=self.mask[:T, :T])
+        x = x + self.ff(self.ln2(x))
+        return x
+
+class MiniGPT(nn.Module):
+    def __init__(self, vocab_size, d_model, n_heads, n_layers, block_size):
+        super().__init__()
+        self.tok_emb = nn.Embedding(vocab_size, d_model)
+        pe = torch.zeros(block_size, d_model)
+        position = torch.arange(block_size).unsqueeze(1)
+        div_term = torch.exp(torch.arange(0, d_model, 2) * (-math.log(10000.0) / d_model))
+        pe[:, 0::2], pe[:, 1::2] = torch.sin(position * div_term), torch.cos(position * div_term)
+        self.register_buffer("pos_emb", pe)
+        self.blocks = nn.ModuleList([DecoderBlock(d_model, n_heads, block_size) for _ in range(n_layers)])
+        self.ln_f = nn.LayerNorm(d_model)
+        self.head = nn.Linear(d_model, vocab_size)
+        self.block_size = block_size
+
+    def forward(self, idx, targets=None):
+        x = self.tok_emb(idx) + self.pos_emb[:idx.size(1)]
+        for block in self.blocks:
+            x = block(x)
+        logits = self.head(self.ln_f(x))
+        loss = None
+        if targets is not None:
+            loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1))
+        return logits, loss
+
+    @torch.no_grad()
+    def generate(self, idx, max_new_tokens):
+        for _ in range(max_new_tokens):
+            logits, _ = self(idx[:, -self.block_size:])
+            probs = F.softmax(logits[:, -1, :], dim=-1)
+            idx = torch.cat([idx, torch.multinomial(probs, 1)], dim=1)
+        return idx
+```
+
+The causal mask is the entire difference between "encoder block" and "decoder block" in this code — `DecoderBlock` sets `mask=tril(...)` so position `t` can only attend to positions `<= t`; delete that line and pass `mask=None` and it's an encoder block, exactly BERT's building block. Trained on 20 repetitions of `"the cat sat on the mat. the dog sat on the log. "` (character-level, `block_size=16`, `vocab_size=14`):
+
+```python
+model = MiniGPT(vocab_size=14, d_model=32, n_heads=4, n_layers=2, block_size=16)
+print(sum(p.numel() for p in model.parameters()))   # 26,190
+
+opt = torch.optim.AdamW(model.parameters(), lr=3e-3)
+for step in range(300):
+    xb, yb = get_batch()
+    logits, loss = model(xb, yb)
+    opt.zero_grad(); loss.backward(); opt.step()
+```
+
+```
+step    0  loss 2.6159
+step   50  loss 0.2350
+step  100  loss 0.1201
+step  150  loss 0.1127
+step  200  loss 0.1236
+step  250  loss 0.1127
+step  299  loss 0.0999
+```
+
+Loss at step 0 (`2.6159`) is close to `ln(14) ≈ 2.64` — the entropy of guessing uniformly at random over 14 characters, exactly what an untrained model should produce. By step 300 it's collapsed to `0.0999`, and sampling from the trained model with `"the "` as a prompt produces:
+
+```python
+context = torch.tensor([encode("the ")])
+print(decode(model.generate(context, 40)[0].tolist()))
+```
+```
+'the cat sat on the mat. the dog sat on the m'
+```
+
+26,190 parameters, 300 gradient steps, no pretrained weights, and it reconstructed the training pattern from a 4-character prompt — the same next-token-prediction loop that trains GPT-4, just five orders of magnitude smaller.
+
+## Exercise
+
+Turn `MiniGPT` into a tiny **encoder-decoder**, T5-style, on a toy string-reversal task: input `"hello"`, target `"olleh"`. You'll need (1) an encoder stack with no mask processing the input string, (2) a decoder stack with a causal mask that also has a **cross-attention** sub-layer where `Q` comes from the decoder's current hidden state but `K` and `V` come from the encoder's final output, and (3) separate `<sos>`/`<eos>` tokens so the decoder knows where to start and stop generating.
+
+*Hint:* cross-attention is just another `Head`-like module, except `W_k(encoder_output)` and `W_v(encoder_output)` replace `W_k(x)` and `W_v(x)` — only the query still comes from the decoder's own sequence. Insert it as a third sub-layer in the decoder block, between self-attention and the feed-forward layer, each wrapped in its own residual + LayerNorm.

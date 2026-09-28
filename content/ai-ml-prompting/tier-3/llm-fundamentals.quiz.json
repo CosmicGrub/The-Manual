@@ -1,0 +1,98 @@
+[
+  {
+    "id": "ai-ml-prompting/tier-3/llm-fundamentals/q1",
+    "type": "multiple_choice",
+    "prompt": "What is the training objective used during LLM pretraining?",
+    "choices": [
+      "Minimize cross-entropy loss on predicting the next token given prior tokens, over a large unlabeled corpus",
+      "Maximize a learned reward model's score via reinforcement learning",
+      "Minimize the distance between model output and human-ranked preferred responses",
+      "Maximize classification accuracy on a labeled set of instruction-response pairs"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-3/llm-fundamentals/q2",
+    "type": "multiple_choice",
+    "prompt": "You give a purely pretrained base model (no SFT, no RLHF) the prompt 'Write a haiku about winter.' What is the most likely behavior, and why?",
+    "choices": [
+      "It refuses and cites a content policy, since it hasn't been taught what's acceptable",
+      "It asks a clarifying question about syllable count before responding",
+      "It may not write a haiku directly at all \u2014 it could continue with more prompts like 'Write a haiku about summer,' mimicking a list format common in its training data, since it was never trained to follow instructions in a conversational format",
+      "It writes a technically perfect haiku but refuses to explain its reasoning"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "ai-ml-prompting/tier-3/llm-fundamentals/q3",
+    "type": "multiple_choice",
+    "prompt": "In the classic RLHF pipeline, what data is the reward model trained on?",
+    "choices": [
+      "Raw next-token prediction targets from web text",
+      "Human rankings/comparisons of multiple model outputs generated for the same prompt",
+      "A fixed set of hand-written ideal responses",
+      "Automatically generated synthetic labels with no human involvement"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-3/llm-fundamentals/q4",
+    "type": "multiple_choice",
+    "prompt": "Using the standard rule of thumb that 1 token is roughly 0.75 words of English text, about how many tokens would a 1,500-word blog post consume?",
+    "choices": [
+      "~750 tokens",
+      "~1,125 tokens",
+      "~2,000 tokens",
+      "~3,000 tokens"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "ai-ml-prompting/tier-3/llm-fundamentals/q5",
+    "type": "multiple_choice",
+    "prompt": "You're using a model with a 128,000-token context window. Your system prompt is 800 tokens, your conversation history is 6,200 tokens, and you want to paste in a document that is 90,000 words long. Using 1 token \u2248 0.75 words, roughly how many tokens will the document consume, and will everything fit?",
+    "choices": [
+      "~67,500 tokens for the document; total ~74,500 tokens \u2014 fits comfortably",
+      "~120,000 tokens for the document; total ~127,000 tokens \u2014 fits, with about 1,000 tokens of headroom",
+      "~120,000 tokens for the document; total ~127,000 tokens \u2014 does not fit, exceeds the window",
+      "~90,000 tokens for the document; total ~97,000 tokens \u2014 fits comfortably"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-3/llm-fundamentals/q6",
+    "type": "multiple_choice",
+    "prompt": "According to the Chinchilla scaling analysis, a compute-optimal model uses roughly 20 training tokens per parameter. Using that ratio, roughly how many training tokens would a compute-optimal 13B-parameter model use?",
+    "choices": [
+      "26 billion tokens",
+      "260 billion tokens",
+      "2.6 trillion tokens",
+      "13 billion tokens"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-3/llm-fundamentals/q7",
+    "type": "multiple_choice",
+    "prompt": "A model card lists a context window of 128K tokens, but a 'needle in a haystack' evaluation chart in the accompanying technical report shows retrieval accuracy dropping sharply after roughly 60K tokens. What should a practitioner take away from this?",
+    "choices": [
+      "The model card is fraudulent and should be reported to the vendor",
+      "The advertised maximum context length and the effective/reliable context length can differ substantially \u2014 budget around the effective number, not just the advertised max",
+      "This only matters for tasks involving non-English languages",
+      "It means the tokenizer itself is broken and needs to be retrained"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-3/llm-fundamentals/q8",
+    "type": "multiple_choice",
+    "prompt": "Which statement correctly distinguishes 'open-weight' models (like Llama or Mistral) from fully 'open-source' models (like OLMo or Pythia)?",
+    "choices": [
+      "Open-weight models release downloadable parameters but typically withhold full training data and training code, so training isn't independently reproducible; fully open-source releases data, code, and weights together",
+      "Open-weight models are always free for commercial use while open-source models always require a paid license",
+      "There is no meaningful difference between the two terms in practice",
+      "Open-weight models cannot legally be fine-tuned by third parties, while open-source models can"
+    ],
+    "correctIndex": 0
+  }
+]

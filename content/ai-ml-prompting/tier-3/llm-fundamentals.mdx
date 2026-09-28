@@ -1,0 +1,116 @@
+---
+trackId: ai-ml-prompting
+tier: 3
+title: "LLM Fundamentals"
+order: 4
+estimatedHours: 10
+slug: llm-fundamentals
+---
+
+## Pretraining, Fine-Tuning, and RLHF: Three Different Jobs
+
+These three phases get lumped together as "how you make an LLM," but they use different data, different objectives, and produce genuinely different behavior. Confusing them is why people say things like "just fine-tune it to stop refusing" when what they actually need is RLHF-style preference data, or "the model doesn't know current events because it wasn't fine-tuned" when the real issue is the pretraining cutoff.
+
+**Pretraining.** Objective: next-token prediction (causal language modeling) — minimize cross-entropy loss between the predicted distribution over the vocabulary and the actual next token, repeated across a web-scale corpus. Data: hundreds of billions to tens of trillions of tokens of largely unlabeled text — filtered Common Crawl, books, code repositories, Wikipedia, forums. No humans write "correct answers" for this stage; the "label" for each position is just the next token that was already there. This is over 99% of total training compute for a frontier model. What it produces is a base model: something that has absorbed grammar, facts, reasoning patterns, code, and the *statistical shape* of huge swaths of human writing — but has no notion of "being a helpful assistant," because nothing in next-token prediction on raw web text specifically teaches that.
+
+**Fine-tuning (specifically supervised fine-tuning, SFT).** Same underlying objective — cross-entropy on next-token prediction — but now on a small, curated dataset of (prompt, ideal response) pairs written or selected by human labelers following detailed guidelines, often in the tens of thousands of examples rather than trillions of tokens. OpenAI's InstructGPT paper (the direct ancestor of ChatGPT's training recipe) used roughly 13,000 labeler-written prompt/response pairs for this stage. This is what teaches the model the *format*: respond to instructions, use a conversational turn structure, stop when done, adopt a consistent "assistant" persona. It's a tiny slice of total compute compared to pretraining, but it reshapes behavior disproportionately because it's concentrated, high-quality signal about exactly the thing you want.
+
+**RLHF (Reinforcement Learning from Human Feedback).** A different objective entirely. Three steps: (1) collect comparison data — for the same prompt, generate several model outputs and have humans rank them best to worst; (2) train a separate reward model to predict those human preference rankings; (3) fine-tune the LLM with reinforcement learning (classically PPO; DPO is a newer, simpler technique that achieves a similar effect without an explicit RL loop) to maximize the reward model's score, with a penalty term that keeps the policy close to the SFT model so it doesn't degenerate into reward-hacking gibberish. InstructGPT's numbers again: ~33,000 prompts with human rankings to train the reward model, then PPO fine-tuning over ~31,000 prompts. RLHF is what tunes the *judgment calls* that are nearly impossible to write out as explicit SFT examples — tone, appropriate hedging, when to refuse versus when to comply with context, conciseness, "which of these two decent answers do humans actually prefer" — because ranking two outputs is a much easier and more consistent task for a human than writing a perfect answer from scratch.
+
+### The Same Prompt, Three Stages
+
+Give the prompt **"Write a poem about the ocean"** to a model at each stage and you get qualitatively different failure modes and successes:
+
+| Stage | Typical behavior on this prompt |
+|---|---|
+| Base (pretrained only) | Often doesn't write a poem at all. Web text contains many *lists* of writing prompts, so a base model frequently continues with "Write a poem about the mountains. Write a poem about the desert. Write a short story about..." — it's completing the statistical pattern of "a list of prompts," because that's a common shape in its training data, not because it "misunderstood." |
+| After SFT | Actually writes a poem, in a clear assistant-response format, because the SFT data explicitly contained examples of "user asks for X, assistant produces X directly." |
+| After RLHF | Writes a poem that's also *better calibrated* to what humans preferred in side-by-side comparisons — appropriately concise rather than padded, avoids clichés that labelers consistently ranked lower, and (crucially) the same underlying mechanism is what teaches refusal calibration: RLHF is why a model can answer a benign version of a sensitive-sounding question helpfully while declining a version that's actually asking for something harmful, a distinction that's very hard to hand-write as SFT examples but that humans can reliably rank. |
+
+The practical upshot: if a model's behavior is *wrong in format* (won't stop talking, ignores your instruction structure, doesn't answer in the shape you asked for), that's usually an SFT-layer problem. If it's *wrong in judgment* (too verbose, too timid, too credulous, inconsistent refusals), that's usually the RLHF layer. If it's *wrong in fact* (doesn't know something, confidently wrong about a domain), that's a pretraining data/coverage problem no amount of fine-tuning fixes — fine-tuning shapes behavior on top of what pretraining already encoded, it doesn't inject new world knowledge at any real scale.
+
+## Tokenization and Context Windows, With Real Numbers
+
+You already know *how* subword tokenizers like BPE work from earlier in this tier. What matters now is the practitioner-level question: how many tokens is a real document, and what actually happens when you hit the wall.
+
+**The rule of thumb.** For English text, roughly **1 token ≈ 4 characters ≈ 0.75 words**. This is close enough for budgeting before you've even run a real tokenizer, and it's the number every practitioner keeps in their head for back-of-envelope cost and context estimates. Code, non-English languages, and text with lots of rare tokens (URLs, IDs, unusual proper nouns) tokenize *less* efficiently — often 1.3–2x more tokens per character than plain English prose, because rare sequences get split into more, smaller subword pieces.
+
+Applying that ratio to real documents:
+
+```python
+def estimate_tokens(text: str) -> int:
+    words = len(text.split())
+    return round(words / 0.75)
+
+examples = {
+    "short email": 175,
+    "typical blog post": 1_500,
+    "The Great Gatsby (novel)": 47_094,
+    "Harry Potter and the Sorcerer's Stone": 77_325,
+    "full Harry Potter series, 7 books": 1_084_170,
+}
+
+for name, word_count in examples.items():
+    print(f"{name:42s} {word_count:>9,} words -> ~{round(word_count/0.75):>10,} tokens")
+```
+```
+short email                                     175 words -> ~       233 tokens
+typical blog post                             1,500 words -> ~     2,000 tokens
+The Great Gatsby (novel)                     47,094 words -> ~    62,792 tokens
+Harry Potter and the Sorcerer's Stone        77,325 words -> ~   103,100 tokens
+full Harry Potter series, 7 books         1,084,170 words -> ~ 1,445,560 tokens
+```
+
+Now hold those numbers against real context windows as of this writing: GPT-4o/4.1-class models sit around 128,000 tokens, Claude Sonnet 4.5 at 200,000 tokens standard (with a 1M-token beta tier), and Gemini 2.5 Pro up to 1,000,000 tokens. A 128K window is roughly 96,000 words of headroom — about two full Gatsby-length novels, but well short of one Harry Potter book once you account for the system prompt and conversation history eating into the same budget. A 1M window can swallow the *entire seven-book Harry Potter series* (~1.45M estimated tokens) and still be tight — this is why "just dump the whole codebase in" only works up to a point even with huge windows.
+
+**What actually happens at the boundary.** There's no soft failure — you don't get a truncated-but-working response by default. If input tokens plus your requested output tokens exceed the model's context window, the API call fails outright, typically with a 400-class error like "maximum context length exceeded." It's your job as the caller to catch this before it happens, not something the model quietly works around. Some chat products build a *sliding window* on top of the raw API — silently dropping or summarizing the oldest turns once a conversation gets long — which is a product decision layered on top of the hard API limit, not a property of the model itself. This is exactly why RAG (later in this tier) exists: instead of stuffing an entire knowledge base into context, you retrieve only the relevant slice and fit that into the budget you actually have.
+
+One more practical wrinkle: token counts are **not portable across model families**. GPT models use OpenAI's `tiktoken` (`cl100k_base` for GPT-4-era, `o200k_base` for GPT-4o and later), Claude uses Anthropic's own tokenizer, and Llama-family models use SentencePiece with their own vocabulary. The exact same string can tokenize to noticeably different counts — usually within 10-20% — across these, which matters because you're billed per token and context limits are enforced per token, not per character.
+
+## Scaling Laws: What More Compute Actually Buys You
+
+The core empirical finding (Kaplan et al., 2020, then corrected by Hoffmann et al., 2022 — the "Chinchilla" paper) is that model loss decreases smoothly and predictably as you scale up **model size (parameters, N)**, **data (training tokens, D)**, and **compute (C)** together — as long as none of the three is starving the others. Loss follows a power law in each: doubling your compute budget buys a real, measurable improvement, but each successive doubling buys a *smaller* absolute gain than the one before. There's no math you need to derive here — the intuition to keep is: **scaling works, but with steadily diminishing returns, and the three resources have to be balanced or you waste your budget.**
+
+That last part is the important correction. The original 2020 scaling work was read (not incorrectly, just incompletely) as "bigger model, same data, more compute" — which is why GPT-3 (175B parameters) was trained on "only" about 300B tokens, a ratio of under 2 tokens per parameter. The 2022 Chinchilla paper showed that for a *fixed* compute budget, the compute-optimal split is roughly **20 training tokens per parameter** — and that GPT-3-sized models of that era were, by this measure, badly undertrained relative to their size. DeepMind trained Chinchilla itself at 70B parameters on 1.4 trillion tokens (a ~20:1 ratio) using the *same compute budget* as their own 280B-parameter Gopher model, and Chinchilla beat Gopher — and GPT-3 — on downstream benchmarks despite having a quarter of the parameters. The lesson: for a fixed compute budget, you were often better off with a smaller model and much more data than a bigger model on the same old data diet.
+
+| Model | Parameters | Training tokens | Tokens per parameter |
+|---|---|---|---|
+| GPT-3 (2020) | 175B | ~300B | ~1.7 |
+| Chinchilla (2022) | 70B | ~1.4T | ~20 |
+| LLaMA 1 65B (2023) | 65B | ~1.4T | ~21.5 |
+| LLaMA 3 8B (2024) | 8B | ~15T | ~1,875 |
+
+That last row looks like it breaks the rule — and it does, deliberately. "Compute-optimal" minimizes *training* compute for a given loss target. It says nothing about *inference* cost, and once a model is going to serve millions of real queries, inference cost dominates the total bill over the model's lifetime. Meta trained LLaMA 3 8B on roughly 100x more tokens than the 20:1 ratio would suggest, intentionally over-training a small model far past its "optimal" point, because a small model that's very good is far cheaper to run at scale than a bigger, more compute-optimal one that hits similar quality. Scaling laws tell you where the loss curve sits for a given (N, D, C) combination; they don't tell you which point on that curve is the right business decision — that depends on whether you're optimizing for training cost or serving cost.
+
+## Open vs. Closed Models, and How to Actually Read a Model Card
+
+**Closed (proprietary) models** — GPT-4o/GPT-5-class models, Claude, Gemini — ship as an API only. You never see the weights, can't run them offline, and can't inspect exactly what's inside. In exchange you typically get frontier-tier quality with zero infrastructure burden: no GPUs to provision, no serving stack to maintain, someone else absorbs the enormous training cost and amortizes it across every customer.
+
+**Open-weight models** — Llama, Mistral, Gemma, Qwen, DeepSeek — publish downloadable parameters (and usually inference code), so you can self-host, fine-tune on your own data, and run fully air-gapped. But "open" here is doing a lot of work: most of these release *weights* without the *training data* or full *training code*, so you can't actually reproduce the model from scratch, only run and adapt the finished artifact. Projects like Allen AI's OLMo or EleutherAI's Pythia are the rarer, fully open case — data, training code, and weights all released, built explicitly for reproducibility research. When someone says "open source LLM," they usually mean open-weight; know the difference, because it matters for anything involving licensing, auditability, or compliance.
+
+Picking between them is a real engineering decision, not an ideology: data that legally can't leave your infrastructure pushes you toward self-hosted open-weight; needing best-in-class reasoning with minimal ops burden pushes you toward a closed API; heavy, iterative fine-tuning on proprietary data is usually cheaper and faster against an open-weight base you fully control; and at high, steady request volume, self-hosted open-weight models can beat API pricing once you're utilizing your own GPUs efficiently — below that volume, the API almost always wins on total cost.
+
+### Reading a real model card
+
+A model card is a structured disclosure document, and a real one (Hugging Face, Meta's Llama cards, and similar all follow roughly this shape) reliably contains:
+
+1. **Model details** — developer, release date, architecture family (e.g., "decoder-only transformer"), parameter count, context length, and license.
+2. **Intended use / out-of-scope use** — what the developer built and tested it for, and an explicit list of prohibited or unsupported uses. This section carries real liability weight if you ship a product on top of the model.
+3. **Training data** — a high-level description (token count, broad source categories, knowledge cutoff date). Exact sources are rarely disclosed in full, for competitive and legal reasons — treat this section's vagueness as a known limitation, not an oversight.
+4. **Training procedure** — pretraining compute scale, and a summary of any SFT/RLHF/DPO stages applied.
+5. **Evaluation** — a benchmark table (MMLU, HumanEval, GSM8K, and similar) compared against peer models.
+6. **Limitations and biases** — acknowledged failure modes: hallucination risk, stale knowledge past the cutoff, weaker performance in underrepresented languages, inherited biases from training data.
+7. **Safety / red-teaming summary** — for closed models especially, a description of adversarial testing done before release.
+
+How to actually use one, critically:
+
+- **Match benchmarks to your task, not the headline number.** A model that tops MMLU isn't automatically better at your specific coding or extraction task — find the benchmark closest to your actual use case, or better, run your own eval.
+- **Check the knowledge cutoff explicitly.** It's usually a specific month/year in section 1 or 3, and it's the single most important date for anything time-sensitive.
+- **Advertised context length and *effective* context length are different numbers.** A model can technically accept 128K tokens while its real retrieval accuracy on information buried in the middle of that window degrades well before the limit — this shows up as a "needle in a haystack" chart in the accompanying paper or technical report, not always in the card itself. Budget around the effective number, not the marketing number.
+- **Read the license, not just the word "open."** Llama's community license, for example, carries usage restrictions (including a clause affecting very large companies) — it is not a permissive MIT/Apache license, despite weights being freely downloadable.
+
+## Exercise
+
+Pick one open-weight model and one closed model that you might plausibly use for the same task (e.g., Llama 3.1 8B vs. GPT-4o-mini for a customer-support classifier). Find their real model/system cards and write a short comparison (150-300 words) covering: (1) what each card actually discloses about training data, (2) advertised context window vs. anything you can find about effective context window, (3) one specific license restriction from the open-weight model's license, and (4) one benchmark number that's actually relevant to your chosen task, not just the headline score.
+
+**Hint:** Hugging Face model cards are the fastest source for open-weight models; for closed models, search "[model name] system card" or "[model name] model card" — labs publish these even though weights aren't downloadable. If a card doesn't disclose something you need (exact training data composition is the most common gap), say so explicitly in your comparison rather than guessing — knowing what a card *doesn't* tell you is as important as what it does.

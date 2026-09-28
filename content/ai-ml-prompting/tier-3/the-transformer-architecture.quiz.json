@@ -1,0 +1,98 @@
+[
+  {
+    "id": "ai-ml-prompting/tier-3/the-transformer-architecture/q1",
+    "type": "multiple_choice",
+    "prompt": "In scaled dot-product attention, what do Q, K, and V represent?",
+    "choices": [
+      "Three independent random initializations averaged together for stability",
+      "Learned linear projections of the input: what a token is looking for (Q), what it contains (K), and what it offers if attended to (V)",
+      "The three transformer layers stacked in sequence",
+      "Query = input embedding, Key = position embedding, Value = the output logits"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-3/the-transformer-architecture/q2",
+    "type": "multiple_choice",
+    "prompt": "For random query/key vectors with unit variance per dimension, roughly what is the standard deviation of their dot product when d_k = 64, before any scaling is applied?",
+    "choices": [
+      "About 1",
+      "About 8 (\u2248 \u221a64)",
+      "About 64",
+      "About 0.125 (\u2248 1/8)"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-3/the-transformer-architecture/q3",
+    "type": "multiple_choice",
+    "prompt": "Why does scaled dot-product attention divide by \u221ad_k specifically (not d_k, not a constant)?",
+    "choices": [
+      "It's an arbitrary hyperparameter tuned per model with no principled justification",
+      "Because the variance of a dot product between two random d_k-dimensional unit-variance vectors is d_k, so dividing by \u221ad_k renormalizes the standard deviation back to ~1 regardless of dimension, keeping softmax out of its low-gradient saturated regime",
+      "To make the attention weights sum to d_k instead of 1",
+      "Because PyTorch's softmax implementation requires inputs scaled below 1.0"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-3/the-transformer-architecture/q4",
+    "type": "multiple_choice",
+    "prompt": "What does multi-head attention add on top of single-head attention?",
+    "choices": [
+      "A larger d_model, nothing structurally different",
+      "It lets the model jointly attend to information from several different representation subspaces in parallel, since a single softmax distribution per token can't represent multiple distinct relationships at once",
+      "A second, independent softmax normalization for numerical stability",
+      "It replaces the dot-product similarity with cosine similarity"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-3/the-transformer-architecture/q5",
+    "type": "multiple_choice",
+    "prompt": "Why does a transformer need an explicit positional encoding, when an RNN does not?",
+    "choices": [
+      "Transformers use too much memory to track position implicitly",
+      "Self-attention computes the same output for any permutation of the input tokens \u2014 it has no inherent notion of order, unlike an RNN whose recurrence processes tokens in sequence",
+      "Positional encoding is only needed for decoder-only models, not encoders",
+      "RNNs also require positional encoding; it's a modern addition unrelated to recurrence"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-3/the-transformer-architecture/q6",
+    "type": "multiple_choice",
+    "prompt": "Which architecture is BERT, and how does its self-attention differ from GPT's?",
+    "choices": [
+      "BERT is decoder-only with causal masking, same as GPT",
+      "BERT is encoder-only with unmasked (bidirectional) self-attention, so every token can attend to every other token including future ones; GPT is decoder-only with causal masking restricting each token to only past tokens",
+      "BERT and GPT are both encoder-decoder models with cross-attention",
+      "BERT has no self-attention at all, only convolutions"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-3/the-transformer-architecture/q7",
+    "type": "multiple_choice",
+    "prompt": "A batch of shape (batch=2, seq_len=5, d_model=16) is passed through MultiHeadAttention(d_model=16, n_heads=4). What is the output shape, and what is d_k per head?",
+    "choices": [
+      "Output (2, 5, 64), d_k=16",
+      "Output (2, 5, 16), d_k=4",
+      "Output (2, 20, 16), d_k=4",
+      "Output (2, 5, 4), d_k=4"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-3/the-transformer-architecture/q8",
+    "type": "multiple_choice",
+    "prompt": "According to the original paper's complexity comparison, what is the key structural advantage of a self-attention layer over a recurrent layer, despite self-attention having worse (quadratic in n) per-layer complexity when sequence length n exceeds dimension d?",
+    "choices": [
+      "Self-attention requires no learned parameters at all",
+      "Self-attention has a maximum path length of O(1) between any two positions (fully parallel, direct connection), versus O(n) for a recurrent layer, and O(1) sequential operations versus O(n)",
+      "Self-attention only works on short sequences, so the complexity comparison doesn't matter in practice",
+      "Self-attention layers cannot be stacked, so there is only ever one layer to account for"
+    ],
+    "correctIndex": 1
+  }
+]

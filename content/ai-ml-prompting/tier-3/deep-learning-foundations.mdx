@@ -1,0 +1,308 @@
+---
+trackId: ai-ml-prompting
+tier: 3
+title: "Deep Learning Foundations"
+order: 1
+estimatedHours: 16
+slug: deep-learning-foundations
+---
+
+## Backpropagation, fully derived
+
+Tier 2 gave you the intuition: gradients flow backward through the network, each layer passing blame to the one before it. That's true but it's not an algorithm. Here's the actual algorithm, derived with the chain rule on a real network with real numbers, so you can check every step by hand and then against `autograd`.
+
+**The network.** Two inputs, two hidden units (sigmoid), one output unit (sigmoid), trained with mean squared error.
+
+```
+x1 = 0.5, x2 = 0.1          (inputs)
+y  = 0.9                     (target)
+
+hidden layer:
+  w1=0.4  w2=-0.2  b_h1=0.1   -> h1
+  w3=0.3  w4=0.5   b_h2=-0.1  -> h2
+
+output layer:
+  w5=0.6  w6=-0.3  b_o=0.2    -> o
+
+h1_in = w1*x1 + w2*x2 + b_h1
+h2_in = w3*x1 + w4*x2 + b_h2
+o_in  = w5*h1 + w6*h2 + b_o
+h1, h2, o = sigmoid(h1_in), sigmoid(h2_in), sigmoid(o_in)
+L = 0.5 * (y - o)^2
+```
+
+The `0.5` in the loss is a deliberate convenience — it cancels the `2` that the power rule produces, so `dL/do` comes out clean. This is standard; you'll see it in most textbook derivations.
+
+**Forward pass**, computed exactly:
+
+```
+h1_in = 0.4(0.5) + (-0.2)(0.1) + 0.1 = 0.28      h1 = sigmoid(0.28) = 0.569546
+h2_in = 0.3(0.5) + 0.5(0.1) + (-0.1) = 0.10       h2 = sigmoid(0.10) = 0.524979
+o_in  = 0.6(0.569546) + (-0.3)(0.524979) + 0.2 = 0.384234
+o     = sigmoid(0.384234) = 0.594894
+L     = 0.5 * (0.9 - 0.594894)^2 = 0.046545
+```
+
+**Backward pass.** This is the part Tier 2 skipped. We need `dL/dw` for all six weights and three biases. The chain rule says: to get the effect of a weight buried inside two layers of composition, multiply the local derivatives along the path from that weight to the loss.
+
+Start at the output, where the path is shortest:
+
+```
+dL/do        = -(y - o) = -(0.9 - 0.594894) = -0.305106
+do/do_in     = o(1-o)   = 0.594894 * 0.405106 = 0.240995      <- sigmoid derivative: s(1-s)
+delta_o      = dL/do * do/do_in = -0.073529
+```
+
+`delta_o` is `dL/do_in` — how much the loss changes per unit change in the output neuron's *pre-activation*. Every weight and bias feeding into `o_in` gets its gradient by multiplying `delta_o` by whatever it's attached to:
+
+```
+dL/dw5 = delta_o * h1 = -0.073529 * 0.569546 = -0.041878
+dL/dw6 = delta_o * h2 = -0.073529 * 0.524979 = -0.038601
+dL/db_o = delta_o                            = -0.073529
+```
+
+Why multiply by `h1`? Because `o_in = w5*h1 + w6*h2 + b_o`, so `do_in/dw5 = h1`. That's the whole trick: every local derivative is just "what's this weight multiplied by."
+
+Now push one layer further back. `h1` affects the loss *only* through `o_in` (it has one downstream path in this network), so:
+
+```
+dL/dh1 = delta_o * w5 = -0.073529 * 0.6  = -0.044118
+dL/dh2 = delta_o * w6 = -0.073529 * -0.3 =  0.022059
+```
+
+This is the step people find confusing: we multiply by `w5`, not `h1`. `delta_o` tells us the sensitivity of the loss to `o_in`; `w5` tells us how much `o_in` moves when `h1` moves (`do_in/dh1 = w5`). Chain rule, mechanically applied.
+
+Convert those into pre-activation deltas the same way as before, using each hidden unit's own sigmoid derivative:
+
+```
+dh1/dh1_in = h1(1-h1) = 0.569546 * 0.430454 = 0.245166
+dh2/dh2_in = h2(1-h2) = 0.524979 * 0.475021 = 0.249375
+
+delta_h1 = dL/dh1 * dh1/dh1_in =  -0.044118 * 0.245166 = -0.010816
+delta_h2 = dL/dh2 * dh2/dh2_in =   0.022059 * 0.249375 =  0.005501
+```
+
+And the first-layer gradients, same pattern as before — delta times whatever the weight multiplies:
+
+```
+dL/dw1 = delta_h1 * x1 = -0.010816 * 0.5 = -0.005408
+dL/dw2 = delta_h1 * x2 = -0.010816 * 0.1 = -0.001082
+dL/db_h1 = delta_h1               = -0.010816
+
+dL/dw3 = delta_h2 * x1 =  0.005501 * 0.5 =  0.002750
+dL/dw4 = delta_h2 * x2 =  0.005501 * 0.1 =  0.000550
+dL/db_h2 = delta_h2               =  0.005501
+```
+
+That's nine numbers, computed with nothing but arithmetic and the chain rule. Take a gradient step with `lr=0.5` (`w_new = w - lr*dL/dw`) and re-run the forward pass:
+
+```
+w1=0.402704 w2=-0.199459 b_h1=0.105408
+w3=0.298625 w4=0.499725  b_h2=-0.102750
+w5=0.620939 w6=-0.280699 b_o=0.236765
+
+new forward pass: o = 0.609292, L = 0.042256
+```
+
+Loss dropped from `0.046545` to `0.042256` after one step. That's the entire content of "training a neural network" — repeat this forward/backward/update cycle.
+
+**Verify it with autograd.** This is the payoff: PyTorch's `backward()` does exactly the computation above, generalized to arbitrary graphs via reverse-mode automatic differentiation. It's not a different algorithm — it's the same chain rule, applied automatically to a computation graph instead of by hand.
+
+```python
+import torch
+
+x = torch.tensor([0.5, 0.1])
+y = torch.tensor(0.9)
+
+W1 = torch.tensor([[0.4, -0.2], [0.3, 0.5]], requires_grad=True)
+b1 = torch.tensor([0.1, -0.1], requires_grad=True)
+W2 = torch.tensor([0.6, -0.3], requires_grad=True)
+b2 = torch.tensor(0.2, requires_grad=True)
+
+h = torch.sigmoid(W1 @ x + b1)
+o = torch.sigmoid(W2 @ h + b2)
+L = 0.5 * (y - o) ** 2
+L.backward()
+
+print(o.item())      # 0.5948938727378845
+print(L.item())      # 0.046544868499040604
+print(W2.grad)        # tensor([-0.0419, -0.0386])   matches dL/dw5, dL/dw6
+print(b2.grad.item()) # -0.07352908700704575          matches dL/db_o
+print(W1.grad)        # tensor([[-0.0054, -0.0011], [ 0.0028, 0.0006]])
+print(b1.grad)         # tensor([-0.0108, 0.0055])
+```
+
+Every number matches the hand derivation to four decimal places. That match is not a coincidence you should marvel at once and forget — it's the thing to internalize: `.backward()` is literally running the algorithm you just did by hand, layer by layer, in reverse graph order. When training diverges or gradients vanish, this is the computation to picture.
+
+## Loss functions, with real numbers
+
+**MSE** (regression): `MSE = (1/n) * sum((y_i - yhat_i)^2)`. It punishes large errors quadratically and is differentiable everywhere sigmoid/linear outputs live.
+
+```python
+preds   = torch.tensor([2.5, 0.0, 2.1, 7.8])
+targets = torch.tensor([3.0, -0.5, 2.0, 7.5])
+# squared errors: [0.25, 0.25, 0.01, 0.09]
+F.mse_loss(preds, targets)   # 0.1500
+```
+
+**Cross-entropy** (classification): for a true class `c` with predicted probability `p_c` (from softmax over logits), `CE = -log(p_c)`. Only the probability assigned to the *correct* class matters — the loss doesn't care how the remaining probability mass is split among wrong classes.
+
+```python
+logits = torch.tensor([2.0, 0.5, -1.0])
+probs = F.softmax(logits, dim=0)
+# probs = [0.7856, 0.1753, 0.0391], true class = 0
+F.cross_entropy(logits.unsqueeze(0), torch.tensor([0]))  # 0.2413
+```
+
+`-log(0.7856) = 0.2413`. Now flip the logits so the model is confidently wrong (`p_true = 0.0391`):
+
+```python
+logits_wrong = torch.tensor([-1.0, 0.5, 2.0])   # same magnitudes, wrong class favored
+F.cross_entropy(logits_wrong.unsqueeze(0), torch.tensor([0]))  # 3.2413
+```
+
+`0.24` versus `3.24` — a 13x jump. That's the point of `-log`: it's nearly flat near `p=1` and blows up as `p -> 0`, so confidently wrong predictions get punished far more than a diffuse, uncertain prediction. This is also why cross-entropy pairs so cleanly with softmax: the combined gradient `dL/dlogit_i = p_i - y_i` (predicted probability minus one-hot target) has none of the vanishing-derivative problem that MSE-through-sigmoid has, because there's no extra `s(1-s)` factor multiplied in. That's a real, practical reason classification networks use cross-entropy and not MSE on probabilities.
+
+## Optimizers: SGD vs. Adam
+
+Plain SGD: `w = w - lr * grad`. The step size is directly proportional to the gradient's raw magnitude — noisy gradients produce noisy steps, and different parameters with wildly different gradient scales all get the same learning rate.
+
+**Adam** fixes both problems by tracking two running statistics per parameter:
+
+```
+m_t = beta1*m_{t-1} + (1-beta1)*g_t        # 1st moment: momentum (exponential avg of gradients)
+v_t = beta2*v_{t-1} + (1-beta2)*g_t^2      # 2nd moment: exponential avg of squared gradients
+m_hat = m_t / (1 - beta1^t)                 # bias correction (m,v start at 0, biased early on)
+v_hat = v_t / (1 - beta2^t)
+w = w - lr * m_hat / (sqrt(v_hat) + eps)
+```
+
+`m` is momentum — it smooths out gradient noise by averaging recent gradients, so the optimizer keeps moving in a consistent direction instead of jittering. `v` is what makes it *adaptive*: dividing by `sqrt(v_hat)` shrinks the step for parameters with large/noisy gradients and grows it for parameters with small/quiet gradients, so every parameter effectively gets its own learning rate.
+
+Watch this on a single parameter fed the gradient sequence `[0.50, 0.40, 0.45]`, `lr=0.1`:
+
+```
+Adam:  t=1 g=0.50  step=0.10000
+       t=2 g=0.40  step=0.09881
+       t=3 g=0.45  step=0.09923
+
+SGD:   t=1 g=0.50  step=0.05000
+       t=2 g=0.40  step=0.04000
+       t=3 g=0.45  step=0.04500
+```
+
+SGD's step size tracks the raw gradient exactly (`lr * g`). Adam's step size stays pinned near `lr` itself (`0.098`-`0.099`) even though the raw gradients vary — because `m_hat / sqrt(v_hat)` approaches `sign(g)` when gradients are consistently signed, regardless of their magnitude. That normalization is the entire "adaptive learning rate" story.
+
+Now the real comparison: a 2-layer MLP classifying `make_moons`, identical initialization, `nn.BCEWithLogitsLoss`:
+
+```python
+opt = torch.optim.SGD(model.parameters(), lr=0.1)     # vs.
+opt = torch.optim.Adam(model.parameters(), lr=0.01)
+```
+
+```
+step   SGD(lr=0.1)   Adam(lr=0.01)
+   0     0.6941         0.6941
+  10     0.6420         0.5252
+  25     0.5649         0.3425
+  50     0.4323         0.2709
+ 100     0.3344         0.1563
+ 200     0.2897         0.0656
+ 299     0.2776         0.0562
+```
+
+Same number of steps, Adam ends up at roughly a fifth of SGD's loss. This is the normal, unsurprising outcome for most deep learning problems, which is why Adam (or AdamW) is the default optimizer in almost every modern training script. SGD (usually with momentum) still wins in some regimes — large-batch image classification and cases where you specifically want the flatter minima SGD tends to find, which sometimes generalize better — but as a default for getting something training quickly, reach for Adam.
+
+## Regularization: dropout and batch norm
+
+**Dropout** randomly zeroes activations during training, forcing the network to not rely on any single unit:
+
+```python
+dropout = nn.Dropout(p=0.5)
+x = torch.ones(1, 10)
+
+dropout.train()
+dropout(x)   # tensor([[0., 0., 2., 0., 0., 0., 2., 2., 0., 2.]])
+
+dropout.eval()
+dropout(x)   # tensor([[1., 1., 1., 1., 1., 1., 1., 1., 1., 1.]])
+```
+
+Two things to notice. First, the surviving units aren't left at `1.0` — they're scaled to `2.0` (`1/(1-p) = 1/0.5 = 2`). This is "inverted dropout": scaling during training means `eval()` mode needs no correction at all, it's a pure identity pass-through. Second, `model.eval()` is not optional — forget it and dropout keeps randomly zeroing activations at inference time, which is a common, quiet bug.
+
+**Batch norm** normalizes each feature to zero mean, unit variance *across the batch dimension*, then applies a learned scale and shift:
+
+```python
+bn = nn.BatchNorm1d(4)
+batch = torch.tensor([[1.0, 10.0, -1.0, 0.5],
+                       [2.0, 12.0, -1.5, 0.7],
+                       [3.0,  8.0, -0.5, 0.3],
+                       [0.0, 11.0, -2.0, 0.9]])
+out = bn(batch)
+out.mean(dim=0)   # tensor([~0., ~0., ~0., ~0.])
+out.std(dim=0, unbiased=False)  # tensor([1.0000, 1.0000, 1.0000, 0.9999])
+```
+
+Each of the 4 columns (features) is independently rescaled to mean 0, std 1 using that batch's own statistics. `bn` also keeps a running average for inference (`bn.running_mean`, `bn.running_var`), updated by every training batch, so at test time — where you might have a batch of size 1 — it normalizes using the accumulated running stats instead of a (meaningless) single-sample mean/variance. Like dropout, this makes `model.eval()` change actual behavior, not just gradient tracking.
+
+Effect: batch norm smooths the loss landscape (its main proven benefit — less about "reducing internal covariate shift," the original justification, and more about letting you use higher learning rates without diverging), and it has a mild regularizing side effect because each sample's normalization depends on the other samples in its batch, injecting a bit of noise.
+
+A typical block combining both:
+
+```python
+class Block(nn.Module):
+    def __init__(self, in_dim, out_dim, p=0.3):
+        super().__init__()
+        self.fc = nn.Linear(in_dim, out_dim)
+        self.bn = nn.BatchNorm1d(out_dim)
+        self.drop = nn.Dropout(p)
+
+    def forward(self, x):
+        return self.drop(F.relu(self.bn(self.fc(x))))
+```
+
+Order matters and is debated, but linear -> batch norm -> activation -> dropout is the common default.
+
+## CNNs for vision — architectural context only
+
+This track's depth budget goes to transformers, not CNNs, but you need the vocabulary. A convolution slides a small learned kernel over an image and computes a dot product at each position — it's a pattern detector applied everywhere, with the same weights reused at every location (that weight sharing is what makes CNNs far more parameter-efficient than a fully connected layer for image input).
+
+```python
+img = torch.tensor([[1., 2., 3., 0.],
+                     [4., 5., 6., 1.],
+                     [7., 8., 9., 2.],
+                     [1., 1., 1., 1.]])
+kernel = torch.tensor([[1., 0., -1.],
+                        [1., 0., -1.],
+                        [1., 0., -1.]])   # a vertical-edge detector
+
+F.conv2d(img.unsqueeze(0).unsqueeze(0), kernel.unsqueeze(0).unsqueeze(0))
+# tensor([[-6., 12.], [-4., 10.]])
+```
+
+A 4x4 image with a 3x3 kernel, stride 1, no padding produces a 2x2 output (`out = in - k + 1`). Padding adds zeros around the border to control that shrinkage; stride skips positions to downsample faster.
+
+Pooling downsamples by taking a summary statistic (usually max) over small windows, throwing away exact position while keeping "was this feature present nearby":
+
+```python
+F.max_pool2d(conv_output, kernel_size=2)   # 2x2 -> single value: 12.0 (the max)
+```
+
+Stacking conv -> activation -> pool repeatedly is the classic CNN pattern — each stage sees a coarser, more abstract view of the image:
+
+```python
+conv1, pool = nn.Conv2d(1, 8, 3, padding=1), nn.MaxPool2d(2)
+conv2 = nn.Conv2d(8, 16, 3, padding=1)
+
+x = torch.randn(1, 1, 28, 28)
+x = pool(conv1(x))   # torch.Size([1, 8, 14, 14])
+x = pool(conv2(x))   # torch.Size([1, 16, 7, 7])   -> flatten to 784 features for a classifier head
+```
+
+That's the entire architectural idea you need for context: local, weight-shared feature detectors plus downsampling. Everything else in this track — attention, positional encoding, the transformer block — replaces "local receptive field over a grid" with "every token attends to every other token," which is the shift that made large-scale language and multimodal models possible. That's next.
+
+## Exercise
+
+Extend the tiny network from the backprop derivation: add a third hidden unit (`w7`, `w8` from `x1`, `x2`, plus `b_h3`, and `w9` from the new hidden unit into the output), and switch all hidden units from sigmoid to ReLU. Pick your own numeric weights, run the forward pass by hand, then derive all the gradients by hand exactly as above, and finally check every number against `loss.backward()` in PyTorch.
+
+Hint: ReLU's derivative is `1` where the pre-activation is positive and `0` where it's negative — there's no smooth `s(1-s)` term. If you pick weights that make `h3_in` negative, watch what happens to `delta_h3` and every gradient that depends on it: it goes to exactly zero, not just small. That's the mechanical root of the "dying ReLU" problem you'll hear about later — a unit that's negative for every input in a batch gets zero gradient and never updates.

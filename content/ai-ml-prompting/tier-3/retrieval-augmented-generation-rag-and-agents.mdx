@@ -1,0 +1,347 @@
+---
+trackId: ai-ml-prompting
+tier: 3
+title: "Retrieval-Augmented Generation (RAG) & Agents"
+order: 5
+estimatedHours: 16
+slug: retrieval-augmented-generation-rag-and-agents
+---
+
+## Two models, two jobs
+
+Everything you've built with the Anthropic API so far sends text in and gets text out of one model. RAG and agents are what happen when you stop treating that as the whole system and start treating it as one component in a pipeline you design.
+
+The problem RAG solves is specific: Claude's weights were frozen at training time. It knows nothing about your company's PTO policy, the ticket you filed yesterday, or a document you wrote this morning — not because it's a bad model, but because that text never existed when it was trained. You have two ways to fix that: fine-tune the model on your data (expensive, slow, and you'd have to redo it every time the data changes), or hand the model the relevant text *at inference time*, in the prompt, right before it answers. That second option is retrieval-augmented generation. The hard part was never "can Claude read some pasted text and answer a question about it" — it can, trivially. The hard part is *finding the right text to paste*, out of a corpus too large to paste all of it. That's a search problem, and it needs a second model — an embedding model — that has nothing to do with generating text.
+
+An embedding model is an encoder: text in, one fixed-size vector out, and it never generates anything. Claude is a decoder: text in, more text out, token by token. Production RAG runs both. This module builds that whole pipeline from the ground up — real chunking decisions with a real failure case, a real vector store, real retrieval, real generation — and then extends it into agents: loops where Claude decides for itself when to retrieve, when to compute, and when it already knows enough to answer.
+
+## Embeddings for semantic search
+
+You already have the math for this: from Linear Algebra Applied to ML, cosine similarity between two vectors measures how aligned their directions are, independent of magnitude — `cos(θ) = (a · b) / (‖a‖‖b‖)`, 1.0 for identical direction, 0.0 for orthogonal (no shared signal). The only thing new here is what the vectors represent. Instead of `[sqft, bathrooms, ...]` describing a house, an embedding model turns a sentence into a vector where *distance encodes meaning* — sentences about similar topics land near each other in the vector space, regardless of which exact words they use. That's the property you built by hand with word2vec-style embeddings in Sequence Models & NLP Fundamentals; production text embeddings (sentence-transformers' `all-MiniLM-L6-v2` at 384 dimensions, OpenAI's `text-embedding-3-small` at 1536, or Voyage AI's `voyage-3` at 1024 — the embedding model Anthropic recommends pairing with Claude) are the same idea, scaled up and trained to embed whole sentences and paragraphs, not single words.
+
+Here's the part that actually matters for retrieval quality: a **dense** embedding captures meaning; a **lexical** (word-overlap) method doesn't. To make this concrete without needing a live model download, compare a classic lexical technique — TF-IDF, which scores similarity purely on shared exact tokens — against a query that means the same thing as a policy document but doesn't share its words:
+
+```python
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+
+expense_policy = ("Expense reports must be submitted within 30 days of the purchase date "
+    "through the Expensify portal. Reimbursements over 500 dollars require a director's approval.")
+query = "How do I get reimbursed for a work trip?"
+
+vec = TfidfVectorizer().fit([expense_policy, query])
+sim = cosine_similarity(vec.transform([query]), vec.transform([expense_policy]))[0][0]
+print(round(sim, 4))
+```
+
+```
+0.0
+```
+
+Zero. Not low — zero. `reimbursed` and `Reimbursements` don't share a token as far as a bag-of-words vectorizer is concerned, so there is *no signal at all* connecting the query to the one document that answers it. A real dense embedding model wouldn't have this failure mode — it was trained to know "reimbursed" and "reimbursement" and "expense report" all point at the same concept, and it would score this pair highly. This is the actual, structural reason production RAG uses neural embeddings instead of keyword search: not "smarter," but *robust to paraphrase*.
+
+There's a second, subtler reason, and it explains why a vector store can be updated incrementally at all: a TF-IDF vector for one document is defined relative to the *whole corpus's* vocabulary and document frequencies — add one new document next month, and technically every existing vector's IDF term changed. A neural embedding is computed **independently per chunk**: `encoder.encode(chunk)` depends only on that chunk's text. Add a new document, embed just that one, append it to the store, done — you never touch the old vectors. That's what makes "add a document to the index" an `O(1)` operation instead of a full corpus recompute.
+
+I'll keep using TF-IDF for the worked examples below, purely because it's exact, deterministic, and runs with no external model download — every number you see is one you could reproduce yourself. In production you'd swap exactly one function:
+
+```python
+# production swap-in: a real dense encoder instead of TF-IDF
+from sentence_transformers import SentenceTransformer
+encoder = SentenceTransformer("all-MiniLM-L6-v2")   # 384-dim, normalized vectors
+
+def embed(text: str):
+    return encoder.encode(text, normalize_embeddings=True)
+```
+
+Nothing else in the pipeline below — chunking, storage, retrieval, generation — changes.
+
+## Chunking and vector databases: where retrieval actually breaks
+
+A vector database is not the hard part of RAG. Conceptually it's just: store `(id, vector, text)` triples, and given a query vector, return the `k` triples whose vectors are closest by cosine similarity. Chunking — deciding *what text becomes one stored vector* — is where real systems fail, and it fails silently: nothing crashes, retrieval just quietly returns the wrong thing.
+
+Here's the running corpus for the rest of this module: five short HR-policy documents.
+
+```python
+policy_docs = {
+    "pto": ("Full-time employees accrue paid time off (PTO) at a rate of 1.25 days per month, "
+        "up to a maximum of 15 days per calendar year. Unused PTO does not roll over to the "
+        "next year and is forfeited on December 31st. Employees may take unpaid leave after "
+        "exhausting their PTO balance, subject to manager approval submitted at least two "
+        "weeks in advance."),
+    "oncall": ("The on-call rotation covers all production services and rotates weekly among "
+        "the six members of the platform team. The on-call engineer carries the pager from "
+        "Monday 9am to the following Monday 9am. On-call engineers receive a $200 stipend per "
+        "week of active rotation, paid out in the following month's paycheck."),
+    "deploy": ("Deploys to production require two approvals: one from the code owner and one "
+        "from the on-call engineer. Deploys are blocked on Fridays after 2pm and on the day "
+        "before a company holiday. Emergency hotfixes may bypass the second approval with a "
+        "documented incident ticket."),
+    "expense": ("Expense reports must be submitted within 30 days of the purchase date through "
+        "the Expensify portal. Reimbursements over 500 dollars require a director's approval. "
+        "Reimbursements are typically processed within 10 business days of approval."),
+    "bonus": ("New hires receive a signing bonus paid out in two installments: 50 percent on "
+        "the first paycheck and 50 percent after completing 6 months of employment. Referral "
+        "bonuses of 2000 dollars are paid after the referred hire completes 90 days."),
+}
+```
+
+(Real chunk sizes are measured in **tokens**, using the same tokenizer your embedding model was trained with — you know from Sequence Models why a token isn't a character or a word. I'm chunking by raw character count here purely so every number below is reproducible without extra dependencies; swap in `tiktoken` or the encoder's own tokenizer and count tokens for real work.)
+
+```python
+def chunk_fixed(text, size, overlap=0):
+    chunks, step = [], size - overlap
+    for i in range(0, len(text), step):
+        c = text[i:i + size]
+        if c.strip():
+            chunks.append(c)
+        if i + size >= len(text):
+            break
+    return chunks
+```
+
+Now watch what a too-small, no-overlap chunk size does to a real question. Chunk everything at 90 characters, no overlap (17 chunks total across the corpus), and ask a naive top-1 retriever a completely reasonable question:
+
+```python
+def build_corpus(size, overlap):
+    corpus = []
+    for name, text in policy_docs.items():
+        for i, c in enumerate(chunk_fixed(text, size, overlap)):
+            corpus.append((f"{name}#{i}", c))
+    return corpus
+
+def retrieve(query, corpus, k=1):
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    from sklearn.metrics.pairwise import cosine_similarity
+    import numpy as np
+    texts = [c for _, c in corpus]
+    vec = TfidfVectorizer().fit(texts + [query])
+    sims = cosine_similarity(vec.transform([query]), vec.transform(texts))[0]
+    order = np.argsort(-sims)[:k]
+    return [(corpus[i][0], round(float(sims[i]), 3), corpus[i][1]) for i in order]
+
+bad_corpus = build_corpus(size=90, overlap=0)
+print(retrieve("How much is the weekly on-call stipend?", bad_corpus, k=1))
+```
+
+```
+[('oncall#0', 0.257, 'The on-call rotation covers all production services and rotates
+weekly among the six membe')]
+```
+
+The single best-scoring chunk doesn't contain a dollar figure anywhere. The actual answer — "$200 stipend per week" — got chopped into a *different* chunk (`oncall#2`), which scores 0.21 and doesn't make the top-1 cut. Feed `oncall#0` to Claude as "context" and you get either a hallucinated number or an "I don't have that information" — both wrong, because the information *is* in the corpus, chunking just severed it from the sentence that would have matched the query. (The 90-char/no-overlap setting also does something dumber and more obvious: it slices mid-word. Chunking the PTO doc the same way produces a chunk that literally starts `'aximum of 15 days...'` — the `m` was cut off into the previous chunk.)
+
+Now widen the chunks to 220 characters with 40 characters of overlap (10 chunks total) and ask the same question:
+
+```python
+good_corpus = build_corpus(size=220, overlap=40)
+print(retrieve("How much is the weekly on-call stipend?", good_corpus, k=1))
+```
+
+```
+[('oncall#1', 0.243, "lowing Monday 9am. On-call engineers receive a $200 stipend per week
+of active rotation, paid out in the following month's paycheck.")]
+```
+
+The `$200 stipend` sentence now fits inside a single chunk, so it's retrievable in one shot. That's the entire trade-off: bigger chunks keep more complete facts together (better recall, since a fact that spans two sentences doesn't get split), but they also drag in more irrelevant surrounding text per hit (worse precision, and it costs more input tokens every time that chunk gets retrieved). Overlap is the cheap insurance against boundary cuts — a fact that lands right at a chunk edge gets a second chance to appear whole in the neighboring chunk. A rough, real-world starting point: 150–300 tokens with light or no overlap for already-atomic content like FAQ entries or policy snippets that are naturally one idea each; 300–600 tokens with 10–20% overlap for prose and documentation; never split a table row or a code function across a chunk boundary — chunk those by structure (row groups, AST nodes), not by character count, or you'll reproduce this exact failure on a fact that happens to live in a table cell.
+
+Bigger `k` is not a substitute for fixing chunking — it just burns more context tokens on a wider net. With the bad, 90-char corpus, `k=2` happens to catch `oncall#2` in second place; that's luck, not a fix, and it won't generalize to every query. Fix the chunk boundaries first.
+
+The store itself, once chunking is right, is genuinely simple — this is what FAISS, Chroma, and pgvector are all doing under the hood, before you add an approximate-nearest-neighbor index:
+
+```python
+import numpy as np
+
+class SimpleVectorStore:
+    def __init__(self):
+        self.ids, self.vectors, self.texts = [], [], []
+
+    def add(self, id_, vector, text):
+        self.ids.append(id_)
+        self.vectors.append(np.asarray(vector, dtype=float))
+        self.texts.append(text)
+
+    def search(self, query_vector, k=3):
+        q = np.asarray(query_vector, dtype=float)
+        q = q / (np.linalg.norm(q) + 1e-10)
+        sims = [np.dot(q, v / (np.linalg.norm(v) + 1e-10)) for v in self.vectors]
+        order = np.argsort(sims)[::-1][:k]
+        return [(self.ids[i], float(sims[i]), self.texts[i]) for i in order]
+```
+
+`search` is a brute-force scan — `O(n)` per query, comparing against every stored vector. That's exactly fine at a few thousand chunks (your checkpoint project's corpus). It stops being fine in the millions: brute force means the same linear scan every single query, forever. That's what FAISS's HNSW/IVF indexes, Chroma, and pgvector's HNSW extension are for — they trade a small amount of recall (you might occasionally miss the true nearest neighbor by a hair) for query time that doesn't grow linearly with corpus size. Pick between them on operational grounds, not raw speed: FAISS if you're comfortable owning an in-process index with no built-in metadata filtering; Chroma if you want an embedded store with metadata filtering out of the box for local development; pgvector if you already run Postgres and want your embeddings transactionally consistent with the rest of your app's data; Pinecone or Weaviate if you want someone else operating the cluster and you're willing to pay for it and eat the network round-trip per query.
+
+## Building a full RAG pipeline, end to end
+
+Four steps, each one function: embed, store, retrieve, generate.
+
+```python
+from sklearn.feature_extraction.text import TfidfVectorizer
+import anthropic
+
+# 1. EMBED — fit once on the corpus (TF-IDF's one real limitation vs. a neural
+#    encoder: it needs the whole corpus to define its vocabulary up front)
+good_corpus = build_corpus(size=220, overlap=40)          # from the chunking section
+texts = [c for _, c in good_corpus]
+vectorizer = TfidfVectorizer().fit(texts)
+matrix = vectorizer.transform(texts).toarray()
+
+# 2. STORE
+store = SimpleVectorStore()
+for (chunk_id, text), vector in zip(good_corpus, matrix):
+    store.add(chunk_id, vector, text)
+
+# 3. RETRIEVE
+def retrieve_context(query, k=2):
+    q_vec = vectorizer.transform([query]).toarray()[0]
+    return store.search(q_vec, k=k)
+
+# 4. GENERATE — augment the prompt with retrieved chunks, then call Claude
+client = anthropic.Anthropic()
+
+def answer(query, k=2):
+    hits = retrieve_context(query, k=k)
+    context = "\n\n".join(f"[{cid}] {text}" for cid, _, text in hits)
+    prompt = (
+        f"Answer the question using ONLY the context below. If the context doesn't "
+        f"contain the answer, say so — don't guess.\n\nContext:\n{context}\n\n"
+        f"Question: {query}"
+    )
+    response = client.messages.create(
+        model="claude-sonnet-5",
+        max_tokens=256,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return hits, response.content[0].text
+
+hits, text = answer("What is the maximum number of PTO days employees get per year?")
+for cid, score, chunk in hits:
+    print(f"  retrieved {cid} (sim={score})")
+print(text)
+```
+
+```
+  retrieved pto#0 (sim=0.451)
+  retrieved expense#1 (sim=0.103)
+Employees can accrue up to a maximum of 15 days of PTO per calendar year, at a rate
+of 1.25 days per month. Unused PTO does not roll over and is forfeited on December 31st.
+```
+
+Notice `expense#1` came back too, at a much lower score, and is completely irrelevant to the question — that's realistic retrieval noise, not a bug, and it's exactly why the prompt explicitly instructs Claude to use *only* what's relevant and admit it when the context doesn't answer the question. That one instruction is doing real work: without it, a model under pressure to be helpful will sometimes stitch together an answer from irrelevant context rather than say "I don't know." Grounding the model's output in retrieved text and forcing it to defer to that text over its own parametric knowledge is the entire point of RAG — you're not just giving it information, you're overriding what it would have guessed.
+
+## Agents and the ReAct pattern
+
+Everything above is a fixed pipeline: retrieve, then generate, every time, no matter the question. An **agent** removes that rigidity — the model itself decides, per question, whether it needs to call a tool at all, which tool, and when it has enough information to stop and answer. **ReAct** (Yao et al., 2022 — worth reading alongside the Attention paper you annotated in the Transformer module) is the pattern name for interleaving *reasoning* ("Thought: I need X before I can answer") with *acting* (calling a tool) and *observing* (reading the result), in a loop, instead of generating one final answer in one shot.
+
+You already built the mechanical piece of this in Building with LLM APIs — the `tool_use` / `tool_result` round trip. ReAct is that same mechanism, just looped, with the model's reasoning made visible as a text block before each tool call. Map the academic terms onto the API directly: **Thought** is a text content block, **Action** is a `tool_use` block, **Observation** is what you send back as a `tool_result`.
+
+Two tools: a safe calculator, and a search tool that wraps the retriever you just built.
+
+```python
+import ast, operator
+
+_OPS = {ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: operator.mul,
+        ast.Div: operator.truediv, ast.Pow: operator.pow, ast.USub: operator.neg}
+
+def _safe_eval(node):
+    if isinstance(node, ast.Constant):
+        return node.value
+    if isinstance(node, ast.BinOp):
+        return _OPS[type(node.op)](_safe_eval(node.left), _safe_eval(node.right))
+    if isinstance(node, ast.UnaryOp):
+        return _OPS[type(node.op)](_safe_eval(node.operand))
+    raise ValueError("unsupported expression")
+
+def calculate(expression: str) -> float:
+    return _safe_eval(ast.parse(expression, mode="eval").body)
+
+def search_policies(query: str, k: int = 1) -> str:
+    hits = retrieve_context(query, k=k)
+    return "\n".join(text for _, _, text in hits)
+
+TOOLS = [
+    {"name": "calculate", "description": "Evaluate a basic arithmetic expression.",
+     "input_schema": {"type": "object",
+        "properties": {"expression": {"type": "string"}}, "required": ["expression"]}},
+    {"name": "search_policies", "description": "Search the company HR policy corpus for relevant text.",
+     "input_schema": {"type": "object",
+        "properties": {"query": {"type": "string"}}, "required": ["query"]}},
+]
+SYSTEM = ("You have two tools: calculate and search_policies. Before every tool call, state "
+    "your reasoning in one short sentence starting with 'Thought:'. Once you have enough "
+    "information, answer directly with no more tool calls.")
+```
+
+Ask a question that only needs one of the two tools, and watch the model pick correctly:
+
+```python
+messages = [{"role": "user", "content": "How much is the weekly on-call stipend?"}]
+response = client.messages.create(model="claude-sonnet-5", max_tokens=512,
+    system=SYSTEM, tools=TOOLS, messages=messages)
+
+for block in response.content:
+    print(block.type, "-", (block.text if block.type == "text" else block.input))
+```
+
+```
+text - Thought: I need the exact stipend figure from company policy before I can answer.
+tool_use - {'query': 'on-call stipend amount'}
+```
+
+That's Thought and Action in one response: a text block reasoning about what's missing, followed by a `tool_use` block acting on it — the model chose `search_policies`, not `calculate`, because the question is a lookup, not a computation. Run the tool, send the `tool_result` back as an Observation, and the loop closes with a final answer, exactly like the single-round tool example from Building with LLM APIs — two API calls total for one tool call.
+
+## Multi-step tool orchestration
+
+The real payoff shows up on a question neither tool can answer alone: **"If I start on March 1st, how many PTO days will I have accrued by December 31st, and is that under the annual cap?"** `search_policies` can find the accrual rate and the cap, but it can't do arithmetic. `calculate` can do arithmetic, but it has no idea what the accrual rate *is*. Answering this requires chaining both, in order, with the output of the first feeding the input of the second — which is exactly what an agent loop is for.
+
+```python
+def run_agent(question, max_turns=5):
+    messages = [{"role": "user", "content": question}]
+    for turn in range(max_turns):
+        response = client.messages.create(model="claude-sonnet-5", max_tokens=512,
+            system=SYSTEM, tools=TOOLS, messages=messages)
+        for block in response.content:
+            if block.type == "text":
+                print(f"  [turn {turn}] Thought: {block.text}")
+
+        if response.stop_reason != "tool_use":
+            return response.content[0].text
+
+        messages.append({"role": "assistant", "content": response.content})
+        tool_results = []
+        for block in response.content:
+            if block.type != "tool_use":
+                continue
+            if block.name == "calculate":
+                result = calculate(**block.input)
+            elif block.name == "search_policies":
+                result = search_policies(**block.input)
+            print(f"  [turn {turn}] Action: {block.name}({block.input}) -> Observation: {result}")
+            tool_results.append({"type": "tool_result", "tool_use_id": block.id, "content": str(result)})
+        messages.append({"role": "user", "content": tool_results})
+    return "max turns reached without a final answer"
+
+print(run_agent("If I start on March 1st, how many PTO days will I have accrued by "
+                 "December 31st, and is that under the annual cap?"))
+```
+
+```
+  [turn 0] Thought: I need the PTO accrual rate and annual cap from company policy first.
+  [turn 0] Action: search_policies({'query': 'PTO accrual rate and annual maximum'}) ->
+    Observation: Full-time employees accrue paid time off (PTO) at a rate of 1.25 days
+    per month, up to a maximum of 15 days per calendar year. Unused PTO does not roll
+    over to the next year and is forfeited on December 31st. Employees m
+  [turn 1] Thought: March through December is 10 months, so I need 10 times 1.25.
+  [turn 1] Action: calculate({'expression': '10 * 1.25'}) -> Observation: 12.5
+By December 31st you'll have accrued 12.5 PTO days (10 months at 1.25 days/month,
+starting March 1st). That's under the 15-day annual cap, with 2.5 days of headroom.
+```
+
+Three API calls total: retrieve the policy, compute against it, then answer — and the second tool call only exists because the *first* one succeeded and returned a number the model could reason over. Neither tool, called once in isolation, gets you to 12.5 days under the cap. That chaining — one component's output becoming the next component's input, decided by the model at runtime rather than hardcoded by you — is what "multi-component AI system" means in practice, and it's the shape your checkpoint project's architecture doc needs to describe honestly: which component decided what, and in what order.
+
+One operational note before you build your own: always cap `max_turns`. A model that keeps deciding "I should double-check that" will happily loop forever and turn into an unbounded API bill; five turns is generous for a two-tool agent and cheap insurance against a model that gets stuck re-querying.
+
+## Exercise
+
+Extend `TOOLS` with a third tool, `days_between(start_date, end_date)`, and rebuild the corpus so it also contains the on-call stipend amount and rotation length. Then get `run_agent` to correctly answer, in one call to it: *"I'm doing on-call rotations from June 1st through August 24th this year — how many weeks is that, and what's my total stipend?"* This needs `search_policies` (find the $/week rate), `days_between` or `calculate` (turn the date range into a week count), and `calculate` again (multiply) — three chained calls minimum, in an order the model has to figure out itself, not one you hardcode.
+
+**Hint:** don't try to get the model to compute the week count via pure arithmetic reasoning in its head — that's exactly the kind of off-by-one-prone calculation you built tools to avoid. Have `days_between` return whole weeks directly (`(end - start).days // 7`), and write its description precisely enough that the model reaches for it instead of trying to eyeball the date math itself. If the loop hits `max_turns` without finishing, print the full message history — it's almost always one tool's description being ambiguous about what units it expects or returns, not a reasoning failure.

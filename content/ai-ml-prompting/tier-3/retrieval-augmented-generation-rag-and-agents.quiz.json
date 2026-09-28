@@ -1,0 +1,98 @@
+[
+  {
+    "id": "ai-ml-prompting/tier-3/retrieval-augmented-generation-rag-and-agents/q1",
+    "type": "multiple_choice",
+    "prompt": "Why does RAG hand Claude retrieved text at inference time instead of just fine-tuning the model on that data?",
+    "choices": [
+      "Fine-tuning is impossible for any model larger than a few million parameters",
+      "Retrieval lets you incorporate private or changing information without retraining, and it's cheap to update \u2014 just re-index the corpus",
+      "Claude cannot read pasted text longer than one sentence without fine-tuning first",
+      "RAG is required because Claude has no context window"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-3/retrieval-augmented-generation-rag-and-agents/q2",
+    "type": "multiple_choice",
+    "prompt": "In the module's example, TF-IDF cosine similarity between the query \"How do I get reimbursed for a work trip?\" and the expense policy text scored exactly 0.0. Why?",
+    "choices": [
+      "The expense policy chunk was empty",
+      "TF-IDF only counts exact token matches, and 'reimbursed' and 'Reimbursements' are different tokens \u2014 there's no shared vocabulary, so there's no signal at all",
+      "The query was too long for TfidfVectorizer to process",
+      "Cosine similarity always returns 0.0 for questions phrased with 'How do I'"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-3/retrieval-augmented-generation-rag-and-agents/q3",
+    "type": "multiple_choice",
+    "prompt": "An employee starts on March 1st. PTO accrues at 1.25 days per month, with a 15-day annual cap. How many PTO days will they have accrued by December 31st of that same year?",
+    "choices": [
+      "15 days",
+      "12.5 days",
+      "10 days",
+      "13.75 days"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-3/retrieval-augmented-generation-rag-and-agents/q4",
+    "type": "multiple_choice",
+    "prompt": "In the module's chunking demo, chunking the corpus into 90-character pieces with no overlap caused a top-1 retrieval for \"How much is the weekly on-call stipend?\" to fail. What exactly went wrong?",
+    "choices": [
+      "The vector database ran out of memory and dropped the correct chunk",
+      "The chunk containing '$200 stipend per week' scored lower than a neighboring chunk that didn't contain the dollar figure, so the naive top-1 retriever picked the wrong one",
+      "TF-IDF cannot handle dollar signs in text",
+      "The embedding model wasn't fine-tuned on HR policy documents"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-3/retrieval-augmented-generation-rag-and-agents/q5",
+    "type": "multiple_choice",
+    "prompt": "Mapping the ReAct pattern onto Claude's tool-calling API: which part of a model response corresponds to the \"Act\" step?",
+    "choices": [
+      "The system prompt",
+      "A text content block",
+      "A tool_use content block",
+      "The stop_reason field when it equals 'end_turn'"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "ai-ml-prompting/tier-3/retrieval-augmented-generation-rag-and-agents/q6",
+    "type": "multiple_choice",
+    "prompt": "The module's multi-step agent answers a question by calling search_policies, then calculate, then producing a final text answer with no further tool calls. How many total API calls to Claude does this take?",
+    "choices": [
+      "1",
+      "2",
+      "3",
+      "4"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "ai-ml-prompting/tier-3/retrieval-augmented-generation-rag-and-agents/q7",
+    "type": "multiple_choice",
+    "prompt": "Why can you add a new document to a vector store built on neural embeddings by embedding just that one document, but you can't do the same cleanly with TF-IDF vectors?",
+    "choices": [
+      "Neural embeddings are smaller in file size than TF-IDF vectors",
+      "TF-IDF vectors are defined relative to the whole corpus's vocabulary and document frequencies, so a new document technically changes every existing vector's IDF term; a neural embedding is computed independently per chunk",
+      "TF-IDF only works with English text",
+      "Neural embedding models require GPUs, so they can only process one document at a time anyway"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-3/retrieval-augmented-generation-rag-and-agents/q8",
+    "type": "multiple_choice",
+    "prompt": "As a corpus grows from a few thousand chunks into the millions, why would you replace a brute-force cosine-similarity scan with an approximate nearest neighbor (ANN) index like HNSW?",
+    "choices": [
+      "Brute force scans every stored vector for every query, so its cost grows linearly with corpus size; ANN indexes trade a small amount of recall for query time that doesn't scale linearly",
+      "ANN indexes eliminate the need for chunking entirely",
+      "Brute-force search cannot compute cosine similarity correctly at scale",
+      "ANN indexes convert dense embeddings back into TF-IDF vectors for faster storage"
+    ],
+    "correctIndex": 0
+  }
+]

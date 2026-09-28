@@ -1,0 +1,98 @@
+[
+  {
+    "id": "ai-ml-prompting/tier-3/sequence-models-and-nlp-fundamentals/q1",
+    "type": "multiple_choice",
+    "prompt": "What does one training step of Byte-Pair Encoding actually do?",
+    "choices": [
+      "Find the single most frequent adjacent pair of symbols in the corpus and merge it into one new token",
+      "Remove the least frequent token from the vocabulary to keep it a fixed size",
+      "Split every word into individual characters and stop, regardless of corpus size",
+      "Randomly merge two tokens to increase vocabulary diversity"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-3/sequence-models-and-nlp-fundamentals/q2",
+    "type": "multiple_choice",
+    "prompt": "In the from-scratch BPE walkthrough on {low: 5, lower: 2, newest: 6, widest: 3}, after 8 merges which word ends up represented as a single vocabulary token (symbol), while the others still stay split into multiple pieces?",
+    "choices": [
+      "newest",
+      "lower",
+      "widest",
+      "low"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-3/sequence-models-and-nlp-fundamentals/q3",
+    "type": "multiple_choice",
+    "prompt": "The trained WordPiece tokenizer split \"tokenization\" into ['tokeniz', '##ation']. What does the '##' prefix on 'ation' signal?",
+    "choices": [
+      "This piece continues directly from the previous piece, inside the same word (no space precedes it)",
+      "This piece is an unknown token the tokenizer had never seen before",
+      "This piece marks the start of a brand new sentence",
+      "This piece must always be capitalized when reconstructing the original text"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-3/sequence-models-and-nlp-fundamentals/q4",
+    "type": "multiple_choice",
+    "prompt": "In the toy embedding demo, king - man + woman had cosine similarity 0.9963 to queen but -0.569 to boy. What does that negative similarity to \"boy\" indicate geometrically?",
+    "choices": [
+      "The result vector points more than 90 degrees away from \"boy\" in the embedding space -- shifting toward \"royal + female\" moved away from, not toward, \"boy\"",
+      "\"boy\" was never included in the training data, so its similarity score defaults to negative",
+      "Cosine similarity is undefined for vector-arithmetic results, so -0.569 is a computation error",
+      "The embeddings for \"boy\" and \"king\" are identical, which forces a negative score by construction"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-3/sequence-models-and-nlp-fundamentals/q5",
+    "type": "multiple_choice",
+    "prompt": "Why can't h_3 in a vanilla RNN be computed before h_2 finishes, even with unlimited parallel compute available?",
+    "choices": [
+      "h_3's formula directly takes h_2 as an input argument -- it literally cannot be evaluated without that value existing first",
+      "PyTorch's autograd engine enforces an artificial ordering that isn't actually required by the math",
+      "GPUs are physically incapable of running more than one matrix multiply per training step",
+      "h_2 and h_3 use different weight matrices, so they must be scheduled sequentially by the optimizer"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-3/sequence-models-and-nlp-fundamentals/q6",
+    "type": "multiple_choice",
+    "prompt": "If backpropagation through time attenuates the gradient by a factor of roughly 0.8 at every timestep, approximately what fraction of the original gradient magnitude survives after 50 timesteps?",
+    "choices": [
+      "About 0.001% (0.8^50)",
+      "About 14%",
+      "About 40%",
+      "About 80%, since 0.8 stays constant regardless of how many steps are chained"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-3/sequence-models-and-nlp-fundamentals/q7",
+    "type": "multiple_choice",
+    "prompt": "In the LSTM comparison, forget_bias=0 (gate averaging ~0.50) produced roughly a 10-million-fold gradient shrinkage over 40 steps, while forget_bias=3 (gate averaging ~0.88) produced a roughly flat gradient. What does this pair of results actually demonstrate?",
+    "choices": [
+      "LSTM gating only protects against vanishing gradients when the forget gate is actually trained or initialized to stay open -- the architecture makes it possible, not automatic",
+      "LSTMs eliminate vanishing gradients completely regardless of how the forget gate is initialized",
+      "The forget gate has no measurable effect on how gradients propagate through the cell state",
+      "A higher forget-gate bias always hurts training by discarding too much old information"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-3/sequence-models-and-nlp-fundamentals/q8",
+    "type": "multiple_choice",
+    "prompt": "Structurally, why does self-attention avoid the vanishing-gradient problem that plagues RNNs over long sequences?",
+    "choices": [
+      "It connects any two positions with one direct computation, so the gradient path length between any two tokens is O(1) instead of O(n) sequential steps",
+      "It uses a larger learning rate than RNNs, which numerically compensates for gradient shrinkage",
+      "It avoids using any nonlinearity, so there is nothing to cause gradients to shrink",
+      "It processes tokens in a fixed random order each epoch, which prevents any single path from dominating"
+    ],
+    "correctIndex": 0
+  }
+]

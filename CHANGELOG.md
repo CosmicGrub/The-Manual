@@ -330,3 +330,14 @@ All notable changes to The Manual (curriculum + app) are logged here. This file 
 **Result:** `npm run build` passed clean on the first attempt. 129 unique slugs verified repo-wide.
 
 **Status:** AI/ML Tier 2 complete (68h, 6 lessons). AI/ML is now 3/6 tiers content-complete (Tiers 0-2, 139h); Tiers 3-5 remain.
+
+## [0.25.0] — 2026-09-28 — AI/ML Tier 3: complete (Practitioner level — full backprop, transformers, RAG/agents)
+
+**Context:** Continuing the tier-by-tier pattern. This is the deep-mechanics tier: the full backpropagation derivation Tier 2 deliberately deferred, the transformer architecture built up from scaled dot-product attention to a real working mini-transformer, and this track's first genuinely multi-component project (a full RAG pipeline plus a ReAct-style agent loop).
+
+**Added**
+- `content/ai-ml-prompting/tier-3/*.mdx` (6 files) + matching quizzes: Deep Learning Foundations (a complete hand-worked backprop derivation on a real 2-layer network, cross-checked numerically against PyTorch autograd to four decimal places), Sequence Models & NLP Fundamentals (real BPE tokenization, embedding arithmetic, why RNNs/LSTMs were replaced by attention), The Transformer Architecture (scaled dot-product attention derived and implemented, positional encoding, encoder/decoder/decoder-only contrasted, a guided reading of "Attention Is All You Need," a real working mini-transformer in PyTorch), LLM Fundamentals (pretraining/fine-tuning/RLHF, scaling laws, reading a real model card), Retrieval-Augmented Generation (RAG) & Agents (a full real RAG pipeline, ReAct tool-use, multi-step tool orchestration), Reading Real Code (an annotated nanoGPT-style walkthrough).
+
+**Result:** `npm run build` passed clean on the first attempt. 135 unique slugs verified repo-wide. (The session's scratchpad tooling script was evicted mid-round by container storage pressure from this tier's unusually large subagent scratch files — recreated from the established pattern before assembly; no content was lost.)
+
+**Status:** AI/ML Tier 3 complete (78h, 6 lessons). AI/ML is now 4/6 tiers content-complete (Tiers 0-3, 217h); Tiers 4-5 remain.

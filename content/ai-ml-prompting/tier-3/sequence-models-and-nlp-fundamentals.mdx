@@ -1,0 +1,257 @@
+---
+trackId: ai-ml-prompting
+tier: 3
+title: "Sequence Models & NLP Fundamentals"
+order: 2
+estimatedHours: 10
+slug: sequence-models-and-nlp-fundamentals
+---
+
+## Tokenization, For Real This Time
+
+Tier 0 told you a prompt gets "chopped into tokens" and showed you `"unbelievable"` becoming something like `["un", "believ", "able"]`. That was a sketch. Here's the actual algorithm that produces splits like that, and why it's built the way it is.
+
+The problem a real tokenizer has to solve: you need a *fixed-size* vocabulary (tens of thousands of entries, not millions) that can still represent *any* string — a typo, a made-up word, a URL, a string of emoji, code in a language the model never saw much of. Whole-word vocabularies fail this immediately: English alone has hundreds of thousands of word forms, most of them rare, and anything genuinely new becomes an unknown token the model has zero information about.
+
+**Byte-Pair Encoding (BPE)** solves this by learning a vocabulary from data instead of from a dictionary. Start every word as a sequence of individual characters. Count every adjacent pair of symbols across your training corpus. Merge whichever pair occurs most often into a new single symbol. Repeat. Common substrings — and eventually common whole words — collapse into single tokens; rare strings stay fragmented into smaller, reusable pieces.
+
+Run it by hand on the toy corpus from the original 2016 BPE-for-NLP paper — four words with frequencies `{low: 5, lower: 2, newest: 6, widest: 3}`:
+
+```python
+import re, collections
+
+corpus = {"low": 5, "lower": 2, "newest": 6, "widest": 3}
+
+def get_vocab(corpus):
+    return {" ".join(list(w) + ["</w>"]): f for w, f in corpus.items()}
+
+def get_pair_counts(vocab):
+    pairs = collections.Counter()
+    for word, freq in vocab.items():
+        symbols = word.split()
+        for i in range(len(symbols) - 1):
+            pairs[(symbols[i], symbols[i + 1])] += freq
+    return pairs
+
+def merge_vocab(pair, vocab):
+    merged = "".join(pair)
+    pattern = re.compile(r"(?<!\S)" + re.escape(" ".join(pair)) + r"(?!\S)")
+    return {pattern.sub(merged, w): f for w, f in vocab.items()}
+
+vocab = get_vocab(corpus)
+for step in range(8):
+    pairs = get_pair_counts(vocab)
+    best = max(pairs, key=pairs.get)
+    vocab = merge_vocab(best, vocab)
+    print(f"merge {step+1}: {best[0]!r}+{best[1]!r} -> {''.join(best)!r}  (count={pairs[best]})")
+```
+```
+merge 1: 'e'+'s' -> 'es'  (count=9)
+merge 2: 'es'+'t' -> 'est'  (count=9)
+merge 3: 'est'+'</w>' -> 'est</w>'  (count=9)
+merge 4: 'l'+'o' -> 'lo'  (count=7)
+merge 5: 'lo'+'w' -> 'low'  (count=7)
+merge 6: 'n'+'e' -> 'ne'  (count=6)
+merge 7: 'ne'+'w' -> 'new'  (count=6)
+merge 8: 'new'+'est</w>' -> 'newest</w>'  (count=6)
+```
+
+After 8 merges, `"newest"` (frequency 6, the corpus's most common word) has collapsed into a single vocabulary token `newest</w>`, while `"lower"` — never merged past `low` + `e` + `r` + `</w>` — stays four symbols. That's the entire mechanism. Nothing linguistic decided that `e`+`s` should merge before `l`+`o`; pure co-occurrence frequency did.
+
+**WordPiece** (used by BERT) runs the same merge-loop shape but with a different scoring rule: instead of picking the most *frequent* pair, it picks the pair that most increases the training corpus's likelihood under a simple language model — a merge is only "good" if the merged token predicts the data noticeably better than the two pieces predicted it separately. It also marks non-initial pieces with a `##` prefix so you can tell where a word boundary is versus a mid-word continuation.
+
+Train both, for real, on the same small corpus (a few paragraphs about tokenization — self-contained, no downloads) using Hugging Face's `tokenizers` library, then throw novel words at each:
+
+```python
+from tokenizers import Tokenizer
+from tokenizers.models import BPE, WordPiece
+from tokenizers.trainers import BpeTrainer, WordPieceTrainer
+from tokenizers.pre_tokenizers import Whitespace
+
+# corpus_text: ~550 words about tokenization/BPE/embeddings, written into corpus.txt
+
+bpe_tok = Tokenizer(BPE(unk_token="[UNK]"))
+bpe_tok.pre_tokenizer = Whitespace()
+bpe_tok.train(["corpus.txt"], BpeTrainer(vocab_size=300, min_frequency=2, special_tokens=["[UNK]"]))
+
+wp_tok = Tokenizer(WordPiece(unk_token="[UNK]"))
+wp_tok.pre_tokenizer = Whitespace()
+wp_tok.train(["corpus.txt"], WordPieceTrainer(vocab_size=300, min_frequency=2,
+              special_tokens=["[UNK]"], continuing_subword_prefix="##"))
+
+for w in ["tokenization", "vocabulary", "languages", "hyperparameter"]:
+    print(f"{w:16s} BPE={bpe_tok.encode(w).tokens}  WordPiece={wp_tok.encode(w).tokens}")
+```
+```
+tokenization     BPE=['tokeniz', 'ation']       WordPiece=['tokeniz', '##ation']
+vocabulary       BPE=['vocabulary']             WordPiece=['vocabulary']
+languages        BPE=['lan', 'gu', 'a', 'ges']  WordPiece=['language', '##s']
+hyperparameter   BPE=['h','y','p','er','p','ar','a','me','ter']  WordPiece=['h','##y','##p','##er','##p','##ar','##a','##m','##e','##te','##r']
+```
+
+`vocabulary` appeared constantly in the training text, so both tokenizers learned it as one whole token. `hyperparameter` never appeared, so both fall back toward near-character-level pieces — this is the vocabulary staying fixed-size while still covering literally any input, exactly as promised. `languages` shows the two algorithms genuinely diverging on the same data: BPE's frequency-greedy merges happened to grab `lan`+`gu`+`a`+`ges` piece-by-piece, while WordPiece's likelihood scoring correctly recovered the linguistically sensible `language` + `##s`. Neither is "wrong" — they're two different objective functions producing two different vocabularies from identical data. Production systems scale this same loop to gigabytes of text and 30,000–200,000 merges: GPT models use a byte-level BPE variant (merging raw UTF-8 bytes, so *any* string, in any language or emoji, is representable with zero unknown tokens) via `tiktoken`; BERT and its relatives use WordPiece.
+
+## Word Embeddings: Why Vector Arithmetic Encodes Meaning
+
+Tier 1 showed you cosine similarity and PCA on tabular features. Embeddings apply the exact same geometry to *tokens*: instead of a one-hot vector (all zeros, one 1), each token gets a dense vector of a few hundred real numbers, learned so tokens used in similar contexts land near each other.
+
+The famous demonstration, first reported by Mikolov et al. (2013) on real 300-dimensional word2vec vectors trained on Google News: `vector("king") - vector("man") + vector("woman")` lands closer to `vector("queen")` than to any other word in the vocabulary. This is not a cherry-picked coincidence — it holds up across hundreds of analogy pairs, and it's worth understanding *why* it works rather than just marveling at it.
+
+Build a small illustrative embedding table by hand — four interpretable axes (`royalty`, `gender`, `adulthood`, `animacy`), which real embeddings don't have labeled this cleanly, but which produce the identical *shape* of behavior:
+
+```python
+import numpy as np
+rng = np.random.default_rng(7)
+
+base = {
+    "king":     [0.90,  0.85, 0.70, 0.10],
+    "queen":    [0.90, -0.85, 0.70, 0.10],
+    "man":      [0.05,  0.85, 0.70, 0.10],
+    "woman":    [0.05, -0.85, 0.70, 0.10],
+    "prince":   [0.85,  0.80, 0.15, 0.10],
+    "princess": [0.85, -0.80, 0.15, 0.10],
+    "boy":      [0.00,  0.80, 0.15, 0.10],
+    "girl":     [0.00, -0.80, 0.15, 0.10],
+    "dog":      [0.00,  0.10, 0.60, 0.90],
+}
+emb = {w: np.array(v) + rng.normal(0, 0.05, 4) for w, v in base.items()}
+
+def cosine(a, b):
+    return a @ b / (np.linalg.norm(a) * np.linalg.norm(b))
+
+result = emb["king"] - emb["man"] + emb["woman"]
+for w in sorted(emb, key=lambda w: -cosine(result, emb[w])):
+    if w not in ("king", "man", "woman"):
+        print(f"cosine(result, {w:9s}) = {cosine(result, emb[w]):.4f}")
+```
+```
+cosine(result, queen    ) = 0.9963
+cosine(result, princess ) = 0.9157
+cosine(result, girl     ) = 0.6372
+cosine(result, dog      ) = 0.2577
+cosine(result, prince   ) = 0.0672
+cosine(result, boy      ) = -0.5690
+```
+
+`queen` wins by a wide margin, `princess` is the closest runner-up, and `boy` — which shares *nothing* with the result vector along the axes that matter here — is actually *anti*-correlated (negative cosine, more than 90 degrees away).
+
+Here's the actual mechanism, not just the demo: `king - man` isolates whatever direction in the vector space encodes "royal" versus "not royal," *net of* gender and age, because gender and age cancel out in the subtraction (both `king` and `man` share the same adult-male component). Adding `woman` re-applies that same royalty shift on top of a different gender/age baseline. This only produces a coherent, reusable answer if the training process encoded "royalty" and "gender" as roughly consistent *directions* — the same offset vector, wherever in the space you apply it — rather than as some tangled, example-specific encoding. And that's exactly what gradient descent on a co-occurrence-prediction objective (word2vec's skip-gram, or GloVe's log-count factorization) tends to find: sharing one consistent "make this more royal" direction across every royal/common pair in the training data is a far more compact way to explain the statistics of millions of sentences than memorizing each word's meaning independently. The linear structure isn't hand-designed — it's the cheapest solution the optimizer found for compressing "words that appear in similar contexts get similar treatment" across the whole vocabulary at once, and analogies are the observable side effect of that compression.
+
+## RNNs and LSTMs: The Architecture That Came Before
+
+Before attention, sequence models processed text the way you'd naively expect: one token at a time, carrying a running summary forward. A vanilla RNN's entire update rule:
+
+```
+h_t = tanh(Wx @ x_t + Wh @ h_(t-1) + b)
+```
+
+`h_t`, the hidden state, is the model's entire memory of everything before position `t`, compressed into one fixed-size vector. Trace it by hand over 3 tokens (hidden size 4, random weights):
+
+```python
+import torch
+torch.manual_seed(0)
+
+Wx, Wh, b = torch.randn(4, 3) * 0.5, torch.randn(4, 4) * 0.5, torch.zeros(4)
+x1, x2, x3 = torch.tensor([1.,0,0]), torch.tensor([0,1.,0]), torch.tensor([0,0,1.])
+
+h0 = torch.zeros(4)
+h1 = torch.tanh(Wx @ x1 + Wh @ h0 + b)
+h2 = torch.tanh(Wx @ x2 + Wh @ h1 + b)
+h3 = torch.tanh(Wx @ x3 + Wh @ h2 + b)
+print("h1:", torch.round(h1, decimals=4))
+print("h2:", torch.round(h2, decimals=4))
+print("h3:", torch.round(h3, decimals=4))
+```
+```
+h1: tensor([ 0.6472,  0.2768,  0.1990, -0.1990])
+h2: tensor([ 0.0998, -0.3545,  0.7965, -0.0087])
+h3: tensor([-0.4336, -0.7176,  0.2561, -0.1291])
+```
+
+Notice `h3` can't be computed without `h2`, which can't be computed without `h1`. In production you'd write `nn.RNN(input_size=3, hidden_size=4, batch_first=True)` and feed it a whole `(batch, seq_len, input_size)` tensor — but internally it's still running this exact loop, one step at a time.
+
+**LSTMs** (1997) patch the vanilla RNN's biggest weakness — its single tanh squash discards old information fast — by adding a separate **cell state** `c_t` with gates controlling what gets kept:
+
+```
+f_t = sigmoid(Wf @ [h_(t-1), x_t] + bf)   # forget gate: how much of the old cell state to keep
+i_t = sigmoid(Wi @ [h_(t-1), x_t] + bi)   # input gate: how much new info to write in
+g_t = tanh(Wg @ [h_(t-1), x_t] + bg)      # candidate new content
+o_t = sigmoid(Wo @ [h_(t-1), x_t] + bo)   # output gate: how much of c_t to expose as h_t
+c_t = f_t * c_(t-1) + i_t * g_t
+h_t = o_t * tanh(c_t)
+```
+
+The key structural difference from a vanilla RNN: `c_t` updates *additively* (`f_t * c_(t-1) + ...`), not by repeatedly squashing everything through a single nonlinearity. Whether that actually helps, and how much, is the whole point of the next section.
+
+## Why Attention Replaced Them: The Bottleneck, Quantified
+
+Tier 0 mentioned two reasons RNNs got replaced — "slow to train" and "long-range context fragile" — in one paragraph. Here's what's actually behind both claims, with real numbers.
+
+**1. The sequential bottleneck.** `h_t` depends on `h_(t-1)`, full stop — there's no way around computing step 50 before step 51 starts. Even with unlimited parallel hardware, a GPU sitting idle waiting for the previous timestep's result can't be used. Measure this directly: run 4,000 dependent RNN steps versus one equivalent-FLOP batched matrix multiply (a stand-in for what attention can do, since every position's attention output is independent of every other position's):
+
+```python
+import torch, time
+torch.manual_seed(0)
+n, dim = 4000, 512
+W, h, xs = torch.randn(dim, dim), torch.randn(dim), torch.randn(n, dim)
+
+with torch.no_grad():
+    start = time.perf_counter()
+    hs = h.clone()
+    for t in range(n):
+        hs = torch.tanh(W @ hs + xs[t])          # each step waits on the last
+    seq_time = time.perf_counter() - start
+
+    start = time.perf_counter()
+    batched = torch.tanh(xs @ W.T)               # one independent matmul, same FLOPs
+    batch_time = time.perf_counter() - start
+
+print(f"sequential: {seq_time*1000:.1f} ms   batched: {batch_time*1000:.1f} ms   speedup: {seq_time/batch_time:.1f}x")
+```
+```
+sequential: 60.2 ms   batched: 6.3 ms   speedup: 9.6x
+```
+
+That's a 9.6x gap on a 4-core CPU doing the exact same total arithmetic. On a real GPU training run — thousands of cores, sequences of thousands of tokens, models with billions of parameters — the gap between "must run 4,000 dependent kernel launches" and "one big parallel matmul" is why transformers can be trained on far more data in the same wall-clock time than any RNN ever could.
+
+**2. Vanishing gradients over long sequences.** Backprop through an RNN multiplies a gradient by roughly the same Jacobian at every timestep on its way back to the start. If that per-step factor is even a little under 1 — and `tanh`'s derivative is always ≤ 1, with random weight matrices usually pushing it well below — the product shrinks *exponentially* in sequence length. A rough intuition: `0.8^50 ≈ 0.0000143`, about 0.001% of the original signal, after just 50 steps of a 0.8-per-step attenuation. Measure the real thing — track the gradient norm arriving at each hidden state, 40 steps back from a loss computed only on the final step:
+
+```python
+# (full setup: same Wx, Wh as above, seq_len=40, retain_grad() on each h_t, then .backward())
+for t in [0, 10, 20, 30, 39, 40]:
+    print(t, hiddens[t].grad.norm().item())
+```
+```
+0   1.896286e-04
+10  9.457021e-04
+20  1.257722e-02
+30  2.110478e-01
+39  3.887586e+00
+40  5.914888e+00
+```
+
+A ~31,000x shrinkage from the last timestep back to the first. Any information the model would need to learn "token 40 depends on something that happened at token 1" arrives as a gradient signal too small to move the weights meaningfully — the model effectively can't learn dependencies that span more than a few dozen steps.
+
+**3. LSTM's gating helps — but only when it's actually working.** Rerun the same experiment tracking `c_t`'s gradient in a manual LSTM, comparing a forget-gate bias of `0` (gate averages ~0.5, mostly closed) against a bias of `3` (gate averages ~0.88, mostly open):
+
+```python
+# forget_bias=0: gate ~ sigmoid(0) = 0.50
+#   t=0: 4.33e-07   t=20: 9.27e-04   t=39: 2.49e+00   t=40: 4.28e+00   (~10,000,000x shrinkage)
+
+# forget_bias=3: gate ~ sigmoid(3) = 0.88
+#   t=0: 2.29e+01    t=20: 1.06e+01   t=39: 1.28e+01   t=40: 1.50e+01   (roughly flat, <3x)
+```
+
+With the gate closed, an LSTM vanishes *worse* than the plain RNN did above — closing the gate is still a multiplication by a number under 1, every step. With the gate held open, the cell state becomes a near-linear "gradient highway": `c_t = 1.0 * c_(t-1) + (small correction)` barely attenuates anything over 40 steps. This is the real content behind "LSTMs fix vanishing gradients": the *architecture* makes an unattenuated gradient path possible, but it's not automatic — it depends on the forget gate actually learning (or being initialized) to stay open, and even a well-trained LSTM's gating degrades gradually over genuinely long sequences (thousands of tokens), it doesn't eliminate the problem the way a structural fix would.
+
+**Attention's structural fix.** Self-attention connects any two positions, however far apart, with one direct computation — token 1 and token 4000 interact through a single dot product, not a chain of 3,999 intermediate hidden states for a gradient to survive. That collapses the path length between any two tokens from `O(n)` to `O(1)`, which kills the vanishing-gradient problem at its source rather than patching around it with gates. And because every position's attention computation is independent of every other position's, the entire sequence is one batched, parallel operation — the same structural change that gave the 9.6x speedup above, now available at the scale of the sequence lengths and hardware that make LLMs possible. Both of Tier 0's one-line claims — "slow to train" and "long-range context fragile" — trace back to exactly these two measurements. The next module builds the actual mechanism (queries, keys, values, multi-head attention) that does this.
+
+## Exercise
+
+Reproduce the vanishing-gradient experiment yourself, but push it further: extend `seq_len` from 40 to 150 for the vanilla RNN, and separately for the manual LSTM with `forget_bias=3`.
+
+1. Report the gradient norm at `t=0` and at the final timestep for both.
+2. Compute the shrinkage ratio (final / first) for each, and compare it to the 40-step ratios shown above.
+3. At what rough sequence length does the vanilla RNN's `t=0` gradient become smaller than `1e-30` (effectively zero in float32)? Does the open-gate LSTM ever hit that point within 150 steps?
+
+**Hint:** the vanilla RNN's shrinkage compounds multiplicatively every single step, so its `t=0` gradient as a function of sequence length looks roughly exponential — plot `log(grad_norm)` against timestep and you should see something close to a straight line for the RNN, and something much flatter for the open-gate LSTM.
