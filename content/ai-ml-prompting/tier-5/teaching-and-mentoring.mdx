@@ -1,0 +1,93 @@
+---
+trackId: ai-ml-prompting
+tier: 5
+title: "Teaching & Mentoring"
+order: 5
+estimatedHours: 10
+slug: teaching-and-mentoring
+---
+
+# Teaching & Mentoring
+
+## Why AI/ML concepts specifically resist good explanations
+
+You've spent four tiers getting the mechanism right — backpropagation as chained partial derivatives, attention as a weighted average over value vectors, a token as an index into an embedding matrix. Explaining any of that to someone who has never opened a terminal is a different skill, and it fails in three specific, recurring ways that are worth naming before you write anything.
+
+**The vocabulary lies by connotation.** "The model understands your question," "it thinks about the answer," "it hallucinated a fact" — every piece of standard AI vocabulary borrows a word from human cognition and imports the wrong intuitions along with it. Say "thinks" and a beginner reasonably infers something like deliberation happening behind the scenes; say "hallucinated" and they infer a malfunction rather than the normal, expected behavior of next-token prediction producing a fluent, wrong claim. You already have the correct mechanistic vocabulary from earlier tiers. The teaching skill is noticing, sentence by sentence, when you've reached for the anthropomorphic shortcut instead of the mechanism — and either replacing it or explicitly flagging it as a metaphor, not a description.
+
+**The actual unit of computation is invisible in the product.** ChatGPT and Claude both render text as words, in a chat bubble, with no visual trace of the fact that the model never saw a "word" at all — it saw a sequence of subword token IDs, embedded into vectors, run through attention and MLP layers. A beginner has zero product-level cue that this translation is happening, so any explanation that starts from "words go in, the model reasons, words come out" is starting from a mental model the product itself actively reinforces. You have to affirmatively break that model before you can install a correct one, not just add detail on top of it.
+
+**Beginners arrive with strong, wrong priors already installed.** Science fiction and hype cycles have pre-loaded most people with a story about AI — an agent with goals, a mind, a trajectory toward either godhood or Skynet — and that story competes with whatever you say next. This cuts in an unhelpful direction whether you're explaining "how does RAG work" (a common wrong prior: retrieval means the model is being *fine-tuned* on your documents, i.e. it's learning, when in fact nothing about the model's weights changes — the documents are just retrieved and stuffed into the prompt) or "what is a token" (a common wrong prior: the model reads letters, the way a human does). Naming the specific wrong prior out loud, before you correct it, works far better than presenting the correct model and hoping it displaces the incorrect one silently.
+
+## Worked example: outlining a public tutorial on "What is a token?"
+
+Pick a real, narrow audience sentence before writing anything: *someone who has used ChatGPT or Claude, has never written code, and doesn't know what a token is.* Not "beginners" in the abstract — a specific person you could picture, ideally a real one you plan to send the draft to.
+
+**The hook.** Open with a real, well-documented, verifiable failure: language models have a long, publicly reported history of getting letter-counting questions wrong — "how many r's are in strawberry" became a widely circulated example in 2024 of a model confidently giving the wrong count. Don't assert the exact token boundaries from memory in your tutorial — that's the kind of unforced error that undermines a technical piece the moment a reader checks it. Send the reader to verify it themselves in the next step instead.
+
+**The tool, not a diagram.** The single best beginner-facing tool for this topic is a live tokenizer visualizer such as tiktokenizer.vercel.app — paste text in a browser, no install, and watch it get chopped into colored token spans in real time. This matters specifically because your audience can't run Python. Have them paste "strawberry" and count the colored chunks themselves; the number of chunks (rarely equal to the number of letters, and not aligned with syllables either) is the entire lesson, delivered as something they discovered rather than something you asserted.
+
+For a reader who *can* run code, the equivalent moment in Python, using OpenAI's real, open-source `tiktoken` library:
+
+```python
+import tiktoken
+
+enc = tiktoken.get_encoding("cl100k_base")
+ids = enc.encode("strawberry")
+for i in ids:
+    print(i, repr(enc.decode([i])))
+```
+
+Tell the reader to run it and paste their own output rather than trusting a claimed result — this is also the right instinct to model in the tutorial itself: never hand-wave a fact you could just show.
+
+**Build the correct model from the failure, explicitly.** Now name what actually happened, in mechanism, not metaphor: a tokenizer built with byte-pair encoding merges frequently co-occurring byte sequences into a fixed vocabulary — `cl100k_base` has roughly 100,000 entries, `o200k_base` (GPT-4o's tokenizer) roughly 200,000 — and "strawberry" gets split into whatever handful of those ~100k-200k chunks the merge rules produce, not into 10 individual letters. The model's *only* view into a word's spelling is whatever chunk boundaries the tokenizer happened to draw; it has no separate faculty for spelling the way a human eye does. That's the whole mechanism, and it's the reason letter-counting is unreliable in exactly the way you just demonstrated, and rhyme and anagram tasks are unreliable for the same root cause.
+
+**A concrete outline you could actually publish**, four to five sections:
+
+1. *The failure* — the letter-counting hook, verified live in the tokenizer visualizer.
+2. *What actually got typed vs. what the model actually saw* — side-by-side: your sentence, and the colored token spans for it.
+3. *Why chunks, not letters or words* — the compression argument in one paragraph: a fixed ~100k-vocabulary lets the model represent common words as one token and rare or unseen words as a few sub-word pieces, instead of needing either a vocabulary of every possible word (unbounded) or paying the cost of one token per character (much longer sequences, much more compute per sentence).
+4. *What this predicts* — a second, different failure the reader can verify themselves (e.g. an anagram or a rhyme task), so the mental model gets tested against a case you didn't hand them.
+5. *One explicit myth-correction* — "the model does not read letters and then decide to lie about the count; it never had letter-level access to begin with" — stated as its own sentence, because the wrong prior ("careless mistake") and the right one ("structurally can't see what you're asking about, in this representation") lead to different beginner intuitions about what else the model will get wrong.
+
+Everything in that outline is testable, mechanistic, and grounded in something the reader can reproduce in under a minute — that combination is what separates a tutorial that actually corrects a misconception from one that just restates it more politely.
+
+## Running a study group or pairing session
+
+**A paper reading group that isn't a lecture.** The format that actually produces discussion, not silence: one person owns the week's paper and posts, 24 hours ahead, three specific discussion questions tied to the paper's actual claims — not "thoughts?" but something like "what's the smallest ablation in Table 3 that would falsify the main claim if it came out differently?" The meeting itself opens with the owner walking through *one* figure or table, capped at eight minutes — not the abstract, not a slide-by-slide summary, because the figure is where the actual evidence lives and the abstract is where the marketing lives. Rotate ownership every week without exception, even into weeks where the strongest person in the room would obviously do it best — the group's real output is more people who can prepare a paper cold, not one polished presenter.
+
+**Pairing on an interpretability or reproduction experiment.** Strict driver/navigator, with a visible timer set to five to seven minutes, and one hard rule: the navigator has to say what they expect to happen *before* the driver types the next line, not after. Swap on the timer, mid-task, whether or not it feels like a natural break point — an arbitrary swap point is the feature, not a flaw, because it forces the incoming navigator to actually reconstruct and track the current state of the hypothesis instead of having half-watched. Keep a shared scratch file logging every hypothesis you tested and whether it was falsified, not just the surviving result — this is the same discipline a real interpretability investigation needs, and a pairing session is a low-stakes place to build the habit of writing down what didn't work.
+
+When skill levels in the room are mixed — which they usually are — don't let the strongest coder default into the driver seat. Assign them navigator, hands off the keyboard, explicitly. Explaining what to do next, in words, to someone else's hands is a harder and more diagnostic skill than doing it yourself, and it's the actual skill this whole tier is testing.
+
+**Two concrete failure modes and their fixes.** "Any questions?" reliably produces silence, even from a room full of confused people, because it asks for a volunteer to admit confusion in public. Replace it with a structured task: "everyone write down one thing you'd bet real money is wrong, then we go around." One person dominating discussion gets fixed the same way pairing rotation gets fixed — a visible timer capping any one person's uninterrupted turn at around three minutes, enforced by a facilitator role that itself rotates weekly, so the fix doesn't depend on one person being willing to interrupt their peers.
+
+## Gathering and incorporating real learner feedback
+
+Vague feedback channels produce vague feedback. "Was this helpful?" gets you a reaction score and nothing you can act on. Concrete channels produce concrete, fixable signal: GitHub Issues or Discussions on the repo holding your tutorial, a comment widget on the post itself, or — often highest-signal of all — posting where true beginners already gather (a subreddit like r/learnmachinelearning, a relevant Discord) and reading what real strangers actually say when they hit the confusing part. In a live study group, keep a running "confusion log" open during any teach-back and require the exact sentence that lost someone, not a vague "I'm lost" — the sentence is the artifact you can actually revise.
+
+Here's a real shape of feedback that reveals a specific, fixable problem, on a draft of the tokenizer tutorial above. The original explanation read:
+
+> "The tokenizer breaks your text into tokens, which are then turned into vectors — long lists of numbers that capture the meaning of each token — before the model can process them."
+
+A beginner reader's actual comment: *"Wait, so does the number list get bigger the more the word means? And is a vector different from just... an ID number? I thought you already said tokens have ID numbers."*
+
+That question is a precise diagnostic. The original sentence collapsed two distinct mechanistic steps — token to integer ID (a dictionary lookup), then ID to vector (a row lookup in an embedding matrix) — into one clause, with no marked transition between them. "Capture the meaning of" is doing all the explanatory work and it's unfalsifiable filler with no mechanism behind it, which is exactly the kind of gap that invites a reader to guess at a mechanism themselves (here: "maybe the vector *is* the ID, just formatted differently") and guess wrong.
+
+The revision names both steps and grounds the second one in something checkable, tying back to code you already traced in Tier 3's nanoGPT reading: the token `"cat"` maps to some integer ID, say `3799`, via the tokenizer's vocabulary — that's step one, a lookup in a dictionary. The embedding vector is not a separate, meaning-laden object conjured from the word; it is, literally, row `3799` of a big matrix of learned numbers — `[0.02, -1.14, 0.87, ...]`, one row per vocabulary entry. That's exactly the mechanism behind `self.transformer.wte(idx)` in `model.py`, the line you traced by hand in Tier 3's "Reading Real Code" module: `wte` is an embedding table, and indexing into it by token ID *is* the entire step, no additional machinery involved. The values in that row aren't hand-assigned to "capture meaning" — they start random and get nudged by gradient descent, the same mechanism from Tier 1, until nearby rows happen to represent tokens the model tends to use similarly. If an explanation can't be cashed out into one real line of code you've already read, it's still hiding the mechanism behind a metaphor, and that's the fix to look for whenever a reader's confusion sounds like "is X secretly the same as Y."
+
+Ship the revision back to the same reader, or a fresh one, before you trust that it worked — a rewrite you haven't re-tested is a guess about what fixed the confusion, not a confirmation.
+
+## Exercise
+
+Pick one concept from earlier in this track that you've personally seen explained badly in public material — tokenization, attention, the RAG-vs-fine-tuning distinction, gradient descent, or an interpretability finding like induction heads (the in-context pattern-completion circuit: "if token B followed token A earlier in this context, predict B again after seeing A now"). Produce, in writing:
+
+1. One sentence naming the specific real audience — not "beginners," a person you could picture.
+2. One concrete, verifiable hook — a real failure or surprising behavior they can reproduce themselves in under a minute.
+3. The exact tool or code snippet you'd have them run first, with real output, not an invented one.
+4. Four or five section headers for the full tutorial.
+5. One explicit wrong prior you expect this specific audience to already hold, stated as its own sentence to be corrected, not left implicit.
+
+Then find one real reader outside this track — a friend, a subreddit, a Discord — send them the draft, and capture the exact sentence where they got confused. Revise that one passage using the token/vector pattern above: name the mechanism explicitly, and if you can't cash it out into something checkable (a real number, a real line of code, a real tool's output), that's the sentence that's still hiding behind a metaphor.
+
+**Hint:** the fastest way to find the sentence that will confuse a reader is to read your own draft out loud and stop at the first word you silently defined in your head but never actually defined on the page.

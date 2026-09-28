@@ -1,0 +1,119 @@
+---
+trackId: ai-ml-prompting
+tier: 5
+title: "Frontier Tracking & Independent Research Agenda"
+order: 6
+estimatedHours: 12
+slug: frontier-tracking-and-independent-research-agenda
+---
+
+## The real problem: infinite papers, finite hours
+
+By this point in the track you've reproduced a paper's core result, built an eval harness to measure something precisely, and read enough unfamiliar codebases that opening a new repo doesn't scare you. Tier 5's last skill is different in kind: it's not a technique, it's a *practice* — the habits that let you keep doing research-grade work after the curriculum ends, when there's no more syllabus telling you what to read next.
+
+The naive approach — "I'll just keep up with everything" — fails immediately. Roughly 20,000 papers a month land on arXiv's cs.LG and cs.CL categories combined. Nobody reads all of that, including the researchers whose job it is to know the field. What separates someone with a real research practice from someone drowning in browser tabs is a *system*: specific sources, a specific cadence, and a specific, ruthless triage rule for what gets five minutes versus five hours.
+
+## Build a tracking pipeline, not a reading list
+
+### Sources worth actually watching
+
+Stop trying to read "arXiv." Nobody browses arXiv directly and stays sane. Instead, pick a small, specific set of filtered sources:
+
+- **transformer-circuits.pub** — Anthropic's interpretability team publishes here directly, often as short dated "Circuits Updates" rather than full papers. This is the primary venue for work descending from "A Mathematical Framework for Transformer Circuits" (Elhage et al., 2021) and "In-context Learning and Induction Heads" (Olsson et al., 2022) — the papers that gave you the induction-head vocabulary earlier in this tier.
+- **hf.co/papers** — Hugging Face's daily community-curated paper feed. Better signal-to-noise than raw arXiv because papers are upvoted by working practitioners, not ranked by recency alone.
+- **Alignment Forum**, specifically the "Interpretability (ML & AI)" tag — this is where independent researchers and lab teams post work-in-progress, including negative results you'll never see in a polished paper.
+- **arxiv-sanity-lite** (Karpathy's tool) — lets you set up a personalized recommendation feed against cs.LG/cs.CL rather than the raw firehose.
+- **Newsletters for context, not depth**: Jack Clark's *Import AI* and Zvi Mowshowitz's *Don't Worry About the Vase* both do weekly roundups with enough editorializing that you can decide what's worth a primary-source read. Epoch AI (epoch.ai) tracks compute and training-run trends quantitatively — useful for calibrating claims about "the frontier" against actual data rather than vibes.
+- **Discords, for pre-publication signal**: the EleutherAI Discord's interpretability channels and the ARENA/mech-interp community Discord are where people post half-finished results and ask "does this replicate for you?" days before anything is written up formally.
+
+Five or six sources, chosen deliberately, beats fifty followed loosely.
+
+### The weekly cadence
+
+A workable split: 15–20 minutes a day skimming titles and abstracts from your feeds (not reading — just triaging, see below), and one protected 2–3 hour block a week for anything that earned a deep read. Batch the deep reads; don't try to do them as they arrive, or you'll always be mid-paper when something more relevant shows up.
+
+Keep a running log — a spreadsheet, Obsidian table, or a `papers.md` in a personal repo — with columns: date seen, title/link, source, one-sentence claim, verdict (skim/read/reproduce), and relevance to your current research question. This is the same discipline as the eval harness you built earlier: you're not trusting your memory of "I think I saw something about that," you're maintaining a queryable record.
+
+### Triage in three tiers
+
+Apply this decision rule to everything that crosses your feeds:
+
+1. **Skim (2–5 minutes, most papers land here).** Abstract, figures, conclusion. Log the one-line claim and move on.
+2. **Deep read (45–90 minutes, a handful per week).** Trigger this only when a paper is directly relevant to your active research question, or comes from a small set of groups whose work you've found reliable before (for interpretability/alignment specifically: Anthropic's interpretability team, Redwood Research, Apollo Research, DeepMind's interpretability group, or specific independent researchers like Neel Nanda whose track record you've verified yourself). "It has a lot of citations" or "it mentions GPT-4" are not good triggers — citation count lags novelty by years, and frontier-model name-dropping is not a proxy for rigor.
+3. **Reproduce (hours to days, one or two per month at most).** Reserve this for papers whose *method*, not just conclusion, you need for your own work. Reproducing is how you find out whether a result is as clean as the paper makes it look — plenty aren't.
+
+## From "interested in" to a tractable research question
+
+This is where independent researchers most often stall: picking a question so broad that no amount of effort resolves it, then quietly abandoning it three weeks in.
+
+### The three-part tractability test
+
+Before committing to a research question, check it against all three:
+
+1. **Can you get a first result in one weekend to two weeks of part-time work?** If your honest estimate is "a few months," you haven't found a sub-question yet — you've found a research *program*.
+2. **Can you actually run the models involved?** This usually means open-weight models under roughly 8B parameters you can run quantized on a single consumer GPU or rent cheaply, or better, models built specifically for this kind of work: EleutherAI's Pythia suite (which ships 154 public checkpoints across training specifically so researchers can study *how* capabilities develop, not just the end state), or small from-scratch transformers on algorithmic tasks.
+3. **Is there an existing method or codebase you can adapt rather than invent?** TransformerLens, SAELens, and nnsight cover most mechanistic interpretability workflows. If your question requires building new infrastructure from scratch just to get a first data point, narrow it until it doesn't.
+
+### Narrowing broad questions: two worked examples
+
+**Too broad:** "Why do LLMs hallucinate?"
+This isn't answerable — it's not even clear what evidence would resolve it, or for which model, or which kind of hallucination.
+
+**Narrower but still not tractable:** "Can we detect hallucination using internal activations?"
+Better, but "we," "detect," and "hallucination" are all still undefined at the level you'd need to actually run code.
+
+**Tractable:** "Does a linear probe trained the way Burns et al. train CCS probes in 'Discovering Latent Knowledge in Language Models Without Supervision' — on a Pythia-1.4b model rather than the models in the original paper — still separate true from fabricated statements on a curated set of 50 real vs. invented citations, or does accuracy collapse out of distribution?" This is a specific model, a specific existing method you're adapting rather than inventing, a specific small dataset you build yourself, and a specific falsifiable prediction.
+
+**Too broad:** "How does in-context learning work?"
+
+**Tractable:** "Olsson et al. report a sudden phase transition in training loss where induction heads emerge, tied to a jump in in-context learning ability. Does this transition land at a consistent fraction of total training tokens across Pythia's public checkpoints at different model sizes, and if I ablate the top induction heads (identified by their prior-token attention pattern) right after the transition, does a fixed 20-example repeated-sequence eval score drop the way the theory predicts?" Notice this reuses a fixed eval, exactly like the harnesses you built earlier — reusing that skill is what makes the "does the score drop" part answerable rather than a vibe.
+
+If you're stuck narrowing something on your own, use the reverse heuristic: pick one paper whose code is public, find the *one* specific experiment in it (a specific figure, a specific table), and ask whether that exact result replicates on a smaller or different model. "Does Figure 3 of [paper] hold on [smaller model]?" is almost always tractable, because someone already solved the hard infrastructure problem for you.
+
+## Running it like research, not a tutorial
+
+Two habits separate an independent project that produces something credible from one that produces a notebook nobody can interpret afterward, including you:
+
+- **Pre-register your hypothesis before running the experiment.** Write down, in a dated commit or issue, what you expect and what result would count as disconfirming it. This isn't bureaucracy — it's the only real defense against quietly reinterpreting a null result as "actually kind of interesting" after the fact.
+- **Keep a dated research log** (a `LOG.md` in the project repo works fine) recording what you tried, what broke, and what you changed and why — including the dead ends. When you write up your findings later, this log is what lets you accurately describe your actual process instead of a cleaned-up fiction of it.
+
+## Writing up findings a real audience would trust
+
+### The structure that works
+
+A credible technical write-up, whether it's a blog post, a talk, or a paper-style PDF, tends to share a shape — look at how Anthropic's Circuits Updates or a strong Alignment Forum post are structured:
+
+1. **A title that states the finding, not the topic.** "Induction heads emerge at a consistent training fraction across Pythia model sizes" beats "My Interpretability Project."
+2. **A TL;DR up front** — one paragraph giving the answer, before any setup. Readers decide in the first thirty seconds whether to keep going.
+3. **Exact setup**: model name and checkpoint, exact dataset (link it), exact code (link a runnable repo or notebook — not "code available on request").
+4. **One primary result**, presented as a figure that stands alone with a caption explaining what it shows, not ten mediocre plots.
+5. **What you tried to break your own result.** Did you check a different seed, a different model size, an alternative metric? This is the single biggest signal of rigor to an expert reader.
+6. **Explicit scope limits.** "This holds for Pythia models under 1.4B on this specific eval; I did not test larger models or other architectures" is a strength, not a hedge — it's the difference between a claim someone can build on and one they have to independently re-verify from scratch.
+7. **Open questions** — what you'd test next with more time or compute.
+
+A write-up missing (3) and (5) reads as a personal notes dump no matter how polished the prose is, because nobody can verify it and nobody can tell if you checked whether it was a fluke.
+
+### Where to publish, and the credibility gap
+
+Match the venue to the work:
+
+- **A personal blog or a GitHub repo README** is the right default for almost anything — low stakes, permanent, linkable.
+- **Alignment Forum / LessWrong** is appropriate specifically for alignment- or interpretability-relevant findings, but read several highly-upvoted posts first to calibrate their house norms around hedging and evidence before posting there cold — the bar is real and the community will tell you so in the comments.
+- **A short talk at a low-stakes venue** — an EleutherAI Discord voice channel, a virtual paper-reading group, an Apart Research sprint — is a good dry run before a public post. Get the holes in your reasoning found by five people in a call before a hundred people find them in the comments.
+- **Twitter/X threads** work as distribution for a post that already exists elsewhere, not as the primary artifact — threads without a linked, runnable backing repo get (correctly) treated as unverifiable claims.
+
+One historical note worth knowing: Distill (distill.pub), the journal that pioneered the interactive-visual-essay style much of today's best interpretability writing still imitates, went on indefinite hiatus in 2021. Its influence outlived it — transformer-circuits.pub is the clearest continuation of that tradition — but it's no longer an active submission venue, so don't plan a submission there.
+
+The through-line across every credible venue: **linked, runnable code and data is not optional.** A finding a reader can't reproduce isn't a contribution to the field yet, no matter how interesting the prose makes it sound.
+
+## Exercise: build your pipeline this week
+
+Do all three, and keep the artifacts — you'll reuse them immediately:
+
+1. **Set up the tracking system.** Pick four or five real sources from this lesson (or substitutes you've vetted yourself). Create an actual log — spreadsheet or Markdown table — with columns: date, title/link, source, one-line claim, verdict, relevance to your research question. Populate it with ten real papers or posts you find this week, correctly triaged into skim/read/reproduce.
+2. **Draft one tractable research question.** Run it through the three-part test explicitly, in writing. State the exact model, exact dataset or eval, and a falsifiable prediction — the kind of specificity in the worked examples above, not a topic sentence.
+3. **Outline the write-up you'd publish if the result comes back null.** Most independent experiments *do* fail to confirm the hypothesis. Sketch the TL;DR, setup, and "what I'd try next" sections assuming your prediction was wrong. If you can't imagine that version being worth publishing, your question probably isn't well-posed yet.
+
+*Hint if you're stuck on step 2:* apply the reverse heuristic directly — open the code repo for one paper you've deep-read this tier, find one specific figure or table, and write your question as "does this specific result replicate on [a smaller/different model I can actually run]?"
+
+A year of running this pipeline — a real cadence, honest triage, questions scoped to what you can actually test, and write-ups that link their own receipts — is what an independent research practice looks like from the outside. It's less dramatic than a single big breakthrough, and it's also the only version of "staying current" that actually works past the first month.

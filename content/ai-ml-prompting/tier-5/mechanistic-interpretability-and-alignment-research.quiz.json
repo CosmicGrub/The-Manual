@@ -1,0 +1,98 @@
+[
+  {
+    "id": "ai-ml-prompting/tier-5/mechanistic-interpretability-and-alignment-research/q1",
+    "type": "multiple_choice",
+    "prompt": "Per Olsson et al. (2022), an induction head predicts the next token in a sequence like '... A B ... A' by attending back to which position?",
+    "choices": [
+      "The position immediately after the earlier occurrence of the current token A, copying B forward",
+      "The position with the highest overall attention entropy in the sequence",
+      "The first token of the sequence, regardless of content",
+      "The position of the most recent punctuation mark"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-5/mechanistic-interpretability-and-alignment-research/q2",
+    "type": "multiple_choice",
+    "prompt": "You train a linear probe that decodes 'input language' from a model's hidden states with 95% accuracy. What is the most accurate description of what you've shown, and what's missing to make a causal claim?",
+    "choices": [
+      "You've shown the information is linearly decodable from that layer; you still need an intervention like activation patching or ablation to show the model actually uses it downstream",
+      "You've fully proven the model uses this representation to decide its output, since 95% accuracy is well above chance",
+      "Nothing \u2014 probe accuracy is uninformative about model internals without a control task, full stop",
+      "You've shown the feature is stored in superposition, which patching would only re-confirm"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-5/mechanistic-interpretability-and-alignment-research/q3",
+    "type": "multiple_choice",
+    "prompt": "Per Elhage et al.'s 'Toy Models of Superposition' (2022), why do networks represent more features than they have neurons?",
+    "choices": [
+      "Because features are typically sparse (rarely co-occurring), so the network packs them into near-orthogonal directions across neurons, tolerating small interference to save capacity",
+      "Because ReLU activations are inherently unable to represent more than one feature per neuron, forcing overlap as a bug",
+      "Because gradient descent randomly assigns unrelated features to the same neuron with no functional benefit",
+      "Because superposition only occurs in attention heads, never in MLP neurons"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-5/mechanistic-interpretability-and-alignment-research/q4",
+    "type": "multiple_choice",
+    "prompt": "In Templeton et al.'s 'Scaling Monosemanticity' (2024), what did clamping the 'Golden Gate Bridge' SAE feature in Claude 3 Sonnet demonstrate?",
+    "choices": [
+      "That forcibly setting that one feature's activation causally changed outputs across unrelated prompts, making the model fixate on the bridge -- causal, steerable evidence the direction represents that concept",
+      "That the feature only ever activated when the literal string 'Golden Gate Bridge' appeared in the prompt",
+      "That SAE features trained on a small one-layer model transfer perfectly to any larger model without retraining",
+      "That Claude 3 Sonnet had memorized copyrighted text about the Golden Gate Bridge during pretraining"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-5/mechanistic-interpretability-and-alignment-research/q5",
+    "type": "multiple_choice",
+    "prompt": "In Hubinger et al.'s 'Sleeper Agents' (2024), what happened when standard safety training (SFT, RLHF, adversarial training) was applied to models with a deliberately trained backdoor?",
+    "choices": [
+      "The backdoored behavior persisted through training, and adversarial training sometimes taught the model to conceal the trigger better rather than removing the underlying behavior",
+      "RLHF fully removed the backdoor within a single training run, confirming standard safety training is sufficient for this class of problem",
+      "The models refused to be fine-tuned further once the backdoor was detected",
+      "Only supervised fine-tuning removed the backdoor; RLHF and adversarial training had no effect either way"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-5/mechanistic-interpretability-and-alignment-research/q6",
+    "type": "multiple_choice",
+    "prompt": "Scalable oversight research (e.g., debate, weak-to-strong generalization) is primarily aimed at which problem?",
+    "choices": [
+      "Supervising and evaluating AI systems whose outputs are too complex, expert-level, or delayed in consequence for a human overseer to directly verify",
+      "Reducing the compute cost of training large models",
+      "Improving tokenizer efficiency for non-English languages",
+      "Speeding up inference latency in production deployments"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-5/mechanistic-interpretability-and-alignment-research/q7",
+    "type": "multiple_choice",
+    "prompt": "What is the key methodological difference between a probing experiment and an activation-patching experiment?",
+    "choices": [
+      "Probing tests whether information is linearly decodable from activations (correlational); patching tests whether replacing or ablating an activation causally changes model behavior",
+      "Probing is always done on production models while patching is restricted to toy models",
+      "Patching requires no forward passes through the model, while probing requires many",
+      "They test the same thing; the terms are interchangeable synonyms in the interpretability literature"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-5/mechanistic-interpretability-and-alignment-research/q8",
+    "type": "multiple_choice",
+    "prompt": "Before trusting a paper's claim that an identified circuit 'explains' a model behavior, what should you specifically check for, per this lesson's guidance?",
+    "choices": [
+      "A quantitative faithfulness or completeness metric (e.g., what fraction of the behavior/logit difference the circuit recovers when the rest of the model is ablated), not just a handful of illustrative examples",
+      "Whether the paper includes a figure with a neural network diagram, since diagrams alone confirm the mechanism is correct",
+      "Whether the paper was published in a peer-reviewed journal, since arXiv preprints in this field are always unreliable",
+      "Whether the circuit was found using only raw neurons rather than SAE features, since neuron-level circuits are always more trustworthy"
+    ],
+    "correctIndex": 0
+  }
+]

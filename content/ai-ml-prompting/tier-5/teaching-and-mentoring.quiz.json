@@ -1,0 +1,98 @@
+[
+  {
+    "id": "ai-ml-prompting/tier-5/teaching-and-mentoring/q1",
+    "type": "multiple_choice",
+    "prompt": "According to this module, which of the following is NOT one of the three specific reasons AI/ML concepts are hard to explain to true beginners?",
+    "choices": [
+      "AI/ML vocabulary borrows words from human cognition (\"thinks\", \"understands\", \"hallucinated\") that import the wrong intuitions",
+      "The actual unit of computation (tokens, vectors, attention weights) is invisible in the product's chat interface",
+      "Beginners arrive with strong wrong priors from science fiction and hype that have to be actively displaced",
+      "AI/ML concepts fundamentally require calculus that a true beginner hasn't learned yet"
+    ],
+    "correctIndex": 3
+  },
+  {
+    "id": "ai-ml-prompting/tier-5/teaching-and-mentoring/q2",
+    "type": "multiple_choice",
+    "prompt": "Why does the module recommend opening a \"What is a token?\" tutorial with the real, well-documented letter-counting failure (e.g. miscounting the r's in \"strawberry\") rather than a diagram of a tokenizer?",
+    "choices": [
+      "It's a real, verifiable, surprising failure that only makes sense once the reader learns the model operates on subword tokens rather than letters or words",
+      "It proves that language models can never be trained to count correctly under any architecture",
+      "It's an unverified rumor, so the module recommends citing it without any way for the reader to check it",
+      "Token boundaries are identical across every tokenizer vocabulary, so the example generalizes perfectly to any model"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-5/teaching-and-mentoring/q3",
+    "type": "multiple_choice",
+    "prompt": "The module recommends a live in-browser tokenizer visualizer (like tiktokenizer.vercel.app) as the primary tool for the beginner tutorial's hook. What's the main reason it's preferred over a Python snippet for this specific audience?",
+    "choices": [
+      "It trains a brand-new custom tokenizer live for whatever text the reader pastes in",
+      "The target reader can't run Python, so a no-install browser tool lets them verify the claim themselves instead of just trusting the author",
+      "It is the only tool that can correctly tokenize English text",
+      "It removes the need for the tutorial to ever mention byte-pair encoding"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-5/teaching-and-mentoring/q4",
+    "type": "multiple_choice",
+    "prompt": "In the worked feedback example, a beginner reader asked whether a \"vector\" was different from the token's \"ID number\" that the tutorial had already mentioned. What did this question reveal about the original explanation?",
+    "choices": [
+      "The reader clearly had not read the earlier part of the tutorial at all",
+      "The explanation collapsed two distinct mechanistic steps (ID lookup, then embedding-matrix row lookup) into one sentence with no marked transition, inviting the reader to conflate them",
+      "The explanation was too mathematically rigorous for the intended audience",
+      "A vector and a token ID are in fact the same object, so the confusion reflected the true mechanism"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-5/teaching-and-mentoring/q5",
+    "type": "multiple_choice",
+    "prompt": "The module's fix for the token-ID-vs-vector confusion explicitly ties back to a specific line of code the learner already traced in an earlier tier. Which one?",
+    "choices": [
+      "nanoGPT's self.transformer.wte(idx) embedding lookup in model.py, traced during Tier 3's \"Reading Real Code\" module",
+      "configurator.py's exec() trick for overwriting train.py's global namespace",
+      "The LLM-as-judge faithfulness rubric from Tier 4's evaluation module",
+      "The Reflexion self-reflection loop from Tier 4's agentic systems module"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-5/teaching-and-mentoring/q6",
+    "type": "multiple_choice",
+    "prompt": "In the pairing-session guidance, why does the module recommend swapping driver/navigator roles strictly on a visible timer, even in the middle of a task, rather than waiting for a natural stopping point?",
+    "choices": [
+      "Interpretability experiments never have natural stopping points, so timers are the only option",
+      "Swapping mid-task forces the incoming navigator to actively reconstruct and track the current state, instead of having only half-watched",
+      "It's required by a formal pair-programming certification standard referenced in the module",
+      "It guarantees the driver never introduces a bug during their turn"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-5/teaching-and-mentoring/q7",
+    "type": "multiple_choice",
+    "prompt": "A study-group facilitator asks \"any questions?\" after a paper walkthrough and gets silence. What concrete fix does the module recommend instead?",
+    "choices": [
+      "End the session early, since silence indicates everyone understood the material",
+      "Replace the open prompt with a structured task, e.g. \"everyone write down one thing you'd bet money is wrong, then we go around\"",
+      "Have the presenter repeat the exact same explanation, louder and slower",
+      "Permanently move the group to an asynchronous-only, no-meeting format"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-5/teaching-and-mentoring/q8",
+    "type": "multiple_choice",
+    "prompt": "The module notes that a common wrong prior beginners bring to a \"how does RAG work\" explanation is confusing retrieval with which other process?",
+    "choices": [
+      "Byte-pair encoding tokenization",
+      "Fine-tuning \u2014 the belief that the model's weights are being retrained on the retrieved documents",
+      "Gradient descent during pretraining",
+      "The causal attention mask"
+    ],
+    "correctIndex": 1
+  }
+]

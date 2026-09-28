@@ -1,0 +1,98 @@
+[
+  {
+    "id": "ai-ml-prompting/tier-5/frontier-tracking-and-independent-research-agenda/q1",
+    "type": "multiple_choice",
+    "prompt": "Which model suite was released specifically to support interpretability research by providing 154 public checkpoints across training for each model size?",
+    "choices": [
+      "EleutherAI's Pythia suite",
+      "OpenAI's GPT-4",
+      "Google's PaLM",
+      "Meta's Codex"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-5/frontier-tracking-and-independent-research-agenda/q2",
+    "type": "multiple_choice",
+    "prompt": "A learner wants their capstone research question to be 'why do LLMs hallucinate?' Which reformulation actually passes the three-part tractability test described in the lesson?",
+    "choices": [
+      "Keep the question as-is but promise to 'read more papers' before starting",
+      "Ask whether a CCS-style linear probe trained on Pythia-1.4b, following Burns et al.'s method, still separates true from fabricated statements on a specific curated set of 50 real vs. invented citations",
+      "Survey every major lab's public statements on hallucination and summarize them",
+      "Ask whether GPT-4 understands the concept of truth"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-5/frontier-tracking-and-independent-research-agenda/q3",
+    "type": "multiple_choice",
+    "prompt": "Which paper specifically characterizes 'induction heads' and the sudden phase transition in training loss tied to a jump in in-context learning ability?",
+    "choices": [
+      "'Attention Is All You Need' (Vaswani et al.)",
+      "'In-context Learning and Induction Heads' (Olsson et al.)",
+      "The original GPT-3 paper (Brown et al.)",
+      "The Chinchilla scaling laws paper (Hoffmann et al.)"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-5/frontier-tracking-and-independent-research-agenda/q4",
+    "type": "multiple_choice",
+    "prompt": "Given a limited weekly reading budget, which of these is the triage rule the lesson recommends for deciding a paper deserves a 45-90 minute deep read?",
+    "choices": [
+      "It has more than 100 citations",
+      "It mentions a frontier model like GPT-4 or Claude in the abstract",
+      "It has the most visually striking figures",
+      "It's directly relevant to your active research question, or comes from a small set of groups whose work you've personally verified as reliable before"
+    ],
+    "correctIndex": 3
+  },
+  {
+    "id": "ai-ml-prompting/tier-5/frontier-tracking-and-independent-research-agenda/q5",
+    "type": "multiple_choice",
+    "prompt": "What is the current status of Distill (distill.pub), the journal known for interactive visual essays that influenced today's interpretability writing style?",
+    "choices": [
+      "It still actively publishes new issues monthly",
+      "It went on indefinite hiatus in 2021 and is no longer an active submission venue",
+      "It was formally merged into arXiv in 2022",
+      "It rebranded as transformer-circuits.pub"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-5/frontier-tracking-and-independent-research-agenda/q6",
+    "type": "multiple_choice",
+    "prompt": "Which practice does the lesson identify as the strongest signal of rigor a write-up can show an expert reader?",
+    "choices": [
+      "Using dense jargon throughout to demonstrate expertise",
+      "Including as many plots as possible so nothing is left out",
+      "Describing explicitly what you tried to break your own result (different seeds, model sizes, metrics)",
+      "Withholding code until the paper is formally accepted somewhere"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "ai-ml-prompting/tier-5/frontier-tracking-and-independent-research-agenda/q7",
+    "type": "multiple_choice",
+    "prompt": "The 'grokking' phenomenon -- sudden generalization long after training loss has plateaued -- was originally reported by OpenAI researchers (Power et al., 2022) studying which kind of task, making it a popular tractable replication target for independent researchers?",
+    "choices": [
+      "Large-scale image classification",
+      "Small algorithmic tasks like modular arithmetic",
+      "Machine translation between low-resource languages",
+      "Speech recognition on noisy audio"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-5/frontier-tracking-and-independent-research-agenda/q8",
+    "type": "multiple_choice",
+    "prompt": "Why does the lesson recommend pre-registering your hypothesis (writing down your prediction and what would disconfirm it) before running an experiment?",
+    "choices": [
+      "It is required for arXiv submission",
+      "It guarantees a positive, publishable result",
+      "It speeds up GPU training time",
+      "It guards against quietly reinterpreting a null result as 'actually interesting' after the fact"
+    ],
+    "correctIndex": 3
+  }
+]

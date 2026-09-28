@@ -1,0 +1,98 @@
+[
+  {
+    "id": "ai-ml-prompting/tier-5/research-literacy/q1",
+    "type": "multiple_choice",
+    "prompt": "What is the efficient reading order for an ML paper, and why?",
+    "choices": [
+      "Abstract, then figures/tables, then methods, then full results \u2014 because the abstract states the claim, the figures compress the evidence, and methods let you judge whether to trust the figures before reading the surrounding narrative",
+      "Introduction, related work, methods, results, conclusion, in that printed order \u2014 because each section builds on the last",
+      "Results first, then conclusion, then skip straight to citations",
+      "Methods first, since nothing else in the paper makes sense without the full experimental setup"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-5/research-literacy/q2",
+    "type": "multiple_choice",
+    "prompt": "What is the core prompting trick in Kojima et al., 2022 ('Large Language Models are Zero-Shot Reasoners')?",
+    "choices": [
+      "Fine-tuning the model on chain-of-thought reasoning examples",
+      "Appending 'Let's think step by step' to the prompt before a second call extracts the final answer, with no exemplars given",
+      "Providing several few-shot exemplars of full reasoning chains",
+      "Retrieving relevant documents before answering"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-5/research-literacy/q3",
+    "type": "multiple_choice",
+    "prompt": "What does an ablation study actually show?",
+    "choices": [
+      "The effect of removing or varying exactly one component while holding everything else fixed, isolating that component's contribution",
+      "Model performance when trained with zero data",
+      "The effect of pruning small-magnitude weights from a trained network",
+      "A comparison between two entirely different architectures with no shared baseline"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-5/research-literacy/q4",
+    "type": "multiple_choice",
+    "prompt": "What did Henderson et al., 2018 ('Deep Reinforcement Learning That Matters') find when they reran published RL algorithms across many random seeds?",
+    "choices": [
+      "Random seed alone could produce performance swings as large as the differences papers reported between different algorithms",
+      "RL algorithms are fully deterministic given the same hyperparameters",
+      "More GPUs always reduced variance to negligible levels",
+      "Reproducibility was not a meaningful concern in RL research"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-5/research-literacy/q5",
+    "type": "multiple_choice",
+    "prompt": "You want to check whether a paper's headline claim has since been challenged or failed to replicate. Which Semantic Scholar feature is most directly useful?",
+    "choices": [
+      "The forward-citation ('Cited by') list, ideally sorted by influential citations",
+      "The paper's own reference list",
+      "The PDF download link",
+      "The corresponding author's h-index"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-5/research-literacy/q6",
+    "type": "multiple_choice",
+    "prompt": "A paper reports a 1-percentage-point accuracy improvement over baseline on a 250-example test set, from a single run per condition. Why is this reported gap hard to trust on its own?",
+    "choices": [
+      "The standard error at that sample size (roughly a few percentage points for accuracy near 50%) is comparable to or larger than the reported gap, and no repeated runs or paired significance test were reported",
+      "Accuracy is never a valid metric for classification tasks",
+      "250 examples is too few for any model to be evaluated at all",
+      "A 1-point gap is always caused by a software bug"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-5/research-literacy/q7",
+    "type": "multiple_choice",
+    "prompt": "Where might important mechanistic interpretability work appear that a literature review scoped only to arXiv would miss?",
+    "choices": [
+      "Venues like the Transformer Circuits Thread, the Alignment Forum, and LessWrong, which often carry interpretability work before or instead of a formal arXiv paper",
+      "Nowhere \u2014 all serious interpretability work is guaranteed to appear on arXiv eventually",
+      "Only in Nature and Science",
+      "Only in official conference proceedings, never in preprint or blog form"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "ai-ml-prompting/tier-5/research-literacy/q8",
+    "type": "multiple_choice",
+    "prompt": "You're reproducing zero-shot-CoT, but the original model (text-davinci-002) is deprecated. What's the defensible way to report your reproduction?",
+    "choices": [
+      "Rerun with a comparable current model, state the substitution explicitly, and compare the direction and rough magnitude of the effect rather than claiming to match the paper's exact reported numbers",
+      "Report the paper's original numbers as if you had generated them yourself",
+      "Decline to reproduce the result at all since the exact model is unavailable",
+      "Only ever attempt reproductions of papers whose exact original models are still publicly served"
+    ],
+    "correctIndex": 0
+  }
+]

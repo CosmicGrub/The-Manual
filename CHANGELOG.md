@@ -352,3 +352,12 @@ All notable changes to The Manual (curriculum + app) are logged here. This file 
 **Result:** `npm run build` passed clean on the first attempt. 141 unique slugs verified repo-wide.
 
 **Status:** AI/ML Tier 4 complete (78h, 6 lessons). AI/ML is now 5/6 tiers content-complete (Tiers 0-4, 295h); only Tier 5 (Expert/Innovator) remains.
+
+## [0.27.0] — 2026-09-28 — AI/ML Tier 5: complete — track is now fully content-complete
+
+**Context:** Final tier of AI/ML & Prompt Engineering. Research-adjacent and invent-rather-than-apply per the syllabus's Tier 5 policy. Written with explicit instructions for accuracy and honesty about current interpretability/alignment research — no overclaiming, open questions acknowledged.
+
+**Added**
+- `content/ai-ml-prompting/tier-5/*.mdx` (6 files) + matching quizzes: Research Literacy (a real reproduction walkthrough of Kojima et al. 2022's zero-shot chain-of-thought result, honest about why reproduced numbers won't match a paper's exact digits — deprecated models, different seeds — and why that's fine as long as you say so), Mechanistic Interpretability & Alignment Research, Novel System Design, Contributing Upstream (Hugging Face transformers, vLLM, real RAG/agent frameworks), Teaching & Mentoring, Frontier Tracking & Independent Research Agenda.
+
+**Status:** AI/ML Tier 5 complete (86h, 6 lessons). **AI/ML & Prompt Engineering is now the fourth fully content-complete track in The Manual** — all 6 tiers, 381 hours, 35 lessons — joining CS Foundations, Language Mastery, and Software Engineering. `npm run build` passed clean, 147 unique slugs verified. 5 tracks remain at syllabus-only depth: Hardware Systems, Platforms, DevOps, Cybersecurity & Ethical Hacking, Capstones.

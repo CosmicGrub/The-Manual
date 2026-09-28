@@ -1,0 +1,94 @@
+---
+trackId: ai-ml-prompting
+tier: 5
+title: "Research Literacy"
+order: 1
+estimatedHours: 14
+slug: research-literacy
+---
+
+## Why this module is different
+
+Every tier before this one handed you a known target: build this agent, wire up this eval harness, ship this feature. Tier 5 flips the loop. You now have to find out what's true yourself, from primary sources that are often wrong, sloppy, or quietly superseded. Research literacy — reading papers fast and correctly, reproducing their claims, and telling a real result from a statistical mirage — is the prerequisite skill for everything else in this tier: interpretability work, alignment research, and any experiment you design yourself. Get this wrong and you'll spend your capstone project chasing an effect that was never there.
+
+## Reading a paper in the right order
+
+Nobody who reads papers for a living reads them title-to-conclusion. The efficient order is **abstract → figures/tables → methods → results → (intro and related work only if you're going deeper)**. Here's why that order, not the "natural" one:
+
+- **Abstract** tells you the claim in one paragraph. Your first job is deciding if the claim matters to you at all. Most papers you touch should be abandoned after the abstract.
+- **Figures and tables** are where authors compress the actual evidence. A paper's real content is usually legible from its 3–5 main figures plus the results table — you can often reconstruct the whole argument before reading a sentence of body text. If the figures don't support the abstract's claim, you've learned something important in thirty seconds.
+- **Methods** come before the full results prose because now you're asking "do I believe what the figures showed me?" You need to know what was held constant, what baseline was used, how many seeds were run, before the surrounding narrative talks you into an interpretation.
+- **Full results and discussion** last, because by now you already know the headline numbers — you're reading for caveats, failure cases, and the ablations that qualify the claim.
+- **Introduction and related work** are for citation-mining and situating the paper in a lineage, not for understanding the paper itself. Skip them on a first pass.
+
+Try this order on Kojima et al., 2022, "Large Language Models are Zero-Shot Reasoners" (NeurIPS 2022) — a short, clean paper that's a good template because it has exactly one core trick. Abstract: appending "Let's think step by step" to a prompt, with no exemplars, substantially improves LLM reasoning accuracy. Figure 1 shows the four prompting conditions side by side (Zero-Shot, Zero-Shot-CoT, Few-Shot, Few-Shot-CoT) with one worked example each — you can see the entire method from this one figure. Table 2 (their main results table) shows the accuracy jump across arithmetic, symbolic, and commonsense reasoning benchmarks. Only *then* do you read Methods to see it's actually a two-stage prompt: one call to elicit reasoning, a second call ("Therefore, the answer is") to extract a parseable final answer. That two-stage detail is invisible in the abstract and easy to miss if you read front-to-back and lose focus before the methods section.
+
+## Reproducing a result from scratch
+
+Reading tells you what a paper claims. Reproducing tells you whether the claim survives contact with your own code. Pick something small enough to finish in an afternoon — this is the same instinct behind the eval harness you built in an earlier tier: define a scoring function, run it over a fixed test set, compare against a baseline. Reproducing a paper's headline ablation is that same workflow pointed at someone else's claim instead of your own prompt.
+
+Zero-shot CoT is a good first reproduction because the entire method is one sentence and the eval is just exact-match accuracy on grade-school arithmetic problems (GSM8K) or the smaller MultiArith set. A minimal version:
+
+```python
+import re
+
+def solve(question, use_cot, call_model):
+    if use_cot:
+        reasoning = call_model(f"Q: {question}\nA: Let's think step by step.")
+        final = call_model(
+            f"Q: {question}\nA: Let's think step by step. {reasoning}\n"
+            f"Therefore, the answer (arabic numerals) is"
+        )
+    else:
+        final = call_model(f"Q: {question}\nA:")
+    return extract_number(final)
+
+def extract_number(text):
+    match = re.search(r"-?\d[\d,]*\.?\d*", text)
+    return float(match.group().replace(",", "")) if match else None
+
+def accuracy(questions, answers, use_cot, call_model):
+    correct = sum(
+        solve(q, use_cot, call_model) == a
+        for q, a in zip(questions, answers)
+    )
+    return correct / len(questions)
+```
+
+Run this over ~100–200 GSM8K problems with and without `use_cot`, and you'll see the same qualitative pattern the paper reports: zero-shot accuracy sitting under 20%, zero-shot-CoT landing somewhere around 40–50% on arithmetic tasks — a large, easily visible jump from one sentence, though your exact numbers won't match Table 2's decimals, and that's the important lesson. `text-davinci-002`, the model Kojima et al. used, is deprecated; current models solve GSM8K well above either of the paper's conditions, which compresses the gap. This is normal and worth stating explicitly in any write-up: **you reproduce the effect and its direction, not the literal digits**, and you say so rather than quietly reporting numbers that look like the paper's.
+
+Two things will break on your first attempt, and both are realistic research-code experiences, not bugs in your understanding: the answer-extraction regex will grab the wrong number when the model's reasoning mentions intermediate values before the final one, and a nontrivial fraction of "wrong" answers will actually be parsing failures, not reasoning failures. Paper authors hit the same problem and usually under-document their exact parsing rules — you'll often have to infer them from the paper's appendix or, more often, from nothing at all. This is exactly the "read the code, not just the docs" muscle you built reading unfamiliar codebases in an earlier tier, except now there frequently is no code to read; original implementations for many papers are never released, or are released once and never touched again.
+
+## Ablation tables and statistical significance
+
+An ablation table answers one question per row: *what happens if I remove or change exactly one thing, holding everything else fixed?* The value of the table depends entirely on how well "everything else" was actually held fixed.
+
+Take Table 3 from "Attention Is All You Need" (Vaswani et al., 2017), row group (A): it varies the number of attention heads from 1 up to 32 while keeping total parameter count roughly constant by adjusting `d_k` and `d_v` inversely. A single head costs on the order of a full BLEU point versus the 8-head base configuration; going up to 32 heads doesn't help further and costs a little too. The row-by-row structure is the point: it isolates head count as the variable, so the BLEU differences are (mostly) attributable to that one factor rather than to a confound like extra parameters. Notice what the table doesn't have, though: no standard deviations, no repeated runs. A 0.1–0.2 BLEU difference in that era of paper was routinely reported as meaningful when it may well have been within run-to-run noise. That's not a knock on the paper specifically — it's how most of the field reported results before reproducibility became a stated concern.
+
+That concern has a canonical citation: Henderson et al., 2018, "Deep Reinforcement Learning That Matters" (AAAI). They reran published RL algorithms across many random seeds and found that seed variance alone could produce performance swings as large as the differences papers were reporting *between different algorithms*. Same code, same hyperparameters, different seed, different headline number. Their recommendation — report results across many seeds with confidence intervals, not a single best run — is the bar you should hold any result to before trusting a reported gain, in RL or anywhere else. A related, more recent version of the same problem shows up in prompting research: Sclar et al., 2023 ("Quantifying Language Models' Sensitivity to Spurious Features in Prompt Design") found that trivial formatting changes to a prompt — spacing, separators, casing — swing accuracy by tens of points on some benchmarks, for some models. If a paper's "improvement" from a new prompting technique is smaller than that noise floor, and they only tried one prompt template per condition, you should be skeptical regardless of how clean the ablation table looks.
+
+The practical check you can always run yourself: for a binary correct/incorrect metric on `n` examples, the standard error of the accuracy is roughly `sqrt(p(1-p)/n)`. On a 250-example test set at `p ≈ 0.5`, that's about 3.2 percentage points of standard error — meaning a reported 1-point improvement over a baseline is well inside the noise unless the comparison is paired (same items, same seed apart from the intervention) and ideally tested with something like McNemar's test rather than eyeballing two accuracy numbers. GSM8K's full test set is 1,319 problems, which shrinks that error band but doesn't eliminate it — always check `n` before trusting a delta.
+
+Reproduction efforts sometimes surface bigger problems than noise. Besiroglu et al., 2024 ("Chinchilla Scaling: A Replication Attempt," Epoch AI) tried to reproduce the compute-optimal scaling law from Hoffmann et al., 2022 ("Training Compute-Optimal Large Language Models") and found the digitized data points in the original paper's Figure 4 didn't cleanly support the fitted law as published, and a refit shifted the recommended compute allocation. This is the point of doing reproductions at all: a widely-cited, widely-used result had gone unchallenged for two years simply because almost no one had tried to regenerate its numbers from scratch.
+
+## Using arXiv and Semantic Scholar for literature review
+
+A working literature-review loop, not just "search arxiv.org":
+
+1. **Start from one paper you trust or need.** Open it in Semantic Scholar (semanticscholar.org), not just arXiv — you get its citation graph for free.
+2. **Go backward first**: skim the reference list for the 3–5 papers it leans on most (usually cited multiple times or in the methods section, not just the related-work paragraph). This gives you the lineage.
+3. **Then go forward**: use Semantic Scholar's "Citations" tab, sorted by "Highly Influential," to see what has *used* this paper since. This is how you find out if a result has been challenged, replicated, or quietly superseded — arXiv itself has no mechanism for this at all; a flawed paper and its refutation are just two unrelated listings unless something links them.
+4. **Read the TLDR** Semantic Scholar auto-generates for papers in your forward-citation list before deciding which ones are worth the abstract-figures-methods treatment. It's a machine summary, not gospel, but it's a fast filter across 40 citing papers.
+5. **Check the arXiv listing pages directly** (arxiv.org/list/cs.CL/recent, cs.LG, stat.ML) once a week for your specific subfield rather than relying purely on search — search only finds what you already know to look for.
+6. **Treat arXiv as a preprint server, not a publication record.** No peer review gates anything landing there. Check the version history (v1 vs. the current version) — authors silently fix errors, walk back claims, or add caveats between versions, and the abstract page shows the diff dates even when it doesn't show the diff itself. If a paper was later published at a venue (NeurIPS, ICML, ICLR), that's a weak positive signal it survived some scrutiny; withdrawn papers are a real, if rare, negative signal worth noticing.
+7. **For interpretability and alignment work specifically, arXiv is not sufficient on its own.** A meaningful share of the mechanistic interpretability literature — including Elhage et al., 2021's "A Mathematical Framework for Transformer Circuits" and Olsson et al., 2022's "In-context Learning and Induction Heads" — was published on Anthropic's Transformer Circuits Thread (transformer-circuits.pub) and never posted to arXiv at all. The Alignment Forum and LessWrong are where a lot of interpretability work gets its first public airing and its first serious critique, often before or instead of a formal paper. If your literature review for a mech-interp topic only touches arXiv, you're missing real chunks of the field.
+
+## Exercise
+
+Pick a short paper (under ~10 pages) with a clean, single-variable ablation table — a prompting paper, a small architecture ablation, or an interpretability result with a quantitative claim. Do three things and write up what you find in a few paragraphs:
+
+1. Read it in abstract → figures → methods → results order and write down the claim in one sentence before you read the methods.
+2. Reproduce the core comparison at small scale — even 50–100 examples is enough to see whether the qualitative pattern holds.
+3. Compute the standard error for your reproduction's sample size and say explicitly whether your observed gap would survive that noise band, and whether the original paper's `n` was large enough for its own reported gap to be meaningful.
+
+**Hint:** if you can't find a paper with an ablation simple enough to run in an afternoon, a good place to look is short empirical prompting papers (like the zero-shot-CoT paper above) or small-model interpretability posts on the Transformer Circuits Thread — both tend to report one clear number per condition rather than a sprawling multi-table results section, which makes the standard-error check tractable.

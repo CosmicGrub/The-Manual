@@ -1,0 +1,65 @@
+---
+trackId: ai-ml-prompting
+tier: 5
+title: "Contributing Upstream"
+order: 4
+estimatedHours: 14
+slug: contributing-upstream
+---
+
+## From reading code to changing it
+
+Tier 3's "Reading Real Code" module taught you to navigate an unfamiliar codebase: trace a call path, find where an abstraction is actually implemented versus where it's just re-exported, understand a module's test suite as documentation. Tier 4 had you build eval harnesses and ReAct agents against real APIs. All of that was reading and building *for yourself*. This module is about a different skill: getting a maintainer team — people who don't know you, have a backlog of 400 open PRs, and are protecting a codebase that thousands of production systems depend on — to accept your change into their history.
+
+That's a social and process problem as much as a technical one. Most people who fail at this don't fail because their code is bad. They fail because they wrote 1,500 lines of code nobody asked for, skipped the design conversation, and submitted a PR that a maintainer has to either fight with or ignore. This module is about not doing that.
+
+## The shape of a major AI project's contribution pipeline
+
+Every large AI OSS project has an actual, documented process, and it's worth reading before you write a line of code. Three concrete cases, because the shape differs a lot by project type.
+
+**Hugging Face `transformers`** is a library-discipline project. Its defining constraint, historically, was "single model, single file": every model's forward pass lives in one `modeling_xxx.py` file with no shared inheritance across models, so you can open any model and read its entire implementation top to bottom without chasing base classes. That's great for readers, brutal for contributors, because it meant every new model PR duplicated thousands of lines of attention and MLP boilerplate. In 2024 the maintainers shipped **Modular Transformers** to fix this without abandoning the philosophy: you now write a `modular_xxx.py` file that imports and lightly overrides pieces of an existing model, and a linter "unravels" it into the full single-file `modeling_xxx.py` at build time. Reviewers see both files; users still get one flat file to read. ModernBERT (contributed by Answer.AI, LightOn, and Hugging Face staff in 2024) was one of the first models built this way. `transformers` has "Good First Issue" labels for real but small fixes, a documented model-contribution checklist (`docs/source/en/add_new_model.md`), and a separate checklist specifically for vision-language models. There's no CLA or DCO — you open a PR, it goes through `make quality` / `make style` (ruff-based linting) and the model's own test file under `tests/models/<name>/`, and human review does the rest. A distinctive pattern here: for a promising but rough model PR, HF staff will often push commits directly onto *your* branch to finish formatting, tests, and docs, while keeping you as co-author. That's normal, not a rejection.
+
+**vLLM** is a systems project, and its process reflects that. Contributing requires a DCO sign-off on every commit (`git commit -s` adds the `Signed-off-by:` trailer; without it, CI rejects the PR outright). More importantly: any change over roughly 500 lines of code — excluding CUDA kernels, data files, config, and tests — is expected to have an RFC first, typically a GitHub issue laying out the technical design and rationale. Skip that step and your PR gets auto-tagged `rfc-required` and effectively parked until you go open one. PRs use title prefixes (`[Bugfix]`, `[Core]`, `[Kernel]`, `[Frontend]`, etc.) to route review, get assigned a reviewer who's expected to post a status update every 2–3 days, and you're explicitly invited to ping after a week of silence. GPU CI is expensive to run (multi-GPU matrix jobs), so it's gated by maintainers rather than firing on every push. The concrete shape of a real substantive contribution here: Neural Magic's Marlin kernel — a mixed-precision GPTQ int4 GPU kernel (the MARLIN paper, arXiv:2408.11743) — went in as low-level `.cu` code under `csrc/quantization/gptq_marlin/`, with benchmark numbers in the PR description showing the throughput win, because in a systems project "does it work" and "is it fast, provably" are both required, not optional.
+
+**RAG and agent frameworks** split the difference. LangChain separates `langchain-core` (the LCEL/`Runnable` primitives everything else builds on) from `langchain-community` and vendor-maintained partner packages. A new integration — a vector store, an LLM provider, a document loader — is a self-contained adapter implementing a known interface, and it goes into `langchain-community` or a partner package with comparatively light review, because it can't break anyone who isn't using it. A change to `langchain-core` itself is a different animal: it can silently alter behavior for every chain built on top of it, so it needs discussion, not just a working diff. DSPy (Stanford, Omar Khattab's group) runs its design gate through GitHub issues rather than a separate RFC label: propose a new `Module`, `Teleprompter`/optimizer, or retrieval integration on an issue first, because DSPy's maintainers are actively protecting a specific philosophical stance — "programming, not prompting" — and a technically fine PR that reintroduces string-template prompt engineering through the back door will get pushed back on for fit, not for code quality.
+
+## What actually makes a contribution substantive
+
+Not size. A one-line change to a scheduler's eviction policy can be substantive; a 400-line new unit test file usually isn't. The real axes:
+
+- **Does it change public API surface or add a capability that didn't exist?** Adding a new sampling parameter to `generate()` is substantive even if the diff is small, because every downstream caller now has a new knob to reason about.
+- **Does it require a maintainer to make a judgment call, not just verify correctness?** A typo fix has one obviously-correct answer. A new scheduling algorithm has tradeoffs a maintainer has to actually think through.
+- **Does it need net-new tests and docs, or does it slot into an existing pattern?** Fixing an off-by-one in an existing test is trivial. Writing the first test coverage for a new code path is not.
+- **Is it performance-sensitive, requiring before/after benchmarks?** This is close to mandatory for anything touching vLLM's hot path.
+- **Are you supplying domain knowledge the issue tracker doesn't already have?** This is the real tier-5 marker. A "good first issue" is fully specified — someone already did the thinking, you're executing. A substantive contribution usually means *you* are the one who understands the paper, the kernel, or the architecture well enough to write the design doc in the first place.
+
+Three real examples, in increasing order of how much outside knowledge they required:
+
+**Min-p sampling.** In November 2023, a `transformers` issue (#27670) proposed an alternative to top-p/top-k truncation: scale the sampling threshold by the top token's own probability, so the cutoff tightens automatically when the model is confident and loosens when it's uncertain. It went through community discussion, got implemented, and merged as `transformers` PR #30639; vLLM picked it up separately as PR #1642, a much smaller diff because vLLM's sampler is already modular. The idea was then formalized and evaluated properly in "Turning Up the Heat: Min-p Sampling for Creative and Coherent LLM Outputs" (arXiv:2407.01082), with benchmarks across GSM8K, GPQA, and creative-writing evals. That's the full loop this tier is about: an idea, argued for on an issue tracker, implemented and merged into two major frameworks, then written up as a paper with proper evaluation. Contributing upstream and doing research aren't separate tracks — this is what it looks like when they're the same activity.
+
+**Mamba integration into `transformers`** (tracked from issue #28086). This is a different kind of substantive: Mamba is a state-space model, architecturally unrelated to the attention mechanism every other model in the library is built around. Landing it meant new modeling code from scratch, binding to the original `mamba-ssm` CUDA kernels, making it work with the `Trainer` API and generation utilities that assume a transformer-shaped forward pass, plus the doc page and tests every model needs. Multi-week review, several thousand lines, genuinely hard to get right — the kind of PR where "add a new model" checklist compliance is necessary but nowhere near sufficient.
+
+**Marlin/Neural Magic's quantization kernels for vLLM.** Systems-level: hand-written CUDA, correctness proofs via numerical tests against an unquantized baseline, and throughput benchmarks as part of the PR justification, because a kernel that's 10% slower than the existing one is a regression no matter how clean the code is.
+
+## The real shape of the process, step by step
+
+1. **Find real work, not the beginner queue.** For a tier-5 contribution you're not looking at "Good First Issue." You're looking at RFC-tagged or `help wanted` issues, community-meeting notes (vLLM posts these), issues with a pile of reactions and duplicate reports but no assignee, or a maintainer comment that says "PRs welcome" on something nobody's picked up.
+2. **Discuss before you write code.** Comment on the issue with your proposed approach. If there's no RFC and your change will cross vLLM's 500-LOC threshold, open one yourself. Get an explicit "sounds right, go ahead" from a maintainer before you sink real time in — this single step is what separates a contribution that gets reviewed from one that gets auto-tagged and ignored.
+3. **Open a draft PR early.** Push incomplete, unpolished code as a draft/WIP to get architecture-level feedback before you spend days polishing something whose fundamental approach a maintainer would have redirected on day one.
+4. **Meet the CI bar before requesting review**, not after: `make style`/`make quality` and the relevant test file for `transformers`; the lint/type/test suite plus, for anything hot-path, a benchmark comparison for vLLM.
+5. **Expect several review rounds.** Line comments, disagreement about the exact API shape, possibly a maintainer pushing commits straight onto your branch to finish it — especially common on `transformers` model PRs, where staff will often do the last-mile polish themselves while keeping your authorship.
+6. **Merge is usually squash-merge**, sometimes followed by real downstream work — for a new model, that means converting and uploading checkpoints to the Hub; for a kernel, cutting a release note calling out the perf win.
+
+## Reading the room: why PRs stall
+
+The common failure mode isn't bad code, it's process: a large diff opened without the required RFC (parked under `rfc-required` until you fix that); solving a problem nobody on the maintainer team currently cares about, no matter how correct; formatting fights that a five-second `make style` run would have prevented; or duplicating work already in flight because you didn't check whether the issue already has an assignee or a linked draft PR. Read the last 5–10 *merged* PRs of similar shape in the repo before you start — they tell you, more reliably than the CONTRIBUTING.md, what "acceptable" actually looks like in practice.
+
+## Exercise
+
+Pick one real target and go as far as the design-conversation stage (you don't have to get a PR merged to complete this — that can take weeks with real maintainers):
+
+- Find an open RFC-tagged issue in `vllm-project/vllm`, or a `help wanted`/design-discussion issue in `huggingface/transformers`, `langchain-ai/langchain`, or `stanfordnlp/dspy` that's been open more than two weeks with no assigned PR.
+- Read the entire discussion thread, including any linked prior attempts or closed PRs on the same problem.
+- Write (post it if you're genuinely ready to follow through; otherwise draft it) a comment proposing a concrete implementation approach: what files/modules it touches, what existing tests it would extend versus what new tests it needs, and — if it's vLLM or another performance-sensitive project — what you'd benchmark and against what baseline.
+
+Hint: before you write the proposal, go find the CI config (`.github/workflows/`, or `Makefile` targets like `quality`/`style`/`test`) and run it locally against a trivial change first. Knowing exactly what bar your code has to clear changes what you propose — projects with cheap, fast CI tolerate rougher first drafts than projects with 20-minute GPU test suites.

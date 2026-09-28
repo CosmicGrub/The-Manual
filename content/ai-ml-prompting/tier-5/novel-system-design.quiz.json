@@ -1,0 +1,98 @@
+[
+  {
+    "id": "ai-ml-prompting/tier-5/novel-system-design/q1",
+    "type": "multiple_choice",
+    "prompt": "Which of the following best satisfies this module's scoping checklist for a 'novel-but-small' Tier 5 research project?",
+    "choices": [
+      "Pretraining a new 1B-parameter model from scratch to test a new attention variant",
+      "Reordering few-shot bias cues on a 50-item reasoning benchmark to test chain-of-thought faithfulness, with a clear metric and a stated mechanistic hypothesis",
+      "Reading ten papers on RLHF and summarizing common themes",
+      "Building a production-grade multi-tenant RAG system for a real company"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-5/novel-system-design/q2",
+    "type": "multiple_choice",
+    "prompt": "In Turpin et al.'s (2023) chain-of-thought faithfulness study, what was the key finding about biased few-shot cues?",
+    "choices": [
+      "Models refused to answer when a biasing cue was present",
+      "Final answers shifted substantially toward the biased option, but the stated reasoning almost never mentioned the bias as a cause",
+      "The bias had no measurable effect on either answers or stated reasoning",
+      "Larger models were immune to the bias while smaller models were not"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-5/novel-system-design/q3",
+    "type": "multiple_choice",
+    "prompt": "Why does the module recommend pre-registering your hypothesis and analysis plan before running the experiment?",
+    "choices": [
+      "It is required by journals before a paper can be submitted",
+      "It makes the code run faster since the analysis is already written",
+      "It prevents you from silently adjusting the hypothesis, sample size, or judge prompt after seeing results to manufacture a significant-looking finding",
+      "It replaces the need for a control condition"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "ai-ml-prompting/tier-5/novel-system-design/q4",
+    "type": "multiple_choice",
+    "prompt": "You run the CoT-faithfulness experiment at n=45 per arm and get a 12-point directional swing toward the biased answer with p=0.11. What is the honest way to report this?",
+    "choices": [
+      "Report it as a confirmed replication of Turpin et al.'s finding",
+      "Omit the result from the write-up since it did not reach significance",
+      "Report the actual numbers, note the effect is directionally consistent with prior work but not statistically distinguishable from noise at this sample size, and estimate what n would be needed for adequate power",
+      "Increase the sample size until p drops below 0.05, then report only that run"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "ai-ml-prompting/tier-5/novel-system-design/q5",
+    "type": "multiple_choice",
+    "prompt": "In the worked chain-of-thought faithfulness eval, why does the module add a position-matched control arm (reordering choices with no suggestive text) alongside the biased-suggestion arm?",
+    "choices": [
+      "To increase the total sample size for more statistical power",
+      "To isolate whether an observed answer-shift is caused by the suggestive cue itself, rather than by the wrong answer simply occupying a favored list position",
+      "To make the experiment run faster by parallelizing API calls",
+      "To test whether the model can be jailbroken"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-5/novel-system-design/q6",
+    "type": "multiple_choice",
+    "prompt": "Which statement is accurate about the relationship between the CoT-faithfulness eval in this module and the activation-patching work from mechanistic interpretability?",
+    "choices": [
+      "They are identical techniques requiring the same level of model access",
+      "The prompt-based bias-injection eval is a black-box analogue of activation patching: it perturbs an external input rather than an internal activation, and can show that behavior is unfaithful without revealing the internal circuit-level cause",
+      "Activation patching is only usable via a closed API, while prompt-based bias injection requires full model weights",
+      "Chain-of-thought faithfulness testing was made obsolete by the invention of activation patching"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-5/novel-system-design/q7",
+    "type": "multiple_choice",
+    "prompt": "Before trusting the LLM-judge function that checks whether a chain-of-thought mentions the injected bias, what should you do first, per this track's established eval discipline?",
+    "choices": [
+      "Assume it is correct since it uses temperature=0",
+      "Calibrate it against a small number of hand-labeled cases you already know the right answer to, and check its agreement rate before trusting its verdicts on the full run",
+      "Skip calibration since judge calls are only used for hallucination detection, not faithfulness detection",
+      "Replace it with a simple keyword search for the word 'bias'"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-5/novel-system-design/q8",
+    "type": "multiple_choice",
+    "prompt": "Why does the module argue that a well-designed negative or ambiguous result is a legitimate, complete research output rather than a failed project?",
+    "choices": [
+      "Negative results are always more scientifically interesting than positive ones",
+      "ML research culture has a documented bias toward publishing only clean positive findings, so an honestly reported null or ambiguous result on a well-posed, falsifiable hypothesis is a real contribution and avoids wasted duplicate effort by others",
+      "Journals require an equal number of negative and positive results per author",
+      "A negative result proves the hypothesis was wrong for all future experiments"
+    ],
+    "correctIndex": 1
+  }
+]

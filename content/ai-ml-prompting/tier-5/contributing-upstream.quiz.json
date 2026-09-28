@@ -1,0 +1,98 @@
+[
+  {
+    "id": "ai-ml-prompting/tier-5/contributing-upstream/q1",
+    "type": "multiple_choice",
+    "prompt": "According to vLLM's contribution guidelines, what triggers the expectation that a contributor open an RFC (design discussion issue) before submitting a PR?",
+    "choices": [
+      "Any PR that touches a file under csrc/",
+      "A change exceeding roughly 500 lines of code, excluding kernel, data, config, and test files",
+      "Any PR opened by a first-time contributor",
+      "A change that modifies more than one Python file"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-5/contributing-upstream/q2",
+    "type": "multiple_choice",
+    "prompt": "What mechanism did Hugging Face transformers introduce to cut boilerplate in new model contributions while preserving its 'single model, single file' reading experience for users?",
+    "choices": [
+      "A shared base class every new model must inherit from directly",
+      "Modular Transformers: you write a modular_xxx.py file that a linter unravels into the full modeling_xxx.py",
+      "A code generator that scaffolds the entire model from a YAML config",
+      "Removing the single-file policy entirely in favor of shared attention modules"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-5/contributing-upstream/q3",
+    "type": "multiple_choice",
+    "prompt": "You open a 900-line PR to vLLM implementing a new request-scheduling policy, with no prior issue or discussion. What is the most likely outcome?",
+    "choices": [
+      "It merges quickly since scheduling changes are always welcome",
+      "CI rejects it immediately for missing a DCO sign-off, unrelated to its size",
+      "It gets auto-tagged rfc-required and is unlikely to be reviewed until you open a design discussion issue",
+      "A maintainer rewrites it from scratch before merging"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "ai-ml-prompting/tier-5/contributing-upstream/q4",
+    "type": "multiple_choice",
+    "prompt": "Min-p sampling is a useful case study for this tier because it shows which full arc?",
+    "choices": [
+      "A typo fix that was later expanded into a full model architecture",
+      "A community-proposed idea on a GitHub issue that was implemented and merged into two major frameworks (transformers and vLLM) and later formalized in a published paper",
+      "A maintainer-only feature that no external contributor was allowed to touch",
+      "A change that required a CLA before it could be merged into either project"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-5/contributing-upstream/q5",
+    "type": "multiple_choice",
+    "prompt": "Which of the following is the clearest example of a substantive AI-tooling contribution, as opposed to a trivial fix?",
+    "choices": [
+      "Fixing a broken hyperlink in a documentation page",
+      "Adding a state-space model architecture like Mamba, requiring new modeling code, bindings to external CUDA kernels, and Trainer-API compatibility",
+      "Correcting a misspelled variable name in a comment",
+      "Bumping a pinned dependency version in requirements.txt"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-5/contributing-upstream/q6",
+    "type": "multiple_choice",
+    "prompt": "In vLLM, what does running `git commit -s` do that matters for getting a PR accepted?",
+    "choices": [
+      "It signs the commit with a GPG key required by GitHub branch protection",
+      "It adds the Signed-off-by trailer required to satisfy the project's DCO requirement",
+      "It automatically runs the linter before the commit is created",
+      "It squashes all prior commits on the branch into one"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-5/contributing-upstream/q7",
+    "type": "multiple_choice",
+    "prompt": "In LangChain's package structure, where would a new vector-store integration typically land, versus a change to a core Runnable/LCEL primitive?",
+    "choices": [
+      "Both go through the identical review process since all code lives in one package",
+      "The integration goes into langchain-community or a partner package with lighter review; the core primitive change needs broader discussion since it can affect every downstream chain",
+      "The integration requires an RFC while core primitive changes do not, since core is rewritten frequently",
+      "Neither can be contributed externally; both are maintainer-only"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-5/contributing-upstream/q8",
+    "type": "multiple_choice",
+    "prompt": "While your model-contribution PR to transformers is under review, a Hugging Face staff member pushes several commits directly onto your branch to fix formatting and add missing tests, keeping you listed as co-author. What does this most likely indicate?",
+    "choices": [
+      "Your PR is being rejected and taken over without credit",
+      "This is a normal, common pattern for promising model PRs \u2014 staff finishing the last-mile polish while preserving your authorship",
+      "You violated the DCO and the maintainer is correcting it",
+      "The PR was auto-flagged as a duplicate and is being merged into someone else's branch"
+    ],
+    "correctIndex": 1
+  }
+]
