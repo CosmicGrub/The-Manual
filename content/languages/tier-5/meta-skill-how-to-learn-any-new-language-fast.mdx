@@ -1,0 +1,281 @@
+---
+trackId: languages
+tier: 5
+title: "Meta-Skill: How to Learn Any New Language Fast"
+order: 1
+estimatedHours: 8
+slug: meta-skill-how-to-learn-any-new-language-fast
+---
+
+## Why This Module Has No New Syntax
+
+Five tiers in, you've written real code in Python, JavaScript, TypeScript, C, C++, Java/C#, Go, Rust, and Bash. You've allocated memory by hand and watched a garbage collector do it for you. You've raced threads and watched the compiler refuse to let you. You've felt a type checker catch a bug before runtime and felt one do nothing at all.
+
+That's not nine unrelated skills. It's one skill — **fast language transfer** — that you've been training without naming it. This module names it, extracts it into a checklist, and hands you a template you can point at any language you haven't touched yet.
+
+The claim: you can get productive in a genuinely new language in days, not months, if you stop asking "what's the syntax for a for-loop" (you'll pick that up from the first page of any tutorial) and start asking six specific questions that predict where the language will surprise you.
+
+## The Six-Axis Transfer Checklist
+
+For any new language, interrogate it along these axes, in this order. Each one below is grounded in something you already built.
+
+### 1. Paradigm — how does it model "a thing that does something"?
+
+- **Python**: multi-paradigm by default. Classes with `__dunder__` methods, but functions are first-class and duck typing means you rarely check `isinstance` — you just call the method and let `AttributeError` tell you if you're wrong.
+- **Go**: deliberately anti-inheritance. No class hierarchy at all — you get structs plus implicit interface satisfaction. A type doesn't declare "I implement `Writer`"; it just has a `Write([]byte) (int, error)` method and the compiler figures out it satisfies `io.Writer` wherever that's needed.
+- **Rust**: trait-based, and — like Go — no inheritance. But unlike Go, trait implementation is explicit (`impl Display for Point`), and the compiler enforces coherence rules about who's allowed to implement what for what.
+
+The transfer question: **does this language give you a hierarchy to climb, or a set of behaviors to satisfy?** Getting this wrong is why people write "Java-shaped" Go code full of unnecessary interfaces, or "C++-shaped" Rust code full of unnecessary `dyn Trait` boxes when a generic would do.
+
+### 2. Memory Model — who decides when memory dies, and how do you find out you got it wrong?
+
+This is the axis with the widest spread in the whole track, and you've lived all three extremes.
+
+Python — reference counting plus a cycle-detecting GC, so you never call anything to free memory, but cycles are still a real cost:
+
+```python
+class Node:
+    def __init__(self, value):
+        self.value = value
+        self.next = None
+
+a = Node(1)
+b = Node(2)
+a.next = b
+b.next = a          # a cycle -- refcounting alone can't collect this
+del a, b             # unreachable now, but freed by the *cycle collector*, not refcounting
+```
+
+C — you are the allocator, and the compiler will not save you:
+
+```c
+typedef struct Node { int value; struct Node *next; } Node;
+
+Node *make_node(int v) {
+    Node *n = malloc(sizeof(Node));
+    n->value = v;
+    n->next = NULL;
+    return n;
+}
+
+void free_list(Node *head) {
+    while (head) {
+        Node *next = head->next;
+        free(head);
+        head = next;
+    }
+}
+```
+
+Rust — ownership tracked at compile time, no runtime GC, and no `free()` call anywhere:
+
+```rust
+struct Node {
+    value: i32,
+    next: Option<Box<Node>>,
+}
+
+fn main() {
+    let mut head = Node { value: 1, next: None };
+    head.next = Some(Box::new(Node { value: 2, next: None }));
+    // no free() -- when `head` goes out of scope its Box is dropped,
+    // which recursively drops `next`. A cycle here needs Rc<RefCell<_>>
+    // plus Weak to avoid a leak -- Rust doesn't eliminate the *problem*,
+    // it just moves the failure mode from "use-after-free" to "leak."
+}
+```
+
+Three different answers to the same question, and each one predicts a different class of bug you'll write in month one: Python — accidental cycles holding large objects alive; C — use-after-free and double-free; Rust — fighting the borrow checker until you learn to design around ownership instead of against it.
+
+### 3. Concurrency Model — what's the unit of concurrency, and who enforces safety?
+
+Python's GIL means threads don't give you parallel CPU work, and — the trap everyone falls into — it does **not** make compound operations atomic:
+
+```python
+import threading
+counter = 0
+def worker():
+    global counter
+    for _ in range(1_000_000):
+        counter += 1          # read-modify-write, not one bytecode op
+
+threads = [threading.Thread(target=worker) for _ in range(4)]
+[t.start() for t in threads]
+[t.join() for t in threads]
+print(counter)                # < 4_000_000, and different each run
+```
+
+Go gives you goroutines plus channels — CSP-style, "share memory by communicating":
+
+```go
+func main() {
+    var wg sync.WaitGroup
+    ch := make(chan int)
+    for i := 0; i < 4; i++ {
+        wg.Add(1)
+        go func(id int) {
+            defer wg.Done()
+            ch <- id * id
+        }(i)
+    }
+    go func() { wg.Wait(); close(ch) }()
+    for v := range ch {
+        fmt.Println(v)
+    }
+}
+```
+
+Rust gives you real OS threads plus a compiler that refuses to build unsynchronized shared mutation at all:
+
+```rust
+let counter = Arc::new(Mutex::new(0));
+let mut handles = vec![];
+for _ in 0..4 {
+    let counter = Arc::clone(&counter);
+    handles.push(thread::spawn(move || {
+        for _ in 0..1_000_000 { *counter.lock().unwrap() += 1; }
+    }));
+}
+for h in handles { h.join().unwrap(); }
+println!("{}", *counter.lock().unwrap());   // always exactly 4_000_000
+```
+
+The transfer question isn't "does it have threads" — almost everything does. It's **"is the safety guarantee enforced by the compiler, by a runtime, or by convention?"** Go's mutex discipline is convention (nothing stops you from touching the map without the lock). Rust's is compiler-enforced. Python's GIL protects the interpreter's internals, not your logic.
+
+### 4. Type System — static/dynamic, nominal/structural, and how are "this OR that" values expressed?
+
+Watch the same "shape with an area" problem cross three type systems you've already used:
+
+```python
+from dataclasses import dataclass
+from typing import Union
+
+@dataclass
+class Circle: radius: float
+@dataclass
+class Rect: w: float; h: float
+Shape = Union[Circle, Rect]
+
+def area(s: Shape) -> float:
+    match s:
+        case Circle(radius=r): return 3.14159 * r * r
+        case Rect(w=w, h=h): return w * h
+```
+
+```rust
+enum Shape {
+    Circle { radius: f64 },
+    Rect { w: f64, h: f64 },
+}
+
+fn area(s: &Shape) -> f64 {
+    match s {
+        Shape::Circle { radius } => std::f64::consts::PI * radius * radius,
+        Shape::Rect { w, h } => w * h,
+    }
+}
+```
+
+```typescript
+type Shape =
+  | { kind: "circle"; radius: number }
+  | { kind: "rect"; w: number; h: number };
+
+function area(s: Shape): number {
+  switch (s.kind) {
+    case "circle": return Math.PI * s.radius ** 2;
+    case "rect": return s.w * s.h;
+  }
+}
+```
+
+Same concept — a sum type — three different levels of guarantee. Python's `match` is a runtime dispatch with hints that vanish; nothing forces you to handle a case. Rust's `match` is **exhaustiveness-checked at compile time** — add a `Triangle` variant and every unhandled `match` becomes a compile error. TypeScript's discriminated union is structural — the `kind` field narrows the type, and `strictNullChecks`-style exhaustiveness only bites if you assign the switch result and use a `never` check.
+
+Transfer question: **when you add a new case to a sum type, does the compiler find every place you forgot to handle it, or do you find out at 2am from a bug report?**
+
+### 5. Tooling & Package Manager — what's the one blessed way to build, test, and ship?
+
+| Language | Dependency + build + test + format |
+|---|---|
+| Python | fragmented historically (`pip`/`venv`/`setuptools`), converging on `uv`/`pyproject.toml` |
+| JS/TS | `npm`/`pnpm`/`yarn` + `package.json`, still no single blessed tool |
+| Go | `go.mod`, `go build`, `go test`, `go fmt` — one toolchain, no debate |
+| Rust | `cargo` — dependency resolution, build, test, format (`cargo fmt`), docs (`cargo doc`), publish, all one command |
+| C/C++ | no standard at all — `make`/`cmake`/`ninja` for build, `vcpkg`/`conan` for deps, bolted together per-project |
+| Bash | no package manager; the script itself is the deliverable, dependencies are whatever binaries happen to be on `$PATH` |
+
+Transfer question: **when you clone a random project in this language, is there one obvious command that gets you from zero to a passing test suite?** If yes (Go, Rust), budget almost no ramp-up time for tooling. If no (C++, historically Python), budget real time — tooling friction is where "learning the language" quietly turns into "learning this project's Makefile."
+
+### 6. Idioms — what makes technically-correct code look wrong to a native speaker?
+
+- **Python**: EAFP over LBYL — try it, catch the exception, rather than checking first.
+  ```python
+  try:
+      value = d["key"]
+  except KeyError:
+      value = default
+  ```
+- **Go**: explicit, boring error checking, every time, no exceptions for control flow.
+  ```go
+  value, ok := d["key"]
+  if !ok {
+      value = defaultValue
+  }
+  ```
+- **Rust**: `Result<T, E>` propagated with `?`, not unwrapped everywhere.
+  ```rust
+  fn read_config() -> Result<Config, io::Error> {
+      let text = fs::read_to_string("config.toml")?;
+      Ok(toml::from_str(&text)?)
+  }
+  ```
+- **Bash**: pipes and text streams are the entire interface — you compose programs, you don't call functions across process boundaries.
+
+Idiom violations don't crash your program. They just mark you as someone who learned the syntax and skipped the culture — and they're the single biggest signal in a code review that someone transferred from another language without doing this checklist.
+
+## Assembling Your Own Onboarding Template
+
+Here's the reusable artifact. Copy it verbatim into your notes for every new language from now on:
+
+```
+LANGUAGE ONBOARDING TEMPLATE -- <language name>
+
+1. PARADIGM
+   - Hierarchy to climb, or behaviors to satisfy? (inheritance vs. composition/traits)
+   - What's the "wrong" way a newcomer from my last language would model a "thing"?
+
+2. MEMORY MODEL
+   - Who decides when memory is freed: GC, refcounting, ownership, manual?
+   - What's the failure mode when I get it wrong: leak, use-after-free, panic, silent bug?
+
+3. CONCURRENCY MODEL
+   - Unit of concurrency: OS thread, green thread/goroutine, coroutine, actor?
+   - Is shared mutable state safety enforced by the COMPILER, a RUNTIME, or CONVENTION?
+
+4. TYPE SYSTEM
+   - Static or dynamic? Nominal or structural?
+   - How is a sum type ("this OR that") expressed, and is it exhaustiveness-checked?
+
+5. TOOLING
+   - One command from clone to green test suite -- does it exist?
+   - What's the blessed package manager, and is there only one?
+
+6. IDIOMS
+   - What's this language's version of "explicit is better than implicit"?
+   - What would pass code review but mark me as a tourist?
+```
+
+Fill in six answers, in an hour, before you write a line of production code in a new language. That hour buys you weeks of not writing code that compiles but reads as foreign.
+
+## Exercise: Run the Template Cold on Swift or Kotlin
+
+Pick whichever you haven't learned — Swift or Kotlin. Using only the language's official documentation (Swift's "The Swift Programming Language" guide, or Kotlin's official docs), fill in all six sections of the template above for real, with actual answers, not guesses.
+
+Specifically make sure you can answer:
+- Swift uses **ARC** (Automatic Reference Counting), not a tracing GC and not Rust-style compile-time ownership. Where does that put it on axis 2, and what problem does it share with Rust's `Rc` (hint: cycles)?
+- Kotlin runs on the JVM and interops directly with Java. Where does that put it on axis 5 (tooling) compared to a language with no host-platform legacy?
+- Both languages have real null-safety in the type system (`Optional<T>`/`?` in Swift, `T?` in Kotlin) — compare that to how Rust's `Option<T>` and Go's zero-valued pointers each handle "this might not exist," and say which one is closest in spirit.
+
+**Hint, not the answer:** don't start with syntax tutorials. Start with the language's own concurrency and memory-management chapters in its official docs — that's where axes 2 and 3 are answered directly, in the language's own words, and those two axes are the ones that will actually bite you first when you write real code.
+
+Save your filled-in template. The next time a new language shows up — at work, in a side project, in a tier of some other track — this is the hour-one move, every time.

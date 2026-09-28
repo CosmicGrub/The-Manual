@@ -1,0 +1,98 @@
+[
+  {
+    "id": "languages/tier-5/teaching-and-mentoring-as-mastery/q1",
+    "type": "multiple_choice",
+    "prompt": "In the Feynman technique, what is the actual diagnostic signal that reveals a gap in your own understanding?",
+    "choices": [
+      "The point where you have to lean on jargon or an analogy that doesn't quite hold up in order to keep the explanation going",
+      "The point where your explanation exceeds two paragraphs",
+      "The point where the listener asks a question you find interesting",
+      "The point where you switch from prose to a code example"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-5/teaching-and-mentoring-as-mastery/q2",
+    "type": "multiple_choice",
+    "prompt": "Given this Rust code:\n\nfn main() {\n    let mut v = vec![1, 2, 3];\n    let first = &v[0];\n    v.push(4);\n    println!(\"{}\", first);\n}\n\nWhat happens?",
+    "choices": [
+      "It fails to compile, because push may reallocate the vector's backing buffer, which would invalidate the reference first",
+      "It compiles and prints 1, because Rust vectors never reallocate on push",
+      "It compiles but panics at runtime with an out-of-bounds access",
+      "It fails to compile because vectors cannot store integer literals directly"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-5/teaching-and-mentoring-as-mastery/q3",
+    "type": "multiple_choice",
+    "prompt": "A reviewer leaves this comment on a beginner's pull request: \"This function is confusing, please clean it up.\" What is the core problem with this feedback from a mentoring standpoint?",
+    "choices": [
+      "It names a reaction without pointing to a specific line, mechanism, or concrete next step, so the beginner has nothing to act on",
+      "It is too long and should be trimmed further",
+      "It uses vocabulary too advanced for a beginner to understand",
+      "It should have been delivered verbally instead of in writing"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-5/teaching-and-mentoring-as-mastery/q4",
+    "type": "multiple_choice",
+    "prompt": "Which of these best follows the observation -> mechanism -> concrete path forward structure for reviewing a beginner's code?",
+    "choices": [
+      "\"calc mixes computing the average with printing the letter grade, which makes it impossible to test the average without triggering a print. Try splitting it into average(grades) and letter_grade(avg) so each can be tested on its own.\"",
+      "\"This function does too much, please fix it.\"",
+      "\"Why would you combine three responsibilities into one function? That's a rookie mistake.\"",
+      "\"Nice try, but this isn't how real engineers write code.\""
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-5/teaching-and-mentoring-as-mastery/q5",
+    "type": "multiple_choice",
+    "prompt": "In CPython, running a pure-Python CPU-bound loop across 4 threading.Thread workers, compared to running it on a single thread, the total wall-clock time is typically:",
+    "choices": [
+      "About the same as single-threaded, or slightly worse, because the GIL serializes execution of Python bytecode across threads",
+      "Roughly 4x faster, since each thread runs on its own core",
+      "Exactly 2x faster, since Python threads share memory",
+      "The program deadlocks and never completes"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-5/teaching-and-mentoring-as-mastery/q6",
+    "type": "multiple_choice",
+    "prompt": "In the tutorial template (hook, mental model, minimal example, rule, exercise, further reading), why open with a concrete broken example rather than the abstract rule?",
+    "choices": [
+      "It gives the reader a felt reason to care before spending their attention on abstraction, and it's the same problem they'll recognize once the rule is stated",
+      "It is a stylistic convention with no pedagogical purpose",
+      "It lets the writer skip including a real code example later",
+      "It removes the need for an exercise at the end"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-5/teaching-and-mentoring-as-mastery/q7",
+    "type": "multiple_choice",
+    "prompt": "When simplifying an explanation of the borrow checker for someone with zero programming background, what move did the module demonstrate?",
+    "choices": [
+      "Replace precise technical vocabulary (aliasing, lifetimes, mutable/immutable references) with a physical analogy that preserves the actual constraint, not just the general feel of it",
+      "Simply say less and let the listener infer the rest",
+      "Avoid analogies entirely, since they always mislead",
+      "Reuse the exact expert-level explanation, just spoken more slowly"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-5/teaching-and-mentoring-as-mastery/q8",
+    "type": "multiple_choice",
+    "prompt": "\"Did you seriously write a loop like this? This is embarrassing.\" This feedback is primarily a failure of:",
+    "choices": [
+      "Kindness \u2014 it attacks the author rather than addressing the code, which shuts down learning even if the underlying critique has some technical merit",
+      "Specificity \u2014 it fails to mention which line is the problem",
+      "Technical accuracy \u2014 the critique of the loop itself is factually wrong",
+      "Length \u2014 it is too short to convey useful information"
+    ],
+    "correctIndex": 0
+  }
+]

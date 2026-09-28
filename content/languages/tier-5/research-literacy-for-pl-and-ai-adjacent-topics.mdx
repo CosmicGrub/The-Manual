@@ -1,0 +1,96 @@
+---
+trackId: languages
+tier: 5
+title: "Research Literacy for PL & AI-Adjacent Topics"
+order: 6
+estimatedHours: 8
+slug: research-literacy-for-pl-and-ai-adjacent-topics
+---
+
+## The Anatomy of a PL Paper — and Two Passes Through It
+
+You've spent this tier writing a lexer, a recursive-descent parser, and a tree-walking interpreter (Module 2), arguing about type systems (Module 3), and landing a real change in someone else's compiler or runtime (Module 5). All of that was reading *code* critically. This module is the same muscle aimed at *papers* — because the PL research literature is where the next language feature, the next static analysis, and half of what gets breathlessly announced as "AI understands code now" actually originates, usually in a much more modest and more precise form than the announcement suggests.
+
+A PL paper (POPL, PLDI, ICFP, OOPSLA, ESOP, or their arXiv cs.PL preprints) has a more rigid shape than most CS papers, and knowing the shape is most of the battle:
+
+- **Abstract** — one paragraph, but it's load-bearing: problem, approach, and the *one* result the authors think justifies the paper.
+- **Introduction** — almost always opens with a **motivating example**: a short, real program that behaves badly, is impossible to write cleanly, or can't be verified under the status quo. This example is the paper's entire argument in miniature. Find it before you read anything else.
+- **The core idea** — a new syntax, a new type system (inference rules), a new operational semantics (reduction rules), or a new algorithm. This is the section that actually took the authors months.
+- **Metatheory** (if present) — theorem statements like soundness ("well-typed programs don't get stuck") or a complexity bound, usually with proofs relegated to an appendix.
+- **Evaluation** — benchmarks, a case study, or a user study, depending on whether this is a theory paper, a systems paper, or an HCI-adjacent PL paper.
+- **Limitations / Related Work / Future Work** — read this before you trust the abstract's claims at face value; it's where authors admit what the core idea doesn't cover.
+
+**First pass (10 minutes):** title, abstract, the motivating example figure, section headings, conclusion. You're answering one question — *what category of paper is this, and is it worth an hour of my afternoon?* — not trying to understand the mechanism yet. Most papers you triage should end here. That's not failure; that's the point of having a first pass at all.
+
+**Deep pass, PL-specific version:** this differs from how you'd deep-read an ML paper, because a PL paper's "result" is often a proof, not a number.
+
+1. Re-read the motivating example and *predict* what the paper's mechanism will do to it before you read the mechanism section. This forces you to actually understand the problem, not just recognize that a problem exists.
+2. Read the formal syntax and semantics/type rules directly, and hand-evaluate the motivating example against them — the same discipline as tracing your Lox interpreter's `evaluate()` calls by hand when a test failed in Module 2. If you can't get the rules to produce the paper's claimed answer, either you're misreading a rule or the paper has a gap. Both are worth finding.
+3. Read theorem statements carefully for *scope*. "Soundness" proved for a minimal core calculus in the appendix is not automatically true of the full language with all its surface-syntax sugar — papers are frequently honest about this in one sentence you'll miss if you skim.
+4. In evaluation, ask what's *missing*, not just what's reported: no baseline named, no variance across runs, a benchmark suite hand-picked to favor the approach. This is the PL-paper analog of Lipton & Steinhardt's catalog of ML-scholarship failure modes (speculation presented as explanation, an unattributed empirical gain, "mathiness") — worth knowing about even outside PL, since code-model papers straddle both fields.
+
+## First Pass in Action, on a Real Paper
+
+Take Rafael-Michael Karampatsis, Hlib Babii, Romain Robbes, Charles Sutton, and Andrea Janes, "Big Code != Big Vocabulary: Open-Vocabulary Models for Source Code" (ICSE 2020) — directly relevant to the rest of this lesson, and short enough to actually first-pass in ten minutes. The abstract's claim: closed-vocabulary language models of code (the kind that pick a fixed set of whole identifiers as "words") break down because source code has an effectively unbounded vocabulary — every project mints new identifiers — and the paper argues for open-vocabulary, subword-level modeling instead. That's the whole first pass: category (empirical NLP-for-code paper, not a semantics paper), context (responding to earlier closed-vocabulary n-gram models of code), and a yes on pass two if subword tokenization of code is what you're actually trying to understand. Notice what you did *not* need to do — read the perplexity tables, the smoothing math, or the related-work paragraph — to make that call.
+
+## Why Your Lexer Doesn't Tokenize the Way an LLM Does
+
+This is the concrete bridge the topics list is asking for, and it starts from something you already built. Your Module 2 lexer scans source text and produces tokens using a *grammar-aware* rule set: an identifier is "a letter or underscore, then any run of letters/digits/underscores," a string is "everything between two unescaped quotes," and so on. Every token boundary respects the language's actual lexical grammar. A code LLM's tokenizer does none of that. It's almost always Byte-Pair Encoding (BPE) or a close variant, trained by starting from raw bytes and greedily merging whichever adjacent pair of symbols is *most frequent* across a giant training corpus — no notion of "identifier," "keyword," or "string literal" enters into it at all.
+
+Run this against a real tokenizer to see the consequence directly:
+
+```python
+import tiktoken
+
+enc = tiktoken.get_encoding("cl100k_base")
+
+identifiers = [
+    "i",
+    "count",
+    "getElementById",
+    "xhtmlDocumentBuilderFactory",
+    "used_car_dealership_inventory_count",
+]
+
+for ident in identifiers:
+    ids = enc.encode(ident)
+    pieces = [enc.decode([t]) for t in ids]
+    print(f"{ident!r:42} -> {len(ids)} tokens: {pieces}")
+```
+
+Run it and you'll see the pattern every subword tokenizer produces on code: short, corpus-common identifiers like `count` collapse to a single token; long compound identifiers fragment into several pieces, and the split points rarely line up with the camelCase or `snake_case` boundaries a human (or your lexer) would use. `xhtmlDocumentBuilderFactory` doesn't cleanly split into `xhtml` / `Document` / `Builder` / `Factory` — BPE's merges were learned from frequency statistics over mixed natural-language-and-code text, not from any rule that knows what a compound identifier is. This is precisely the problem Karampatsis et al.'s paper is about: a model trained this way has to spend capacity re-discovering the substructure your lexer got for free from a five-line grammar rule.
+
+## The Bracket-Nesting Problem, in Formal-Language Terms
+
+Here's the piece that connects straight back to formal language theory, and to the recursive-descent parser you wrote in Module 2. Your parser handles an expression like `((a + b) * (c - (d / e)))` by recursing every time it sees an open paren and returning every time it sees the matching close paren — which means the *call stack itself* is doing the bookkeeping of "how deep am I nested right now." That's not incidental. The language of balanced parentheses (a Dyck language) is the textbook example of a language that is context-free but **not regular**: no finite-state machine, no matter how many states you give it, can recognize arbitrary-depth balanced nesting, because recognizing it requires unbounded memory of the current depth — exactly the stack your parser's recursion supplies for you automatically.
+
+A Transformer processes a fixed number of layers per token position. Self-attention lets it approximate counting/stack-like behavior for shallow, in-distribution nesting depths, but it has no explicit stack — Bhattamishra, Ahuja, and Goyal's "On the Ability and Limitations of Transformers to Recognize Formal Languages" (EMNLP 2020) and Michael Hahn's "Theoretical Limitations of Self-Attention in Neural Sequence Models" (TACL 2020) both study this directly, and the shared finding is that self-attention architectures can learn to handle Dyck-language-style nesting reasonably well *within the depths seen during training*, but their ability to generalize degrades as nesting goes deeper than what training examples typically contained. That's a formal-language-theory fact translating directly into an empirical code-review habit: when you're reviewing AI-generated code with deeply nested comprehensions, nested lambdas, or deeply nested JSX/callback pyramids, that's exactly the structural shape where a bracket-matching or scoping mistake is statistically more likely to slip through — not because the model is "bad at code" in some vague sense, but because it's approximating a mechanism (a stack) it was never architecturally given, using pattern-matching (attention over bounded layers) instead. Your own parser doesn't have this weakness, because it isn't approximating a stack — the process's actual call stack *is* the stack.
+
+## What the Model Sees vs. What Your Interpreter Sees
+
+Push this one level further and you get to the type-theory side of the connection. Your interpreter's evaluator dispatches on the shape of the AST — every `visit` method is a structural case split over a typed tree, and if you added static type checking on top, that checker is a recursive judgment over the same tree, bottom-up, something like:
+
+```
+Γ ⊢ e1 : Bool    Γ ⊢ e2 : τ    Γ ⊢ e3 : τ
+------------------------------------------
+     Γ ⊢ if e1 then e2 else e3 : τ
+```
+
+That rule is a *guarantee*: if the premises hold, the conclusion holds, full stop, before the program ever runs. A code LLM has nothing structurally equivalent sitting underneath it. It's trained as next-token prediction over a flat sequence of subword tokens; there is no rule anywhere in that objective that enforces "the parentheses this token opens must eventually close" or "the type this expression produces must match what its context expects." Syntactic and type-level fluency in generated code is a learned statistical regularity, not an enforced invariant — which is exactly why AI-generated code can read as completely idiomatic and still fail to typecheck or fail to parse, in ways your hand-written parser's grammar would have caught by construction.
+
+This tension is an active research area, not a settled one — which is exactly why it's worth tracking rather than reading about once. Uri Alon et al.'s "code2vec: Learning Distributed Representations of Code" (POPL 2019 / PACMPL) went the opposite direction from flat tokenization entirely, representing a code snippet as a bag of paths through its AST between pairs of leaves, deliberately handing the model syntactic structure instead of making it re-derive that structure from a flat token stream. Separately, Anjan Karmakar and Romain Robbes' "What Do Pre-Trained Code Models Know About Code?" (ASE 2021) takes flat-token models like CodeBERT (Feng et al., EMNLP Findings 2020) and asks empirically, via probing classifiers on the frozen hidden states, whether syntax-tree and type-like structure gets recovered *implicitly* despite never being given explicitly. Neither question is closed. The field has largely moved back toward flat byte/subword tokenization at scale (OpenAI's Codex paper, Chen et al. 2021, arXiv:2107.03374, is the usual reference point) because it scales better with data and compute than AST-aware architectures do — trading away the structural guarantee your parser gives you for free, in exchange for scale. Whether that trade is actually fine, or is the root cause of exactly the bracket-depth and type-mismatch failures above, is a live argument you're now equipped to actually read the primary sources on instead of taking someone's tweet-thread summary of it.
+
+## Making arXiv cs.PL a Habit, Not an Event
+
+The meta-skill from Module 1 — build a transfer checklist once, then reuse it — applies here directly. One read-through of this lesson does not make you literate in ongoing PL research; a standing habit does:
+
+- **Subscribe to the listing, don't browse it cold.** `arxiv.org/list/cs.PL/recent` has an RSS feed at `arxiv.org/rss/cs.PL` — point any feed reader at it. Code-tokenization and code-model papers specifically also show up heavily in cs.CL and cs.LG, so if that's your focus, watch those listings too, not just cs.PL.
+- **Time your attention to conference deadlines.** POPL's deadline lands around July, PLDI's around November, ICFP's around March; OOPSLA runs rolling submissions. Preprints cluster on arXiv in the weeks after each deadline. Skim harder in those windows; coast the rest of the year.
+- **Keep a one-line-per-paper triage log** — title, first-pass verdict, a `revisit` tag or not. This is the only thing that turns "I read a paper once" into an actual literature you can navigate six months later, and it costs about fifteen seconds per paper.
+- **Follow people, not just venues.** A handful of researchers whose first-pass judgment you trust (find them from papers you already rated highly) is a better filter than trying to read every abstract cs.PL produces in a week.
+
+## Exercise
+
+Pick one real arXiv cs.PL or cs.CL paper from the last twelve months about code representation, tokenization, or program synthesis — not one already named in this lesson. Do a genuine first pass (10-minute cap, write one sentence each for category and context, and a plain yes/no on pass two). If it's a yes, do a partial deep pass: locate its formal core (a grammar, a semantics, a tokenization or training algorithm) and its motivating example, and hand-trace the example against the mechanism the way you traced Lox expressions in Module 2. Write four short paragraphs: the abstract in your own words, why the problem actually matters (not why the authors say it matters), the core idea, and one limitation you found yourself — not one copied from the paper's own "Limitations" section.
+
+*Hint:* don't reach for a famous, heavily-cited paper for this — pick something smaller and less polished. A paper you can fully understand end-to-end in the time budget is far better practice for the actual skill (fast, honest triage of unfamiliar work under time pressure) than a partial read of something famous.

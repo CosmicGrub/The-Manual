@@ -1,0 +1,147 @@
+---
+trackId: languages
+tier: 5
+title: "Upstream Contribution to a Language/Runtime"
+order: 5
+estimatedHours: 15
+slug: upstream-contribution-to-a-language-or-runtime
+---
+
+## Why this module is not Tier 4 again
+
+Tier 4 had you land a PR in an active open-source *application* — a web framework, a CLI tool, a library with a few thousand users. You learned the mechanics: fork, branch, CI, review, rebase, merge. Those mechanics don't change here. What changes is the *cost function* the maintainers are running in their heads on every single line you touch.
+
+An application maintainer asks: "does this work, and does it fit the codebase?" A language or runtime maintainer asks: "does this work, does it fit, does it hold for the next ten years across every program that has ever been compiled against this ABI, does it regress performance on hardware I haven't tested, and can I actually verify any of that before I merge it?" That last question is the one that shapes everything else in this module — CPython, rustc/std, and the Go standard library are all, in a very real sense, harder to *verify* than to write. Your job in this module is to internalize why, and then make a real contribution that survives that verification process.
+
+## The three forces behind the high bar
+
+**Backwards compatibility.** Go has an explicit, written-down promise — the Go 1 Compatibility Promise — that says programs written for Go 1.0 must keep compiling and behaving the same way indefinitely. Rust's std has never un-shipped a stabilized API; once something crosses from nightly's `#[unstable(feature = "...")]` gate to stable, it is permanent, because stable-channel semver means removing it breaks the world. Python is looser — it has a formal deprecation cycle (`DeprecationWarning` for at least one minor release, sometimes `PendingDeprecationWarning` before that, then removal) — but even "looser" here means years, and CPython core devs will reject a PR that skips the cycle even for objectively bad, clearly-a-mistake behavior. You already know semver from Tier 3/4 work; the difference is that these projects have no way to bump a major version to shed the weight. Rust's *edition* mechanism (2015/2018/2021/2024) is the closest thing to an escape hatch, and even editions only change lint defaults and a handful of syntax rules — they don't let you remove a stable API.
+
+**Performance regressions.** A 2% slowdown in `dict` lookup or `Vec::push` is invisible in a demo and catastrophic multiplied across every program on earth. This is why these projects run continuous micro-benchmark infrastructure that most application repos never need: CPython's Faster CPython project tracks changes against the `pyperformance` suite; Rust triggers a full run on perf.rust-lang.org via the bot command `@rust-timer build <sha>` and compares against the parent commit before a PR is allowed to merge if it touches anything hot. You will be asked to justify a slowdown even in code paths that look obviously correct.
+
+**Blast radius.** A stdlib or language-level change doesn't just affect code you can `grep` for — it affects code you will never see. Rust's answer is **crater**: for a compiler change with any risk of breaking existing code, the compiler team runs `@craterbot check` (or `run`), which builds and tests essentially every public crate on crates.io, plus GitHub's top crates, against both the old and new compiler, and reports the diff. CPython doesn't have an equivalent automated tool for the whole PyPI ecosystem, which is exactly *why* CPython leans harder on the deprecation cycle and why `typing`/`re`/`os` changes get an unusual amount of scrutiny — there's no crater-for-Python to catch what you missed, so the humans have to be more conservative up front.
+
+## Reading the contribution guide like a contract
+
+In Tier 4 you skimmed a `CONTRIBUTING.md` for the PR checklist. Here, read the guide as a description of a decision process you're entering, not a checklist to satisfy:
+
+- **CPython devguide** (`devguide.python.org`) — read "Changing CPython" and "Runtime state" before touching interpreter internals. It tells you outright which categories of change need a core dev sponsor from day one (anything touching the C API, the grammar, or backwards-incompatible behavior) versus which can go straight to review (docs, tests, well-understood bugs). It also documents the buildbot fleet and the branch policy: `main` gets new features, the last two `3.x` maintenance branches get bug fixes only, and anything older is security-fixes-only.
+- **Rust — `CONTRIBUTING.md` + `rustc-dev-guide`** — the repo-level `CONTRIBUTING.md` in `rust-lang/rust` is a thin pointer; the real document is the `rustc-dev-guide`, which explains the team structure (`T-compiler`, `T-libs-api`, `T-lang`, etc.), how `triagebot` labels work (`E-easy`, `E-mentor`, `S-waiting-on-review`), and — critically — the **API Change Proposal (ACP)** process for anything added to `std`. Even a trivial, obviously-useful new method needs an ACP because "obviously useful and non-breaking today" is not the bar; "we are comfortable supporting this forever" is.
+- **Go — the proposal process** (`github.com/golang/proposal`) — any change to an exported API in the standard library, however small, goes through a written proposal reviewed by the Proposal Review Committee before code is even written, unless it's an accepted bug fix. This is the opposite order from most repos, where you send code first and discuss second. Go's stdlib is also under a stricter freeze than CPython's — proposals typically only merge into the *next* release cycle, never a patch release, because a stdlib API surface change is treated at the same weight as a language change.
+
+The pattern across all three: **the amount of process is proportional to how permanent the decision is**, not to how much code it takes to implement. A 3-line bug fix with a test can merge in a week. A 3-line *new public function* can take months because the 3 lines are forever.
+
+## CI and review norms at this scale
+
+Expect CI to be bigger and slower than anything you've dealt with. CPython's buildbot fleet includes Windows (multiple architectures), macOS, several Linux distros, FreeBSD, and big-endian platforms like s390x — a change that passes on your machine can still go red on a platform you've never used, and you're expected to either fix it or clearly flag it for someone who has access to that platform. Rust's CI runs `./x.py test` across dozens of targets plus `tidy` (style, license headers, forbidden constructs) and, for compiler changes, an optional perf/crater pass gated behind bot commands so it isn't run on every trivial PR. Go's `trybots` run the equivalent across its supported platform matrix, and `go vet`/`gofmt` failures are hard blockers, not suggestions.
+
+Review norms to know before you open anything:
+
+- **Sponsorship/ownership gates.** In CPython, even a fully-approved PR from a non-core-dev needs a core developer to actually merge it — this is a real bottleneck and a normal part of the process, not a sign something's wrong. Following up politely after a week of silence is expected practice, not pushiness.
+- **Serialized merge queues.** Rust historically used `bors` (now largely folded into GitHub's native merge queue) specifically because two independently-green PRs can still conflict *semantically* when merged together, even with no textual conflict. Your PR sitting in queue for a day after approval is the merge bot re-testing it against the current `main`, not a stall.
+- **Tests and changelog entries are not optional extras.** A CPython bug-fix PR without a regression test will get a review comment asking for one before anything else is discussed, and it needs a NEWS entry via the `blurb` tool (below). Rust and Go are the same: an unstested bugfix reads as "we don't know if this is actually fixed," and a maintainer reviewing dozens of PRs a week will not do that verification work for you.
+- **Multiple approvals for public-surface changes.** `T-libs-api` review on Rust std additions typically wants sign-off from more than one team member specifically because the decision is unreversible. Budget for this in your expectations — a docs typo fix might merge same-day; a new method on `Vec` might take a full release cycle even after the code itself is trivial.
+
+## Walkthrough 1: a documentation fix (CPython)
+
+This is the highest-odds first PR in any of these projects, and it's still a real contribution — bad docs cause real bugs downstream.
+
+```bash
+git clone https://github.com/python/cpython.git
+cd cpython
+git checkout -b fix-datetime-isoformat-doc
+
+# Docs live in Doc/, written in reST
+$EDITOR Doc/library/datetime.rst
+```
+
+Say the bug is that `datetime.fromisoformat()`'s docs still imply it only accepts the exact `date.isoformat()` output format, when in current versions it accepts a much wider range of ISO 8601 strings. You fix the prose and add a corrected example:
+
+```rst
+.. method:: datetime.fromisoformat(date_string)
+
+   Return a :class:`datetime` corresponding to a *date_string* in any
+   valid ISO 8601 format, with the following exceptions:
+
+   ...
+
+   Examples::
+
+       >>> from datetime import datetime
+       >>> datetime.fromisoformat('2024-11-03')
+       datetime.datetime(2024, 11, 3, 0, 0)
+       >>> datetime.fromisoformat('2024-11-03T14:30:00+00:00')
+       datetime.datetime(2024, 11, 3, 14, 30, tzinfo=datetime.timezone.utc)
+```
+
+Build the docs locally before opening the PR — reviewers will not want to be your reST linter:
+
+```bash
+cd Doc
+make venv
+make html
+# open Doc/build/html/library/datetime.html and actually read it
+```
+
+Documentation-only PRs generally skip the `blurb`/NEWS requirement (check the devguide's current policy — it has shifted over the years), and they don't need a core-dev *sponsor* for scope, but they still need a core-dev *merge*. Keep the diff minimal and focused on the one inaccuracy; a docs PR that also "improves" three unrelated paragraphs is harder to review and more likely to stall.
+
+## Walkthrough 2: a well-scoped bug fix, with test and changelog
+
+The realistic on-ramp here is: find an issue already triaged and labeled (CPython uses labels like `type-bug` plus `easy` on the GitHub issue tracker), confirmed by a maintainer, with no open design question attached. Do not pick an issue where the comment thread is still arguing about *what the correct behavior should be* — that's a design contribution, not a bug fix, and it's not a realistic first PR.
+
+Say the confirmed bug is: `str.removeprefix()` raises on a non-str argument with a `TypeError` message that's misleading (it blames the wrong variable). Reproduce first:
+
+```pycon
+>>> "hello".removeprefix(5)
+TypeError: removeprefix() argument must be str, not int
+```
+
+Suppose the actual bug (contrived but representative) is that the error path in `Objects/unicodeobject.c` formats the message using the wrong operand when both arguments are the wrong type — a real fix would be a targeted diff in the C implementation, plus:
+
+```python
+# Lib/test/test_unicode.py
+def test_removeprefix_typeerror_message(self):
+    with self.assertRaisesRegex(TypeError, r"removeprefix\(\) argument must be str"):
+        "hello".removeprefix(5)
+    with self.assertRaisesRegex(TypeError, r"removeprefix\(\) argument must be str"):
+        "hello".removesuffix(5)
+```
+
+Run the specific test file, not just the one test — a fix that only checks its own new test but breaks a neighboring one is a common first-PR mistake:
+
+```bash
+./python -m test test_unicode -v
+./python -m test -j4   # broader sanity pass before opening the PR
+```
+
+Add the changelog entry with the `blurb` tool, which writes a small reST file into `Misc/NEWS.d/next/<category>/<issue-number>.<nonce>.rst`:
+
+```bash
+blurb add
+# interactive prompt: category = "Core and Builtins", issue number, one-line summary
+```
+
+That generates something like:
+
+```rst
+Fix misleading :exc:`TypeError` message from :meth:`str.removeprefix`
+and :meth:`str.removesuffix` when given a non-str argument.
+```
+
+Open the PR referencing the issue number, and expect the first review round to be about the test (is it checking the actual message, not just that *some* `TypeError` was raised?) before anyone discusses the C code itself. That ordering — test correctness before implementation elegance — is typical of these repos and is worth adopting as your own habit even outside them.
+
+## Walkthrough 3: contributing a test
+
+The lowest-friction, highest-value contribution type once you've done one or two of the above: find a bug that was already fixed but shipped without a regression test (search closed issues for `test needed` or check `git log` around a fix commit for the absence of a `Lib/test/` change), or find an edge case a coverage report shows as untested. This is real, wanted work — maintainers regularly leave "needs test" TODOs precisely because the fix was urgent and the test wasn't. You write the test against the *current* behavior, verify it fails on the pre-fix commit (`git checkout <sha>^` and rerun) to confirm it actually would have caught the regression, then submit it standalone. Rust's std has an equivalent pattern: issues labeled for missing `#[test]` coverage in a module, verifiable the same way against `git bisect`.
+
+## Rust and Go specifics worth knowing before you start
+
+For Rust, the practical on-ramp is `E-easy`/`E-mentor`-labeled issues in `rust-lang/rust`, and — importantly — a large share of realistic first PRs are in **Clippy** or **rustfmt**, which are part of the same organization but have a lower bar than the compiler or std itself; they're a legitimate stepping stone, not a lesser accomplishment. If you do touch `std`, remember the ACP requirement above applies even to a one-line addition.
+
+For Go, the workflow is procedurally different enough to trip people up: code review happens on **Gerrit** (`go-review.googlesource.com`), not GitHub PRs, using the `git codereview` tool (`git codereview change`, `git codereview mail`) which rewrites your commit into Gerrit's expected format with a `Change-Id` trailer. You'll need to sign the CLA at `golang.org/s/cla` before your first CL is reviewed. Commit messages follow a strict convention — a package-prefixed first line (`time: fix Parse for negative durations`) — because that prefix is how the whole team triages incoming changes across a stdlib with hundreds of packages.
+
+## Exercise
+
+Pick one project — CPython, `rust-lang/rust`, or Go's standard library. Find one real, currently-open, maintainer-confirmed issue labeled for new contributors (`easy`/`good first issue` on CPython's tracker, `E-easy` on Rust's, or an accepted-but-unstarted proposal/bug on Go's). Read the *entire* linked discussion before writing any code — the history often contains a rejected approach and the reason it was rejected, which will save you from resubmitting it. Reproduce the bug locally, write the fix, add a regression test that fails without your fix and passes with it, and get it through at least one full CI run — merged or not. If you can't find a scoped bug, do the documentation-fix version instead; it's a legitimate substitute, not a consolation prize.
+
+*Hint: for CPython, filter the GitHub issue tracker by the "easy" label combined with "type: bug" and sort by oldest first — the newest easy-labeled issues are often already claimed. For Rust, `rustbot claim` in the issue thread reserves it to you so you're not duplicating someone else's work. For Go, check the CL queue at go-review.googlesource.com for small, unassigned, accepted proposals before writing a proposal of your own.*

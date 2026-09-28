@@ -1,0 +1,98 @@
+[
+  {
+    "id": "languages/tier-5/programming-language-design-and-implementation/q1",
+    "type": "multiple_choice",
+    "prompt": "In the three-stage pipeline (lexer, parser, interpreter), which stage is responsible for discarding whitespace and comments from the source text?",
+    "choices": [
+      "The lexer",
+      "The parser",
+      "The interpreter",
+      "None of them \u2014 whitespace is preserved as NEWLINE tokens and comments as COMMENT tokens all the way through"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-5/programming-language-design-and-implementation/q2",
+    "type": "multiple_choice",
+    "prompt": "Given the grammar `expression -> term (('+'|'-') term)*` and `term -> factor (('*'|'/') factor)*`, what does the source `10 - 2 - 3` evaluate to when run through the Interpreter shown in this lesson?",
+    "choices": [
+      "5",
+      "11",
+      "-11",
+      "It's a parse error because two consecutive `-` operators aren't allowed"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-5/programming-language-design-and-implementation/q3",
+    "type": "multiple_choice",
+    "prompt": "Suppose you accidentally swapped the call order so that parse_factor called parse_term (instead of parse_expression calling parse_term calling parse_factor). What is the most likely observable consequence when parsing `2 + 3 * 4`?",
+    "choices": [
+      "Infinite recursion / a crash, because factor would recurse back into term before ever reaching a terminal case like NUMBER",
+      "No change \u2014 the grammar levels are interchangeable as long as each one checks for the right token types",
+      "The parser would still succeed but silently produce the wrong AST shape, treating `*` as lower precedence than `+`",
+      "The lexer would fail first, since it also relies on call order"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-5/programming-language-design-and-implementation/q4",
+    "type": "multiple_choice",
+    "prompt": "In the Interpreter class, referencing a variable that was never assigned (e.g. `print y` before any `y = ...`) raises InterpretError. At which stage does this get caught, and why?",
+    "choices": [
+      "At interpretation time, because eval_expr only checks whether a name exists in the environment when it actually visits that Var node \u2014 the parser has no concept of 'defined'",
+      "At parse time, because parse_factor checks the environment before building a Var node",
+      "At lex time, because the lexer maintains a symbol table of declared identifiers",
+      "It's actually a Python NameError, not an InterpretError, since env is a plain dict"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-5/programming-language-design-and-implementation/q5",
+    "type": "multiple_choice",
+    "prompt": "What is the primary reason a bytecode VM is typically faster than the tree-walking interpreter built in this lesson, for the same program run repeatedly?",
+    "choices": [
+      "Bytecode execution replaces repeated tree re-traversal and per-node isinstance/type dispatch with a flat, cache-friendly instruction array and cheap opcode dispatch, and lets the tree's structure be 'paid for' once at compile time instead of on every run",
+      "Bytecode is faster only because it's stored as compiled machine code, not because of anything about traversal or dispatch",
+      "Tree-walking and bytecode execution have identical performance in practice; the only real difference is memory usage",
+      "Bytecode VMs are faster purely because they run in a separate OS thread from the compiler"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-5/programming-language-design-and-implementation/q6",
+    "type": "multiple_choice",
+    "prompt": "Which AST node type would the parser produce for the source expression `-x`, given the grammar `factor -> NUMBER | IDENT | '(' expression ')' | '-' factor`?",
+    "choices": [
+      "Neg(Var('x'))",
+      "BinOp('-', Num(0), Var('x'))",
+      "Var('-x')",
+      "It's a parse error since unary minus isn't in the grammar"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-5/programming-language-design-and-implementation/q7",
+    "type": "multiple_choice",
+    "prompt": "The Parser's parse_statement method peeks at tokens[self.pos + 1] to decide between an assignment and a print/expression statement, without backtracking. What does this technique require, and what does it buy you?",
+    "choices": [
+      "It requires one token of lookahead beyond the current token, and it buys you the ability to disambiguate `x = 1` from other statement forms starting with IDENT without having to parse speculatively and roll back on failure",
+      "It requires unlimited lookahead across the whole remaining token stream, which makes the parser technically not a recursive-descent parser anymore",
+      "It requires the lexer to annotate each token with which grammar rule it belongs to",
+      "It buys nothing extra \u2014 the same disambiguation could be done with zero lookahead using only the current token"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-5/programming-language-design-and-implementation/q8",
+    "type": "multiple_choice",
+    "prompt": "In the Interpreter's eval_expr for BinOp, division by zero raises InterpretError before performing the division. If that explicit check were removed, what would actually happen when evaluating `print 1 / 0` in this Python implementation?",
+    "choices": [
+      "Python would raise its own ZeroDivisionError from the `/` operator, which is a different, un-caught exception type than InterpretError",
+      "The interpreter would silently print `inf`",
+      "The interpreter would silently print `0.0`",
+      "The parser would have already rejected `1 / 0` as invalid syntax"
+    ],
+    "correctIndex": 0
+  }
+]

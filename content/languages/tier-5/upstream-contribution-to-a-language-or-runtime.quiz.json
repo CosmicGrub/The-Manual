@@ -1,0 +1,98 @@
+[
+  {
+    "id": "languages/tier-5/upstream-contribution-to-a-language-or-runtime/q1",
+    "type": "multiple_choice",
+    "prompt": "Why do CPython, Rust's std, and Go's stdlib require a regression test with almost every bug-fix PR, more strictly than a typical application repo would?",
+    "choices": [
+      "It's a purely bureaucratic checklist item with no technical purpose",
+      "The downstream blast radius is enormous and unknowable, so an untested fix can't be verified to actually solve the problem or to stay fixed under future refactors",
+      "Tests are required only because these projects lack type systems",
+      "Reviewers use test coverage percentage as their sole merge criterion"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-5/upstream-contribution-to-a-language-or-runtime/q2",
+    "type": "multiple_choice",
+    "prompt": "Rust's T-libs-api team requires an API Change Proposal (ACP) even for a small, obviously non-breaking new method added to std. Why?",
+    "choices": [
+      "Because all Rust contributions require a proposal, regardless of scope",
+      "Because once an API is stabilized on the stable channel, it can never be changed or removed without breaking semver, so the team wants design scrutiny before the decision becomes permanent",
+      "Because ACPs are only a formality required for compiler changes, not library changes",
+      "Because new methods always cause measurable performance regressions"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-5/upstream-contribution-to-a-language-or-runtime/q3",
+    "type": "multiple_choice",
+    "prompt": "Which of these is the most realistic first pull request to submit to CPython's own repository?",
+    "choices": [
+      "A new PEP implementing a novel pattern-matching language feature",
+      "A rewrite of the GIL for better multi-core scaling",
+      "A fix to an incorrect example in the datetime documentation, verified by building the docs locally",
+      "A brand-new stdlib module for a niche use case"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "languages/tier-5/upstream-contribution-to-a-language-or-runtime/q4",
+    "type": "multiple_choice",
+    "prompt": "A contributor opens a PR against rust-lang/rust that changes behavior in a commonly-used std function. Before merging, the compiler team runs the change through crater. What does crater actually do?",
+    "choices": [
+      "It formats the code according to rustfmt rules automatically",
+      "It builds and tests a large corpus of real-world crates from crates.io against both the old and new compiler, and reports which ones break",
+      "It measures the binary size difference caused by the change",
+      "It automatically writes unit tests for the changed function"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-5/upstream-contribution-to-a-language-or-runtime/q5",
+    "type": "multiple_choice",
+    "prompt": "How does contributing to Go's standard library differ procedurally from opening a GitHub pull request against a typical application repo?",
+    "choices": [
+      "Go requires no code review at all for stdlib changes",
+      "Review happens on Gerrit via CLs (changelists) created with the git codereview tool, and any exported API change needs an accepted written proposal before code is written",
+      "Go only accepts contributions from Google employees",
+      "Go stdlib changes are reviewed entirely by an automated bot with no human review"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-5/upstream-contribution-to-a-language-or-runtime/q6",
+    "type": "multiple_choice",
+    "prompt": "A contributor submits a CPython bug-fix PR with working code but no test and no blurb/NEWS entry. What is the most likely first review response?",
+    "choices": [
+      "Immediate merge, since the code itself is correct",
+      "Silent rejection with no feedback",
+      "A request to add a regression test and changelog entry before the fix itself is evaluated further",
+      "A request to rewrite the fix in a different programming language"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "languages/tier-5/upstream-contribution-to-a-language-or-runtime/q7",
+    "type": "multiple_choice",
+    "prompt": "Why does Rust's CI often run perf benchmarks (via commands like @rust-timer build) on a separate, gated pass rather than on every single PR automatically?",
+    "choices": [
+      "Because performance doesn't matter for compiler changes",
+      "Because full perf/crater runs are expensive, so they're reserved for changes with real risk of regression rather than run unconditionally on every trivial PR",
+      "Because perf regressions are impossible to detect before release",
+      "Because only nightly builds are ever benchmarked"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-5/upstream-contribution-to-a-language-or-runtime/q8",
+    "type": "multiple_choice",
+    "prompt": "In CPython's branch policy, where do backwards-incompatible new features get merged, versus a fix for a confirmed bug in a currently maintained release?",
+    "choices": [
+      "New features go to main; bug fixes can also be backported to the currently maintained 3.x maintenance branches",
+      "Both go directly to the oldest supported branch",
+      "New features and bug fixes are both restricted to security-only branches",
+      "There is no distinction between branches in CPython's policy"
+    ],
+    "correctIndex": 0
+  }
+]

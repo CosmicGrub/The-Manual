@@ -1,0 +1,140 @@
+---
+trackId: languages
+tier: 5
+title: "Teaching & Mentoring as Mastery"
+order: 4
+estimatedHours: 8
+slug: teaching-and-mentoring-as-mastery
+---
+
+## Why this module is different
+
+Every module before this one asked you to understand something. This one asks you to *transmit* understanding — which is a harder test of whether you actually have it. Feynman's line still holds: if you can't explain something to a beginner, you don't understand it, you've memorized it. This module is deliberately built on material you already have from earlier in this track — Rust's borrow checker, CPython's GIL — because the point isn't to re-learn those concepts. It's to find out how solid your grip on them actually is by trying to hand them to someone else.
+
+## The Feynman technique, run for real
+
+The technique in four steps: (1) write the concept out as if explaining it to yourself at your current level, (2) rewrite it for someone one level down, (3) rewrite it again for someone with zero background, using analogy instead of jargon, (4) note exactly where step 3 got hard — that's the seam in your understanding. Step 4 is the one people skip, and it's the one that matters. Let's run it on the borrow checker.
+
+**Pass 1 — for a Rust engineer.** At any point in the program, a value has either exactly one live mutable reference or any number of live immutable references, never both, and no reference may outlive the value it points to. The compiler enforces this statically through borrow and lifetime checking over the MIR — no runtime cost, no garbage collector.
+
+**Pass 2 — for a competent programmer new to Rust.** Rust won't let two parts of your code have write access to the same memory at the same time, and it won't let a reference survive past the point where the thing it points to is gone. Instead of catching these bugs with a debugger after a crash — the classic C/C++ experience — the compiler catches them before your program runs, by tracking, for every reference, how long it's allowed to live and who else has access while it's alive.
+
+**Pass 3 — for a true beginner, no programming background.** Think of a page in a shared notebook. If people are only *reading* that page, any number of people can read it at once — no problem. But the moment someone starts *erasing and rewriting* the page, nobody else should be reading it, because they'd either see a half-written mess or the writer would erase something they still needed. Rust's rule: a piece of data can have many readers, or exactly one writer, never both at the same time. And once the notebook is thrown away, nobody gets to keep a bookmark pointing at a page that no longer exists.
+
+Now the part that actually tests you: does the analogy survive contact with real code?
+
+```rust
+fn main() {
+    let mut v = vec![1, 2, 3];
+    let first = &v[0];   // immutable borrow starts
+    v.push(4);            // mutable borrow attempted here
+    println!("First element is {}", first);
+}
+```
+
+```
+error[E0502]: cannot borrow `v` as mutable because it is also borrowed as immutable
+ --> src/main.rs:4:5
+  |
+3 |     let first = &v[0];
+  |                  - immutable borrow occurs here
+4 |     v.push(4);
+  |     ^^^^^^^^^ mutable borrow occurs here
+5 |     println!("First element is {}", first);
+  |                                      ----- immutable borrow later used here
+```
+
+If your Pass 3 analogy stops at "many readers, one writer," a beginner will reasonably ask: "but `first` isn't writing anything, it's just reading — why does calling `push` on `v` break it?" That question is the seam. The honest answer requires a fact the "book page" analogy doesn't carry on its own: `Vec::push` can trigger a reallocation, moving the entire backing buffer to a new address when it outgrows its capacity. `first` was pointing into the *old* buffer. If Rust allowed this, `first` would silently become a dangling pointer — a real use-after-free bug that in C would compile fine and crash (or worse, not crash) in production. So the analogy needs an addendum: it's not just "one writer at a time," it's "the writer might tear out and replace the whole notebook, and any bookmark pointing into the old one is now worthless." Finding that gap *is* the value of the exercise — you now know you understood the rule but had been fuzzy on the mechanism that makes the rule necessary.
+
+Run the same four passes on CPython's GIL from the concurrency module a few tiers back and you'll hit an analogous seam: "one lock around the interpreter" is a fine Pass 2 line, but a true beginner will ask why threads exist at all then — and the honest answer needs the I/O-bound-vs-CPU-bound distinction, not just the existence of the lock.
+
+## Turning an explanation into a tutorial or a talk
+
+A working template, in order:
+
+1. **Hook** — a concrete, broken example that produces the confusing symptom, not the abstract rule.
+2. **Mental model** — one paragraph, the "aha," stated in plain language.
+3. **Minimal runnable example** — the smallest code that demonstrates the rule, ideally the same code from the hook, fixed.
+4. **The rule, stated as a rule** — one or two sentences you could put on an index card.
+5. **One exercise** — something the reader does immediately, not later.
+6. **Where to go deeper** — pointer to the reference material (in this track: back to the tier where it was formally taught).
+
+Applied to a five-minute lightning talk on the GIL:
+
+- **Hook (1 min):** live-run this and watch it not speed up:
+
+```python
+import threading, time
+
+def spin():
+    x = 0
+    for _ in range(50_000_000):
+        x += 1
+
+start = time.perf_counter()
+threads = [threading.Thread(target=spin) for _ in range(4)]
+for t in threads: t.start()
+for t in threads: t.join()
+print(f"{time.perf_counter() - start:.2f}s")
+```
+
+- **Mental model (1 min):** CPython threads are real OS threads, but only one of them may execute Python bytecode at a time — the GIL serializes them. Threading buys you concurrency for *waiting*, not for *computing*.
+- **Minimal example (1 min):** swap `threading.Thread` for `multiprocessing.Process` (or use `ProcessPoolExecutor`) on the same `spin` function and show the wall clock actually drop, because each process gets its own interpreter and its own GIL.
+- **The rule (30 sec):** I/O-bound work → threads or asyncio are fine, the GIL is released during the wait. CPU-bound pure-Python work → you need multiprocessing, a C extension that releases the GIL, or a free-threaded build.
+- **Exercise (1 min):** "Take this script, time it with threads, time it with a process pool, bring the two numbers to the next session."
+- **Further reading (30 sec):** point back at the concurrency tier's deeper treatment of the interpreter loop.
+
+Notice what's absent: no re-derivation of how the GIL is implemented. That's already taught material. The talk's job is transfer, not re-teaching — cite it, don't repeat it.
+
+## Reviewing a beginner's code, for real
+
+Here's a real Tier-1-shaped snippet — the kind you'd actually see from someone a few weeks into learning Python:
+
+```python
+def calc(l):
+    t = 0
+    for i in range(len(l)):
+        t = t + l[i]
+    avg = t / len(l)
+    if avg >= 90:
+        print("A")
+    elif avg >= 80:
+        print("B")
+    elif avg >= 70:
+        print("C")
+    else:
+        print("D")
+    return avg
+
+grades = [85, 92, 78, 90, 88]
+calc(grades)
+```
+
+It works. It's also got five real, teachable problems. Here's the same problem given three ways.
+
+**Vague (useless):** "This is kind of messy, can you clean it up?" — no leverage. The beginner doesn't know what "messy" means to you, so they can't act on it.
+
+**Harsh (actively damaging):** "Did you seriously write a manual index loop like this? This is embarrassing." — technically might be pointing at a real issue, but it attacks the author instead of the code, and it teaches nothing about *why* the pattern is worse, so even a motivated beginner walks away only knowing not to show you code.
+
+**Specific, kind, actionable — the actual review:**
+
+- "`calc(l)` — the name `calc` and the parameter `l` don't tell a future reader (including you, in three months) what this returns or operates on. `average_grade(grades)` costs nothing and saves the next person a trip into the function body."
+- "`for i in range(len(l)): t = t + l[i]` is the C-style index loop. Python gives you `sum(l)` directly for this, or if you want to keep the loop, `for grade in l: t += grade` — it reads closer to the intent and removes an entire class of off-by-one bugs."
+- "The `90 / 80 / 70` cutoffs are magic numbers wired directly into `if`/`elif`. If the grading scale ever changes, someone has to find and edit them inside this function's logic. Pulling them into a small table — `[(90, "A"), (80, "B"), (70, "C")]` — makes the scale a piece of data you can change in one place."
+- "`calc` computes an average, prints a letter grade, *and* returns the average — three jobs in one function. That makes it hard to test: you can't check the average without also triggering a `print`. Splitting into `average(grades)` and `letter_grade(avg)` gives you two things you can test independently and reuse separately."
+- "`calc([])` will raise `ZeroDivisionError` — worth deciding on purpose what an empty list should do (raise with a clear message, return `None`, return `0.0`) instead of letting the crash decide for you."
+
+Each bullet names the exact line or pattern, states the concrete cost of leaving it as-is, and hands over a specific next step — sometimes as a code sketch, sometimes as a question. None of them say "bad" or "wrong" without saying why, and none of them make it about the author.
+
+## The shape underneath good feedback
+
+Strip the examples above down and the pattern is: **observation → mechanism → concrete path forward.** Point at the specific thing (not a vibe), explain the actual cost or risk it creates (not "it's not how I'd do it" — that's taste, not mechanism), then either show the fix or ask a question that leads there. Add one more rule that's easy to forget under time pressure: say what's actually good, specifically, not as padding. "Using a loop here instead of a one-liner was a reasonable instinct while you're still learning what `sum` and comprehensions do under the hood" costs one sentence and keeps the reviewee in the room for the next four bullets.
+
+## Exercise
+
+Pick a genuinely hard concept from an earlier tier of this track that you *haven't* used above — generic variance, macro hygiene, `async`/`await` desugaring into a state machine, whatever gave you the most trouble at the time. Do two things:
+
+1. Write the three-pass Feynman explanation (expert → competent-newcomer → true beginner with an analogy), then write one paragraph identifying where your own analogy would break under a beginner's follow-up question — the seam.
+2. Find or write a rough, real-looking beginner snippet that exercises that concept badly, and write three pieces of feedback on it following observation → mechanism → concrete path forward.
+
+**Hint:** if you're stuck finding the beginner-level analogy, ask what everyday process has the *same shape of constraint* — exclusivity, ownership, hand-off, a queue, a lock — rather than trying to make the analogy resemble the code. The borrow checker analogy above wasn't "code that looks like a notebook," it was "a real-world rule about exclusive write access" that happened to map cleanly.

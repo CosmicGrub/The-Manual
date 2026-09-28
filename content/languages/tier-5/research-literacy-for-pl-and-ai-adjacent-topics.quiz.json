@@ -1,0 +1,98 @@
+[
+  {
+    "id": "languages/tier-5/research-literacy-for-pl-and-ai-adjacent-topics/q1",
+    "type": "multiple_choice",
+    "prompt": "What is the purpose of a 10-minute 'first pass' through a PL paper (title, abstract, motivating example, headings, conclusion)?",
+    "choices": [
+      "To fully understand the paper's proofs before moving on",
+      "To decide the paper's category and whether it's worth a deeper read, without yet understanding the mechanism",
+      "To memorize the evaluation section's numbers for later citation",
+      "To identify every related-work citation the paper builds on"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-5/research-literacy-for-pl-and-ai-adjacent-topics/q2",
+    "type": "multiple_choice",
+    "prompt": "A PL paper states a theorem like 'well-typed programs don't get stuck.' Where should you look before trusting that this applies to the full language described in the paper's introduction?",
+    "choices": [
+      "The abstract, since it always states the theorem's exact scope",
+      "The theorem's stated scope and premises in the metatheory section \u2014 it's often proved only for a minimal core calculus",
+      "The paper's title, which lists every construct the proof covers",
+      "The references section, since scope is established by citation count"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-5/research-literacy-for-pl-and-ai-adjacent-topics/q3",
+    "type": "multiple_choice",
+    "prompt": "Running a BPE tokenizer like tiktoken's cl100k_base on source-code identifiers, what pattern should you expect?",
+    "choices": [
+      "Every identifier, regardless of length, encodes to exactly one token",
+      "Short, frequent identifiers (like `count`) tend to stay as one token, while long compound identifiers fragment into several subword pieces that don't reliably align with camelCase or snake_case boundaries",
+      "Identifiers are tokenized character-by-character, one token per character, with no merging at all",
+      "BPE tokenizers refuse to tokenize identifiers and fall back to a fixed 'UNK' token"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-5/research-literacy-for-pl-and-ai-adjacent-topics/q4",
+    "type": "multiple_choice",
+    "prompt": "In formal-language terms, why is generalizing to arbitrarily deep bracket nesting fundamentally hard for a fixed-depth Transformer, in a way it is not hard for your recursive-descent parser?",
+    "choices": [
+      "Balanced-bracket matching (a Dyck language) is context-free, not regular, and requires unbounded stack memory to recognize in general; a parser's recursion supplies that stack via the call stack, while self-attention over a bounded number of layers only approximates counting/stack behavior and tends to degrade beyond the nesting depths seen in training",
+      "Transformers process tokens one at a time like an RNN, so they simply run out of time on long inputs",
+      "Bracket characters are extremely rare in BPE vocabularies, so the tokenizer drops them",
+      "Recursive-descent parsers don't actually handle nested brackets either, so the comparison doesn't apply"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-5/research-literacy-for-pl-and-ai-adjacent-topics/q5",
+    "type": "multiple_choice",
+    "prompt": "This module recommends which approach to tracking arXiv cs.PL over time?",
+    "choices": [
+      "Read every paper in the listing in full, once a week, cover to cover",
+      "Read the field's single most-cited paper thoroughly, once, and consider that sufficient going forward",
+      "A lightweight standing habit: subscribe to the listing/RSS feed, skim more heavily around conference deadline windows, and keep a short triage log per paper",
+      "Wait until a paper is discussed on social media before ever opening it"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "languages/tier-5/research-literacy-for-pl-and-ai-adjacent-topics/q6",
+    "type": "multiple_choice",
+    "prompt": "Why can an AI coding assistant produce code that reads fluently but fails to typecheck or parse?",
+    "choices": [
+      "Because its tokenizer strips out all type annotations before generation",
+      "Because it is trained as next-token prediction over a flat subword sequence with no structural rule enforcing invariants like matching brackets or type compatibility \u2014 fluency is a learned statistical pattern, not a guarantee the way a parser's grammar or a type checker's rules are",
+      "Because code LLMs do not have access to any programming language's keywords",
+      "Because type errors are impossible to represent as text, so the model never sees them during training"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-5/research-literacy-for-pl-and-ai-adjacent-topics/q7",
+    "type": "multiple_choice",
+    "prompt": "A PL paper's evaluation section reports '40% faster than the baseline' with no baseline implementation named, no hardware specified, and results from a single run. Per this module's approach to reading evaluations, what's the right response?",
+    "choices": [
+      "Accept the number at face value since it appears in a peer-reviewed venue",
+      "Treat the number as unverifiable as stated and look for the missing methodology (named baseline, hardware, repeated runs with variance) before crediting the claim, the same scrutiny you'd apply to checking a theorem's stated scope",
+      "Reject the entire paper as fraudulent without reading further",
+      "Assume '40% faster' is a typo and the real number must be in an appendix"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-5/research-literacy-for-pl-and-ai-adjacent-topics/q8",
+    "type": "multiple_choice",
+    "prompt": "What did code2vec (Alon et al., POPL 2019) do differently from a standard flat subword tokenizer, specifically to give a model access to a program's grammatical structure?",
+    "choices": [
+      "It ignored the AST entirely and trained only on raw byte sequences",
+      "It represented code as paths through the AST between pairs of leaf nodes, rather than as a flat sequence of subword tokens",
+      "It required every input program to already be fully type-annotated before training",
+      "It replaced identifiers with randomly generated placeholder names to remove structure"
+    ],
+    "correctIndex": 1
+  }
+]

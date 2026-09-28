@@ -1,0 +1,98 @@
+[
+  {
+    "id": "languages/tier-5/comparative-type-systems-and-paradigms/q1",
+    "type": "multiple_choice",
+    "prompt": "In Go, why does assigning a Feet struct value to a variable of concrete type Meters fail to compile, even though both structs have an identical Value float64 field?",
+    "choices": [
+      "Because Go requires all structs to implement a Value() method before assignment.",
+      "Because Go performs a runtime structural comparison that fails on float precision.",
+      "Because Go uses nominal typing for concrete named types -- structural typing only governs interface satisfaction.",
+      "Because Go does not allow two structs to share a field name."
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "languages/tier-5/comparative-type-systems-and-paradigms/q2",
+    "type": "multiple_choice",
+    "prompt": "Given the Python make_it_quack(animal) example in this lesson, what happens when make_it_quack(Dog()) is called, where Dog has no quack method?",
+    "choices": [
+      "It raises a TypeError at import time before any code runs.",
+      "It raises an AttributeError at runtime, only when that line actually executes.",
+      "It silently returns None because Python ignores unknown methods.",
+      "It raises a compile-time SyntaxError."
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-5/comparative-type-systems-and-paradigms/q3",
+    "type": "multiple_choice",
+    "prompt": "Given interface Meters { value: number } and interface Feet { value: number } in TypeScript, why is a Feet object accepted where a Meters parameter is expected?",
+    "choices": [
+      "TypeScript compares types structurally: two types with identical member shapes are interchangeable regardless of name.",
+      "TypeScript infers Feet as a subclass of Meters at compile time.",
+      "TypeScript requires an explicit implements clause, so this code actually fails to compile.",
+      "The value: number field is treated as any, disabling type checking entirely."
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-5/comparative-type-systems-and-paradigms/q4",
+    "type": "multiple_choice",
+    "prompt": "In the OCaml shape variant type (Circle, Rectangle, Triangle), if the area function's match expression only handles Circle and Rectangle, what happens when the code is compiled?",
+    "choices": [
+      "It throws a NullPointerException the first time area is called with a Triangle.",
+      "It fails to parse because match expressions must be exhaustive syntactically.",
+      "Nothing happens -- unmatched variant cases silently return 0.",
+      "The compiler emits a non-exhaustive pattern-matching warning naming Triangle as the unmatched case."
+    ],
+    "correctIndex": 3
+  },
+  {
+    "id": "languages/tier-5/comparative-type-systems-and-paradigms/q5",
+    "type": "multiple_choice",
+    "prompt": "Which best describes Go's paradigm as it has been used throughout this track?",
+    "choices": [
+      "Class-based OOP with implementation inheritance, like Java.",
+      "Procedural code organized around structs and functions, with structural interfaces providing polymorphism instead of inheritance.",
+      "Pure functional programming with immutability enforced by the compiler.",
+      "Dynamically typed prototypal OOP, like JavaScript."
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-5/comparative-type-systems-and-paradigms/q6",
+    "type": "multiple_choice",
+    "prompt": "Given the OCaml eval function from this lesson, what does eval (Add (Num 3, Mul (Num 4, Num 5))) evaluate to?",
+    "choices": [
+      "35",
+      "17",
+      "23",
+      "60"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "languages/tier-5/comparative-type-systems-and-paradigms/q7",
+    "type": "multiple_choice",
+    "prompt": "A team wants the compiler to prevent ever mixing Meters and Feet values, even accidentally, with no runtime checks. Which typing discipline provides this guarantee?",
+    "choices": [
+      "Dynamic typing with duck typing checks.",
+      "Structural static typing alone, since it checks shapes at compile time.",
+      "Runtime assertions added to every function call.",
+      "Nominal static typing with distinct named types for each unit."
+    ],
+    "correctIndex": 3
+  },
+  {
+    "id": "languages/tier-5/comparative-type-systems-and-paradigms/q8",
+    "type": "multiple_choice",
+    "prompt": "In OCaml, what is required to allow a value to change after it is created?",
+    "choices": [
+      "Nothing -- every let binding in OCaml is mutable by default.",
+      "Wrap it in a ref cell and update it with the := operator.",
+      "Add the mutable keyword directly to the let binding itself.",
+      "OCaml has no mechanism for representing state that changes over time."
+    ],
+    "correctIndex": 1
+  }
+]

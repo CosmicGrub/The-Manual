@@ -1,0 +1,281 @@
+---
+trackId: languages
+tier: 5
+title: "Comparative Type Systems & Paradigms"
+order: 3
+estimatedHours: 12
+slug: comparative-type-systems-and-paradigms
+---
+
+## Where this module sits
+
+Across this track you've already written real code in every quadrant of the type-system design space: Python and JavaScript with duck typing, Java and C# with nominal class hierarchies and generics, TypeScript and Go with structural static type checking. You've also lived inside OOP (Java/C#), procedural-with-interfaces (Go), and dynamic scripting (Python/JS) styles. None of that gets re-taught here. This module's job is narrower and harder: put those systems side by side, show the *same bug* behaving differently under each one, and then hand you a genuinely new paradigm — ML-family functional programming — so the comparison isn't just theoretical.
+
+## Two independent axes, not one spectrum
+
+People collapse "type system" into a single static-to-dynamic slider. It's actually two separate questions:
+
+1. **When is a value's type checked?** At compile time (static) or as the program runs (dynamic)?
+2. **How is type compatibility decided?** By declared name/lineage (nominal) or by shape/members (structural)?
+
+These are orthogonal, and the languages you already know map cleanly onto all four cells:
+
+| | Nominal | Structural |
+|---|---|---|
+| **Static** | Java, C# — a class must `implements`/inherit explicitly | TypeScript, Go — a type satisfies a contract by matching shape, no declaration needed |
+| **Dynamic** | Rare in practice (Python's `isinstance` checks, if you insist on them) | Python, JavaScript by default — duck typing, checked only when a member is accessed |
+
+Go is the interesting wrinkle you'll want pinned down precisely: its **interfaces** are structural (implicit satisfaction), but its **concrete named types** — structs — are nominal. Two structs with identical fields are not interchangeable unless you go through an interface. Keep that distinction in your head; the example below depends on it.
+
+## Bug #1: the unit-confusion bug, caught (or not) five different ways
+
+Here's a function that adds two `Meters` values. The bug: somebody passes a `Feet` value instead. Same conceptual mistake, five languages, five different fates.
+
+**Python — silent, always.** Duck typing doesn't care about the type at all, only that `.value` exists:
+
+```python
+class Meters:
+    def __init__(self, value): self.value = value
+
+class Feet:
+    def __init__(self, value): self.value = value
+
+def add_meters(a, b):
+    return Meters(a.value + b.value)
+
+result = add_meters(Meters(5), Feet(3))
+print(result.value)  # 8 -- runs fine, is physically nonsense, no error anywhere
+```
+
+There is no error to catch. `Feet` has a `.value` attribute, so it "quacks" correctly. This ships to production and returns wrong answers forever unless someone catches it in a code review or a unit test that specifically checks the *type*, not just the output.
+
+**JavaScript — identical story**, structurally and dynamically the same as Python here; object literals with a `.value` field pass right through.
+
+**TypeScript — structural typing *also misses it*, and this is the point people get wrong:**
+
+```typescript
+interface Meters { value: number }
+interface Feet { value: number }
+
+function addMeters(a: Meters, b: Meters): Meters {
+  return { value: a.value + b.value };
+}
+
+const m: Meters = { value: 5 };
+const f: Feet = { value: 3 };
+addMeters(m, f); // compiles cleanly -- Feet is structurally identical to Meters
+```
+
+TypeScript's compiler is doing real, static work here — it just doesn't help, because `Meters` and `Feet` are shape-identical. Structural typing answers "does this value have the right members?", not "does this value mean the right thing?" A distinct interface name buys you nothing if the shapes match.
+
+**Go — nominal typing on concrete types saves you, almost by accident:**
+
+```go
+type Meters struct{ Value float64 }
+type Feet struct{ Value float64 }
+
+func addMeters(a, b Meters) Meters {
+    return Meters{Value: a.Value + b.Value}
+}
+
+func main() {
+    m := Meters{Value: 5}
+    f := Feet{Value: 3}
+    addMeters(m, f) // compile error: cannot use f (variable of type Feet) as Meters value
+}
+```
+
+This compiles to an error. Not because Go went out of its way to prevent unit confusion — but because `Meters` and `Feet` are distinct named types, and Go's nominal rule for concrete types applies here even though its interfaces are structural. If you'd instead defined an interface `HasValue { Value() float64 }` and had `addMeters` accept that interface, both structs would satisfy it and you'd be back to the TypeScript problem.
+
+**Java / C# — nominal typing, no structural escape hatch at all:**
+
+```java
+class Meters { double value; Meters(double v) { value = v; } }
+class Feet   { double value; Feet(double v)   { value = v; } }
+
+static Meters addMeters(Meters a, Meters b) {
+    return new Meters(a.value + b.value);
+}
+// addMeters(new Meters(5), new Feet(3));
+// compile error: incompatible types: Feet cannot be converted to Meters
+```
+
+Java never falls back to shape-matching, ever — not for classes, not for interfaces without an explicit `implements`. This is the most conservative point on the grid: maximum safety against accidental substitution, at the cost of needing an explicit relationship declared for every type you want to be interchangeable.
+
+**Takeaway:** if you actually need the compiler to prevent unit/identity confusion, structural typing alone (TypeScript, or Go through interfaces) will not do it — you need nominal typing on distinct concrete types, or a branding/opaque-type trick to fake nominality inside a structural system.
+
+## Bug #2: the missing-method bug, static vs dynamic
+
+Different bug, same cast of languages, but now the axis that matters is *when* checking happens.
+
+```python
+class Duck:
+    def quack(self): return "Quack!"
+
+class Dog:
+    def bark(self): return "Woof!"
+
+def make_it_quack(animal):
+    return animal.quack()
+
+for a in [Duck(), Dog()]:
+    print(make_it_quack(a))
+# Quack!
+# AttributeError: 'Dog' object has no attribute 'quack'
+```
+
+That `AttributeError` fires only when this exact line executes with a `Dog`. If `Dog` only shows up down a rare branch your test suite doesn't exercise, this ships and blows up for a user, not for you.
+
+TypeScript catches the identical mistake before the program ever runs, because it checks the shape against a declared contract at compile time:
+
+```typescript
+interface Quacker { quack(): string }
+
+function makeItQuack(a: Quacker): string { return a.quack(); }
+
+class Dog { bark() { return "Woof!"; } }
+makeItQuack(new Dog());
+// compile error: Argument of type 'Dog' is not assignable to parameter of type 'Quacker'.
+//   Property 'quack' is missing in type 'Dog'.
+```
+
+Go's implicit interface satisfaction gives you the same compile-time guarantee, and Java/C#'s explicit `implements Quacker` gives it too, just with the contract declared up front instead of inferred from shape. The static/dynamic axis is really about *when* you find out you're wrong — before you ship, or in production.
+
+## Paradigm recap, briefly
+
+You already know this shape from direct experience: Java and C# push you toward OOP (encapsulation, class hierarchies, interfaces as contracts) even for problems that don't need inheritance. Go deliberately has no implementation inheritance — it's procedural code organized around structs and free functions, with small structural interfaces standing in for polymorphism instead of a class tree. Python and JS let you write either style, or mix them, because nothing enforces one. None of that needs re-explaining. What you haven't done yet in this track is functional programming with a language that makes immutability and pattern matching the *default*, not an opt-in library feature. That's the new ground.
+
+## First contact: OCaml
+
+OCaml is a strict, statically-typed, ML-family language. Its type system is structural in places (records, objects) and nominal in others (variant types identify by name) — but the paradigm shift that matters here isn't its typing, it's that **values don't mutate by default** and **branching on data shape is a first-class, compiler-checked language construct.**
+
+### Immutability by default
+
+```ocaml
+let x = 5
+let x = x + 1   (* this is NOT mutation -- it's a new binding that shadows the old x *)
+let () = Printf.printf "%d\n" x  (* 6 *)
+```
+
+There is no assignment operator that mutates a `let`-bound name. If you genuinely need a mutable cell, you ask for one explicitly:
+
+```ocaml
+let counter = ref 0
+let () = counter := !counter + 1
+let () = Printf.printf "%d\n" !counter   (* 1 *)
+```
+
+`ref` allocates a box; `:=` mutates the box; `!` dereferences it. The type system makes mutation visible at every use site instead of letting it hide behind an `=`. Compare this to Go, Java, or Python, where every variable is mutable unless you explicitly mark it `const`/`final`/frozen — OCaml flips the default.
+
+### Pattern matching and algebraic data types
+
+Define a type as a closed set of shapes (a *variant*), then branch on it exhaustively:
+
+```ocaml
+type shape =
+  | Circle of float                 (* radius *)
+  | Rectangle of float * float       (* width, height *)
+  | Triangle of float * float        (* base, height *)
+
+let area shape =
+  match shape with
+  | Circle r -> Float.pi *. r *. r
+  | Rectangle (w, h) -> w *. h
+  | Triangle (b, h) -> 0.5 *. b *. h
+
+let () = Printf.printf "%.2f\n" (area (Rectangle (3.0, 4.0)))  (* 12.00 *)
+```
+
+### Exhaustiveness checking closes the loop
+
+Now comment out the `Triangle` case:
+
+```ocaml
+let area shape =
+  match shape with
+  | Circle r -> Float.pi *. r *. r
+  | Rectangle (w, h) -> w *. h
+```
+
+```text
+Warning 8 [partial-match]: this pattern-matching is not exhaustive.
+Here is an example of a case that is not matched:
+Triangle (_, _)
+```
+
+This is a stronger guarantee than anything in Part 1. None of Python, Java, Go, or plain TypeScript give you *automatic* detection of "you forgot to handle a case" — you either crash at runtime (Python/dynamic dispatch falling through), rely on a human remembering a `default:` branch, or write your own exhaustiveness check by hand. OCaml's compiler does it for every `match`, unprompted, because the set of shapes for `shape` is closed and known.
+
+### Recursion instead of loops
+
+No `for`/`while` loops on lists — you recurse on the pattern-matched structure:
+
+```ocaml
+let rec sum lst =
+  match lst with
+  | [] -> 0
+  | head :: tail -> head + sum tail
+
+let rec map f lst =
+  match lst with
+  | [] -> []
+  | head :: tail -> f head :: map f tail
+
+let () =
+  Printf.printf "%d\n" (sum [1; 2; 3; 4; 5]);        (* 15 *)
+  List.iter (Printf.printf "%d ") (map (fun x -> x * x) [1; 2; 3; 4])  (* 1 4 9 16 *)
+```
+
+And here's the pattern that matters most for where this track goes next — an expression tree evaluated by structural recursion:
+
+```ocaml
+type expr =
+  | Num of int
+  | Add of expr * expr
+  | Mul of expr * expr
+
+let rec eval e =
+  match e with
+  | Num n -> n
+  | Add (a, b) -> eval a + eval b
+  | Mul (a, b) -> eval a * eval b
+
+let () = Printf.printf "%d\n" (eval (Add (Num 3, Mul (Num 4, Num 5))))  (* 23 *)
+```
+
+Build a value up as data (`Add (Num 3, Mul (Num 4, Num 5))`), then walk it with a recursive function that pattern-matches each shape. This is precisely the technique you'll scale up into a full interpreter later in this tier: parse source text into an algebraic data type, then evaluate it by matching over the tree.
+
+## Synthesis: TypeScript already stole this
+
+Once you've seen OCaml's variant types and exhaustiveness checking, TypeScript's "discriminated union" pattern stops looking like a syntax trick and starts looking like what it is — a structural type system imitating an ML-family feature:
+
+```typescript
+type Shape =
+  | { kind: "circle"; r: number }
+  | { kind: "rect"; w: number; h: number }
+  | { kind: "triangle"; b: number; h: number };
+
+function assertNever(x: never): never {
+  throw new Error("Unhandled case: " + JSON.stringify(x));
+}
+
+function area(s: Shape): number {
+  switch (s.kind) {
+    case "circle": return Math.PI * s.r * s.r;
+    case "rect": return s.w * s.h;
+    case "triangle": return 0.5 * s.b * s.h;
+    default: return assertNever(s);
+  }
+}
+```
+
+Delete the `triangle` case and TypeScript narrows the unhandled `s` at the `default` branch to `{ kind: "triangle"; ... }`, which no longer satisfies the `never` parameter of `assertNever` — compile error. It's the same guarantee OCaml gives you for free, rebuilt on top of structural typing with a manual `default` + `never` convention you have to remember to write. OCaml's checker is on by default; TypeScript's is opt-in scaffolding. That difference — a language feature versus a pattern you have to discipline yourself into — is a large part of what "paradigm" actually buys you.
+
+## Exercise
+
+Take the `shape`/`area` pair from this lesson in both OCaml and TypeScript. Add a fourth variant, `Square of float` (OCaml) / `{ kind: "square"; s: number }` (TypeScript), and update both `area` functions to handle it correctly. Then, in each language, delete the new case's branch and note exactly what the compiler tells you and when. Finally, write a three-line comment explaining why the equivalent omission in the Python version from Bug #2's style (a `Square` class with no corresponding branch in an `if isinstance(...)` chain) would *not* be caught the same way — under what circumstance would it fail, and under what circumstance would it ship silently?
+
+*Hint:* the OCaml warning number and message text you need already appeared verbatim earlier in this lesson — reread the exhaustiveness section before checking your compiler output against it. For the Python question, think about which line has to actually execute for a duck-typing failure to surface at all.
+
+## Where this leaves you
+
+You now have a working mental model that survives contact with a language you've never seen before: ask whether checking happens at compile time or runtime, and separately whether compatibility is decided by name or by shape. Then ask what the paradigm defaults to — mutable-unless-marked, or immutable-unless-requested; open-ended dispatch, or closed, exhaustively-checked variants. Every language you meet from here on, including whatever your capstone project ends up using, is a specific point on those axes, not a mystery.

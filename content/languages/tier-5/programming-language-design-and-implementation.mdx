@@ -1,0 +1,303 @@
+---
+trackId: languages
+tier: 5
+title: "Programming Language Design & Implementation"
+order: 2
+estimatedHours: 20
+slug: programming-language-design-and-implementation
+---
+
+## Why this module is the center of the tier
+
+Every other module in this track — regex engines, parser combinators, macro systems, type systems, even the "read a foreign codebase" work — has been circling one fact: a programming language is just a program that reads text and produces behavior. This module makes you build that program, end to end, for real. Not a diagram of a pipeline. An actual lexer, an actual recursive-descent parser, and an actual tree-walking evaluator, wired together, that you run against real input and get real output from.
+
+We're building a language with exactly three moving parts: arithmetic expressions with correct `+ - * /` precedence, variable assignment, and `print`. That's deliberately small. The value here isn't the feature list — it's that you will personally walk source text through every stage a "real" language's front end goes through, using the same techniques (recursive descent, precedence climbing, a visitor-shaped evaluator) that CPython's parser, Lua's front end, and Crafting Interpreters' `jlox`/`clox` all use. Once you've done it for four features, doing it for forty is more code, not new ideas.
+
+Code below is Python, chosen for signal-to-noise — if you're more comfortable finishing this in Rust from earlier tiers, the grammar and algorithm translate directly; you'd trade `isinstance` dispatch for an `enum` and a `match`, and dynamic typing for `Result<f64, InterpretError>`. The architecture doesn't change.
+
+## The pipeline
+
+```
+source text  →  [lexer]  →  tokens  →  [parser]  →  AST  →  [interpreter]  →  result
+"x = 2 + 3"      scans        Num(2)      builds      Assign     walks the
+                 char by      Plus                    (x, ...)   tree, computes
+                 char         Num(3)                              a value
+```
+
+Three stages, three responsibilities, and critically: three separate concerns that should never leak into each other. The lexer knows nothing about grammar (it doesn't know `+` needs two operands). The parser knows nothing about values (it never computes `2 + 3`, it just builds a `BinOp` node). The interpreter knows nothing about syntax (it never looks at characters or tokens, only AST nodes). Keeping these boundaries clean is what makes each stage independently testable and understandable — and it's the same separation you'll see in every real compiler or interpreter you read after this.
+
+## Stage 1: Lexing
+
+The lexer's job is to turn a flat string into a stream of `Token` objects, each tagged with a type, its exact source text, and a line number for error messages. Whitespace and comments are consumed and discarded here — they matter for humans, not for the grammar.
+
+```python
+from dataclasses import dataclass
+from typing import List
+
+class TokenType:
+    NUMBER = "NUMBER"
+    IDENT = "IDENT"
+    PLUS = "PLUS"
+    MINUS = "MINUS"
+    STAR = "STAR"
+    SLASH = "SLASH"
+    EQUAL = "EQUAL"
+    LPAREN = "LPAREN"
+    RPAREN = "RPAREN"
+    PRINT = "PRINT"
+    NEWLINE = "NEWLINE"
+    EOF = "EOF"
+
+@dataclass
+class Token:
+    type: str
+    lexeme: str
+    line: int
+
+KEYWORDS = {"print": TokenType.PRINT}
+
+class LexError(Exception):
+    pass
+
+def tokenize(source: str) -> List[Token]:
+    tokens, i, line, n = [], 0, 1, len(source)
+    while i < n:
+        c = source[i]
+        if c in " \t":
+            i += 1; continue
+        if c == "\n":
+            tokens.append(Token(TokenType.NEWLINE, "\\n", line))
+            line += 1; i += 1; continue
+        if c == "#":
+            while i < n and source[i] != "\n":
+                i += 1
+            continue
+        if c.isdigit():
+            start = i
+            seen_dot = False
+            while i < n and (source[i].isdigit() or (source[i] == "." and not seen_dot)):
+                if source[i] == ".":
+                    seen_dot = True
+                i += 1
+            tokens.append(Token(TokenType.NUMBER, source[start:i], line))
+            continue
+        if c.isalpha() or c == "_":
+            start = i
+            while i < n and (source[i].isalnum() or source[i] == "_"):
+                i += 1
+            word = source[start:i]
+            tokens.append(Token(KEYWORDS.get(word, TokenType.IDENT), word, line))
+            continue
+        simple = {"+": TokenType.PLUS, "-": TokenType.MINUS, "*": TokenType.STAR,
+                  "/": TokenType.SLASH, "=": TokenType.EQUAL,
+                  "(": TokenType.LPAREN, ")": TokenType.RPAREN}
+        if c in simple:
+            tokens.append(Token(simple[c], c, line))
+            i += 1; continue
+        raise LexError(f"Unexpected character {c!r} on line {line}")
+    tokens.append(Token(TokenType.EOF, "", line))
+    return tokens
+```
+
+Two design choices worth noticing. First, `EOF` is a real token, not a sentinel you check for separately — this lets the parser use one uniform loop-until-EOF instead of special-casing "ran out of input." Second, keywords are recognized by scanning an identifier and then checking a dict, not by hard-coding `print` into the character-scanning logic — this is how every real lexer handles keywords, because it means adding a new keyword never touches the scanning code.
+
+Run `tokenize("x = 2 + 3")` and you get `[Token(IDENT,'x'), Token(EQUAL,'='), Token(NUMBER,'2'), Token(PLUS,'+'), Token(NUMBER,'3'), Token(EOF,'')]`. No structure yet — just a flat list. Structure is the parser's job.
+
+## Stage 2: Parsing — recursive descent with precedence climbing
+
+Here's the grammar we're implementing, one rule per precedence level, loosest-binding first:
+
+```
+program    -> statement* EOF
+statement  -> "print" expression | IDENT "=" expression
+expression -> term (("+" | "-") term)*
+term       -> factor (("*" | "/") factor)*
+factor     -> NUMBER | IDENT | "(" expression ")" | "-" factor
+```
+
+This is the trick that gives you correct precedence without a Pratt parser or a precedence table: `expression` only knows about `+`/`-`, and it delegates to `term` for anything tighter-binding, which only knows about `*`/`/`, which delegates to `factor` for atoms and parentheses. Because `expression` calls `term` (not the other way around), `*` always gets consumed before `+` gets a chance to — that's precedence, encoded structurally in which function calls which. Each level is also a `while` loop, not an `if`, which is what gives you left-associativity: `10 - 2 - 3` parses as `(10 - 2) - 3`, folding left to right, matching how you'd hand-evaluate it.
+
+```python
+from dataclasses import dataclass
+from typing import Union
+
+@dataclass
+class Num: value: float
+@dataclass
+class Var: name: str
+@dataclass
+class BinOp: op: str; left: "Expr"; right: "Expr"
+@dataclass
+class Neg: operand: "Expr"
+Expr = Union[Num, Var, BinOp, Neg]
+
+@dataclass
+class Assign: name: str; value: Expr
+@dataclass
+class Print: value: Expr
+Stmt = Union[Assign, Print]
+
+class ParseError(Exception):
+    pass
+
+class Parser:
+    def __init__(self, tokens): self.tokens, self.pos = tokens, 0
+    def peek(self): return self.tokens[self.pos]
+    def advance(self):
+        tok = self.tokens[self.pos]
+        if tok.type != TokenType.EOF: self.pos += 1
+        return tok
+    def check(self, t): return self.peek().type == t
+    def match(self, *types):
+        if self.peek().type in types: self.advance(); return True
+        return False
+    def expect(self, t):
+        if self.check(t): return self.advance()
+        tok = self.peek()
+        raise ParseError(f"Expected {t}, got {tok.type} ({tok.lexeme!r}) line {tok.line}")
+
+    def parse_program(self):
+        stmts = []
+        while self.match(TokenType.NEWLINE): pass
+        while not self.check(TokenType.EOF):
+            stmts.append(self.parse_statement())
+            while self.match(TokenType.NEWLINE): pass
+        return stmts
+
+    def parse_statement(self):
+        if self.match(TokenType.PRINT):
+            return Print(self.parse_expression())
+        if self.check(TokenType.IDENT) and self.tokens[self.pos + 1].type == TokenType.EQUAL:
+            name = self.advance().lexeme
+            self.expect(TokenType.EQUAL)
+            return Assign(name, self.parse_expression())
+        tok = self.peek()
+        raise ParseError(f"Unexpected token {tok.type} line {tok.line}")
+
+    def parse_expression(self):
+        left = self.parse_term()
+        while self.check(TokenType.PLUS) or self.check(TokenType.MINUS):
+            op = self.advance().lexeme
+            left = BinOp(op, left, self.parse_term())
+        return left
+
+    def parse_term(self):
+        left = self.parse_factor()
+        while self.check(TokenType.STAR) or self.check(TokenType.SLASH):
+            op = self.advance().lexeme
+            left = BinOp(op, left, self.parse_factor())
+        return left
+
+    def parse_factor(self):
+        if self.match(TokenType.MINUS):
+            return Neg(self.parse_factor())
+        if self.check(TokenType.NUMBER):
+            return Num(float(self.advance().lexeme))
+        if self.check(TokenType.IDENT):
+            return Var(self.advance().lexeme)
+        if self.match(TokenType.LPAREN):
+            expr = self.parse_expression()
+            self.expect(TokenType.RPAREN)
+            return expr
+        tok = self.peek()
+        raise ParseError(f"Unexpected token {tok.type} ({tok.lexeme!r}) line {tok.line}")
+```
+
+Trace `2 + 3 * 4` by hand once: `parse_expression` calls `parse_term`, which calls `parse_factor` and gets `Num(2)`, sees no `*`/`/` next, returns `Num(2)`. Back in `parse_expression`, it sees `+`, calls `parse_term` again — which parses `3`, then *does* see `*`, so it consumes `3 * 4` as `BinOp('*', Num(3), Num(4))` before returning. Final tree: `BinOp('+', Num(2), BinOp('*', Num(3), Num(4)))`. The multiplication is nested inside the addition — precedence is now a structural property of the tree, and evaluation just has to respect that structure, not recompute precedence.
+
+The lookahead in `parse_statement` (`tokens[self.pos + 1].type == TokenType.EQUAL`) is worth flagging explicitly: it's a one-token lookahead to disambiguate `x = 1` (assignment) from a bare expression statement, without backtracking. This is the same technique — peek before committing to a grammar rule — that separates a clean recursive-descent parser from one that has to backtrack and re-parse.
+
+## Stage 3: Tree-walking interpretation
+
+The evaluator is a straightforward recursive visitor over the AST: one case per node type, each case knows how to compute its own value in terms of its children's values. State — variable bindings — lives in a plain dict, the environment.
+
+```python
+class InterpretError(Exception):
+    pass
+
+class Interpreter:
+    def __init__(self):
+        self.env = {}
+
+    def run(self, stmts):
+        for stmt in stmts:
+            self.exec_stmt(stmt)
+
+    def exec_stmt(self, stmt):
+        if isinstance(stmt, Assign):
+            self.env[stmt.name] = self.eval_expr(stmt.value)
+        elif isinstance(stmt, Print):
+            print(self.eval_expr(stmt.value))
+        else:
+            raise InterpretError(f"Unknown statement {stmt}")
+
+    def eval_expr(self, expr):
+        if isinstance(expr, Num):
+            return expr.value
+        if isinstance(expr, Var):
+            if expr.name not in self.env:
+                raise InterpretError(f"Undefined variable '{expr.name}'")
+            return self.env[expr.name]
+        if isinstance(expr, Neg):
+            return -self.eval_expr(expr.operand)
+        if isinstance(expr, BinOp):
+            left, right = self.eval_expr(expr.left), self.eval_expr(expr.right)
+            if expr.op == "+": return left + right
+            if expr.op == "-": return left - right
+            if expr.op == "*": return left * right
+            if expr.op == "/":
+                if right == 0:
+                    raise InterpretError("Division by zero")
+                return left / right
+        raise InterpretError(f"Unknown expression {expr}")
+```
+
+Call it "tree-walking" because that's literally the algorithm: `eval_expr` recurses down into `expr.left` and `expr.right` before it can compute anything for the node itself, so evaluating one top-level expression means walking the entire subtree beneath it, re-entering this function once per node. Notice also that the interpreter *is* where undefined-variable errors surface — the parser has no concept of "defined," it happily builds `Var("y")` whether or not `y` was ever assigned. That check only happens when `eval_expr` hits `Var` at runtime. This is a general truth about tree-walking interpreters: anything not checked structurally by the grammar (undefined names, type mismatches, division by zero) is a runtime error, discovered exactly when that AST node is visited — which, for something like an unreachable `if` branch, might be never.
+
+Wire the three stages together and it runs:
+
+```python
+def run_source(source):
+    ast = Parser(tokenize(source)).parse_program()
+    Interpreter().run(ast)
+
+run_source("""
+x = 3 + 4 * 2
+print x
+y = (x - 1) / 2
+print y
+z = -x + 10
+print z
+""")
+# 11.0
+# 5.0
+# -1.0
+```
+
+That's a complete, working interpreter in roughly 150 lines. Every stage is separately swappable: change the grammar (add `%`, add `if`), and only the parser and the `BinOp`/AST shapes touch. Change how numbers are represented (add integers vs. floats, add strings), and only `eval_expr`'s leaf cases touch. That modularity is the actual payoff of the three-stage split — not elegance for its own sake, but that each stage has a blast radius of one.
+
+## From tree-walking to bytecode: what you'd trade
+
+You don't need to build a VM to understand why one would be faster — but you do need to understand *what tree-walking actually costs* to see why bytecode fixes it.
+
+Every time `eval_expr` runs, for every single node, it: pattern-matches on the node's Python type (a chain of `isinstance` checks, or in a lower-level language, a vtable/tag dispatch), makes a recursive function call with its own stack frame, and — because `expr.left` and `expr.right` are heap-allocated objects connected by pointers — jumps somewhere unpredictable in memory to fetch them. None of that is free, and worse, it's paid *every time the expression is evaluated*, even if it's evaluated a thousand times in a loop (which this toy language doesn't have yet, but yours will). The tree never gets "compiled down" into something more compact; you re-discover its precedence structure via re-dispatch on every single run.
+
+A bytecode compiler adds a stage between parsing and execution: it walks the AST *once*, ahead of time, and flattens it into a linear array of simple instructions, typically for a stack machine. `2 + 3 * 4` compiles to something like:
+
+```
+PUSH_CONST 2
+PUSH_CONST 3
+PUSH_CONST 4
+MUL
+ADD
+```
+
+The VM that executes this is a tight loop — fetch the next instruction, dispatch on its opcode (often a single array index or a computed-goto jump table, not a chain of type checks), operate on a value stack. This is faster for a few concrete, compounding reasons: the instruction stream is a flat array (sequential memory access, cache-friendly) instead of a pointer-chasing tree; opcode dispatch is one jump instead of a recursive call plus multiple `isinstance` checks; the AST's structure — which already encoded precedence — has been "paid for" once at compile time instead of being re-walked on every execution; and a flat instruction stream is something you can further optimize *before* running it at all — constant-folding `3 * 4` into `12` at compile time, or eliminating dead code — optimizations that are awkward to do soundly against a live tree you're simultaneously interpreting. This is exactly the shape of CPython's own execution model: `dis.dis(compile("2 + 3 * 4", "<x>", "eval"))` will show you real `LOAD_CONST`/`BINARY_OP` bytecode for this exact expression, produced by a compiler stage sitting between CPython's own AST and its own eval loop — the same architecture, at production scale.
+
+What you're *not* getting for free by adding a VM: it's genuinely more code (a compiler pass, an instruction encoding, a dispatch loop, often a separate constant pool), and it introduces a whole new class of bugs — stack-depth mismatches, off-by-one jump targets for control flow — that a tree walker structurally can't have, because the tree's shape *is* the control flow. That tradeoff — implementation complexity and a new bug surface, in exchange for throughput — is why most real interpreters (CPython, Lua, Ruby's YARV, the JVM) settle on bytecode+VM only once they've outgrown a tree walker's simplicity, and why "start with tree-walking, move to bytecode when you need the speed" is standard advice, not a shortcut.
+
+## Exercise
+
+Extend the interpreter above to support the `%` (modulo) operator at the same precedence level as `*` and `/`, and add a unary `+` that's a no-op (so `+x` parses and evaluates the same as `x`). Then write a small test program that exercises both, including at least one case where `%` and unary `+` interact with existing operator precedence in a non-obvious way (e.g., does `-2 % 3` do what you expect, given how `Neg` and `factor` are structured?).
+
+Hint: `%` belongs in `parse_term`, next to `*` and `/`, since it binds at the same precedence — check `TokenType.STAR`/`TokenType.SLASH` and see what has to change in the token table, the grammar rule, and `eval_expr`'s `BinOp` case. Unary `+` belongs in `parse_factor` next to the existing unary `-` handling — think about whether it needs its own AST node at all, or whether it can just... not produce one.

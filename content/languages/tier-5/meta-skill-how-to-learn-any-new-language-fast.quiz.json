@@ -1,0 +1,98 @@
+[
+  {
+    "id": "languages/tier-5/meta-skill-how-to-learn-any-new-language-fast/q1",
+    "type": "multiple_choice",
+    "prompt": "In the six-axis onboarding checklist, which axis specifically asks 'who decides when memory is freed, and what happens if you get it wrong'?",
+    "choices": [
+      "Paradigm",
+      "Memory model",
+      "Type system",
+      "Idioms"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-5/meta-skill-how-to-learn-any-new-language-fast/q2",
+    "type": "multiple_choice",
+    "prompt": "Given this Python code:\n\nimport threading\ncounter = 0\ndef worker():\n    global counter\n    for _ in range(1_000_000):\n        counter += 1\nthreads = [threading.Thread(target=worker) for _ in range(4)]\n[t.start() for t in threads]\n[t.join() for t in threads]\nprint(counter)\n\nWhat does this print, and why?",
+    "choices": [
+      "Always exactly 4000000, because the GIL makes counter += 1 atomic",
+      "A value less than or equal to 4000000 that varies between runs, because the GIL serializes individual bytecode instructions but not the whole read-modify-write of +=",
+      "A compile error, because Python threads cannot share a global variable",
+      "Always exactly 1000000, because only one of the four threads actually executes"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-5/meta-skill-how-to-learn-any-new-language-fast/q3",
+    "type": "multiple_choice",
+    "prompt": "This C function is called in a loop that processes thousands of records:\n\nvoid process(char *raw) {\n    char *buf = malloc(256);\n    strcpy(buf, raw);\n    if (strlen(buf) == 0) {\n        return;\n    }\n    do_something(buf);\n    free(buf);\n}\n\nWhat's the bug, and which axis of the checklist would have flagged it while porting from a GC'd language?",
+    "choices": [
+      "No bug -- malloc and free are balanced correctly on every path",
+      "buf leaks whenever the early return on the empty-string path is taken, since free(buf) is never reached; the memory model axis (manual lifetime, no GC safety net) is what should have flagged this",
+      "strcpy overflows the buffer, which is a type system issue, not a memory model issue",
+      "The function should use calloc instead of malloc; this is a tooling issue"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-5/meta-skill-how-to-learn-any-new-language-fast/q4",
+    "type": "multiple_choice",
+    "prompt": "You're porting a Go program that shares a map across goroutines, guarded 'by convention' (every caller remembers to hold the mutex first) to Rust. What actually changes?",
+    "choices": [
+      "Nothing -- Rust relies on the same convention-based discipline as Go",
+      "Rust's compiler refuses to compile unsynchronized shared mutable access at all; you're forced to wrap the map in something like Mutex<T> (often behind an Arc) before the borrow checker will accept the code",
+      "Rust has no concurrency primitives, so the logic must become single-threaded",
+      "Go's convention is actually stricter than Rust's, since Go's compiler includes a built-in race detector that runs automatically on every build"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-5/meta-skill-how-to-learn-any-new-language-fast/q5",
+    "type": "multiple_choice",
+    "prompt": "Which language ships a single command called cargo that handles dependency resolution, building, testing, formatting, and documentation generation -- a level of tooling unification that C and C++ never standardized on?",
+    "choices": [
+      "Go",
+      "Rust",
+      "Java",
+      "Python"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-5/meta-skill-how-to-learn-any-new-language-fast/q6",
+    "type": "multiple_choice",
+    "prompt": "Given this TypeScript:\n\ntype Shape =\n  | { kind: \"circle\"; radius: number }\n  | { kind: \"rect\"; w: number; h: number };\n\nfunction area(s: Shape): number {\n  switch (s.kind) {\n    case \"circle\": return Math.PI * s.radius ** 2;\n    case \"rect\": return s.w * s.h;\n  }\n}\n\nconsole.log(area({ kind: \"rect\", w: 3, h: 4 }));\n\nWhat is logged, and what lets TypeScript treat w and h as safely accessible in that branch?",
+    "choices": [
+      "12 -- structural type narrowing on the kind discriminant tells TypeScript which fields exist in each switch branch",
+      "NaN -- TypeScript cannot narrow union types inside a switch statement",
+      "A compile error -- discriminated unions require a class hierarchy, not object literals",
+      "12 -- because TypeScript performs nominal typing based on the type alias name Shape"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-5/meta-skill-how-to-learn-any-new-language-fast/q7",
+    "type": "multiple_choice",
+    "prompt": "Which pairing correctly matches a language to its idiomatic way of handling a 'missing key' lookup?",
+    "choices": [
+      "Python: EAFP -- try the access and catch KeyError; Go: check the second bool returned by a comma-ok map access",
+      "Python: LBYL -- always check 'in' before every single access; Go: raise a panic on any missing key",
+      "Both Python and Go treat exceptions as the idiomatic mechanism for a missing key",
+      "Both Python and Go require an explicit nil check before any map access, with no other option available"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-5/meta-skill-how-to-learn-any-new-language-fast/q8",
+    "type": "multiple_choice",
+    "prompt": "You're onboarding into Swift for the first time and learn it uses Automatic Reference Counting (ARC) with strong/weak/unowned references instead of a tracing garbage collector. Which axis of the checklist does this belong to, and which language you've already learned is it closest in spirit to?",
+    "choices": [
+      "Type system axis; closest to Java's generics",
+      "Memory model axis; closest in spirit to Rust's ownership model, though ARC is automatic reference counting rather than compile-time borrow checking, so cycles still need weak references much like Rust's Weak<T>",
+      "Concurrency model axis; closest to Go's goroutines",
+      "Tooling axis; closest to npm's dependency resolution model"
+    ],
+    "correctIndex": 1
+  }
+]
