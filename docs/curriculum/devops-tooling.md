@@ -131,7 +131,7 @@ This track turns a self-learner into someone who can take code from a laptop to 
 - **Kubernetes fundamentals** — ~16h: pods, deployments, services, ingress, ConfigMaps and Secrets, kubectl workflows, readiness/liveness probes
 - **Advanced Infrastructure as Code** — ~10h: Terraform modules and reuse, remote state and backends, workspaces for multi-environment infra, Pulumi/CDK as an alternative IaC paradigm (code-first vs. HCL)
 - **Observability deep dive** — ~12h: the three pillars: metrics, logs, traces, Prometheus + Grafana dashboards, OpenTelemetry basics, writing a useful alert (not a noisy one)
-- **Security fundamentals for engineers** — ~10h: OWASP Top 10 walkthrough with real examples, dependency scanning (Dependabot/Renovate), container image scanning (Trivy), secrets scanning in CI
+- **Security fundamentals for engineers** — ~10h: (pipeline/supply-chain/infra security only — for penetration testing and exploit-development depth, see the canonical Cybersecurity & Ethical Hacking track, MASTERFILE.md §4.5) OWASP Top 10 walkthrough with real examples, dependency scanning (Dependabot/Renovate), container image scanning (Trivy), secrets scanning in CI
 - **Agile and collaboration norms** — ~6h: Scrum vs. Kanban in practice, writing a reviewable pull request, code review etiquette (giving and receiving), writing a lightweight RFC/design doc
 - **Cloud architecture patterns** — ~8h: load balancing and auto-scaling, basic multi-region thinking, cost-aware architecture decisions
 
@@ -170,7 +170,7 @@ This track turns a self-learner into someone who can take code from a laptop to 
 - **Site Reliability Engineering practice** — ~10h: SLIs, SLOs, and error budgets, incident response and on-call rotations, blameless postmortem culture, toil reduction
 - **Platform engineering and GitOps** — ~12h: internal developer platforms (what/why), GitOps with ArgoCD or Flux, self-service infrastructure patterns
 - **Advanced Kubernetes** — ~14h: Custom Resource Definitions and Operators, service mesh basics (Istio/Linkerd), multi-cluster management concepts
-- **Advanced security and compliance** — ~12h: threat modeling for infrastructure, supply-chain security: SBOM and SLSA levels, policy-as-code with Open Policy Agent/Gatekeeper, zero-trust networking concepts
+- **Advanced security and compliance** — ~12h: (infra/compliance angle only — Cybersecurity & Ethical Hacking's Path C, Application Security Specialist, is the canonical deep application-threat-modeling and SAST/DAST module) threat modeling for infrastructure, supply-chain security: SBOM and SLSA levels, policy-as-code with Open Policy Agent/Gatekeeper, zero-trust networking concepts
 - **Performance and cost engineering at scale** — ~8h: infrastructure profiling and capacity planning, FinOps basics: attributing and reducing cloud spend, right-sizing and autoscaling tuning
 - **Contributing to open-source infrastructure tooling** — ~10h: finding a project and understanding its contribution guide, reading an unfamiliar large codebase (a Terraform provider, a Kubernetes ecosystem tool), the RFC/design-review process upstream projects use
 - **Multi-cloud and hybrid architecture design** — ~8h: when multi-cloud is (and isn't) justified, abstraction costs of cloud-agnostic tooling, hybrid on-prem/cloud patterns

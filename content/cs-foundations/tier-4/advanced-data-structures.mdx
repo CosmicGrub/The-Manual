@@ -1,0 +1,417 @@
+---
+trackId: cs-foundations
+tier: 4
+title: Advanced Data Structures
+order: 2
+estimatedHours: 12
+---
+
+Every data structure through Tier 3 came with an asterisk you probably noticed and moved past anyway: the binary search tree from Tier 2 is O(log n) *if* it stays balanced, and you already proved to yourself it doesn't automatically. Real systems close that asterisk with actual engineering, not hope. Redis's sorted sets are a skip list, not a tree, because a skip list stays correct under a simpler set of invariants. The Linux kernel's process scheduler keeps every runnable task in a red-black tree keyed by virtual runtime, specifically because red-black's looser balance means fewer rotations per scheduling tick than AVL would cost. Chrome's original Safe Browsing list and Cassandra's on-disk lookups both lean on Bloom filters to skip real work for something that's almost certainly not there. None of this is academic — it's what's actually running under software you use today, built from five ideas you're about to implement yourself, in an afternoon, from scratch.
+
+## What you'll leave this lesson knowing
+
+- Why an unbalanced BST can degrade to O(n) (you saw this in Tier 2), how AVL trees restore an O(log n) *guarantee* via a balance factor and rotations, and what red-black trees trade differently — looser balance for cheaper writes — which is why Linux's scheduler, Java's `TreeMap`, and C++'s `std::map` all pick red-black over AVL
+- How to build a binary heap as a flat array (not a chain of nodes) and use it as a priority queue, with a measured benchmark proving why that beats "keep a list sorted"
+- How a trie turns prefix search from "scan every string" into "walk a number of nodes equal to the prefix's length" — and where that exact idea shows up outside autocomplete (IP routing tables)
+- How union-find with path compression and union-by-rank pushes the amortized cost per operation down near O(1) — not merely "fast in practice," but a specific, named bound (inverse Ackermann) — and why that's the fact that makes Kruskal's algorithm from Tier 3 efficient at all
+- How to compute a Bloom filter's real false-positive rate from its size and hash count instead of guessing, and why skip lists trade a coin flip for the rebalancing logic a tree needs
+
+## Do this
+
+1. **AVL trees: put a hard ceiling on the height Tier 2's BST let run away.** Recall the BST from Tier 2's Core Data Structures II: insert `1, 2, ..., n` in order and you get a tree of height `n - 1` — every node has only a right child, and `contains` degrades to O(n). An AVL tree refuses to let that happen: after every insert, it checks a **balance factor** (left subtree height minus right subtree height) at each ancestor, and if it's ever `+2` or `-2`, it fixes the imbalance with a rotation before returning.
+
+   ```python
+   class AVLNode:
+       def __init__(self, value):
+           self.value = value
+           self.left = None
+           self.right = None
+           self.height = 1
+
+   def height(node):
+       return node.height if node else 0
+
+   def balance_factor(node):
+       return height(node.left) - height(node.right)
+
+   def rotate_right(y):
+       x = y.left
+       t2 = x.right
+       x.right = y
+       y.left = t2
+       y.height = 1 + max(height(y.left), height(y.right))
+       x.height = 1 + max(height(x.left), height(x.right))
+       return x   # x is the new subtree root
+
+   def rotate_left(x):
+       y = x.right
+       t2 = y.left
+       y.left = x
+       x.right = t2
+       x.height = 1 + max(height(x.left), height(x.right))
+       y.height = 1 + max(height(y.left), height(y.right))
+       return y   # y is the new subtree root
+
+   def avl_insert(node, value):
+       if node is None:
+           return AVLNode(value)
+       if value < node.value:
+           node.left = avl_insert(node.left, value)
+       elif value > node.value:
+           node.right = avl_insert(node.right, value)
+       else:
+           return node   # duplicate, ignore
+
+       node.height = 1 + max(height(node.left), height(node.right))
+       bf = balance_factor(node)
+
+       if bf > 1 and value < node.left.value:      # left-left case
+           return rotate_right(node)
+       if bf < -1 and value > node.right.value:     # right-right case
+           return rotate_left(node)
+       if bf > 1 and value > node.left.value:       # left-right case
+           node.left = rotate_left(node.left)
+           return rotate_right(node)
+       if bf < -1 and value < node.right.value:     # right-left case
+           node.right = rotate_right(node.right)
+           return rotate_left(node)
+       return node
+   ```
+
+   Now run the exact experiment that broke Tier 2's BST, against this one:
+
+   ```python
+   root = None
+   for v in range(2000):
+       root = avl_insert(root, v)
+   print(root.height)   # compare against 1999 for the plain BST
+   ```
+
+   `root.height` should land somewhere around 11-15 — nowhere near `1999`. That's the whole point: AVL's proven worst-case height bound is roughly `1.44 * log2(n)`, so `n = 2000` guarantees a height no worse than about 16, no matter what order you insert in. Confirm this by also inserting 2000 values in *random* order and comparing the resulting height — it should be similar, unlike the plain BST where insertion order was the difference between O(log n) and O(n).
+
+   **Red-black trees, conceptually, plus a real-source reading task.** A red-black tree enforces a *looser* invariant than AVL: every node is colored red or black, the root is black, a red node never has a red child, and every root-to-null path passes through the same number of black nodes. That last rule bounds the height at `2 * log2(n+1)` — worse than AVL's bound, but red-black trees need fewer rotations per insert/delete on average, because "loosely balanced" needs less fixing than "strictly balanced." That's the actual trade-off, and it's why implementations that mutate constantly (a kernel scheduler, a language's standard-library ordered map) pick red-black over AVL, while AVL wins when you build once and search many times. You are not implementing red-black from scratch here — go verify the trade-off against real code instead: clone the Linux kernel source (`git clone --depth 1 https://github.com/torvalds/linux`) and open `lib/rbtree.c`. Find `__rb_rotate_left` / the rotation logic and compare it line-for-line against your `rotate_left`/`rotate_right` above — the tree-surgery is nearly identical; only the rebalancing *trigger* (color rules vs. height rules) differs. Also grep `kernel/sched/fair.c` for `rb_` to see the CFS scheduler using this exact tree, keyed by `vruntime`, to pick the next task to run.
+
+2. **Binary heap from scratch, as an array — then prove it beats "keep a sorted list."** A binary heap doesn't use pointers at all: node `i`'s children live at indices `2i + 1` and `2i + 2` of a plain array, and the only invariant is "a parent is ≤ both children" (min-heap). That's it — no rotations, no balance factor.
+
+   ```python
+   class MinHeap:
+       def __init__(self):
+           self._data = []
+
+       def push(self, item):
+           self._data.append(item)
+           self._sift_up(len(self._data) - 1)
+
+       def pop(self):
+           if not self._data:
+               raise IndexError("pop from empty heap")
+           top = self._data[0]
+           last = self._data.pop()
+           if self._data:
+               self._data[0] = last
+               self._sift_down(0)
+           return top
+
+       def _sift_up(self, i):
+           while i > 0:
+               parent = (i - 1) // 2
+               if self._data[i] < self._data[parent]:
+                   self._data[i], self._data[parent] = self._data[parent], self._data[i]
+                   i = parent
+               else:
+                   break
+
+       def _sift_down(self, i):
+           n = len(self._data)
+           while True:
+               left, right, smallest = 2 * i + 1, 2 * i + 2, i
+               if left < n and self._data[left] < self._data[smallest]:
+                   smallest = left
+               if right < n and self._data[right] < self._data[smallest]:
+                   smallest = right
+               if smallest == i:
+                   break
+               self._data[i], self._data[smallest] = self._data[smallest], self._data[i]
+               i = smallest
+
+       def __len__(self):
+           return len(self._data)
+   ```
+
+   Confirm it's actually a priority queue: push a shuffled list of 100 integers, then `pop()` them all — you should get them back in sorted ascending order. `push` and `pop` are each O(log n) because you only ever walk one root-to-leaf path.
+
+   Now benchmark it against the "obvious" alternative — a Python list you re-sort after every insert — using the doubling pattern:
+
+   ```python
+   import random
+   import time
+
+   def naive_pq_total_time(n):
+       values = [random.random() for _ in range(n)]
+       lst = []
+       start = time.perf_counter()
+       for v in values:
+           lst.append(v)
+           lst.sort()             # O(n log n), every single insert
+       return time.perf_counter() - start
+
+   def heap_pq_total_time(n):
+       values = [random.random() for _ in range(n)]
+       heap = MinHeap()
+       start = time.perf_counter()
+       for v in values:
+           heap.push(v)
+       return time.perf_counter() - start
+
+   for n in (2_000, 4_000, 8_000, 16_000):
+       print(f"n={n:>6}  naive={naive_pq_total_time(n):.4f}s  heap={heap_pq_total_time(n):.4f}s")
+   ```
+
+   The naive version's total time should grow much faster than the heap's as `n` doubles — each naive insert is O(n log n), so total work is roughly O(n² log n), while the heap's total work is O(n log n). Then swap in Python's real `heapq` module (`heapq.heappush`/`heapq.heappop` on a plain list) and confirm its timings land in the same ballpark as your hand-built `MinHeap` — you can go read the actual implementation in CPython's `Lib/heapq.py` on GitHub (`python/cpython`) and you'll recognize `_siftup`/`_siftdown` as the same two functions you just wrote. This is the exact structure Dijkstra's algorithm from Tier 3 relies on for its "always expand the closest unvisited node" step — swap a sorted-list scan for a heap there and you go from O(V²) to O((V + E) log V).
+
+3. **Tries: turn "scan every string" into "walk the prefix."** A trie stores strings character-by-character in a shared tree, so any two words with a common prefix share the same path down to where they diverge.
+
+   ```python
+   class TrieNode:
+       __slots__ = ("children", "is_word")
+
+       def __init__(self):
+           self.children = {}
+           self.is_word = False
+
+   class Trie:
+       def __init__(self):
+           self.root = TrieNode()
+
+       def insert(self, word):
+           node = self.root
+           for ch in word:
+               node = node.children.setdefault(ch, TrieNode())
+           node.is_word = True
+
+       def _walk(self, s):
+           node = self.root
+           for ch in s:
+               if ch not in node.children:
+                   return None
+               node = node.children[ch]
+           return node
+
+       def search(self, word):
+           node = self._walk(word)
+           return node is not None and node.is_word
+
+       def starts_with(self, prefix):
+           return self._walk(prefix) is not None
+   ```
+
+   Get a real, large word list — either fetch `words_alpha.txt` (~466,000 English words) from the well-known GitHub repo [dwyl/english-words](https://github.com/dwyl/english-words) (`curl -O https://raw.githubusercontent.com/dwyl/english-words/master/words_alpha.txt`), or, if you'd rather not hit the network, use the dictionary file most Linux/macOS systems already ship at `/usr/share/dict/words` (install the `words` package on Debian/Ubuntu if it's missing). Load it, build a trie from every word, then benchmark prefix search against a plain linear scan:
+
+   ```python
+   import time
+
+   with open("words_alpha.txt") as f:
+       words = [w.strip() for w in f if w.strip()]
+
+   trie = Trie()
+   for w in words:
+       trie.insert(w)
+
+   def linear_prefix_search(words, prefix):
+       return [w for w in words if w.startswith(prefix)]
+
+   def trie_prefix_search(trie, prefix):
+       start_node = trie._walk(prefix)
+       if start_node is None:
+           return []
+       results = []
+       def collect(node, path):
+           if node.is_word:
+               results.append(prefix + path)
+           for ch, child in node.children.items():
+               collect(child, path + ch)
+       collect(start_node, "")
+       return results
+
+   prefix = "extrap"
+   t0 = time.perf_counter(); r1 = sorted(linear_prefix_search(words, prefix)); t1 = time.perf_counter()
+   t2 = time.perf_counter(); r2 = sorted(trie_prefix_search(trie, prefix)); t3 = time.perf_counter()
+   assert r1 == r2
+   print(f"linear scan: {t1 - t0:.6f}s   trie: {t3 - t2:.6f}s")
+   ```
+
+   On a ~400K-word list, expect the linear scan to take single-digit milliseconds (it has to check every one of ~400K strings) while the trie finishes in well under a millisecond (it only touches nodes along `"extrap"` plus whatever subtree hangs off it). This exact idea — turning a full scan into "walk a path whose length is the key, not the dataset" — is also how IP routers do longest-prefix-match: the Linux kernel's IPv4 routing table (`net/ipv4/fib_trie.c`) is a compressed trie (a "LC-trie") over address bits for precisely this reason.
+
+4. **Union-find: measure why path compression + union by rank matters, don't just take it on faith.** Union-find (disjoint-set union) answers one question fast, repeatedly: "are these two things in the same group, and if not, merge their groups." Two optimizations turn it from occasionally-O(n) into amortized-near-O(1): **path compression** (every node you visit while finding a root gets re-pointed straight at that root) and **union by rank** (always hang the shorter tree under the taller one's root, never the reverse).
+
+   ```python
+   class UnionFind:
+       def __init__(self, n):
+           self.parent = list(range(n))
+           self.rank = [0] * n
+
+       def find(self, x):
+           if self.parent[x] != x:
+               self.parent[x] = self.find(self.parent[x])   # path compression
+           return self.parent[x]
+
+       def union(self, x, y):
+           rx, ry = self.find(x), self.find(y)
+           if rx == ry:
+               return False
+           if self.rank[rx] < self.rank[ry]:
+               rx, ry = ry, rx
+           self.parent[ry] = rx
+           if self.rank[rx] == self.rank[ry]:
+               self.rank[rx] += 1
+           return True
+   ```
+
+   Now build the naive version — parent pointers, no compression, no rank — and force its worst case on purpose: chain every element onto the next one, in order, so the structure becomes a straight line instead of staying flat. Building that chain is cheap either way (each union only ever touches nodes that haven't been chained yet); the cost shows up afterward, in how expensive a `find` is once the chain exists. So measure the *query* phase separately from construction:
+
+   ```python
+   def naive_find(parent, x):
+       while parent[x] != x:
+           x = parent[x]
+       return x
+
+   import time
+   import random
+
+   def naive_chain_query_time(n, num_queries):
+       parent = list(range(n))
+       for i in range(n - 1):
+           ri, rj = naive_find(parent, i), naive_find(parent, i + 1)
+           parent[ri] = rj                      # chains everything into one line, length n
+       queries = [random.randrange(n) for _ in range(num_queries)]
+       start = time.perf_counter()
+       for q in queries:
+           naive_find(parent, q)
+       return time.perf_counter() - start
+
+   def optimized_chain_query_time(n, num_queries):
+       uf = UnionFind(n)
+       for i in range(n - 1):
+           uf.union(i, i + 1)                   # same operations, but rank keeps the tree flat
+       queries = [random.randrange(n) for _ in range(num_queries)]
+       start = time.perf_counter()
+       for q in queries:
+           uf.find(q)
+       return time.perf_counter() - start
+
+   for n in (5_000, 10_000, 20_000, 40_000):
+       nt = naive_chain_query_time(n, 3_000)
+       ot = optimized_chain_query_time(n, 3_000)
+       print(f"n={n:>6}  naive={nt:.4f}s  optimized={ot:.4f}s")
+   ```
+
+   With the same fixed 3,000 queries each time, the naive version's total query time should roughly **double every time `n` doubles** — a plain linear-in-`n` signature, because each query walks, on average, a chain proportional to `n`. The optimized version's time should barely move at all as `n` grows 8x, because union by rank alone already keeps its tree at O(log n) height, and path compression flattens it further on every query. Put a number on it: each optimized operation costs amortized `O(α(n))`, where `α` is the **inverse Ackermann function** — a quantity that stays under 5 for any `n` you could ever construct in practice, which is why it reads as "basically constant" on the timings above. That specific bound — not just "path compression feels faster" — is what lets Kruskal's minimum-spanning-tree algorithm from Tier 3 claim `O(E log E)` overall: sorting the edges dominates, because the union-find cycle checks are practically free. Go read a real, production implementation of exactly this class to compare against yours: `networkx/utils/union_find.py` in the [networkx](https://github.com/networkx/networkx) repo, which NetworkX's own `minimum_spanning_edges` (Kruskal's implementation) calls internally.
+
+5. **Bloom filters: compute the false-positive rate, then verify it empirically instead of trusting the formula.** A Bloom filter answers "have I probably seen this?" using a bit array and `k` hash functions, with one specific, honest limitation: it can say "yes" when the true answer is "no" (a false positive), but it can *never* say "no" when the true answer is "yes."
+
+   ```python
+   import hashlib
+   import math
+
+   class BloomFilter:
+       def __init__(self, num_items, false_positive_rate):
+           self.size = self._optimal_size(num_items, false_positive_rate)
+           self.num_hashes = self._optimal_num_hashes(self.size, num_items)
+           self.bits = bytearray((self.size + 7) // 8)
+
+       @staticmethod
+       def _optimal_size(n, p):
+           return max(1, int(-(n * math.log(p)) / (math.log(2) ** 2)))
+
+       @staticmethod
+       def _optimal_num_hashes(m, n):
+           return max(1, round((m / n) * math.log(2)))
+
+       def _indexes(self, item):
+           data = item.encode()
+           h1 = int(hashlib.md5(data).hexdigest(), 16)
+           h2 = int(hashlib.sha1(data).hexdigest(), 16)
+           for i in range(self.num_hashes):
+               yield (h1 + i * h2) % self.size   # Kirsch-Mitzenmacher double hashing
+
+       def add(self, item):
+           for idx in self._indexes(item):
+               self.bits[idx // 8] |= (1 << (idx % 8))
+
+       def might_contain(self, item):
+           return all(self.bits[idx // 8] & (1 << (idx % 8)) for idx in self._indexes(item))
+   ```
+
+   Reuse the ~400K-word list from step 3. Build a filter sized for it at a target 1% false-positive rate, add every real word, then measure the *actual* false-positive rate against strings you know aren't real words:
+
+   ```python
+   bf = BloomFilter(num_items=len(words), false_positive_rate=0.01)
+   for w in words:
+       bf.add(w)
+
+   assert all(bf.might_contain(w) for w in words)   # zero false negatives, guaranteed
+
+   import random, string
+   fake_words = ["".join(random.choices(string.ascii_lowercase, k=10)) for _ in range(20_000)]
+   fake_words = [w for w in fake_words if w not in set(words)]   # make sure they're genuinely absent
+   false_positives = sum(bf.might_contain(w) for w in fake_words)
+   print(f"measured false-positive rate: {false_positives / len(fake_words):.4f}")   # should land near 0.01
+   ```
+
+   Then compare memory: `len(bf.bits)` (bytes) versus `sys.getsizeof(set(words))` plus the size of the strings themselves in a real `set`. The filter should use dramatically fewer bytes per item — at a 1% false-positive rate, the theory says roughly 9.6 bits per item no matter how long the strings are, because it never stores the strings at all, only bit positions. This isn't a toy trick: Google's Bigtable paper (Chang et al., *Bigtable: A Distributed Storage System for Structured Data*, OSDI 2006) describes using Bloom filters to avoid disk reads for rows/columns that don't exist, and Apache Cassandra's `org.apache.cassandra.utils.BloomFilter` does the same thing per SSTable today. The original idea is Burton H. Bloom's 1970 paper *Space/Time Trade-offs in Hash Coding with Allowable Errors* — over 50 years old and still load-bearing infrastructure.
+
+6. **Skip lists: get O(log n)-ish search with a coin flip instead of a rebalancing rule.** A skip list is a linked list with extra "express lane" layers built by chance: when you insert a node, you flip a coin repeatedly to decide how many layers it participates in, so on average a quarter of nodes reach level 2, an eighth reach level 3, and so on.
+
+   ```python
+   import random
+
+   class SkipNode:
+       def __init__(self, value, level):
+           self.value = value
+           self.forward = [None] * (level + 1)
+
+   class SkipList:
+       MAX_LEVEL = 16
+       P = 0.5
+
+       def __init__(self):
+           self.head = SkipNode(None, self.MAX_LEVEL)
+           self.level = 0
+
+       def _random_level(self):
+           lvl = 0
+           while random.random() < self.P and lvl < self.MAX_LEVEL:
+               lvl += 1
+           return lvl
+
+       def insert(self, value):
+           update = [self.head] * (self.MAX_LEVEL + 1)
+           current = self.head
+           for i in range(self.level, -1, -1):
+               while current.forward[i] and current.forward[i].value < value:
+                   current = current.forward[i]
+               update[i] = current
+           lvl = self._random_level()
+           if lvl > self.level:
+               self.level = lvl
+           node = SkipNode(value, lvl)
+           for i in range(lvl + 1):
+               node.forward[i] = update[i].forward[i]
+               update[i].forward[i] = node
+
+       def search(self, value):
+           current = self.head
+           for i in range(self.level, -1, -1):
+               while current.forward[i] and current.forward[i].value < value:
+                   current = current.forward[i]
+           current = current.forward[0]
+           return current is not None and current.value == value
+   ```
+
+   Insert 5,000 random integers, then confirm `search` correctly finds values you inserted and correctly rejects values you didn't. Then run the same doubling benchmark you used for the heap and union-find — search time for `n = 2_000, 4_000, 8_000, 16_000` random keys — and confirm it grows logarithmically, not linearly, despite there being zero rotation logic anywhere in this file. Note what you *didn't* have to write compared to the AVL tree in step 1: no balance factor, no four rotation cases — just a coin flip per insert. That's the actual sales pitch for skip lists over balanced trees: comparable expected performance for meaningfully simpler, easier-to-get-right code (and easier to make correct under concurrent access, which is part of why they show up in practice). The result is probabilistic, not worst-case guaranteed like AVL — an adversary who could predict your random number generator could in theory force a bad skip list, which is a real (if narrow) distinction worth being able to state. This isn't a toy exercise: William Pugh's 1990 paper *Skip Lists: A Probabilistic Alternative to Balanced Trees* (Communications of the ACM) is the origin of the structure, and Redis's sorted-set implementation (`t_zset.c` in the [redis/redis](https://github.com/redis/redis) repo) is a skip list, with a comment at the top of that file explicitly citing Pugh's paper. LevelDB's and RocksDB's in-memory memtables (`db/skiplist.h` in [google/leveldb](https://github.com/google/leveldb)) use the same structure for the same reason.
+
+## Check on learning
+
+- In your own words, explain why an AVL tree's height is guaranteed to stay O(log n) even in the worst case, using the balance-factor rule — then contrast that with Tier 2's plain BST, which could degrade to O(n) height depending purely on insertion order.
+- A teammate proposes replacing a Bloom filter that guards expensive disk lookups with a Python `set`, arguing "it's always accurate, so it's strictly better." Give one concrete, numbers-based reason (memory footprint, or what happens when the item count is in the hundreds of millions) where the Bloom filter is still the right engineering call despite being probabilistic.
+- Explain-back: walk through why union-find with path compression and union-by-rank achieves amortized near-O(1) per operation — not just "it's fast in practice," but the actual mechanism (what compression changes about the tree shape, and what rank prevents) — and why that specific bound is what lets Kruskal's algorithm claim `O(E log E)` overall rather than something worse.

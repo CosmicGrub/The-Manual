@@ -1,0 +1,63 @@
+[
+  {
+    "id": "cs-foundations/tier-4/advanced-data-structures/q1",
+    "type": "multiple_choice",
+    "prompt": "In an AVL tree, a node's balance factor becomes +2 (left subtree 2 taller than right) after inserting into the LEFT child's LEFT subtree (the 'left-left' case). Which single rotation restores balance at that node?",
+    "choices": [
+      "A left rotation at that node",
+      "A right rotation at that node",
+      "A left rotation on the left child, then a right rotation at that node",
+      "A right rotation on the right child, then a left rotation at that node"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cs-foundations/tier-4/advanced-data-structures/q2",
+    "type": "multiple_choice",
+    "prompt": "In a binary min-heap stored as a 0-indexed array, which pair correctly gives the indexes of a node's two children when the node is at index i?",
+    "choices": [
+      "i/2 and i/2 + 1",
+      "2i and 2i + 1",
+      "2i + 1 and 2i + 2",
+      "i + 1 and i + 2"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "cs-foundations/tier-4/advanced-data-structures/q3",
+    "type": "short_answer",
+    "prompt": "A Bloom filter can incorrectly report that an item is present when it actually is not. What is the standard term for this kind of error?",
+    "acceptedAnswers": [
+      "false positive",
+      "false positives"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-4/advanced-data-structures/q4",
+    "type": "short_answer",
+    "prompt": "Union-find combined with both path compression and union by rank achieves what amortized time complexity per operation, expressed with the specific named function that bounds it (not just 'constant')?",
+    "acceptedAnswers": [
+      "O(a(n))",
+      "O(α(n))",
+      "inverse Ackermann",
+      "amortized inverse Ackermann"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-4/advanced-data-structures/q5",
+    "type": "explain_back",
+    "prompt": "Explain, in your own words, why a skip list achieves expected O(log n) search time even though it has no rebalancing logic at all (no rotations, no balance factor, no color rules) the way AVL and red-black trees do. What does the probabilistic level structure buy you, and what guarantee do you lose compared to a balanced tree?"
+  },
+  {
+    "id": "cs-foundations/tier-4/advanced-data-structures/q6",
+    "type": "multiple_choice",
+    "prompt": "Why do implementations like the Linux kernel's CFS scheduler and Java's TreeMap use red-black trees instead of AVL trees, given that AVL guarantees a stricter (smaller) worst-case height?",
+    "choices": [
+      "Red-black trees have better average-case search time than AVL trees",
+      "Red-black trees use less memory per node than AVL trees",
+      "Red-black trees' looser balance invariant needs fewer rotations per insert/delete, which matters more than AVL's tighter height bound for workloads with frequent mutation",
+      "AVL trees cannot be implemented for structures that require ordered traversal"
+    ],
+    "correctIndex": 2
+  }
+]
