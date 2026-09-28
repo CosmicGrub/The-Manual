@@ -1,0 +1,356 @@
+---
+trackId: cs-foundations
+tier: 2
+title: Core Data Structures II
+order: 2
+estimatedHours: 12
+---
+
+Every data structure you've used so far — Python's `list`, `dict`, `set` — is something the language built for you. This lesson is where that stops. You're going to open the hood on four structures you've been treating as magic and build each one yourself: a stack and queue (and the queue's naive version, so you can *feel* why the fast version matters), a linked list, a hash table with real collision handling and resizing, and a first tree. None of this is decoration — the hash table and the tree you build here are literally two of the four components your Tier 2 checkpoint project asks you to ship, so get the internals right now and you're most of the way to that deliverable already.
+
+This module assumes Tier 1's Python is second nature and leans on the Big-O vocabulary from the previous lesson — you'll use it constantly here, not as a definition to memorize but as the tool you reach for to explain *why* one version of a structure is fast and another is slow.
+
+## What you'll leave this lesson knowing
+
+- How to implement a stack, a queue, and a singly linked list from scratch, with an accurate Big-O for every operation you wrote
+- Why the "obvious" way to implement a queue with a Python list is quietly O(n) per operation, and at least one way to fix it
+- How a hash table turns a key into a bucket index, handles two different keys landing in the same bucket, and grows itself before performance rots
+- Why a bad hash function defeats resizing entirely — collision behavior is about hash *quality*, not just table size
+- How a binary search tree's insert, search, and traversal work, and why the same set of values can produce a fast tree or a degenerate one depending on insertion order
+
+## Do this
+
+1. **Build a `Stack` from scratch and confirm LIFO order.** A stack only needs three operations — `push`, `pop`, `peek` — plus a way to check emptiness. Wrap a plain Python list rather than operating on a bare list in your application code; the list is just the backing storage, the class is what gives you a real stack interface:
+
+   ```python
+   class Stack:
+       """LIFO stack. push/pop/peek all touch the end of the list, which
+       is the one spot Python lists are already O(1) to modify."""
+
+       def __init__(self):
+           self._items = []
+
+       def push(self, item):
+           self._items.append(item)
+
+       def pop(self):
+           if not self._items:
+               raise IndexError("pop from empty stack")
+           return self._items.pop()
+
+       def peek(self):
+           if not self._items:
+               raise IndexError("peek from empty stack")
+           return self._items[-1]
+
+       def is_empty(self):
+           return len(self._items) == 0
+
+       def __len__(self):
+           return len(self._items)
+   ```
+
+   Push `1, 2, 3` and pop three times — you should get `3, 2, 1`, not `1, 2, 3`. Before moving on, write down the Big-O of `push` and `pop` yourself (you have the vocabulary from the last lesson) and check it against `list.append`/`list.pop()` at the end being O(1) amortized.
+
+2. **Build a `NaiveQueue` the "obvious" way, then clock how bad it is.** A queue is FIFO: first in, first out. The tempting implementation reuses your stack's trick in reverse — enqueue with `append`, dequeue with `pop(0)`:
+
+   ```python
+   class NaiveQueue:
+       def __init__(self):
+           self._items = []
+
+       def enqueue(self, item):
+           self._items.append(item)
+
+       def dequeue(self):
+           if not self._items:
+               raise IndexError("dequeue from empty queue")
+           return self._items.pop(0)
+
+       def __len__(self):
+           return len(self._items)
+   ```
+
+   `pop(0)` has to shift every remaining element down one slot, so it's O(n) — not O(1) like `pop()` from the end. Prove it to yourself empirically instead of just trusting the claim:
+
+   ```python
+   import time
+
+   def drain_time(queue, n):
+       for i in range(n):
+           queue.enqueue(i)
+       start = time.perf_counter()
+       while len(queue) > 0:
+           queue.dequeue()
+       return time.perf_counter() - start
+
+   for n in (2_000, 4_000, 8_000, 16_000):
+       t = drain_time(NaiveQueue(), n)
+       print(f"n={n:>6}  time={t:.4f}s")
+   ```
+
+   You should see the time roughly **quadruple** each time `n` doubles, not double — that's the signature of O(n²) total work (n dequeues, each one O(n)). If your numbers look closer to linear, run it again with larger `n`; small-n timings are noisy.
+
+3. **Fix it: implement a `TwoStackQueue` with amortized O(1) operations.** The classic trick uses two of the stacks you already built. New items land on an "in" stack. Dequeuing serves from an "out" stack — and only when the "out" stack runs dry do you dump the entire "in" stack onto it (which reverses order back to FIFO):
+
+   ```python
+   class TwoStackQueue:
+       """FIFO queue built from two Stacks. Items arrive on `_in`.
+       `_out` is refilled from `_in` only when it's empty, which
+       amortizes each item's single reversal cost across its whole
+       lifetime in the queue."""
+
+       def __init__(self):
+           self._in = Stack()
+           self._out = Stack()
+
+       def enqueue(self, item):
+           self._in.push(item)
+
+       def dequeue(self):
+           if self._out.is_empty():
+               while not self._in.is_empty():
+                   self._out.push(self._in.pop())
+           return self._out.pop()
+
+       def __len__(self):
+           return len(self._in) + len(self._out)
+   ```
+
+   Run the exact same `drain_time` benchmark from step 2 against `TwoStackQueue()`. This time the total time should grow roughly **linearly** with `n` — each item still gets moved between stacks, but only once, ever. Note that *any single* `dequeue` call can still be O(n) in the worst case (when it has to flip a full `_in` stack) — it's the *amortized* cost across many calls that's O(1). That distinction (worst-case per-call vs. amortized-over-many-calls) is worth being able to state out loud.
+
+4. **Build a singly linked list with `append`, `prepend`, `find`, and `delete`.** A linked list trades array-style random access for O(1) insertion at the ends, because nodes just point to each other instead of living in contiguous memory:
+
+   ```python
+   class Node:
+       def __init__(self, value, next=None):
+           self.value = value
+           self.next = next
+
+   class LinkedList:
+       def __init__(self):
+           self.head = None
+           self.tail = None
+           self._size = 0
+
+       def append(self, value):
+           node = Node(value)
+           if self.tail is None:
+               self.head = self.tail = node
+           else:
+               self.tail.next = node
+               self.tail = node
+           self._size += 1
+
+       def prepend(self, value):
+           node = Node(value, next=self.head)
+           self.head = node
+           if self.tail is None:
+               self.tail = node
+           self._size += 1
+
+       def find(self, value):
+           current = self.head
+           while current is not None:
+               if current.value == value:
+                   return current
+               current = current.next
+           return None
+
+       def delete(self, value):
+           prev, current = None, self.head
+           while current is not None:
+               if current.value == value:
+                   if prev is None:
+                       self.head = current.next
+                   else:
+                       prev.next = current.next
+                   if current is self.tail:
+                       self.tail = prev
+                   self._size -= 1
+                   return True
+               prev, current = current, current.next
+           return False
+
+       def __len__(self):
+           return self._size
+
+       def __iter__(self):
+           current = self.head
+           while current is not None:
+               yield current.value
+               current = current.next
+   ```
+
+   Build a list from `[10, 20, 30]` via `append`, confirm `list(your_list)` gives `[10, 20, 30]`, then `prepend(5)` and confirm it's now first. Delete `20` and confirm it's gone and `len()` dropped to 3. Work out the Big-O of `append` (why does tracking `tail` matter here?), `prepend`, `find`, and `delete` before reading on — then check yourself: `append`/`prepend` are O(1) because you never walk the list; `find` and `delete` are O(n) worst case because a value near the tail forces a full walk.
+
+5. **Reverse the linked list in place — implement this one yourself before checking a reference.** Write a `reverse(self)` method on `LinkedList` that reverses the list's internal pointers with no new nodes and no extra list — when you're done, `self.head` and `self.tail` should have swapped roles and `list(your_list)` should print in the opposite order. The shape of the solution uses three pointers you walk forward together (commonly named `prev`, `current`, `next_node`); if you get stuck, sketch three boxes and arrows on paper before touching the keyboard. Once you have something working (or if you're well and truly stuck after a real attempt), compare against this:
+
+   ```python
+   def reverse(self):
+       prev = None
+       current = self.head
+       self.tail = self.head
+       while current is not None:
+           next_node = current.next
+           current.next = prev
+           prev = current
+           current = next_node
+       self.head = prev
+   ```
+
+   Confirm it's O(n) time and O(1) space — you touch each node once and allocate nothing new.
+
+6. **Build a `HashTable` from scratch using separate chaining.** The idea: an array of "buckets," each bucket a small list of `(key, value)` pairs. A hash function turns a key into a bucket index; collisions (two keys, same bucket) get handled by just appending to that bucket's list and scanning it on lookup:
+
+   ```python
+   class HashTable:
+       """Hash table with separate chaining. Buckets are lists of
+       (key, value) pairs. Doubles capacity and rehashes everything
+       once the load factor (entries / capacity) exceeds 0.7."""
+
+       def __init__(self, capacity=8):
+           self._capacity = capacity
+           self._buckets = [[] for _ in range(capacity)]
+           self._size = 0
+
+       def _bucket_index(self, key):
+           return hash(key) % self._capacity
+
+       def put(self, key, value):
+           bucket = self._buckets[self._bucket_index(key)]
+           for i, (k, v) in enumerate(bucket):
+               if k == key:
+                   bucket[i] = (key, value)
+                   return
+           bucket.append((key, value))
+           self._size += 1
+           if self._size / self._capacity > 0.7:
+               self._resize()
+
+       def get(self, key):
+           bucket = self._buckets[self._bucket_index(key)]
+           for k, v in bucket:
+               if k == key:
+                   return v
+           raise KeyError(key)
+
+       def delete(self, key):
+           bucket = self._buckets[self._bucket_index(key)]
+           for i, (k, v) in enumerate(bucket):
+               if k == key:
+                   del bucket[i]
+                   self._size -= 1
+                   return
+           raise KeyError(key)
+
+       def __contains__(self, key):
+           bucket = self._buckets[self._bucket_index(key)]
+           return any(k == key for k, _ in bucket)
+
+       def __len__(self):
+           return self._size
+
+       def _resize(self):
+           old_buckets = self._buckets
+           self._capacity *= 2
+           self._buckets = [[] for _ in range(self._capacity)]
+           for bucket in old_buckets:
+               for key, value in bucket:
+                   self._buckets[self._bucket_index(key)].append((key, value))
+   ```
+
+   Note this uses Python's built-in `hash()` to turn a key into a number — that's reasonable to lean on (writing a good hash *function* from first principles is its own deep topic); what you built from scratch is everything around it: the bucket array, collision handling, and resizing. Put in 20 or so key/value pairs, `get` a few back, `delete` one and confirm `KeyError` on a second delete, and watch `len(table._buckets)` grow as you cross the 0.7 load factor threshold.
+
+7. **Break your hash table on purpose.** Force every key into the same bucket by handing it keys with a deliberately terrible hash:
+
+   ```python
+   class AlwaysZero:
+       def __init__(self, value):
+           self.value = value
+
+       def __hash__(self):
+           return 0
+
+       def __eq__(self, other):
+           return isinstance(other, AlwaysZero) and self.value == other.value
+
+   table = HashTable(capacity=101)
+   for i in range(2000):
+       table.put(AlwaysZero(i), i)
+   ```
+
+   Every single one of those 2000 entries lands in bucket 0, no matter how large `_capacity` grows, because `_resize()` only changes *how many* buckets there are — it does nothing to fix a hash function that returns the same value every time. Time a `get` against this table versus a normal `HashTable` holding 2000 plain-integer keys; the `AlwaysZero` version should be dramatically slower, because every lookup now scans a 2000-element list instead of touching a handful of entries. The lesson: resizing protects you from a table that's merely *full*; it does nothing for a hash function that's merely *bad*. Both matter, and they're independent problems.
+
+8. **Build a first tree: a binary search tree with insert, search, and in-order traversal.** A BST keeps every left child smaller than its parent and every right child larger, which is what makes search fast:
+
+   ```python
+   class TreeNode:
+       def __init__(self, value):
+           self.value = value
+           self.left = None
+           self.right = None
+
+   class BinarySearchTree:
+       def __init__(self):
+           self.root = None
+
+       def insert(self, value):
+           if self.root is None:
+               self.root = TreeNode(value)
+               return
+           current = self.root
+           while True:
+               if value < current.value:
+                   if current.left is None:
+                       current.left = TreeNode(value)
+                       return
+                   current = current.left
+               elif value > current.value:
+                   if current.right is None:
+                       current.right = TreeNode(value)
+                       return
+                   current = current.right
+               else:
+                   return  # duplicate value, ignore
+
+       def contains(self, value):
+           current = self.root
+           while current is not None:
+               if value == current.value:
+                   return True
+               current = current.left if value < current.value else current.right
+           return False
+
+       def inorder(self):
+           def walk(node):
+               if node is not None:
+                   yield from walk(node.left)
+                   yield node.value
+                   yield from walk(node.right)
+           yield from walk(self.root)
+
+       def height(self, node=None):
+           node = self.root if node is None else node
+           if node is None:
+               return -1
+           return 1 + max(self.height(node.left), self.height(node.right))
+   ```
+
+   Insert `[50, 30, 70, 20, 40, 60, 80]` in that order and confirm `list(tree.inorder())` prints them in sorted order (`[20, 30, 40, 50, 60, 70, 80]`) — that's not a coincidence, it's a direct consequence of the left-smaller/right-larger invariant, and it's a useful way to sanity-check any BST you build. Then run this comparison: build one tree by inserting `1, 2, 3, 4, 5, 6, 7` in that already-sorted order, and another by inserting the same seven values in random order (`random.shuffle` a list first). Print `height()` for both. The sorted-order tree should come out with height 6 (every node has only a right child — it's degenerated into a linked list), while the randomly-ordered tree should land close to height 2 or 3. Same seven values, wildly different search performance — insertion order alone is deciding whether `contains` is O(n) or roughly O(log n) on this tree.
+
+## Check on learning
+
+- Without looking back at your code, explain why `list.pop(0)` is O(n) but `list.pop()` is O(1), and use that to explain in your own words why `TwoStackQueue` beats `NaiveQueue` even though both are built from things that are individually O(1).
+- A teammate says "I made my hash table's initial capacity huge, so I'll never have collision problems." Explain why they're wrong, using what you saw in step 7.
+- Given this snippet, state its time and space complexity and justify both in a sentence each:
+
+  ```python
+  def mystery(linked_list):
+      count = 0
+      current = linked_list.head
+      while current is not None:
+          count += 1
+          current = current.next
+      return count
+  ```

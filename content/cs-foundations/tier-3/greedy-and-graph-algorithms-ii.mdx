@@ -1,0 +1,255 @@
+---
+trackId: cs-foundations
+tier: 3
+title: Greedy Algorithms & Graph Algorithms II
+order: 3
+estimatedHours: 10
+---
+
+A greedy algorithm makes the choice that looks best *right now* and never revisits it — no backtracking, no trying alternatives, no lookahead. That should terrify you: how can ignoring the future ever produce a globally optimal answer? Sometimes it provably can't, which is exactly why Tier 3's Module 2 gave you dynamic programming as the tool that actually explores the alternatives greedy throws away. But sometimes greedy is not just "good enough" — it's *provably, exactly* optimal, and Dijkstra's algorithm and the classic minimum-spanning-tree algorithms are the two most important cases of that in all of computer science. This module builds both from scratch, gives you the actual proof technique (the exchange argument) that tells you *why* they're correct, and then deliberately breaks greedy on problems where that same instinct fails — including a version of Dijkstra itself, on a graph it was never designed to handle.
+
+## What you'll leave this lesson knowing
+
+- How to implement Dijkstra's algorithm from scratch with a binary heap, and state precisely *why* its correctness depends on non-negative edge weights
+- How to implement both Kruskal's algorithm (via union-find) and Prim's algorithm (via a heap) for minimum spanning trees, and confirm empirically that two structurally different greedy strategies land on the same answer
+- The cut property and the exchange-argument proof technique well enough to write one yourself for a new greedy algorithm, not just recite it for MST
+- At least three concrete, verified cases where a natural greedy strategy provably fails — and the specific structural reason each one fails
+- A working union-find (disjoint-set) data structure with path compression and union by rank, built from nothing but dictionaries
+
+## Do this
+
+1. **Set up one shared graph and hand-trace Dijkstra on paper before writing any code.** You'll reuse this exact graph for the whole lesson. As an adjacency dict:
+
+   ```python
+   graph = {
+       "A": {"B": 4, "C": 2},
+       "B": {"A": 4, "C": 1, "D": 5},
+       "C": {"A": 2, "B": 1, "D": 8, "E": 10},
+       "D": {"B": 5, "C": 8, "E": 2, "F": 6},
+       "E": {"C": 10, "D": 2, "F": 3},
+       "F": {"D": 6, "E": 3},
+   }
+   ```
+
+   Dijkstra's algorithm, in words: maintain a "known shortest distance so far" for every vertex, starting at 0 for the source and infinity for everyone else. Repeatedly pick the *unvisited* vertex with the smallest known distance, mark it visited (its distance is now final — this is the greedy step), and *relax* every edge out of it: if going through this vertex gives a shorter path to a neighbor than what's currently recorded, update the neighbor's distance. Stop when every vertex is visited.
+
+   On paper, trace this from `"A"` by hand — track a table of running distances for A, B, C, D, E, F and update it row by row as you visit each vertex in order. Don't peel forward to the code. You should land on final distances of **A=0, B=3, C=2, D=8, E=10, F=13**. If you got something else, redo the trace one relaxation at a time rather than guessing where it diverged — that's the same self-correction habit from earlier tiers' truth tables.
+
+2. **Implement Dijkstra yourself from the spec in step 1, before looking at any reference.** Write a function `dijkstra(graph, source)` that returns a `dist` dict mapping every vertex to its shortest distance from `source`. Use `heapq` as your priority queue: push `(distance, vertex)` tuples, and always pop the smallest. You'll need a `visited` set so you never re-process a vertex once its distance is final. Run it on the graph from step 1 and check your output against the hand-traced numbers: `{"A": 0, "B": 3, "C": 2, "D": 8, "E": 10, "F": 13}`. Get this working — actually wrestling with the heap bookkeeping (what to push, when to skip, when to update) is the point; don't skip to step 3 until you have a version that produces the right numbers, even if it's messy.
+
+3. **Now check your implementation against a reference, and add path reconstruction.** Here's a clean reference implementation:
+
+   ```python
+   import heapq
+
+   def dijkstra(graph, source):
+       dist = {node: float("inf") for node in graph}
+       dist[source] = 0
+       prev = {node: None for node in graph}
+       visited = set()
+       heap = [(0, source)]
+       while heap:
+           d, u = heapq.heappop(heap)
+           if u in visited:
+               continue
+           visited.add(u)
+           for v, w in graph[u].items():
+               nd = d + w
+               if nd < dist[v]:
+                   dist[v] = nd
+                   prev[v] = u
+                   heapq.heappush(heap, (nd, v))
+       return dist, prev
+   ```
+
+   Diff it against what you wrote in step 2 — if yours disagreed with the hand-traced answer, this is where you find out why (a common bug: forgetting the `if u in visited: continue` guard, which lets a vertex get relaxed *through* after it's already finalized and can silently corrupt later results). Add path reconstruction by walking `prev` backward from the destination:
+
+   ```python
+   def reconstruct_path(prev, target):
+       path = []
+       node = target
+       while node is not None:
+           path.append(node)
+           node = prev[node]
+       return list(reversed(path))
+
+   dist, prev = dijkstra(graph, "A")
+   print(reconstruct_path(prev, "F"))   # ['A', 'C', 'B', 'D', 'E', 'F']
+   print(dist["F"])                      # 13
+   ```
+
+   Confirm the path's edge weights actually sum to `dist["F"]`: 2 + 1 + 5 + 2 + 3 = 13. That sum-matches-distance check is a good habit any time you reconstruct a path — it catches a large class of off-by-one and pointer bugs immediately.
+
+4. **Break Dijkstra with a negative edge weight, on purpose, and understand exactly why it breaks.** Build this small directed graph:
+
+   ```python
+   neg_graph = {
+       "A": {"B": 5, "C": 2},
+       "B": {"C": -4},
+       "C": {"D": 1},
+       "D": {},
+   }
+   ```
+
+   Run your `dijkstra(neg_graph, "A")`. You'll get `{"A": 0, "B": 5, "C": 1, "D": 3}`. Now compute the *true* shortest path to `D` by hand: `A → C → D` costs `2 + 1 = 3`, but `A → B → C → D` costs `5 + (-4) + 1 = 2` — strictly shorter, and Dijkstra missed it. Trace *why*: Dijkstra pops `C` early because its direct-edge distance (2) looks smallest at that point, marks it **visited**, and immediately relaxes `D` to `3` using that (too-high) distance for `C`. Later, when `B` is finally processed, it *does* discover a shorter route to `C` (distance 1) and updates `dist["C"]` — but because `C` is already visited, that update never gets propagated forward to `D`, which stays stuck at the wrong value. This is the entire failure mode in one sentence: **Dijkstra's greedy step assumes that once a vertex is finalized, no future path through an unvisited vertex can ever beat it — and a negative edge is precisely a way to violate that assumption.** (The fix, if you ever need shortest paths with negative weights and no negative cycle, is Bellman-Ford — a DP-shaped algorithm, not a greedy one, which is worth noticing on its own: this is a second, independent recognition that DP is what you reach for once greedy's assumptions stop holding.)
+
+5. **Build a union-find (disjoint-set) structure from scratch — you'll need it for Kruskal in step 6.** A union-find tracks a partition of elements into disjoint groups and answers two questions fast: "are `x` and `y` in the same group?" and "merge `x`'s group and `y`'s group." Implement it with path compression and union by rank:
+
+   ```python
+   class DisjointSet:
+       def __init__(self, items):
+           self.parent = {x: x for x in items}
+           self.rank = {x: 0 for x in items}
+
+       def find(self, x):
+           if self.parent[x] != x:
+               self.parent[x] = self.find(self.parent[x])  # path compression
+           return self.parent[x]
+
+       def union(self, x, y):
+           rx, ry = self.find(x), self.find(y)
+           if rx == ry:
+               return False   # already in the same set — union would create a cycle
+           if self.rank[rx] < self.rank[ry]:
+               rx, ry = ry, rx
+           self.parent[ry] = rx
+           if self.rank[rx] == self.rank[ry]:
+               self.rank[rx] += 1
+           return True
+   ```
+
+   Test it directly:
+
+   ```python
+   dsu = DisjointSet(["A", "B", "C", "D", "E", "F"])
+   print(dsu.union("B", "C"))              # True — merged
+   print(dsu.find("B") == dsu.find("C"))   # True — same group now
+   print(dsu.union("B", "C"))              # False — already the same group
+   ```
+
+   That `False` return on re-union is the whole mechanism Kruskal relies on for cycle detection — hold onto that.
+
+6. **Implement Kruskal's algorithm for a minimum spanning tree, using the union-find from step 5.** Kruskal's greedy rule: sort every edge by weight, ascending, and take each one *unless* it would connect two vertices already in the same component (i.e., unless `union()` returns `False`). Use this edge list, which is the same graph from step 1 written as an undirected edge list:
+
+   ```python
+   edges = [
+       ("B", "C", 1), ("A", "C", 2), ("D", "E", 2), ("E", "F", 3),
+       ("A", "B", 4), ("B", "D", 5), ("D", "F", 6), ("C", "D", 8), ("C", "E", 10),
+   ]
+
+   def kruskal(nodes, edges):
+       dsu = DisjointSet(nodes)
+       mst_edges = []
+       total_weight = 0
+       for u, v, w in sorted(edges, key=lambda e: e[2]):
+           if dsu.union(u, v):
+               mst_edges.append((u, v, w))
+               total_weight += w
+       return mst_edges, total_weight
+
+   mst_edges, total_weight = kruskal(list(graph.keys()), edges)
+   print(mst_edges, total_weight)
+   ```
+
+   You should get edges `[("B","C",1), ("A","C",2), ("D","E",2), ("E","F",3), ("B","D",5)]` and `total_weight == 13`. Notice it stopped at 5 edges for 6 vertices — that's `n − 1`, always true for a spanning tree.
+
+7. **Implement Prim's algorithm and confirm it agrees with Kruskal.** Prim grows a single tree from one starting vertex, greedily adding the cheapest edge that connects the tree to a new vertex — a completely different strategy from Kruskal's "sort all edges globally" approach:
+
+   ```python
+   def prim(graph, source):
+       visited = {source}
+       total_weight = 0
+       mst_edges = []
+       heap = [(w, source, v) for v, w in graph[source].items()]
+       heapq.heapify(heap)
+       while heap and len(visited) < len(graph):
+           w, u, v = heapq.heappop(heap)
+           if v in visited:
+               continue
+           visited.add(v)
+           mst_edges.append((u, v, w))
+           total_weight += w
+           for nxt, nw in graph[v].items():
+               if nxt not in visited:
+                   heapq.heappush(heap, (nw, v, nxt))
+       return mst_edges, total_weight
+
+   mst_edges2, total_weight2 = prim(graph, "A")
+   print(mst_edges2, total_weight2)
+   ```
+
+   You should get `total_weight2 == 13` — the identical total to Kruskal, and in this graph even the identical set of edges, just discovered in a different order (`A-C`, `C-B`, `B-D`, `D-E`, `E-F` instead of Kruskal's order). Two structurally unrelated greedy strategies landing on the exact same minimum is not a coincidence — it's what step 8 proves.
+
+8. **Learn the cut property and write the exchange-argument proof of Kruskal's correctness.** A *cut* is any way of splitting the graph's vertices into two nonempty groups. The **cut property** states: *for any cut, the minimum-weight edge crossing it belongs to at least one minimum spanning tree.* Here's the exchange argument that proves it — read it slowly, it's the template for every greedy-correctness proof you'll ever write:
+
+   > Suppose, for contradiction, that some MST `T` does *not* contain `e`, the minimum-weight edge crossing a given cut. Add `e` to `T` anyway. Since `T` was already a spanning tree (fully connected), adding one more edge creates exactly one cycle. That cycle has to cross the same cut at least twice (it leaves one side and must come back), so somewhere in that cycle there's a *different* edge `e'` that also crosses the cut. Now remove `e'` instead: `T' = T + e - e'` is still a spanning tree (still connected, still `n − 1` edges), and since `e` was the *minimum-weight* edge crossing the cut, `weight(e) ≤ weight(e')`, so `weight(T') ≤ weight(T)`. But `T` was already minimum, so `weight(T') = weight(T)` — meaning `T'` is *also* a valid MST, and it contains `e`. Contradiction resolved: some MST contains `e`. ∎
+
+   Kruskal's correctness falls straight out of this: every edge Kruskal adds is the minimum-weight edge crossing the cut between "the component it's about to join" and "everything else," so the cut property guarantees each addition is safe. Now do the same exercise for a different greedy algorithm: **activity selection.** Given a set of (start, finish) intervals, the goal is to pick the *maximum number* of non-overlapping ones. The greedy rule is: always take the not-yet-conflicting activity with the *earliest finish time*.
+
+   ```python
+   activities = {
+       "A": (1, 3), "B": (2, 5), "C": (4, 7),
+       "D": (1, 8), "E": (5, 9), "F": (8, 10),
+   }
+
+   def greedy_activity_selection(activities):
+       order = sorted(activities.items(), key=lambda kv: kv[1][1])  # sort by finish time
+       selected = []
+       last_finish = float("-inf")
+       for name, (s, f) in order:
+           if s >= last_finish:
+               selected.append(name)
+               last_finish = f
+       return selected
+
+   print(greedy_activity_selection(activities))   # ['A', 'C', 'F']
+   ```
+
+   Three activities, and that's provably the maximum possible for this input (verify it yourself with brute force over all `2**6` subsets if you want to be sure — it checks out). Now write your own exchange-argument proof sketch, in your own words, for why "always pick earliest finish time" is optimal: assume some optimal solution `O` doesn't start with the earliest-finishing activity `a`; show you can swap `O`'s first activity for `a` without reducing the count (because `a` finishes no later, so it conflicts with no more of the remaining activities than `O`'s choice did) — and conclude greedy is never worse than any optimum.
+
+9. **Now go looking for problems that break greedy — and confirm each failure with actual code, not intuition.** Greedy's exchange-argument proof only goes through when the problem has a very specific structure (informally, a "matroid-like" exchange property). Most problems don't have it. Three concrete breaks:
+
+   **(a) Coin change with a non-canonical coin system.** With denominations `{1, 3, 4}` and target `6`, greedy (always take the largest coin that fits) gives:
+
+   ```python
+   def greedy_coins(coins, target):
+       coins = sorted(coins, reverse=True)
+       remaining, used = target, []
+       for c in coins:
+           while remaining >= c:
+               remaining -= c
+               used.append(c)
+       return used
+
+   print(greedy_coins([1, 3, 4], 6))   # [4, 1, 1] — 3 coins
+   ```
+
+   but the optimal answer is `[3, 3]` — 2 coins. Greedy grabs the `4` immediately because it's locally biggest, and that single choice makes the remaining `2` expensive to cover. This is exactly the kind of problem the DP module's tabulation approach (module 2) solves *exactly*, every time, precisely because it doesn't commit to a choice before checking what it costs downstream.
+
+   **(b) 0/1 knapsack, greedy by value density.** Capacity 50, items `(value, weight)`: `(60, 10)`, `(100, 20)`, `(120, 30)`. Greedy takes items in order of value-per-weight (`6.0`, `5.0`, `4.0`):
+
+   ```python
+   items = [("item1", 60, 10), ("item2", 100, 20), ("item3", 120, 30)]
+
+   def greedy_knapsack(items, capacity):
+       ranked = sorted(items, key=lambda it: it[1] / it[2], reverse=True)
+       total_value, total_weight, chosen = 0, 0, []
+       for name, v, w in ranked:
+           if total_weight + w <= capacity:
+               chosen.append(name)
+               total_weight += w
+               total_value += v
+       return chosen, total_value
+
+   print(greedy_knapsack(items, 50))   # (['item1', 'item2'], 160)
+   ```
+
+   Greedy fills 30 of the 50 units of capacity and gets value 160 — but `item2 + item3` uses all 50 units for value **220**. Greedy wastes capacity because, unlike the *fractional* knapsack problem (where you can take part of an item and greedy-by-density actually is optimal), the 0/1 version can't take a partial item to mop up the leftover capacity, and that one restriction is enough to break the exchange argument entirely.
+
+   **(c) Dijkstra on a negative-weight graph** — you already built this counterexample in step 4; it belongs in this list too. Note what all three failures have in common: each one commits to a locally-best choice that forecloses a better global option, and none of them has a cut-property-style guarantee backing the choice up. Recognizing that absence *before* you write the code is the actual skill this step is building.
+
+## Check on learning
+
+- Say out loud, precisely, why Dijkstra's algorithm requires non-negative edge weights — reference the "visited/finalized" assumption and walk through your step 4 counterexample (`dist["D"]` coming out as `3` instead of the true `2`) as the concrete evidence.
+- State the cut property in one sentence, without looking it up, and use it to explain why Kruskal's algorithm is allowed to sort edges globally and greedily accept them one at a time.
+- Explain the shared structural reason behind why greedy fails on non-canonical coin change *and* on 0/1 knapsack, even though the two problems look unrelated on the surface — and contrast that with what made Kruskal, Prim, and activity selection provably safe for the same greedy instinct.

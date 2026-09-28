@@ -1,0 +1,167 @@
+---
+trackId: cs-foundations
+tier: 3
+title: "Complexity Classes: P, NP, and Why It Matters"
+order: 4
+estimatedHours: 8
+---
+
+Every algorithm you've built across Modules 1-3 — merge sort's divide-and-conquer, knapsack's DP table, Dijkstra's greedy relaxation — shares a quiet assumption: that a good, efficient algorithm exists to find, and if yours isn't fast enough, the fix is a cleverer algorithm. This module is where that assumption stops being safe. Some problems have no known efficient algorithm despite seventy years of the best minds in computer science trying, and there's a real chance none exists — not because nobody's clever enough, but because of the problem's structure itself. Knowing which side of that line a problem sits on is one of the most practically useful judgment calls a working engineer makes, and it's exactly the judgment call an AI system asked to "just find the optimal route" can't make for you unless you already know to ask the right question.
+
+## What you'll leave this lesson knowing
+
+- How to restate any optimization problem as an equivalent decision problem, and why decision problems (not optimization problems) are the actual unit complexity theory reasons about
+- The precise, certificate-based definition of NP, why P ⊆ NP is a one-line argument, and why "P = NP?" is still an open, million-dollar question
+- How to carry out a real, informal polynomial-time reduction between two decision problems — you'll derive and code one yourself (Independent Set → Vertex Cover) rather than just read about it
+- What NP-completeness and NP-hardness mean, how they differ, and how to recognize a new problem as "probably NP-complete" by its family resemblance to a handful of canonical hard problems
+- Why NP-completeness is a real, load-bearing limit on what any algorithm — including an AI system — can guarantee to solve exactly and fast, and what a competent engineer does instead (exact solvers at small scale, pseudo-polynomial DP where it applies, provable-bound approximations, or unguaranteed heuristics)
+
+## Do this
+
+1. **Turn an optimization problem you already know into a decision problem.** Complexity theory almost never talks about "find the best X" — it talks about yes/no questions, called *decision problems*, because they're the cleanest unit to compare problems against each other. Take 0/1 knapsack from Module 2. The optimization version is "what's the maximum value achievable within capacity `W`?" The decision version is "**can** you achieve value at least `V` within capacity `W`?" Write both:
+
+   ```python
+   def knapsack_max_value(weights, values, capacity):
+       n = len(weights)
+       dp = [[0] * (capacity + 1) for _ in range(n + 1)]
+       for i in range(1, n + 1):
+           w, v = weights[i - 1], values[i - 1]
+           for c in range(capacity + 1):
+               dp[i][c] = dp[i - 1][c]
+               if w <= c:
+                   dp[i][c] = max(dp[i][c], dp[i - 1][c - w] + v)
+       return dp[n][capacity]
+
+   def knapsack_decision(weights, values, capacity, target_value):
+       return knapsack_max_value(weights, values, capacity) >= target_value
+
+   weights, values, cap = [2, 3, 4, 5], [3, 4, 5, 6], 5
+   print(knapsack_max_value(weights, values, cap))      # 7
+   print(knapsack_decision(weights, values, cap, 7))    # True
+   print(knapsack_decision(weights, values, cap, 8))    # False
+   ```
+
+   Now do the more interesting direction: recover the optimization answer using *only* the decision procedure, via binary search over the target value. This is the fact that makes decision problems the right unit to study — a decision oracle called O(log(max value)) times is as powerful as the optimization solver:
+
+   ```python
+   def knapsack_value_via_decision(weights, values, capacity):
+       lo, hi = 0, sum(values)
+       while lo < hi:
+           mid = (lo + hi + 1) // 2
+           if knapsack_decision(weights, values, capacity, mid):
+               lo = mid
+           else:
+               hi = mid - 1
+       return lo
+
+   print(knapsack_value_via_decision(weights, values, cap))  # 7
+   ```
+
+   It matches. From here on, "problem" means the decision version unless stated otherwise — that's the convention the rest of this lesson (and most of the literature) uses.
+
+2. **Pin down what "P" actually means, using algorithms you've already built — then hit the one catch that trips practitioners up.** A decision problem is in **P** if some algorithm decides it in time that's polynomial in the size of the *input's encoding* — O(n^k) for some constant k, where n is the number of bits it takes to write the input down. Merge sort (O(n log n)), Dijkstra (O(E log V)), and binary search (O(log n)) are all comfortably in P. Now look again at that knapsack DP: it runs in O(n · W) time. That *looks* polynomial in `n` and `W`, but `W` is a number, not a count of input bits — writing capacity `W` down only takes about log₂(W) bits. A knapsack instance with `n = 50` items and capacity `W = 10**15` has a tiny encoding (a few hundred bits) but a DP table with 10**15 columns — completely infeasible. This is called **pseudo-polynomial time**: polynomial in the numeric *values* in the input, but exponential in the number of *bits* needed to write those values down. It's why knapsack's decision version is formally NP-complete (step 6) even though you coded a "polynomial-looking" solver for it in Module 2 — the DP is only fast when the numbers involved stay small, and a real scheduling or budgeting problem with large capacities can quietly blow it up. Keep this distinction in your pocket; it's a genuinely common practitioner mistake to miss it.
+
+3. **Define NP the real way — via a checkable certificate — then feel the gap between verifying and finding.** A decision problem is in **NP** if, for every "yes" instance, there's a *certificate* (a piece of evidence) that a separate algorithm can check in polynomial time. Note what this does **not** say: it says nothing about how hard it is to *find* that certificate, only about how cheap it is to *check* one you're handed. Subset Sum is the clean example: given a list of numbers and a target, does some subset sum to the target? A candidate subset is trivially cheap to check; finding one from scratch, as far as anyone knows, is not. Implement both, and before you look at the brute-force solver below, **write your own** — it only needs to try every subset:
+
+   ```python
+   def verify_subset_sum(nums, subset_indices, target):
+       return sum(nums[i] for i in subset_indices) == target
+
+   # Try writing brute_force_subset_sum(nums, target) yourself first:
+   # try every possible subset, return the first one that sums to target,
+   # plus how many subsets you had to check.
+
+   def brute_force_subset_sum(nums, target):
+       n = len(nums)
+       checked = 0
+       for mask in range(1 << n):
+           checked += 1
+           subset = [i for i in range(n) if mask & (1 << i)]
+           if sum(nums[i] for i in subset) == target:
+               return subset, checked
+       return None, checked
+   ```
+
+   Now run both against a 15-item list, once with a target that doesn't exist (forces the full search space) and once with one that does:
+
+   ```python
+   nums = [3, 7, 12, 5, 9, 15, 2, 8, 11, 6, 14, 4, 10, 13, 1]  # 15 items
+
+   unreachable = sum(nums) + 1
+   _, checked = brute_force_subset_sum(nums, unreachable)
+   print(checked)               # 32768  == 2**15, exactly
+
+   target = nums[0] + nums[3] + nums[7]     # 3 + 5 + 8 = 16
+   subset, checked = brute_force_subset_sum(nums, target)
+   print(subset, checked)        # [1, 4] 19  -- a *different* valid subset, found fast
+   print(verify_subset_sum(nums, subset, target))  # True
+   ```
+
+   `verify_subset_sum` runs in O(n) no matter what. `brute_force_subset_sum` runs in O(2^n) in the worst case, and your own machine will show it: time it for n = 16, 18, 20, 22 with an unreachable target (`time.perf_counter()` around the call). Expect roughly a **4x jump** each time n grows by 2 — that's 2² — regardless of your machine's absolute speed. That gap, cheap-to-verify versus (seemingly) expensive-to-find, is the entire content of the NP definition.
+
+4. **Sit with the actual open question, because it's smaller than people make it sound.** Every problem in P is automatically in NP: if you can *solve* it in polynomial time, you can certainly *verify* a candidate answer in polynomial time — just solve it yourself and ignore the certificate you were handed. So P ⊆ NP, no argument needed. The genuinely open question, one of the seven Clay Millennium Prize problems (unsolved, $1,000,000 bounty, since the year 2000), is the *other* direction: is every problem whose answers are cheap to verify also cheap to *solve*? Is NP ⊆ P, making P = NP? Most complexity theorists believe **P ≠ NP** — that verifying and finding are genuinely different in difficulty for at least some problems — but nobody has proven it, and nobody has found a counterexample either. Nothing in this lesson depends on resolving it. What you need is the practical consequence: for a large, well-studied family of problems, decades of collective effort have found no polynomial algorithm, and most experts would bet heavily that none exists.
+
+5. **Derive and code a real reduction — don't just read about one.** A reduction from problem A to problem B (written A ≤ₚ B) is a polynomial-time transformation of any instance of A into an instance of B, such that the answer to the transformed instance tells you the answer to the original. It's a claim about *relative* difficulty: "B is at least as hard as A, because if you could solve B efficiently, you'd have an efficient solver for A for free." Here's a real one, using graph problems fresh from Module 3: an **independent set** of graph G is a set of vertices with no edge between any two of them; a **vertex cover** is a set of vertices touching every edge. Claim: `S` is an independent set of `G` **if and only if** `V \ S` (every vertex *not* in `S`) is a vertex cover of `G`. Work out why yourself before reading on: if no edge has both endpoints in `S`, then every edge must have at least one endpoint outside `S` — which is exactly the vertex-cover condition on `V \ S`. That gives you the reduction for free: `INDEPENDENT-SET(G, k)` is YES exactly when `VERTEX-COVER(G, n - k)` is YES, where `n = |V|`. Notice the reduction barely touches the graph — it's a one-line arithmetic transform on `k`. Implement a brute-force vertex-cover checker, then implement independent-set-via-reduction using *only* that checker (no separate independent-set search logic), and confirm it agrees with a direct brute-force independent-set search on random graphs:
+
+   ```python
+   from itertools import combinations
+
+   def is_vertex_cover(edges, cover):
+       cover = set(cover)
+       return all(u in cover or v in cover for u, v in edges)
+
+   def vertex_cover_exists(edges, n_vertices, k):
+       for cover in combinations(range(n_vertices), k):
+           if is_vertex_cover(edges, cover):
+               return True
+       return False
+
+   def independent_set_exists_via_reduction(edges, n_vertices, k):
+       if k > n_vertices:
+           return False
+       return vertex_cover_exists(edges, n_vertices, n_vertices - k)
+
+   # Direct brute force, to check the reduction against:
+   def is_independent_set(edges, S):
+       S = set(S)
+       return all(not (u in S and v in S) for u, v in edges)
+
+   def independent_set_exists_direct(edges, n_vertices, k):
+       if k > n_vertices:
+           return False
+       return any(is_independent_set(edges, S) for S in combinations(range(n_vertices), k))
+   ```
+
+   Run both against a batch of random small graphs (5-7 vertices, a random subset of possible edges) across every `k` from 0 to `n`, and confirm they never disagree — because the theorem you just proved by hand says they can't. If you find a mismatch, the bug is in your code, not the theorem; go re-check the reduction line first.
+
+6. **Learn the vocabulary that names what you just did, plus the one case where "hard" and "in NP" come apart.** A problem is **NP-complete** if it's in NP *and* every other problem in NP reduces to it in polynomial time — informally, it's simultaneously "easy to verify" and "at least as hard as anything else that's easy to verify." The seed of the whole family is **SAT** (boolean satisfiability): the Cook-Levin theorem (1971) proves SAT is NP-complete directly from the definition of computation itself — you don't need to reprove this, just know it's the historical anchor. From SAT, a chain of reductions (SAT → 3-SAT → Independent Set → Vertex Cover → Clique → Subset Sum → Knapsack-decision → Hamiltonian Path → TSP-decision → Graph Coloring → Bin Packing → ...) established dozens of familiar problems as NP-complete, including the one you just reduced by hand. That's *why* reductions matter practically: prove one new problem NP-complete and you instantly know a huge, growing catalog of others are equally hard, because they're all connected. A problem is **NP-hard** if it's at least as hard as everything in NP (something reduces to it) but it doesn't have to be *in* NP itself — the optimization version of TSP ("find the shortest tour") is NP-hard but isn't a yes/no problem at all, so "in NP" doesn't even apply to it; the halting problem is NP-hard by a similar reduction argument but isn't in NP either, because no algorithm can verify a "does not halt" certificate in any finite time, let alone polynomial time. NP-complete = NP-hard ∩ NP.
+
+7. **When exact is off the table, reach for an approximation with a provable guarantee — and verify the guarantee yourself.** Vertex Cover is NP-complete, so no known algorithm finds the *minimum* cover fast on large graphs. But a simple greedy algorithm gets you within a **provable factor of 2** of optimal, fast, every time: repeatedly pick any uncovered edge, add *both* its endpoints to the cover, and discard every edge that's now covered. Implement it, implement a brute-force optimal-size finder to check against, and confirm the 2x bound holds:
+
+   ```python
+   def greedy_vertex_cover(edges):
+       remaining = set(edges)
+       cover = set()
+       while remaining:
+           u, v = remaining.pop()
+           cover.add(u)
+           cover.add(v)
+           remaining = {(a, b) for (a, b) in remaining if a not in cover and b not in cover}
+       return cover
+
+   def min_vertex_cover_size(edges, n_vertices):
+       for k in range(n_vertices + 1):
+           if vertex_cover_exists(edges, n_vertices, k):
+               return k
+       return n_vertices
+   ```
+
+   Generate a batch of random graphs (4-10 vertices), and for each, assert `len(greedy_vertex_cover(edges)) <= 2 * min_vertex_cover_size(edges, n)`. Across 200 random trials this holds every single time — and on some graphs the ratio lands exactly at 2.0, which tells you the bound isn't loose padding, it's tight: there exist graphs where greedy really does cost you double. This is the practitioner's actual move on genuinely NP-hard problems: trade a guarantee of *optimality* for a guarantee of *how far from optimal you can possibly be*, which is a completely different and much more useful kind of guarantee than "no idea, but it seemed to work on my test cases."
+
+8. **Apply this to a real problem from your own life, and to how you'd prompt an AI about it.** Pick a real optimization problem you've actually faced or can imagine facing — "which of these N stores should I visit and in what order," "how do I assign these M tasks to K people to finish fastest," "which subset of these features fits in this release" — and write three or four sentences answering: (a) which canonical NP-complete problem does its decision version most resemble (TSP, bin packing, set cover, scheduling/partition, knapsack)? (b) given the actual size of *your* instance, would you reach for an exact brute-force/DP solver, a pseudo-polynomial DP (careful of step 2's catch if the numbers are large), a bounded-guarantee approximation like step 7's, or an unguaranteed heuristic — and why that one? (c) if you were going to ask an AI system for help with it, what's the honest thing to ask for — "an optimal solution" is only honest to request when your instance is small enough or structured enough that one of the first two options in (b) applies; otherwise the honest ask is a heuristic, a decomposition into smaller solvable pieces, or a solution with a stated approximation bound, not a guarantee the underlying math doesn't support. This is the exact judgment call your checkpoint project will force: before you write the "algorithmic choices and complexity trade-offs" section for your solver, decide out loud whether the problem you picked (shortest path, or a scheduling/knapsack optimizer) is tractable outright, tractable-with-caveats, or genuinely NP-hard at the scale you're targeting — that one sentence, stated honestly, is worth more of the rubric than a solver that quietly assumes nobody will notice.
+
+## Check on learning
+
+- Explain, without notes, why every problem in P is automatically in NP, but the converse is the multi-million-dollar open question — use the "verify vs. find" distinction directly.
+- The knapsack DP from Module 2 runs in O(n·W) time. Explain why this is *not* a contradiction of knapsack's decision version being NP-complete, using the term from step 2.
+- In your own words, explain to a friend who's never heard of NP-completeness why asking an AI to "just find the mathematically optimal delivery route for these 200 stops, instantly" is asking for something no algorithm — human-written or AI — can currently guarantee, and what a better ask looks like instead.

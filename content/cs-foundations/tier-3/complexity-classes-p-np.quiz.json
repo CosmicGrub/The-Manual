@@ -1,0 +1,43 @@
+[
+  {
+    "id": "cs-foundations/tier-3/complexity-classes-p-np/q1",
+    "type": "multiple_choice",
+    "prompt": "Which of these is the correct definition of the complexity class NP?",
+    "choices": [
+      "The set of decision problems solvable by some algorithm in polynomial time",
+      "The set of decision problems where, for every 'yes' instance, a certificate exists that can be checked in polynomial time",
+      "The set of decision problems that are provably impossible to solve in polynomial time",
+      "The set of optimization problems that have no known greedy solution"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cs-foundations/tier-3/complexity-classes-p-np/q2",
+    "type": "multiple_choice",
+    "prompt": "Why is every problem in P automatically also in NP?",
+    "choices": [
+      "Because P and NP are defined to be the same set by convention",
+      "Because if you can solve a problem in polynomial time, you can verify any candidate answer in polynomial time simply by solving it yourself and comparing",
+      "Because NP only contains problems that are provably harder than anything in P",
+      "Because a polynomial-time algorithm always produces a certificate as a side effect"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cs-foundations/tier-3/complexity-classes-p-np/q3",
+    "type": "short_answer",
+    "prompt": "What is the term for a decision problem that is in NP and that every other problem in NP can be reduced to in polynomial time -- informally, one of the 'hardest' problems in NP?",
+    "acceptedAnswers": ["NP-complete", "NP complete", "np-complete", "npc"]
+  },
+  {
+    "id": "cs-foundations/tier-3/complexity-classes-p-np/q4",
+    "type": "short_answer",
+    "prompt": "The 0/1 knapsack DP runs in O(n * W) time, which looks polynomial in n and W but is exponential in the number of bits needed to encode W. What is the name for this kind of runtime?",
+    "acceptedAnswers": ["pseudo-polynomial", "pseudo-polynomial time", "pseudopolynomial", "pseudopolynomial time"]
+  },
+  {
+    "id": "cs-foundations/tier-3/complexity-classes-p-np/q5",
+    "type": "explain_back",
+    "prompt": "In your own words, explain why NP-completeness is a real practical limit on what an AI system can do when asked to find the guaranteed-optimal solution to a large scheduling or routing problem instantly -- and explain what you should ask the AI for instead, and why that alternative is still useful."
+  }
+]

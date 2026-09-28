@@ -1,0 +1,255 @@
+---
+trackId: cs-foundations
+tier: 2
+title: Sorting & Searching
+order: 3
+estimatedHours: 10
+---
+
+Every "find this fast" and "put these in order" problem you'll ever touch reduces to some variant of what's in this lesson, and the gap between a linear scan and the right search or sort is the difference between a query that returns instantly and one that never finishes once your data gets big. In Module 1 you learned to predict an algorithm's growth rate on paper. Here you build five classic algorithms from scratch — no `sorted()`, no `bisect`, no shortcuts — and then time them yourself, so you can see with your own stopwatch whether the theory from Module 1 actually holds up outside of a Big-O expression.
+
+## What you'll leave this lesson knowing
+
+- How to implement binary search — iteratively and recursively — from scratch, and state precisely why it requires sorted input to work at all
+- How to implement bubble sort, insertion sort, merge sort, and quicksort from scratch, including the partition step that makes quicksort's average and worst cases diverge
+- How to build a timing harness that measures real running time, and use it to confirm — or catch violations of — the Big-O predictions from Module 1
+- Why an algorithm's Big-O order and its real-world speed can disagree, and where that disagreement actually comes from: constant factors, a bad pivot choice, recursion depth
+- Enough of a decision framework to say, for a specific dataset and access pattern, whether sorting up front (then binary-searching repeatedly) beats scanning linearly every time
+
+## Do this
+
+1. **Build a timing helper, then implement binary search and put it up against a linear scan.** Every step from here on needs to measure real time, so write this once:
+   ```python
+   import time
+
+   def time_it(fn, *args):
+       start = time.perf_counter()
+       result = fn(*args)
+       elapsed = time.perf_counter() - start
+       return result, elapsed
+   ```
+   Now implement both of these from scratch — don't reach for `list.index` or `in`:
+   ```python
+   def linear_search(data, target):
+       for i, value in enumerate(data):
+           if value == target:
+               return i
+       return -1
+
+   def binary_search(sorted_list, target):
+       """Return the index of target in sorted_list, or -1 if absent.
+
+       Precondition: sorted_list is sorted in ascending order.
+       """
+       lo, hi = 0, len(sorted_list) - 1
+       while lo <= hi:
+           mid = (lo + hi) // 2
+           if sorted_list[mid] == target:
+               return mid
+           elif sorted_list[mid] < target:
+               lo = mid + 1
+           else:
+               hi = mid - 1
+       return -1
+   ```
+   Sanity-check correctness on something small before trusting it on something large:
+   ```python
+   data = sorted([37, 2, 91, 15, 6, 48, 23, 77, 5, 62])
+   print(data)                        # [2, 5, 6, 15, 23, 37, 48, 62, 77, 91]
+   print(binary_search(data, 48))     # 6
+   print(binary_search(data, 100))    # -1, not present
+   ```
+   Then feel the difference at scale:
+   ```python
+   import random
+
+   big_sorted = sorted(random.sample(range(10_000_000), 500_000))
+   target = big_sorted[400_000]
+
+   _, linear_time = time_it(linear_search, big_sorted, target)
+   _, binary_time = time_it(binary_search, big_sorted, target)
+   print(linear_time, binary_time, linear_time / binary_time)
+   ```
+   Linear search should take a real, perceptible fraction of a second; binary search should be so fast it barely registers — expect a speed ratio in the thousands. That gap between O(n) and O(log n) is the entire reason binary search exists, and it only gets more extreme as the list grows.
+
+2. **Write the recursive version, and notice the recurrence it produces.** Same contract as step 1, different shape:
+   ```python
+   def binary_search_recursive(sorted_list, target, lo=0, hi=None):
+       if hi is None:
+           hi = len(sorted_list) - 1
+       if lo > hi:
+           return -1
+       mid = (lo + hi) // 2
+       if sorted_list[mid] == target:
+           return mid
+       elif sorted_list[mid] < target:
+           return binary_search_recursive(sorted_list, target, mid + 1, hi)
+       else:
+           return binary_search_recursive(sorted_list, target, lo, mid - 1)
+   ```
+   Confirm it agrees with the iterative version on a handful of targets, including ones that aren't present. Each call does O(1) work and hands off to a problem half the size, which is the recurrence T(n) = T(n/2) + O(1). Module 4 will show you how to solve a recurrence like that formally; for now, just notice that "halve the problem each step" is exactly why the call depth tops out around log₂(n) instead of n — for a list of a million items, that's about 20 recursive calls, not a million.
+
+3. **Implement bubble sort from scratch, with the early-exit optimization.** The idea: repeatedly walk the list swapping adjacent out-of-order pairs, so the largest unsorted element "bubbles" to its correct position each pass. Write it yourself from that description before checking the version below — in particular, work out for yourself why you can stop early once a full pass makes zero swaps.
+   ```python
+   def bubble_sort(items):
+       items = items.copy()
+       n = len(items)
+       for pass_num in range(n - 1):
+           swapped = False
+           for i in range(n - 1 - pass_num):
+               if items[i] > items[i + 1]:
+                   items[i], items[i + 1] = items[i + 1], items[i]
+                   swapped = True
+           if not swapped:
+               break
+       return items
+   ```
+   Verify correctness and that the original list is untouched:
+   ```python
+   sample = [5, 1, 4, 2, 8, 0, 2]
+   print(bubble_sort(sample))   # [0, 1, 2, 2, 4, 5, 8]
+   print(sample)                 # [5, 1, 4, 2, 8, 0, 2] — unchanged
+   ```
+   Worst case (reverse-sorted input) is O(n²): every pass makes the maximum number of swaps. Best case (already sorted) is O(n) because of the early exit — one pass, zero swaps, done. Confirm that yourself: time `bubble_sort` on `list(range(5000))` versus a fully shuffled list of the same size and check that the sorted case comes back close to instantly while the shuffled case takes visibly longer.
+
+4. **Implement insertion sort, then use it to see best/average/worst case diverge for real.** The idea: build up a sorted prefix one element at a time, sliding each new element left until it's in place.
+   ```python
+   def insertion_sort(items):
+       items = items.copy()
+       for i in range(1, len(items)):
+           key = items[i]
+           j = i - 1
+           while j >= 0 and items[j] > key:
+               items[j + 1] = items[j]
+               j -= 1
+           items[j + 1] = key
+       return items
+   ```
+   Now build two 5,000-element inputs and time both with `time_it`: a **nearly-sorted** list (start from `list(range(5000))` and swap 10 random pairs) and a **fully shuffled** list of the same size. Insertion sort's best case is O(n) — a nearly-sorted list needs almost no shifting — while its worst/average case is O(n²). Expect the nearly-sorted run to finish roughly one to two orders of magnitude faster than the shuffled run, even though it's the exact same function on the exact same size of input. That gap *is* the best-case/worst-case distinction from Module 1, made visible on your own machine instead of left as an abstract claim.
+
+5. **Implement merge sort, and notice what its guarantee costs you.** Divide the list in half, recursively sort each half, then merge the two sorted halves back together in linear time:
+   ```python
+   def merge(left, right):
+       merged = []
+       i = j = 0
+       while i < len(left) and j < len(right):
+           if left[i] <= right[j]:
+               merged.append(left[i])
+               i += 1
+           else:
+               merged.append(right[j])
+               j += 1
+       merged.extend(left[i:])
+       merged.extend(right[j:])
+       return merged
+
+   def merge_sort(items):
+       if len(items) <= 1:
+           return items[:]
+       mid = len(items) // 2
+       left = merge_sort(items[:mid])
+       right = merge_sort(items[mid:])
+       return merge(left, right)
+   ```
+   Verify it against your other sorts on the same `sample` list from step 3 — all four should produce identical output. Merge sort is O(n log n) in the **best, average, and worst** case, with no exceptions, because the split is always exactly in half regardless of the input's order. The price for that guarantee is the `merged = []` list in `merge` — it needs O(n) extra space, unlike the in-place sorts you've written so far. One more property worth confirming yourself: merge sort is *stable* — equal elements keep their original relative order. Sort a list of `(key, label)` tuples with a few repeated keys (comparing only by `left[i][0] <= right[j][0]`) and check that ties come out in their original order.
+
+6. **Implement quicksort using Lomuto partitioning.** Pick the last element as the pivot, partition the rest so everything ≤ pivot ends up on its left and everything greater ends up on its right, then recursively sort each side:
+   ```python
+   def _partition(items, low, high):
+       pivot = items[high]
+       i = low - 1
+       for j in range(low, high):
+           if items[j] <= pivot:
+               i += 1
+               items[i], items[j] = items[j], items[i]
+       items[i + 1], items[high] = items[high], items[i + 1]
+       return i + 1
+
+   def _quicksort(items, low, high):
+       if low < high:
+           pivot_index = _partition(items, low, high)
+           _quicksort(items, low, pivot_index - 1)
+           _quicksort(items, pivot_index + 1, high)
+
+   def quicksort(items):
+       items = items.copy()
+       _quicksort(items, 0, len(items) - 1)
+       return items
+   ```
+   Check it against the same `sample` list. Unlike merge sort, this sorts in place (aside from the one defensive `.copy()`), and on random data it averages O(n log n) with a smaller constant factor than merge sort in practice — which is exactly why real-world "quicksort" tends to beat "mergesort" on typical inputs. But "on typical inputs" is doing a lot of work in that sentence, which step 7 makes concrete.
+
+7. **Break your own quicksort, on purpose, then fix it.** Feed it something adversarial for a last-element pivot: an already-sorted list.
+   ```python
+   sorted_input = list(range(2000))
+   try:
+       quicksort(sorted_input)
+       print("no error — unexpected")
+   except RecursionError:
+       print("blew the recursion stack")
+   ```
+   You should get the `RecursionError`. Here's why: when the input is already sorted and the pivot is always the last (largest-so-far) element, every partition splits the array into "everything" and "nothing" — recursion depth becomes O(n) instead of O(log n), and Python's call stack (default limit 1,000) can't hold two thousand nested calls. That RecursionError *is* quicksort's O(n²) worst case, made visible as an actual crash instead of just a slow number. Now fix it by randomizing the pivot so an adversarial *input* can't reliably produce an adversarial *pivot choice*:
+   ```python
+   import random
+
+   def _quicksort_random(items, low, high):
+       if low < high:
+           pivot_idx = random.randint(low, high)
+           items[pivot_idx], items[high] = items[high], items[pivot_idx]
+           pivot_index = _partition(items, low, high)
+           _quicksort_random(items, low, pivot_index - 1)
+           _quicksort_random(items, pivot_index + 1, high)
+
+   def quicksort_random_pivot(items):
+       items = items.copy()
+       _quicksort_random(items, 0, len(items) - 1)
+       return items
+
+   result = quicksort_random_pivot(list(range(2000)))
+   print(result[:3], result[-3:])   # [0, 1, 2] [1997, 1998, 1999]
+   ```
+   No crash this time — randomizing the pivot doesn't change the worst-case bound in theory (some input is always bad for some fixed pivot rule), but it makes that worst case astronomically unlikely to hit by accident on real data, which is why production quicksort implementations always randomize or use median-of-three instead of "always the last element."
+
+8. **Build a full benchmarking harness and check it against Module 1's predictions.** Time all four of your sorts across a range of input sizes on the same random data:
+   ```python
+   sizes = [500, 1000, 2000, 4000, 8000]
+   algorithms = {
+       "bubble": bubble_sort,
+       "insertion": insertion_sort,
+       "merge": merge_sort,
+       "quicksort": quicksort_random_pivot,
+   }
+
+   for n in sizes:
+       data = [random.randint(0, 1_000_000) for _ in range(n)]
+       timings = {}
+       for name, fn in algorithms.items():
+           _, elapsed = time_it(fn, data)
+           timings[name] = elapsed
+       print(n, timings)
+   ```
+   Now check the ratios, not just the raw numbers. Every time `n` doubles: an O(n²) algorithm's time should roughly **quadruple** ((2n)²/n² = 4) — check this for bubble and insertion sort. An O(n log n) algorithm's time should roughly **double** (a bit more, since log(2n) > log(n), but nowhere near 4×) — check this for merge sort and quicksort. If your measured ratios are wildly off from these predictions, don't assume Module 1 is wrong — suspect measurement noise first (rerun with a larger `n` or repeat each timing 3 times and take the minimum) before suspecting the theory. Finally, add Python's built-in `sorted()` to the same table at `n = 50_000`. It's also O(n log n), same order as your merge sort and quicksort — but expect it to finish tens to a hundred times faster. That gap is constant factors: `sorted()` is a highly tuned C implementation (Timsort), while your functions are plain interpreted Python. Same Big-O order, wildly different real-world speed — both facts are true at once, and confusing "same order" with "same speed" is a mistake worth catching in yourself right now rather than later.
+
+9. **Decide, with numbers, when sorting first actually pays off.** Suppose you have a fixed dataset of `n` items and need to answer `m` "is X present" queries against it. Compare two strategies: sort once (O(n log n)) then binary-search each query (O(log n) each), versus linear-scanning the raw data for every query (O(n) each):
+   ```python
+   import math
+
+   def cost_sort_then_search(n, m):
+       return n * math.log2(n) + m * math.log2(n)
+
+   def cost_repeated_scan(n, m):
+       return m * n
+
+   n = 100_000
+   for m in [1, 10, 100, 10_000]:
+       sort_cost = cost_sort_then_search(n, m)
+       scan_cost = cost_repeated_scan(n, m)
+       winner = "sort wins" if sort_cost < scan_cost else "scan wins"
+       print(f"m={m}: sort+search~{sort_cost:,.0f}  scan~{scan_cost:,.0f}  {winner}")
+   ```
+   You should see the scan win for `m = 1` and `m = 10`, then the sort strategy pull decisively ahead by `m = 100` and beyond. The one-time O(n log n) sorting cost is a fixed investment; it only pays for itself once you amortize it across enough queries. This is the same judgment call that shows up constantly in real systems — "should I build an index" is exactly this trade-off with different variable names — and it's why Module 2's hash table (O(1) average lookup, no sorting required at all) is often the better answer when your access pattern is pure lookups with no need for order. Sorting earns its keep specifically when you also care about order, ranges, or "nearest to X."
+
+## Check on learning
+
+- In your own words, explain why merge sort's worst case is O(n log n) while quicksort's worst case is O(n²), even though both average O(n log n) on random data — tie your answer to what a bad pivot choice actually does to the shape of the recursion tree.
+- Without running it, predict whether bubble sort or insertion sort finishes faster on a list that's already 99% sorted, and justify it from each algorithm's best-case behavior rather than by guessing.
+- Explain the sort-once-vs-scan-repeatedly trade-off from step 9 to someone who's only finished Tier 1: when does paying the O(n log n) sorting cost up front actually pay off, and when does it just waste time?

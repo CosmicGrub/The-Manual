@@ -1,0 +1,52 @@
+[
+  {
+    "id": "cs-foundations/tier-2/core-data-structures-ii/q1",
+    "type": "multiple_choice",
+    "prompt": "You implement a queue as a plain Python list, using `list.append` to enqueue and `list.pop(0)` to dequeue. What is the time complexity of a single `dequeue` call?",
+    "choices": [
+      "O(1)",
+      "O(log n)",
+      "O(n)",
+      "O(n log n)"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "cs-foundations/tier-2/core-data-structures-ii/q2",
+    "type": "short_answer",
+    "prompt": "In a hash table using separate chaining, what is the name for the ratio of stored entries to number of buckets, used to decide when to trigger a resize?",
+    "acceptedAnswers": [
+      "load factor",
+      "load-factor",
+      "loadfactor"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-2/core-data-structures-ii/q3",
+    "type": "multiple_choice",
+    "prompt": "This method reverses a singly linked list in place:\n\n```python\ndef reverse(self):\n    prev = None\n    current = self.head\n    self.tail = self.head\n    while current is not None:\n        next_node = current.next\n        current.next = prev\n        prev = current\n        current = next_node\n    self.head = prev\n```\n\nWhat is its space complexity?",
+    "choices": [
+      "O(1)",
+      "O(log n)",
+      "O(n)",
+      "O(n^2)"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "cs-foundations/tier-2/core-data-structures-ii/q4",
+    "type": "short_answer",
+    "prompt": "A queue is built from two stacks (an 'in' stack and an 'out' stack), where the 'out' stack is only refilled from the 'in' stack when it runs empty. What is the amortized time complexity of enqueue and dequeue on this structure?",
+    "acceptedAnswers": [
+      "O(1)",
+      "amortized O(1)",
+      "constant time",
+      "amortized constant time"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-2/core-data-structures-ii/q5",
+    "type": "explain_back",
+    "prompt": "You force every key in a hash table to hash to the same bucket (using a class whose __hash__ always returns 0), and lookups become dramatically slower even after the table resizes many times over. Explain, in your own words, why resizing the table's capacity does not fix this, and what property a hash function actually needs to provide for a hash table's average-case O(1) get/put to hold."
+  }
+]

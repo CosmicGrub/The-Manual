@@ -1,0 +1,152 @@
+---
+trackId: cs-foundations
+tier: 2
+title: Object-Oriented Thinking
+order: 6
+estimatedHours: 8
+---
+
+Every data structure you're about to build for this tier's checkpoint project — a hash table, a binary search tree — wants to be a class: something that bundles its own data together with the operations that are safe to run on that data, and keeps the messy internals away from whoever's calling it. That bundling is the actual idea behind object-oriented programming. The ceremony people associate with OOP — deep inheritance trees, `AbstractSingletonFactoryManager`-style names, diagrams nobody reads twice — isn't the point, and is often actively counterproductive. This lesson strips it back to the real judgment call underneath: when does grouping state and behavior into an object make code clearer, and when does it just add layers between you and what the code actually does?
+
+## What you'll leave this lesson knowing
+
+- How to design a class from scratch — `__init__`, instance methods, instance attributes vs. class attributes — including the shared-mutable-class-attribute bug that catches almost everyone exactly once
+- How Python's version of encapsulation actually works (the underscore convention, `@property`) instead of compiler-enforced private/public, and why that's a deliberate design choice, not a missing feature
+- How to build a small inheritance hierarchy correctly with `super()`, how to spot an inheritance relationship that's actually a lie, and how to fix it with composition instead
+- A working, explicit answer to "does this actually need to be a class?" that you can apply to code you didn't write
+- Why custom objects need `__eq__` and `__hash__` defined explicitly to get value equality or to work as dict keys — directly relevant to the hash table you're building later this tier
+
+## Do this
+
+1. **Build a `Vector2D` class from scratch — no reference implementation, figure it out first.** Give it instance attributes `x` and `y`, and three methods: `add(self, other)` returning a new `Vector2D`, `scale(self, factor)` returning a new scaled `Vector2D`, and `magnitude(self)` returning the Euclidean length (`math.sqrt(x**2 + y**2)`). Write it, then verify against this:
+   ```python
+   v1 = Vector2D(3, 4)
+   v2 = Vector2D(1, 2)
+   print(v1.magnitude())        # 5.0
+   v3 = v1.add(v2)
+   print(v3.x, v3.y)            # 4 6
+   ```
+   Now print `v1` on its own. You'll get something like `<__main__.Vector2D object at 0x7f...>` — Python has no idea how you'd like your object described, so it falls back to a memory address. Add a `__repr__(self)` method returning `f"Vector2D({self.x}, {self.y})"` and confirm `print(v1)` now shows `Vector2D(3, 4)`. Then try `print(v1 == Vector2D(3, 4))`. It prints `False`, even though the components match — the default `__eq__` compares *identity* (are these the same object in memory?), not value. Add an `__eq__(self, other)` that returns `self.x == other.x and self.y == other.y`, and confirm the comparison flips to `True`.
+
+2. **Build a `BankAccount` and give it real encapsulation.** Store the balance as `self._balance` (leading underscore — Python's convention for "internal, don't touch this from outside," not an enforced rule). Add `deposit(self, amount)` and `withdraw(self, amount)`, each raising `ValueError` for a non-positive amount, and `withdraw` also raising `ValueError` on insufficient funds. Expose the balance as a read-only `balance` property using `@property`, so `account.balance` works but `account.balance = 1000` raises `AttributeError`. Verify:
+   ```python
+   account = BankAccount(100)
+   account.deposit(50)
+   print(account.balance)     # 150
+   account.withdraw(30)
+   print(account.balance)     # 120
+   account.withdraw(9999)     # raises ValueError: insufficient funds
+   ```
+   Now try `account._balance = 1_000_000` directly. It works — Python never actually stops you from reaching into `_balance`. That's the "consenting adults" philosophy: the underscore is a documented signal ("this is internal, changing it directly is on you"), not a lock. Add one more property, `is_overdrawn`, computed as `self._balance < 0` — a good example of a property that isn't stored anywhere, just calculated on read.
+
+3. **Build a small `Shape` hierarchy and get real polymorphism out of it.** Write a base class `Shape` whose `area(self)` method raises `NotImplementedError("subclasses must implement area")` — that's the from-scratch version of "this method must be overridden." Then write `Rectangle(Shape)` and `Circle(Shape)` subclasses, each calling `super().__init__(name)` to store a shared `name` attribute, and each implementing its own `area()`. Implement it yourself before checking anything, then verify:
+   ```python
+   shapes = [Rectangle("r1", 3, 4), Circle("c1", 2), Rectangle("r2", 5, 5)]
+   for shape in shapes:
+       print(shape.name, shape.area())
+   total = sum(shape.area() for shape in shapes)
+   print(f"{total:.2f}")     # 12 + ~12.57 + 25 = 49.57
+   ```
+   Notice the loop never checks `isinstance` or asks "is this a Circle or a Rectangle?" — it just calls `.area()` and trusts each object to know how to answer. That's polymorphism, and it's the actual payoff of inheritance: code that works the same way regardless of which subclass shows up.
+
+4. **Now watch an inheritance relationship break, and fix it with composition.** Run this exactly as written:
+   ```python
+   class UniqueList(list):
+       """A list that only allows unique items — by inheriting from list."""
+       def append(self, item):
+           if item not in self:
+               super().append(item)
+
+   ul = UniqueList([1, 2, 3])
+   ul.append(2)
+   print(ul)          # [1, 2, 3] -- looks like it's working
+   ul += [4, 4, 5]
+   print(ul)          # duplicates snuck in -- += doesn't go through append
+   ul[0] = 4
+   print(ul)          # item assignment bypasses append entirely
+   ```
+   `UniqueList` claims to be a list with one extra rule, but `list` has many entry points — `append`, `extend`, `+=`, `insert`, `__setitem__` — and overriding one doesn't touch the rest. The "is-a list" claim is a lie the moment someone relies on the uniqueness invariant and uses any of the others. Fix it with composition — wrap a list instead of inheriting one, and force every mutation through your own method:
+   ```python
+   class UniqueList:
+       """Holds unique items in insertion order. Wraps a list; doesn't inherit one."""
+       def __init__(self):
+           self._items = []
+
+       def add(self, item):
+           if item not in self._items:
+               self._items.append(item)
+
+       def __iter__(self):
+           return iter(self._items)
+
+       def __len__(self):
+           return len(self._items)
+
+       def __repr__(self):
+           return f"UniqueList({self._items})"
+   ```
+   Verify there's now no way to bypass the rule: `ul = UniqueList()`, feed it `[1, 2, 2, 3, 3, 3]` one item at a time through `.add()`, and confirm `print(ul)` gives `UniqueList([1, 2, 3])` and `len(ul)` gives `3`. Hang on to this pattern — wrapping a raw list or array and exposing only the operations that preserve an invariant is exactly what you'll do inside the hash table you build for this tier's checkpoint project.
+
+5. **Spot needless ceremony and cut it.** Read this class without running it:
+   ```python
+   class StringReverserManager:
+       def __init__(self):
+           pass
+
+       def get_instance(self):
+           return self
+
+       def reverse_the_string(self, s):
+           return s[::-1]
+
+   reverser = StringReverserManager()
+   result = reverser.get_instance().reverse_the_string("hello")
+   ```
+   It works, but ask yourself: what state does an instance of this class actually hold? None. Does anything ever create two different `StringReverserManager`s that behave differently? No. Rewrite it as a single plain function, `reverse_string(s)`, and confirm it produces the same result with a third of the code. A class earns its existence by holding onto state across multiple method calls, or by bundling several pieces of data that always travel together and change together — not by wrapping a stateless operation for the sake of having a class. Now go the other direction: sketch (a short class is enough, doesn't need to be polished) a `GameCharacter` class that replaces this pattern —
+   ```python
+   def take_damage(position, health, amount):
+       return health - amount
+
+   def heal(position, health, amount):
+       return min(100, health + amount)
+
+   def move(position, velocity):
+       return position + velocity
+   ```
+   — where `position`, `health`, and `velocity` are three loose variables passed around and returned from every function that touches them. That repetition, where the same bundle of related state threads through call after call, is the actual signal that a class belongs there.
+
+6. **Trigger the shared-class-attribute bug on purpose.** Run this:
+   ```python
+   class Cart:
+       items = []   # defined on the class itself, not inside __init__
+
+       def add(self, item):
+           self.items.append(item)
+
+   cart_a = Cart()
+   cart_b = Cart()
+   cart_a.add("apple")
+   cart_b.add("banana")
+   print(cart_a.items)   # ['apple', 'banana'] -- wait, both carts share one list!
+   ```
+   `items = []` at the class level creates exactly one list, owned by the class, and every instance that hasn't set its own `self.items` shares that same object — the same aliasing problem from Tier 1's list lesson, just one layer deeper. Fix it by moving the list into `__init__`: `self.items = []`. Confirm each cart now keeps its own items independently.
+
+7. **Make a custom object safe to use as a dict key — you'll need this for your hash table.** Run this first:
+   ```python
+   class Point:
+       def __init__(self, x, y):
+           self.x, self.y = x, y
+
+   p1 = Point(1, 2)
+   p2 = Point(1, 2)
+   print(p1 == p2)          # False -- default __eq__ compares identity, not value
+   seen = {p1: "first"}
+   print(p2 in seen)        # False -- even though p2 "looks like" p1
+   ```
+   Add `__eq__(self, other)` (compare `self.x, self.y` to `other.x, other.y`, guarding with `isinstance`) and `__hash__(self)` returning `hash((self.x, self.y))`. Re-run the block above — both lines should now report `True`. The rule to remember: the moment you override `__eq__` on a class, Python sets `__hash__` to `None` automatically (the object becomes unhashable) unless you define `__hash__` yourself, and whatever fields you hash must be the same ones `__eq__` compares — and none of them should ever change after the object goes into a dict or set, or you'll get an object that silently can't be found again.
+
+## Check on learning
+
+- Without running it, predict what the composition-based `UniqueList` from step 4 does with `ul.add([1, 2])` — is a list a valid item to add, and why or why not? Then run it and check.
+- In your own words, explain the actual dividing line between the needless-ceremony `StringReverserManager` and the justified `BankAccount` class from this lesson — it isn't line count.
+- Pick one class you wrote this lesson and name one attribute that should never be reassigned directly from outside it. Would you enforce that with a leading underscore, a read-only `@property`, or not bother at all — and why?

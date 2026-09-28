@@ -1,0 +1,52 @@
+[
+  {
+    "id": "cs-foundations/tier-2/big-o-and-complexity-analysis/q1",
+    "type": "multiple_choice",
+    "prompt": "What is the time complexity of count_pairs below, as a function of n = len(nums)?\n\ndef count_pairs(nums):\n    n = len(nums)\n    count = 0\n    for i in range(n):\n        for j in range(i + 1, n):\n            count += 1\n    return count",
+    "choices": [
+      "O(n)",
+      "O(n log n)",
+      "O(n^2)",
+      "O(2^n)"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "cs-foundations/tier-2/big-o-and-complexity-analysis/q2",
+    "type": "short_answer",
+    "prompt": "To prove f(n) = O(g(n)) using the formal definition, you must be able to produce two specific things. What are they called?",
+    "acceptedAnswers": [
+      "c and n0",
+      "a constant c and a threshold n0",
+      "constants c and n0",
+      "c, n0"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-2/big-o-and-complexity-analysis/q3",
+    "type": "multiple_choice",
+    "prompt": "Naive recursive factorial makes n + 1 calls total, while naive recursive Fibonacci makes a number of calls that grows exponentially in n. What best explains the difference?",
+    "choices": [
+      "Factorial makes exactly one recursive call per invocation, so its call chain is a single line of length n, while Fibonacci makes two recursive calls per invocation, so its call tree branches at every level",
+      "Fibonacci uses more memory per call than factorial does",
+      "Factorial has a base case and Fibonacci does not",
+      "Python automatically optimizes factorial's recursion but not Fibonacci's"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "cs-foundations/tier-2/big-o-and-complexity-analysis/q4",
+    "type": "short_answer",
+    "prompt": "In Python's default configuration, what error is raised when a recursive function's call stack grows deeper than the interpreter allows (e.g., recursive factorial on a very large n)?",
+    "acceptedAnswers": [
+      "RecursionError",
+      "RecursionError: maximum recursion depth exceeded",
+      "maximum recursion depth exceeded"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-2/big-o-and-complexity-analysis/q5",
+    "type": "explain_back",
+    "prompt": "In your own words, explain why linear search's best case, worst case, and average case are three separate claims about the same function rather than three competing answers to the same question. Use its best case (target at index 0) and worst case (target missing entirely) as your concrete example, and say which one people mean by default when they just say 'linear search is O(n)'."
+  }
+]

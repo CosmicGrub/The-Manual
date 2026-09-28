@@ -1,0 +1,55 @@
+[
+  {
+    "id": "cs-foundations/tier-2/discrete-math-induction-recursion-combinatorics/q1",
+    "type": "multiple_choice",
+    "prompt": "In a proof by induction, what must the inductive step actually establish?",
+    "choices": [
+      "That the statement is true when n equals the smallest possible value",
+      "That if the statement holds for n = k, it also holds for n = k + 1",
+      "That the statement is true for at least one value of n",
+      "That the statement's negation leads to a contradiction for all n"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cs-foundations/tier-2/discrete-math-induction-recursion-combinatorics/q2",
+    "type": "short_answer",
+    "prompt": "Solve the recurrence T(n) = T(n-1) + n, with T(0) = 0 (this is the comparison count for insertion sort's worst case). Give its tightest Big-O class as a single expression like O(n).",
+    "acceptedAnswers": [
+      "O(n^2)",
+      "O(n\u00b2)",
+      "\u0398(n^2)",
+      "\u0398(n\u00b2)",
+      "n^2",
+      "n squared",
+      "quadratic"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-2/discrete-math-induction-recursion-combinatorics/q3",
+    "type": "multiple_choice",
+    "prompt": "This function's recursive calls give the recurrence T(n) = 2T(n/2) + O(n):\n\ndef merge_sort(arr):\n    if len(arr) <= 1:\n        return arr\n    mid = len(arr) // 2\n    left = merge_sort(arr[:mid])\n    right = merge_sort(arr[mid:])\n    return merge(left, right)  # merge() itself is O(n)\n\nWhat is T(n) in Big-O?",
+    "choices": [
+      "O(n)",
+      "O(n log n)",
+      "O(n^2)",
+      "O(log n)"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cs-foundations/tier-2/discrete-math-induction-recursion-combinatorics/q4",
+    "type": "short_answer",
+    "prompt": "How many distinct unordered pairs can you form from a set of 6 items (i.e., what is 6 choose 2)? Give just the number.",
+    "acceptedAnswers": [
+      "15",
+      "C(6,2) = 15",
+      "6 choose 2 = 15"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-2/discrete-math-induction-recursion-combinatorics/q5",
+    "type": "explain_back",
+    "prompt": "In your own words, explain why mathematical induction and recursive functions share the same logical structure. Use a recursive function from this lesson (rec_sum or rec_factorial) to point out exactly which line of code corresponds to the induction proof's base case, and which corresponds to the inductive step's assumption that the recursive call 'already works' for a smaller input."
+  }
+]

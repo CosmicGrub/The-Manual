@@ -1,0 +1,266 @@
+---
+trackId: cs-foundations
+tier: 2
+title: Graph Theory Fundamentals
+order: 5
+estimatedHours: 8
+---
+
+A graph is the least opinionated data structure you've built so far — no order like a list, no hierarchy like a tree, no single key-to-value mapping like a hash table. It just says: here are some things, and here are the connections between them. That bare idea is enough to model road networks, social networks, dependency chains between build steps, web pages linking to other web pages, and the maze you'll solve with this exact code in Module 8. This lesson is about the two ways to represent that idea in code, and the two traversal algorithms — BFS and DFS — that turn "here's how things connect" into real answers: is this reachable at all, and what's the shortest way to get there.
+
+## What you'll leave this lesson knowing
+
+- The difference between an adjacency list and an adjacency matrix, including the actual Big-O of adding an edge, checking whether one exists, and listing a node's neighbors under each — and which one you'd reach for on a sparse graph versus a dense one
+- How to implement breadth-first search (BFS) from scratch with a queue, and why it's the algorithm that guarantees the shortest path (fewest edges) in an unweighted graph
+- How to implement depth-first search (DFS) from scratch, both recursively and with an explicit stack, and why its traversal order does *not* give you shortest paths the way BFS's does
+- How to determine whether a graph is connected and how to find all of its connected components, using either traversal
+- How to reconstruct an actual shortest path, not just its length, by tracking parent pointers during a BFS
+
+## Do this
+
+1. **Build an adjacency-list graph from scratch and represent a real map with it.** An adjacency list is just a dict from each node to the list of nodes it directly connects to — nothing fancier than that. Write:
+   ```python
+   class Graph:
+       """An undirected graph stored as an adjacency list: node -> list of neighbors."""
+
+       def __init__(self, directed=False):
+           self.directed = directed
+           self.adj = {}
+
+       def add_node(self, node):
+           self.adj.setdefault(node, [])
+
+       def add_edge(self, u, v):
+           self.add_node(u)
+           self.add_node(v)
+           self.adj[u].append(v)
+           if not self.directed:
+               self.adj[v].append(u)
+
+       def neighbors(self, node):
+           return self.adj[node]
+
+       def nodes(self):
+           return list(self.adj.keys())
+   ```
+   Now model this: eight intersections (`A` through `H`) in a small town, where a street connecting `G` and `H` used to link that neighborhood to the rest of town — until the bridge on it collapsed, so treat every *other* street as intact:
+   ```python
+   town = Graph()
+   for u, v in [("A", "B"), ("A", "C"), ("B", "D"), ("C", "D"),
+                ("D", "E"), ("E", "F"), ("G", "H")]:
+       town.add_edge(u, v)
+
+   print(town.adj)
+   # {'A': ['B', 'C'], 'B': ['A', 'D'], 'C': ['A', 'D'], 'D': ['B', 'C', 'E'],
+   #  'E': ['D', 'F'], 'F': ['E'], 'G': ['H'], 'H': ['G']}
+   ```
+   Keep `town` around — every step below reuses it.
+
+2. **Build the same map as an adjacency matrix, then work out the Big-O yourself before checking below.** A matrix represents the graph as a 2D grid of 0s and 1s, one row and one column per node:
+   ```python
+   class AdjacencyMatrixGraph:
+       def __init__(self, nodes):
+           self.nodes_list = list(nodes)
+           self.index = {node: i for i, node in enumerate(self.nodes_list)}
+           n = len(self.nodes_list)
+           self.matrix = [[0] * n for _ in range(n)]
+
+       def add_edge(self, u, v):
+           i, j = self.index[u], self.index[v]
+           self.matrix[i][j] = 1
+           self.matrix[j][i] = 1
+
+       def has_edge(self, u, v):
+           i, j = self.index[u], self.index[v]
+           return self.matrix[i][j] == 1
+
+       def neighbors(self, u):
+           i = self.index[u]
+           return [self.nodes_list[j] for j, val in enumerate(self.matrix[i]) if val == 1]
+   ```
+   Build `town_matrix` from the same eight nodes and same edge list, then confirm `town_matrix.neighbors("D")` gives `['B', 'C', 'E']` and `town_matrix.has_edge("A", "G")` is `False`. Now, in terms of `V` (nodes) and `deg(u)` (the number of neighbors a specific node `u` has), work out the cost of `add_edge`, `has_edge(u, v)`, `neighbors(u)`, and total space for *both* representations — then check yourself: list gives you `add_edge` in O(1), `has_edge` in O(deg(u)) (you have to scan the neighbor list), `neighbors(u)` in O(deg(u)) — exactly as much work as there are neighbors, no waste — and O(V + E) total space. Matrix gives you O(1) for both `add_edge` and `has_edge`, but `neighbors(u)` costs O(V) *every time*, even if `u` has one neighbor out of a thousand nodes, because you have to scan the whole row — and space is O(V²) regardless of how few edges actually exist. That last fact is the whole story: a matrix is a great choice when the graph is dense or you mostly ask "are these two connected?", and a disaster of wasted memory when it's sparse (few edges relative to V²) and you mostly need "what does this node connect to?" — which is exactly what BFS and DFS do, over and over, which is why every traversal for the rest of this lesson uses the list.
+
+3. **Implement BFS from scratch as a distance calculator, then verify it against numbers you can check by hand.** The spec: `bfs_distances(graph, start)` returns a dict mapping every node reachable from `start` to the number of edges on the shortest path to it. The mechanism is a queue (FIFO — first node in, first node out) plus a "seen" record so you never revisit a node: start by enqueuing `start` at distance 0; repeatedly dequeue a node, and for each of its neighbors you haven't recorded yet, record its distance as one more than the current node's and enqueue it. Implement it yourself before reading on — the algorithm is short, but the reason it *works* (it can only discover a node through the shortest possible route, because it exhausts every node at distance `k` before touching any node at distance `k+1`) is worth sitting with. Then compare against:
+   ```python
+   from collections import deque
+
+   def bfs_distances(graph, start):
+       distances = {start: 0}
+       queue = deque([start])
+       while queue:
+           node = queue.popleft()
+           for neighbor in graph.neighbors(node):
+               if neighbor not in distances:
+                   distances[neighbor] = distances[node] + 1
+                   queue.append(neighbor)
+       return distances
+
+   print(bfs_distances(town, "A"))
+   # {'A': 0, 'B': 1, 'C': 1, 'D': 2, 'E': 3, 'F': 4}
+   ```
+   Notice `G` and `H` never show up — they aren't reachable from `A` at all, and BFS simply never enqueues them. That absence *is* the connectivity answer for those two nodes, which you'll formalize in step 6.
+
+4. **Extend BFS to reconstruct the actual path, not just its length.** Distances alone don't tell you the route. Track a `parent` dict alongside the queue — the node you *came from* when you first discovered each node — then walk it backwards from the target to the start once BFS finishes:
+   ```python
+   def bfs_shortest_path(graph, start, target):
+       visited = {start}
+       parent = {start: None}
+       queue = deque([start])
+       while queue:
+           node = queue.popleft()
+           if node == target:
+               break
+           for neighbor in graph.neighbors(node):
+               if neighbor not in visited:
+                   visited.add(neighbor)
+                   parent[neighbor] = node
+                   queue.append(neighbor)
+       if target not in parent:
+           return None
+       path = []
+       node = target
+       while node is not None:
+           path.append(node)
+           node = parent[node]
+       path.reverse()
+       return path
+
+   print(bfs_shortest_path(town, "A", "F"))
+   # ['A', 'B', 'D', 'E', 'F']
+   ```
+   Four edges, matching the distance of 4 you already computed for `F` in step 3 — the path length and the BFS distance always agree, because that's what BFS is actually computing. Try `bfs_shortest_path(town, "A", "H")` yourself and confirm it returns `None`.
+
+5. **Implement DFS from scratch, two ways, and catch it *not* finding shortest paths.** DFS's rule is the opposite of BFS's: plunge as deep as possible down one neighbor before backtracking to try the next. Write the recursive version yourself first — visit a node, mark it seen, then recurse into each unseen neighbor in order — then check it against:
+   ```python
+   def dfs_recursive(graph, start, visited=None, order=None):
+       if visited is None:
+           visited = set()
+           order = []
+       visited.add(start)
+       order.append(start)
+       for neighbor in graph.neighbors(start):
+           if neighbor not in visited:
+               dfs_recursive(graph, neighbor, visited, order)
+       return order
+
+   print(dfs_recursive(town, "A"))
+   # ['A', 'B', 'D', 'C', 'E', 'F']
+   ```
+   Now do the same traversal without recursion, using your own explicit stack (a plain Python list with `.append`/`.pop` is a stack: last in, first out):
+   ```python
+   def dfs_iterative(graph, start):
+       visited = set()
+       order = []
+       stack = [start]
+       while stack:
+           node = stack.pop()
+           if node in visited:
+               continue
+           visited.add(node)
+           order.append(node)
+           for neighbor in reversed(graph.neighbors(node)):
+               if neighbor not in visited:
+                   stack.append(neighbor)
+       return order
+
+   print(dfs_iterative(town, "A"))
+   # ['A', 'B', 'D', 'C', 'E', 'F']
+   ```
+   Same order both ways (the `reversed()` in the iterative version is what makes that true — work out for yourself why, by tracing what happens without it). Now look closely at where `C` landed: `A` connects *directly* to `C` by one edge, yet DFS didn't reach it until the fourth node, only after fully diving through `B` and `D` first. DFS found a real path to `C`, just not the shortest one — that's the concrete, reproducible reason DFS parent pointers are never used for shortest-path questions, while BFS's always are.
+
+6. **Use either traversal to answer "is this graph connected?" and "what are its pieces?"** Both questions reduce to the same primitive: from a starting node, which nodes can you reach at all? Write `reachable_from`, then build `is_connected` and `connected_components` on top of it:
+   ```python
+   def reachable_from(graph, start):
+       visited = {start}
+       queue = deque([start])
+       while queue:
+           node = queue.popleft()
+           for neighbor in graph.neighbors(node):
+               if neighbor not in visited:
+                   visited.add(neighbor)
+                   queue.append(neighbor)
+       return visited
+
+   def is_connected(graph):
+       nodes = graph.nodes()
+       if not nodes:
+           return True
+       return len(reachable_from(graph, nodes[0])) == len(nodes)
+
+   def connected_components(graph):
+       seen = set()
+       components = []
+       for node in graph.nodes():
+           if node not in seen:
+               component = reachable_from(graph, node)
+               seen |= component
+               components.append(component)
+       return components
+
+   print(is_connected(town))          # False
+   print(connected_components(town))  # two sets: {A,B,C,D,E,F} and {G,H}
+   ```
+   That matches the story: the collapsed bridge really did split the town into two pieces that can't reach each other, and your code found that fact from the edge list alone, with no map in front of it.
+
+7. **Prove to yourself, with numbers, that this is O(V + E) and not O(V²).** Instrument BFS to count every neighbor check it performs, then run it on graphs of increasing size and watch the count grow *linearly*, not quadratically:
+   ```python
+   def bfs_counting(graph, start):
+       visited = {start}
+       queue = deque([start])
+       steps = 0
+       while queue:
+           node = queue.popleft()
+           for neighbor in graph.neighbors(node):
+               steps += 1
+               if neighbor not in visited:
+                   visited.add(neighbor)
+                   queue.append(neighbor)
+       return visited, steps
+
+   def make_path_graph(n):
+       g = Graph()
+       for i in range(n - 1):
+           g.add_edge(i, i + 1)
+       return g
+
+   for n in [10, 100, 1000, 10000]:
+       g = make_path_graph(n)
+       _, steps = bfs_counting(g, 0)
+       print(n, steps, steps / n)
+   # 10    18    1.8
+   # 100   198   1.98
+   # 1000  1998  1.998
+   # 10000 19998 1.9998
+   ```
+   The ratio `steps / n` converges to 2, not to `n` itself — because each of the `n - 1` edges gets scanned exactly twice (once from each endpoint), so `steps = 2E`. If BFS on an adjacency list were secretly O(V²), that ratio would grow with `n` instead of leveling off. This is the same "count the actual operations" move from Module 1, now applied to a real graph algorithm instead of a toy loop — and it's exactly why you built the list representation in step 1 instead of leaning on the matrix from step 2, where the equivalent `neighbors(u)` scan alone would cost O(V) per node no matter how sparse the graph was.
+
+8. **Find the bug in each of these before running them.** Both are real, common graph-traversal mistakes:
+   ```python
+   # Snippet A — someone's attempt at BFS
+   def broken_bfs(graph, start):
+       visited = {start}
+       queue = [start]          # a plain list, not a deque
+       distances = {start: 0}
+       while queue:
+           node = queue.pop()   # .pop() removes from the END, not the front
+           for neighbor in graph.neighbors(node):
+               if neighbor not in visited:
+                   visited.add(neighbor)
+                   distances[neighbor] = distances[node] + 1
+                   queue.append(neighbor)
+       return distances
+   ```
+   ```python
+   # Snippet B — DFS on a graph that has a cycle
+   def broken_dfs(graph, node):
+       print(node)
+       for neighbor in graph.neighbors(node):
+           broken_dfs(graph, neighbor)   # no visited check at all
+   ```
+   Run `broken_bfs(town, "A")` and compare its output to `bfs_distances(town, "A")` from step 3 — it doesn't crash, and that's what makes it dangerous: swapping `deque` + `popleft()` for a list + `.pop()` silently turns your "BFS" into DFS order, so the "distances" it reports are no longer guaranteed to be shortest-path distances at all. Then run `broken_dfs(town, "A")` and read the traceback — with no `visited` set, it bounces forever around the `A-B-D-C-A` cycle until Python gives up with a `RecursionError`. Fix both (swap in `deque`/`popleft` for A; add a `visited` set for B) and confirm each now matches steps 3 and 5.
+
+## Check on learning
+
+- Without running any code, predict what `bfs_distances(town, "G")` returns, and explain in one sentence why it's *not* an error.
+- Explain, in your own words, why a plunge-first traversal (DFS) can reach a node through a longer path than necessary while a layer-by-layer traversal (BFS) never can — use the `A` → `C` example from step 5 to make it concrete.
+- If you swapped the adjacency list in `town` for the adjacency matrix from step 2, which specific function from steps 3–7 would get *slower* as the town grew to thousands of intersections, and why?

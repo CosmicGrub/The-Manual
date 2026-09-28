@@ -1,0 +1,52 @@
+[
+  {
+    "id": "cs-foundations/tier-2/object-oriented-thinking/q1",
+    "type": "multiple_choice",
+    "prompt": "Which pairing is correct?",
+    "choices": [
+      "Inheritance expresses 'has-a'; composition expresses 'is-a'",
+      "Inheritance expresses 'is-a'; composition expresses 'has-a'",
+      "Both inheritance and composition express 'is-a'",
+      "Both inheritance and composition express 'has-a'"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cs-foundations/tier-2/object-oriented-thinking/q2",
+    "type": "multiple_choice",
+    "prompt": "What does this print?\n\nclass Cart:\n    items = []\n    def add(self, item):\n        self.items.append(item)\n\na = Cart()\nb = Cart()\na.add(\"apple\")\nb.add(\"banana\")\nprint(a.items)",
+    "choices": [
+      "['apple']",
+      "['apple', 'banana']",
+      "['banana']",
+      "TypeError"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cs-foundations/tier-2/object-oriented-thinking/q3",
+    "type": "multiple_choice",
+    "prompt": "Which of these is the best justification for turning a piece of procedural code into a class?",
+    "choices": [
+      "The code is more than 10 lines long",
+      "Multiple functions need to share and mutate the same bundle of related state",
+      "The code needs to run faster",
+      "The code uses more than one loop"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cs-foundations/tier-2/object-oriented-thinking/q4",
+    "type": "short_answer",
+    "prompt": "A class overrides __eq__ but does not define __hash__. What exception type is raised when you try to put an instance of that class into a set or use it as a dict key?",
+    "acceptedAnswers": [
+      "TypeError",
+      "TypeError: unhashable type"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-2/object-oriented-thinking/q5",
+    "type": "explain_back",
+    "prompt": "Using the UniqueList example from this lesson, explain why inheriting from `list` to enforce a 'no duplicates' rule doesn't actually work, and how rewriting UniqueList to wrap a list (composition) instead of inheriting one fixes it."
+  }
+]

@@ -76,3 +76,10 @@ All notable changes to The Manual (curriculum + app) are logged here. This file 
 - `content/cs-foundations/tier-1/*.mdx` (8 files) + matching `*.quiz.json` (8 files, 5 questions each): Python Core Syntax, Loops & Iteration, Functions & Scope, Core Data Structures I, Working with Text & Files, Math Primer (Algebra & Functions), Discrete Math I (Logic & Sets), and Intro to Probability & Statistics (including the information-theory/entropy primer added during the structural-fix pass, so AI/ML's Tier 1 has real prerequisite content to point to). Written by 8 parallel agents sharing the tier's goal/checkpoint/format context, assuming Tier 0 is complete (no re-explaining terminal/git/environment basics).
 
 **Status:** CS Foundations Tiers 0-1 are now both fully content-complete — 95 hours of real material across 14 lessons.
+
+## [0.4.0] — 2026-09-28 — CS Foundations Tier 2: complete real lesson content
+
+**Added**
+- `content/cs-foundations/tier-2/*.mdx` (8 files) + matching `*.quiz.json` (8 files, 5 questions each): Big-O & Complexity Analysis, Core Data Structures II, Sorting & Searching, Discrete Math II (Induction, Recursion & Combinatorics), Graph Theory Fundamentals, Object-Oriented Thinking (the canonical OOP-concepts lesson other tracks point to), Testing & Debugging Discipline, and Small Independent Projects (written as 3 minimal-hand-holding project briefs rather than a guided walkthrough, matching this tier's "Builder" framing). Assumes Tiers 0-1 are done; scaffolding is deliberately lighter per the tier's own goal statement.
+
+**Status:** CS Foundations Tiers 0-2 are now fully content-complete — 174 hours of real material across 22 lessons.

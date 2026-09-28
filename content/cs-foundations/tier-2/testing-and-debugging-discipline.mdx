@@ -1,0 +1,167 @@
+---
+trackId: cs-foundations
+tier: 2
+title: Testing & Debugging Discipline
+order: 7
+estimatedHours: 6
+---
+
+Every function you've written in this tier has had a bug in it at some point — that's not a knock on you, it's just what writing code is. What separates someone who's fighting their code from someone who isn't is two disciplines: a test suite that tells you the instant behavior drifts, and a debugger that lets you watch a program think instead of guessing from scattered `print()` calls. Neither is optional once your programs get past toy size, and both are cheaper to learn now than after you've shipped a hash table with a silent bug in it.
+
+## What you'll leave this lesson knowing
+
+- How to write and run tests with `pytest`: plain `assert`-based test functions, test discovery by filename, and reading `-v` output
+- How to use `@pytest.mark.parametrize` to check many inputs — especially edge cases — with one test function, and `pytest.raises` to assert that bad input fails the *right* way
+- How to use Python's built-in debugger (`breakpoint()` / `pdb`) to pause a running program, inspect live variables, and step through execution line by line — for the class of bugs `print()` can't catch, like a loop that never terminates and never prints anything at all
+- How to read a multi-frame traceback from the bottom up: exception type and message first, then the exact failing line, then the call chain that led there
+- The habit of writing tests alongside code as you build it, not after, and reaching for a debugger before you reach for a fourth `print()` statement
+
+## Do this
+
+1. **Set up pytest and write the test before the code passes.** Install it:
+
+   ```
+   pip install pytest
+   ```
+
+   You're going to write a `clamp(value, low, high)` function — it forces a number into an inclusive range, so `clamp(15, 0, 10)` comes back `10` and `clamp(-3, 0, 10)` comes back `0`. Instead of writing the function first, write the test first. Create `test_calc.py`:
+
+   ```python
+   from calc import clamp
+
+   def test_clamp_within_range():
+       assert clamp(5, 0, 10) == 5
+
+   def test_clamp_below_low():
+       assert clamp(-3, 0, 10) == 0
+
+   def test_clamp_above_high():
+       assert clamp(15, 0, 10) == 10
+   ```
+
+   Run `pytest -v`. It fails immediately — there's no `calc.py` yet, so pytest can't even collect the tests. That failure is expected and useful: it's the "red" in red-green, and it proves the test actually runs before you trust it to mean anything. Now create `calc.py` and implement `clamp` yourself — don't overthink the spec, it's exactly what the three tests already describe. Rerun `pytest -v` until all three pass ("green"). This red-then-green order is the whole point of writing tests alongside code rather than after: a test you write *after* the function already works can pass by accident even when it's checking the wrong thing, because you never watched it fail first.
+
+2. **Cover edge cases with one parametrized test instead of ten copy-pasted ones.** Three tests barely scratch the boundaries. Replace them with:
+
+   ```python
+   import pytest
+   from calc import clamp
+
+   @pytest.mark.parametrize("value, low, high, expected", [
+       (5, 0, 10, 5),
+       (-3, 0, 10, 0),
+       (15, 0, 10, 10),
+       (0, 0, 10, 0),      # exactly on the low boundary
+       (10, 0, 10, 10),    # exactly on the high boundary
+   ])
+   def test_clamp(value, low, high, expected):
+       assert clamp(value, low, high) == expected
+   ```
+
+   Run `pytest -v` and look at the output — pytest runs the function once per row and labels each one with its inputs, so a single failing case tells you exactly which combination broke instead of "the test failed" with no context. Now add one more row yourself for the case where `low == high == value`, and one for a negative `low`/`high` range like `(-15, -20, -10, -15)`. If your `clamp` breaks on either, that's the point of testing edge cases before they show up in a caller's real data.
+
+3. **Test that bad input fails the *right* way, not just any way.** A function that's supposed to reject bad input needs a test proving it actually does. Write `safe_divide(a, b)` yourself: it should behave like normal division, except when `b == 0` it should raise `ValueError("cannot divide by zero")` instead of letting Python's own `ZeroDivisionError` leak out. Test it with `pytest.raises`:
+
+   ```python
+   import pytest
+   from calc import safe_divide
+
+   def test_safe_divide_normal():
+       assert safe_divide(10, 2) == 5
+
+   def test_safe_divide_by_zero_raises():
+       with pytest.raises(ValueError, match="cannot divide by zero"):
+           safe_divide(10, 0)
+   ```
+
+   `pytest.raises` fails the test if the block *doesn't* raise the named exception — so it's checking both that your code fails loudly on bad input and that it fails with the specific, documented error you promised, not some other exception that happens to also be an error.
+
+4. **Meet a bug that print statements can't find.** Here's a `binary_search` — don't fix anything yet, just save it as `buggy_search.py` and run it as-is:
+
+   ```python
+   def binary_search(sorted_items, target):
+       """Return the index of target in sorted_items, or -1 if it isn't present."""
+       low, high = 0, len(sorted_items)
+       while low < high:
+           mid = (low + high) // 2
+           if sorted_items[mid] == target:
+               return mid
+           elif sorted_items[mid] < target:
+               low = mid
+           else:
+               high = mid
+       return -1
+
+   print(binary_search([1, 2, 3, 4], 100))
+   ```
+
+   Run `python3 buggy_search.py` and give it a few seconds. It hangs — no traceback, no output, nothing to read. This is exactly the situation a debugger exists for: there's no error message to Google and no obvious line to add a `print()` to, because you don't yet know which variable is misbehaving. Interrupt it with Ctrl-C, then add `breakpoint()` as the first line inside the `while` loop and run it again. Each time execution reaches that line, it drops you into `(Pdb)`, a live prompt where you can inspect the program's actual state:
+
+   | Command | Does |
+   |---|---|
+   | `p expr` | print the value of `expr` right now |
+   | `n` | run the next line (step *over* function calls) |
+   | `s` | step *into* the next function call |
+   | `c` | continue running until the next `breakpoint()` |
+   | `l` | list the source code around the current line |
+   | `q` | quit the debugger and stop the program |
+
+   At the prompt, run `p (low, high, mid)`, then `c`, then `p (low, high, mid)` again, and keep alternating. You should see something like `(0, 4, 2)`, then `(2, 4, 3)`, then `(3, 4, 3)` — and then it never changes again. `low` stopped advancing. Look at the branch that ran on that last iteration: `sorted_items[mid] < target` was true, and the line `low = mid` set `low` back to the same value it already was, instead of moving past `mid`. Fix that one line to `low = mid + 1`, remove the `breakpoint()` call, and confirm `binary_search([1, 2, 3, 4], 100)` now returns `-1` instantly instead of hanging. This is the actual value of a debugger over `print()`: it lets you pause a live, running, *stuck* program and ask it questions, instead of only ever seeing values you thought in advance to print.
+
+5. **Read a real traceback from the bottom up.** Save this as `order_total.py`:
+
+   ```python
+   def parse_price(raw_price):
+       return float(raw_price)
+
+   def apply_discount(price, percent_off):
+       return price - (price * percent_off / 100)
+
+   def compute_total(cart):
+       total = 0
+       for item in cart:
+           price = parse_price(item["price"])
+           total += apply_discount(price, item.get("discount", 0))
+       return total
+
+   cart = [
+       {"price": "19.99", "discount": 10},
+       {"price": "free"},
+       {"price": "5.00"},
+   ]
+
+   print(compute_total(cart))
+   ```
+
+   Run it. You'll get a traceback with three stacked frames and an exception at the bottom. Read it in this order, not top to bottom: **first**, the very last line — `ValueError: could not convert string to float: 'free'` — tells you the exception type and exactly what broke, before you look at anything else. **Second**, the frame directly above it (`parse_price`, `return float(raw_price)`) shows the precise line where Python actually gave up. **Third**, walk further up (`compute_total`, then the module-level call) to see the chain of calls that led there — this is how a bad `"free"` string three items deep in a list ended up crashing a line that never mentions carts at all. Notice that the *failing line* (`float(raw_price)`) and the *actual bug* aren't the same thing — `float()` did its job correctly by refusing garbage input; the real gap is that `compute_total` never validated the data before trusting it. Now change one thing yourself: make a copy of the cart with a missing `"price"` key entirely instead of a bad value, run it again, and read the new traceback (it'll be a different exception type) using the same bottom-up strategy before you look at what it says here.
+
+6. **Put it together: a full test suite for the fixed `binary_search`.** This is a direct rehearsal for the checkpoint project, which requires unit tests for every function in your algorithms toolkit. Using the corrected version from step 4, write a parametrized suite covering: an empty list, a single-element list (both a hit and a miss), the target at the first and last valid index, a target that falls between two elements, a target beyond every element, and a list with a duplicate value. For example:
+
+   ```python
+   import pytest
+   from search import binary_search
+
+   @pytest.mark.parametrize("items, target, expected", [
+       ([], 5, -1),
+       ([5], 5, 0),
+       ([5], 9, -1),
+       ([1, 2, 3, 4, 5], 1, 0),
+       ([1, 2, 3, 4, 5], 5, 4),
+       ([1, 3, 5, 7, 9], 8, -1),
+       ([1, 2, 2, 2, 3], 2, 2),
+   ])
+   def test_binary_search(items, target, expected):
+       assert binary_search(items, target) == expected
+
+   def test_binary_search_never_hangs_on_missing_target():
+       # regression test for the low = mid infinite-loop bug from step 4
+       assert binary_search([10, 20, 30, 40], 999) == -1
+   ```
+
+   That last test has a name, not just an assertion — it documents *why* it exists. A regression test like this is what stops a fixed bug from silently coming back the next time someone touches the function; run the full suite with `pytest -v` and confirm every case is green before moving on.
+
+## Check on learning
+
+- Explain, in your own words, why writing the test before the implementation ("red, then green") catches a category of mistake that writing the test afterward doesn't.
+- Without running it, predict whether this hangs, crashes, or prints a value — and if it hangs, name the exact debugger command sequence you'd use to find out why: `binary_search([2, 4, 6, 8, 10], 7)` using the *original, buggy* version from step 4 (`low = mid`, not `low = mid + 1`).
+- A teammate says "I don't need a debugger, I'll just add print statements until I find it." Explain the specific situation from this lesson where that approach fails completely, and why pausing execution with `breakpoint()` succeeds where it can't.

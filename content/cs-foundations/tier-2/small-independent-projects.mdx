@@ -1,0 +1,188 @@
+---
+trackId: cs-foundations
+tier: 2
+title: Small Independent Projects
+order: 8
+estimatedHours: 15
+---
+
+Every other module in this tier gave you a spec and walked you through building it. This one doesn't. You now have a hash table, a BST, BFS/DFS, sorting algorithms, and a testing discipline sitting in your toolbox — the only thing left to practice is the part nobody can hand you: taking a loosely-worded problem, deciding on your own how to structure it, and shipping something correct and tested with no one checking your work step by step. That's what the rest of your programming life actually looks like, and it's exactly what the Tier 2 checkpoint project is about to demand of you. Consider this module the dress rehearsal.
+
+## What you'll leave this lesson knowing
+
+- How to turn a plain-English problem statement and a constraints list into working, tested code entirely on your own, with no numbered steps to follow
+- Practical experience writing a parser for a made-up input format and hardening it against edge cases you didn't think of until your own tests found them
+- A working BFS and DFS maze solver built from scratch, and a concrete, first-hand example of why BFS guarantees the shortest path in an unweighted grid and DFS does not
+- A capacity-limited cache built on top of your own hash table (not `dict`, not `functools.lru_cache`) with average-case O(1) `get`/`put`, and the reasoning for why the eviction bookkeeping has to be O(1) too, not just the lookup
+- The habit of checking your own work against a rubric before calling something "done," instead of waiting for someone else to tell you it's wrong
+
+## Do this
+
+Three independent project briefs. Each one stands completely on its own — pick any order, and don't feel obligated to finish all three in one sitting. Budget roughly five hours per project; that's a target, not a deadline. For all three: write real functions with docstrings, write real `pytest` tests, and write a short Big-O note for the function that does the actual work. No walkthrough follows — that's the point of this module.
+
+### Project 1: Three-day puzzle sprint (Advent-of-Code style)
+
+**Problem statement.** Solve three small, self-contained puzzles, each with a "Part 1" and a "Part 2" that reuses your Part 1 parsing but asks a harder question about the same data. This is the classic Advent-of-Code shape: read oddly-formatted text, extract structured data from it, then compute something over that data. You will not be told how to parse the input — figuring that out is the exercise.
+
+**Day 1 — Cargo Manifest.** The input is a list of integers, one per line, with drone cargo groups separated by blank lines. Each group is the weights of the crates one delivery drone is carrying. Sample input:
+
+```
+120
+80
+45
+
+200
+
+90
+90
+90
+50
+
+10
+10
+```
+
+Part 1: what's the total weight carried by the single heaviest-loaded drone? Answer for the sample: `320`. Part 2: what's the combined weight carried by the three heaviest drones? Answer for the sample: `765`.
+
+**Day 2 — Buoy Signal Lock.** The input is a single line of uppercase letters — one frequency code broadcast per second by a marker buoy. A receiver "short-locks" the first time the most recent 4 codes it has heard are all different from each other, and reports the total count of seconds elapsed (1-indexed) at that moment. Sample input:
+
+```
+AAABCDEFGHIJKLM
+```
+
+Part 1 (window size 4): answer for the sample is `6` (the 4 codes ending at second 6 — positions 3 through 6 — are `A, B, C, D`, all different; every earlier 4-second window still has a repeated `A` in it). Part 2: same rule, but a "full lock" requires the most recent 8 codes to all be different. Answer for the sample: `10`.
+
+A brute-force version that rebuilds a set of the last *W* characters at every single second is O(n·W) and is a completely fine first working version. If you want the true O(n) version, keep a running count of each character currently inside the window (a dict is exactly the right tool) and update it incrementally as the window slides one character at a time instead of rebuilding it — the same sliding-window-plus-hash-map idea you'd use for "longest substring without repeating characters."
+
+**Day 3 — Ticket Checksum.** The input is one ticket per line, formatted `<digits>:<checksum>`, where `<checksum>` is a claimed two-digit value (zero-padded) that's supposed to equal the sum of `<digits>`'s individual digits, taken mod 100. Sample input:
+
+```
+48120:15
+1023:99
+99999:45
+40:07
+```
+
+Working it by hand: `48120` → digit sum `15` → claimed `15` → valid. `1023` → digit sum `6` → true checksum `06` → claimed `99` → invalid. `99999` → digit sum `45` → claimed `45` → valid. `40` → digit sum `4` → true checksum `04` → claimed `07` → invalid. Part 1: how many tickets are valid? Answer: `2`. Part 2: what's the sum of the numeric ticket codes (not the checksums) for the *invalid* tickets? Answer: `1023 + 40 = 1063`.
+
+**Constraints.** Each day gets its own file with its own `part1(text)` and `part2(text)` functions — no top-level script soup, and no day depends on another day's code. Store the sample input as a string constant (or a small file) inside each day's module so your tests don't depend on anything external. Don't use any third-party parsing library; `str.split()`, string slicing, and basic loops are all you need.
+
+**What a good solution looks like.** A layout roughly like:
+
+```
+puzzles/
+    day1_cargo_manifest.py
+    test_day1.py
+    day2_signal_lock.py
+    test_day2.py
+    day3_ticket_checksum.py
+    test_day3.py
+```
+
+Each module exposes `part1` and `part2`, each with a docstring stating what it computes and its Big-O in terms of the input size `n`. Each test file asserts both parts against the sample answers above, plus at least one edge case you constructed yourself.
+
+**Self-check rubric.**
+- [ ] All three days' `part1`/`part2` reproduce the sample answers above exactly: Day 1 → `320`, `765`; Day 2 → `6`, `10`; Day 3 → `2`, `1063`
+- [ ] Day 1 has a test for a group with only one number in it (does your grouping logic handle a trailing group correctly, with or without a final blank line?)
+- [ ] Day 2 has a test for an input shorter than the window size (what should happen — and does your code crash, or handle it?)
+- [ ] Day 3 has a test with a digit sum of 100 or more, to prove your mod-100 wraparound is actually correct and not just correct by coincidence on small examples
+- [ ] Every function is under ~25 lines — if one isn't, it's doing too much and should be split
+- [ ] You can state, out loud, the Big-O of each `part1`/`part2` in terms of the number of input lines or characters `n`
+
+### Project 2: Maze solver with BFS and DFS
+
+**Problem statement.** Build a small maze-solving library. A maze is a rectangular grid of characters: `#` is a wall, `.` is open floor, `S` is the single start cell, and `E` is the single exit cell. Write:
+
+```python
+def parse_maze(text: str) -> tuple[list[str], tuple[int, int], tuple[int, int]]:
+    """Parse maze text into (grid, start, end), where start/end are
+    (row, col) tuples and grid[row][col] gives that cell's character."""
+    ...
+
+def bfs_shortest_path(grid, start, end) -> list[tuple[int, int]] | None:
+    """Return the shortest start-to-end path as a list of (row, col)
+    coordinates (inclusive of both ends), or None if no path exists."""
+    ...
+
+def dfs_path(grid, start, end) -> list[tuple[int, int]] | None:
+    """Return *some* start-to-end path (not guaranteed shortest), or
+    None if no path exists."""
+    ...
+```
+
+Those three signatures are the whole spec. How you represent "visited," what container you use for the frontier, and how you reconstruct the path are entirely up to you — that's the part of Module 5 you're now applying without a template.
+
+Test both functions on this maze:
+
+```
+S..#.
+##.#.
+.....
+.###.
+....E
+```
+
+**Constraints.** Movement is 4-directional only (up, down, left, right) — no diagonals. Grids you test against can be up to roughly 50×50. Neither function may crash on a maze with no valid path — both must return `None` instead. No graph library of any kind; the grid *is* the graph, and adjacency is computed on the fly from neighboring cells.
+
+**What a good solution looks like.** `bfs_shortest_path` and `dfs_path` in one module, each backed by your own explicit queue or stack (a `list` used as a stack, or `collections.deque` used purely as a queue/stack container, is fine — this project is about the traversal logic, not reimplementing a deque). A short script or test that runs both on the sample maze and prints the path and its length for each, plus a second maze you construct yourself where no path exists, to prove both functions degrade to `None` instead of an exception or an infinite loop.
+
+**Self-check rubric.**
+- [ ] `bfs_shortest_path` on the sample maze returns a path of exactly 9 cells (8 moves): `(0,0) → (0,1) → (0,2) → (1,2) → (2,2) → (2,3) → (2,4) → (3,4) → (4,4)`. If you got a different length, it's shorter than 8 or your BFS isn't actually breadth-first (check that you're using a proper FIFO queue, not a stack).
+- [ ] `dfs_path` on the same maze returns a *valid* path — every consecutive pair of cells is orthogonally adjacent and neither is a wall — but you should not assume it matches BFS's length. Note down both lengths.
+- [ ] Both functions return `None`, not an exception, on a maze you build yourself with a wall sealing off `E` completely
+- [ ] All three functions have docstrings stating their Big-O in terms of the grid's rows `R` and columns `C`
+- [ ] You've written one sentence, unprompted, explaining specifically why BFS's queue-based, layer-by-layer expansion guarantees the first time it reaches `E` is via a shortest path — and why DFS's stack-based "go deep, backtrack later" order gives up that guarantee
+
+### Project 3: A hash-table-backed LRU cache
+
+**Problem statement.** Build a fixed-capacity cache, `Cache(capacity)`, supporting `get(key)` and `put(key, value)`. When a `put` would push the cache over capacity, evict the *least recently used* entry — not the oldest inserted one; `get`-ing a key counts as "using" it and refreshes its recency, same as `put`-ing it does.
+
+```python
+class Cache:
+    def __init__(self, capacity: int):
+        """capacity is fixed for the cache's lifetime and is >= 1."""
+        ...
+
+    def get(self, key):
+        """Return the value for key, marking it most-recently-used.
+        Return None if key is not present."""
+        ...
+
+    def put(self, key, value):
+        """Insert or update key -> value, marking it most-recently-used.
+        If inserting a new key would exceed capacity, evict the
+        least-recently-used entry first."""
+        ...
+```
+
+**Constraints.** The key→value store must be the hash table you built in Module 2 (or an equivalent from-scratch hash table you write for this project) — not Python's `dict`. No `functools.lru_cache`, no `collections.OrderedDict`: the entire point is building the recency bookkeeping yourself, on top of your own hash table. `get` on a missing key returns `None`, never raises. How you track recency is your call — a hand-rolled doubly linked list is the classic way to get true O(1) eviction, but a simpler structure is a legitimate starting point if you document its actual Big-O honestly rather than claiming O(1) it doesn't have.
+
+**What a good solution looks like.** Run this exact operation sequence on a `Cache(2)`:
+
+```python
+cache = Cache(2)
+cache.put(1, "a")
+cache.put(2, "b")
+cache.get(1)          # -> "a"
+cache.put(3, "c")
+cache.get(2)          # -> ?
+cache.get(3)          # -> ?
+cache.get(1)          # -> ?
+```
+
+Work out by hand what each `?` should be before running it. Notice that key `1` was inserted *before* key `2` — a cache that evicts by insertion order (FIFO) would evict `1` when `3` comes in. A correct LRU cache evicts `2` instead, because `get(1)` refreshed `1`'s recency before the eviction happened. If your `get(2)` above doesn't come back `None`, your cache is tracking insertion order, not recency, and that's the bug this sequence exists to catch.
+
+**Self-check rubric.**
+- [ ] The operation sequence above produces, in order: `"a"`, then `None` for `get(2)`, then `"c"` for `get(3)`, then `"a"` for `get(1)`
+- [ ] `put` on a key that already exists updates its value and refreshes its recency without growing the cache past capacity
+- [ ] You have at least one test with `capacity=1` (the smallest legal value) confirming every new `put` evicts the previous single entry
+- [ ] Your `Cache` class or its methods state, in a docstring, the average-case Big-O of `get` and `put` — and the docstring explains *why* it's not automatically O(1) just because a hash table is involved (the recency-tracking step has to be O(1) too, or the whole operation isn't)
+- [ ] You did not import `functools.lru_cache` or `collections.OrderedDict` anywhere in the solution
+
+Once all three pass their own rubric, you've effectively done a smaller, lower-stakes version of the tier's checkpoint project — small independent specs, your own design decisions, your own tests proving you're right. That's deliberate.
+
+## Check on learning
+
+- Pick one bug across the three projects that you only caught because you wrote a test for it, not by eyeballing the output. Describe the input that exposed it and why visual inspection would have missed it.
+- Using your own maze results, explain why BFS is guaranteed to return the shortest path while DFS is not, and why a longer DFS path doesn't mean your DFS implementation is buggy.
+- Explain why the LRU cache project explicitly forbids `collections.OrderedDict` and `functools.lru_cache`, and what specific design skill using either one would have let you skip.

@@ -1,0 +1,183 @@
+---
+trackId: cs-foundations
+tier: 2
+title: Discrete Math II: Induction, Recursion & Combinatorics
+order: 4
+estimatedHours: 10
+---
+
+Every recursive function you've ever written is secretly a proof waiting to happen: its base case and recursive case are exactly the base case and inductive step of a mathematical induction argument, just written in Python instead of English. This module makes that connection explicit, hands you the algebra to solve the recurrence relations recursive algorithms generate — so you can predict their Big-O instead of guessing — and gives you the counting tools, permutations and combinations, that quietly explain things like "why is this nested loop Θ(n²)" and "why does a hash table start colliding way sooner than feels right."
+
+## What you'll leave this lesson knowing
+
+- How to write a complete proof by induction (base case, inductive hypothesis, inductive step) and why it has the same shape as a recursive function's base case and recursive case
+- How to set up a recurrence relation directly from a piece of recursive code and solve it — by unrolling or by recursion-tree reasoning — to get a closed-form Big-O
+- The difference between permutations and combinations in a word problem, how to compute both by hand with factorials, and how to verify a count with `itertools` or `math.perm`/`math.comb`
+- Why the number of comparisons in a nested loop over distinct pairs is exactly `n choose 2`, and how that fact is *where* Θ(n²) actually comes from, not just a label for it
+- How to prove a structural fact about a recursive data structure (like a full binary tree) by induction — the same tool you'll reach for again when you have to justify your checkpoint project's Big-O claims
+
+## Do this
+
+1. **Learn the induction template, then use it on a formula you can check by hand.** A proof by induction has three parts: a **base case** (show the claim holds for the smallest n), an **inductive hypothesis** (assume the claim holds for some arbitrary `n = k`), and an **inductive step** (use that assumption to prove it holds for `n = k + 1`). Worked example — prove `1 + 2 + ... + n = n(n+1)/2` for all `n ≥ 1`:
+
+   > **Base case** (`n = 1`): LHS = 1, RHS = `1(2)/2 = 1`. Equal. ✓
+   > **Inductive hypothesis**: assume `1 + 2 + ... + k = k(k+1)/2` for some `k ≥ 1`.
+   > **Inductive step**: `1 + 2 + ... + k + (k+1) = k(k+1)/2 + (k+1) = (k+1)(k/2 + 1) = (k+1)(k+2)/2`, which is exactly the formula evaluated at `n = k+1`. ∎
+
+   Now write the same three-part proof yourself, on paper, for the sum of the first `n` odd numbers: `1 + 3 + 5 + ... + (2n-1) = n²`. Don't peek until you've got a full draft. Check against: base case `n=1` gives `1 = 1²`; inductive step assumes `1+3+...+(2k-1) = k²` and adds the next term, `(2k+1)`, giving `k² + 2k + 1 = (k+1)²` — matching the formula at `n=k+1`.
+
+2. **See exactly what induction proves that a test loop doesn't.** Verify your odd-numbers formula computationally:
+
+   ```python
+   def sum_of_first_n_odds(n):
+       return sum(2 * i - 1 for i in range(1, n + 1))
+
+   for n in range(1, 21):
+       assert sum_of_first_n_odds(n) == n ** 2
+   print("checks out for n = 1..20")
+   ```
+
+   That loop gives you real confidence, but it only checked 20 values. The induction proof you wrote in step 1 guarantees the formula for *every* natural number, including the ones you'll never run — that gap between "I tested it" and "I proved it" is the entire point of this module, and it's exactly the gap your checkpoint project's Big-O justifications need to close.
+
+3. **Prove a recursive function correct by induction, and notice the proof mirrors the code.** Here's a recursive sum:
+
+   ```python
+   def rec_sum(n):
+       if n == 0:
+           return 0
+       return n + rec_sum(n - 1)
+   ```
+
+   Claim: `rec_sum(n) == n(n+1)/2` for all `n ≥ 0`. The proof is induction on `n`: base case `n=0` — `rec_sum(0)` returns `0`, and `0(1)/2 = 0`, matching the `if n == 0` branch line for line. Inductive step — assume `rec_sum(k) == k(k+1)/2` (this is the *exact same assumption Python itself is implicitly relying on* when it trusts the recursive call to be correct); then `rec_sum(k+1) = (k+1) + rec_sum(k) = (k+1) + k(k+1)/2 = (k+1)(k/2 + 1) = (k+1)(k+2)/2`, matching the formula at `n=k+1`. This isn't a coincidence — induction and recursion have the same logical skeleton, which is why induction is the natural tool for proving recursive code correct. Now do the same proof yourself for:
+
+   ```python
+   def rec_factorial(n):
+       if n == 0:
+           return 1
+       return n * rec_factorial(n - 1)
+   ```
+
+   Prove `rec_factorial(n) == n!` for all `n ≥ 0`, matching your write-up's base case and inductive step to the `if` branch and recursive branch exactly the way the worked example did.
+
+4. **Turn a recursive function into a recurrence relation, then solve it.** Let `T(n)` be the number of calls `rec_factorial(n)` makes. Reading the code directly off gives you the recurrence: `T(n) = T(n-1) + 1`, with `T(0) = 1`. Solve it by unrolling — substitute repeatedly:
+
+   ```
+   T(n) = T(n-1) + 1
+        = T(n-2) + 2
+        = T(n-3) + 3
+        = ...
+        = T(0) + n
+        = n + 1
+   ```
+
+   So `T(n) = Θ(n)`. Verify it by actually counting calls:
+
+   ```python
+   calls = 0
+
+   def counted_factorial(n):
+       global calls
+       calls += 1
+       if n == 0:
+           return 1
+       return n * counted_factorial(n - 1)
+
+   calls = 0
+   counted_factorial(50)
+   print(calls)  # 51 -- matches T(n) = n + 1
+   ```
+
+5. **Solve the two recurrence shapes that show up constantly in algorithm analysis.** Binary search, which halves the search space and does O(1) work per call, has recurrence `T(n) = T(n/2) + O(1)`. Merge sort, which splits in half and does an O(n) merge, has `T(n) = 2T(n/2) + O(n)`. Solve both with a recursion tree: at depth `i` there are `2^i` subproblems of size `n/2^i`, and the tree has `log₂(n)` levels. For binary search, each level does O(1) work total (only one branch is ever active), across `log n` levels → `O(log n)`. For merge sort, each level's subproblems' merges add up to O(n) total work per level (this is the key fact — it's *not* growing per level), across `log n` levels → `O(n log n)`.
+
+   There's a shortcut for this shape, `T(n) = aT(n/b) + O(n^d)`:
+
+   | Compare `d` to `log_b(a)` | Result |
+   |---|---|
+   | `d > log_b(a)` | `O(n^d)` |
+   | `d = log_b(a)` | `O(n^d log n)` |
+   | `d < log_b(a)` | `O(n^(log_b a))` |
+
+   Apply it yourself to merge sort (`a=2, b=2, d=1`) and to binary search (`a=1, b=2, d=0`) before checking: merge sort gives `log₂(2) = 1 = d` → `O(n log n)`; binary search gives `log₂(1) = 0 = d` → `O(log n)`. Both match what the recursion tree gave you.
+
+   Now try naive recursive Fibonacci, which does *not* fit the `T(n/b)` shape above because it shrinks by subtraction, not division: `T(n) = 2T(n-1) + O(1)`. Reason it out with a recursion tree instead: branching factor 2, depth `n`, so the tree has roughly `2^n` leaves — `Θ(2^n)`, exponential. Confirm it by counting calls:
+
+   ```python
+   calls = 0
+
+   def fib(n):
+       global calls
+       calls += 1
+       if n <= 1:
+           return n
+       return fib(n - 1) + fib(n - 2)
+
+   for n in (10, 20, 30):
+       calls = 0
+       fib(n)
+       print(n, calls)
+   # 10 177
+   # 20 21891
+   # 30 2692537
+   ```
+
+   Look at how the call count explodes for a linear increase in `n` — that's what exponential means in practice, and it's exactly why naive recursive Fibonacci is a textbook example of a recursion that looks innocent but isn't.
+
+6. **Count permutations — order matters.** The number of ways to arrange `r` items chosen from `n`, where order counts and nothing repeats, is `P(n, r) = n! / (n-r)!`. Worked example: 5 runners finish a race; how many possible orderings of 1st/2nd/3rd place are there? `P(5,3) = 5 × 4 × 3 = 60`. Now work out yourself: how many ways can you fully order a list of 4 test cases to run in sequence? (That's `n = r = 4`, so it's just `4!`.) Check with code:
+
+   ```python
+   from itertools import permutations
+
+   test_cases = ["a", "b", "c", "d"]
+   orders = list(permutations(test_cases))
+   print(len(orders))  # 24, matches 4! = 24
+   ```
+
+7. **Count combinations — order doesn't matter — and see where Θ(n²) actually comes from.** The number of ways to choose `r` items from `n` when order doesn't matter is `C(n, r) = n! / (r!(n-r)!)`, read "n choose r." Worked example: choosing 2 team captains from 5 candidates, `C(5,2) = 10`. Now look at this function:
+
+   ```python
+   def has_duplicate_pair(items):
+       n = len(items)
+       for i in range(n):
+           for j in range(i + 1, n):
+               if items[i] == items[j]:
+                   return True
+       return False
+   ```
+
+   The inner loop's `range(i + 1, n)` bound means this checks every *unordered* pair exactly once — never a pair twice, never an item against itself. The total number of comparisons is exactly `C(n, 2) = n(n-1)/2`, not a rough approximation of it. Dropping the constant and lower-order term gives `Θ(n²)`, but the precise count is a combinatorics fact, not a hand-wave. Verify:
+
+   ```python
+   from itertools import combinations
+   import math
+
+   n = 8
+   pairs = list(combinations(range(n), 2))
+   print(len(pairs))         # 28
+   print(math.comb(n, 2))    # 28 -- same answer, no need to generate the pairs at all
+   ```
+
+8. **Prove a structural fact about a tree by induction — on structure size, not just `n`.** A *full* binary tree is one where every node has either 0 or 2 children. Claim: in any full binary tree, the number of leaves `L` and the number of internal (2-child) nodes `I` satisfy `L = I + 1`. Induction here runs on `I`, the number of internal nodes, not on a plain integer variable — this is the same tool, just indexed differently.
+
+   > **Base case** (`I = 0`): no internal nodes means the tree is a single leaf. `L = 1 = 0 + 1`. ✓
+   > **Inductive hypothesis**: assume any full binary tree with `k` internal nodes has `k+1` leaves.
+   > **Inductive step**: take a full binary tree `T` with `k+1` internal nodes. Somewhere in `T` there's an internal node whose two children are both leaves (take any internal node at maximum depth — if either child were internal, it would be deeper, a contradiction). Delete that node's two children, turning it into a leaf; call the result `T'`. `T'` has `k` internal nodes, so by the hypothesis it has `k+1` leaves. Undoing the deletion to get back to `T`: that node stops being a leaf (−1 leaf) and its two new children become leaves (+2 leaves), a net of +1 leaf, giving `(k+1) + 1 = k+2` leaves — matching `L = I+1` at `I = k+1`. ∎
+
+   Now prove, by ordinary induction on height `h` this time, that a full binary tree of height `h` (a single node has height 0) has at most `2^(h+1) - 1` nodes. Write the base case and inductive step yourself before checking: base case `h=0` gives 1 node, `2^1 - 1 = 1` ✓; inductive step assumes a tree of height `k` has at most `2^(k+1)-1` nodes, so a tree of height `k+1` — a root plus two subtrees each of height at most `k` — has at most `1 + 2(2^(k+1)-1) = 2^(k+2) - 1` nodes, matching the formula at `h=k+1`.
+
+9. **Close the loop: use permutations to derive the exact hash-collision probability.** The probability that `n` items land in `n` distinct slots out of `m` total, with no collision, is the count of collision-free arrangements divided by all possible arrangements: `P(m, n) / m^n` — the same permutation formula from step 6, just applied to "which slot did each item land in." Compute it for the classic case, `m = 365` days, `n = 23` people:
+
+   ```python
+   import math
+
+   m, n = 365, 23
+   p_no_collision = math.perm(m, n) / m ** n
+   print(1 - p_no_collision)  # about 0.507
+   ```
+
+   That's the same ~50.7% figure you may have seen produced by simulation or by multiplying out `(365/365) × (364/365) × ...` term by term — this is the exact same quantity, just expressed as a clean ratio of permutations instead of an unrolled product. It's also directly why a hash table with `m` slots starts seeing real collisions once you've inserted only around `√m` items, not once it's nearly full — worth sitting with, since it's the reasoning behind load-factor thresholds in every hash table implementation, including the one in your checkpoint project.
+
+## Check on learning
+
+- Pick one of your own proofs from this lesson (`rec_sum`, `rec_factorial`, or the leaves/internal-nodes tree proof) and explain out loud why it mirrors its code's or structure's shape line for line — name exactly which part of the proof is the base case and which is the inductive step.
+- Without looking back at step 5, derive the recurrence relation for a recursive function that splits its input into 3 equal parts and does O(n) work per call before recursing, solve it (by recursion tree or the `T(n) = aT(n/b) + O(n^d)` shortcut), and state its Big-O class.
+- Explain why counting "how many distinct pairs" is a combinations problem rather than a permutations problem, and use that to justify why `has_duplicate_pair`'s inner loop (`range(i + 1, n)`) gives Θ(n²) rather than Θ(n) or Θ(n³).

@@ -1,0 +1,53 @@
+[
+  {
+    "id": "cs-foundations/tier-2/sorting-and-searching/q1",
+    "type": "multiple_choice",
+    "prompt": "What is the time complexity of binary search on a sorted array of n elements?",
+    "choices": [
+      "O(n)",
+      "O(log n)",
+      "O(n log n)",
+      "O(1)"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cs-foundations/tier-2/sorting-and-searching/q2",
+    "type": "multiple_choice",
+    "prompt": "What is the time complexity of this function, in the best, average, and worst case alike?\n\ndef selection_sort(arr):\n    n = len(arr)\n    for i in range(n):\n        min_idx = i\n        for j in range(i + 1, n):\n            if arr[j] < arr[min_idx]:\n                min_idx = j\n        arr[i], arr[min_idx] = arr[min_idx], arr[i]\n    return arr",
+    "choices": [
+      "O(n)",
+      "O(n log n)",
+      "O(n^2)",
+      "O(2^n)"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "cs-foundations/tier-2/sorting-and-searching/q3",
+    "type": "short_answer",
+    "prompt": "You implement quicksort always choosing the last element as the pivot, then run it on an already-sorted list. What is the worst-case time complexity you hit in this scenario?",
+    "acceptedAnswers": [
+      "O(n^2)",
+      "O(n\u00b2)",
+      "n^2",
+      "n squared",
+      "quadratic"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-2/sorting-and-searching/q4",
+    "type": "short_answer",
+    "prompt": "Of bubble sort, insertion sort, merge sort, and naive (last-element-pivot) quicksort, which one is the only algorithm that guarantees O(n log n) time in its worst case?",
+    "acceptedAnswers": [
+      "merge sort",
+      "mergesort",
+      "merge-sort"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-2/sorting-and-searching/q5",
+    "type": "explain_back",
+    "prompt": "Explain why binary search requires its input to already be sorted, and describe a realistic situation where that requirement makes binary search the wrong tool even though O(log n) looks better on paper than a hash table's O(1) or a linear scan's O(n)."
+  }
+]

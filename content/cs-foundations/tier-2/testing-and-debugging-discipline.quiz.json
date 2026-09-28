@@ -1,0 +1,52 @@
+[
+  {
+    "id": "cs-foundations/tier-2/testing-and-debugging-discipline/q1",
+    "type": "multiple_choice",
+    "prompt": "Why does the lesson insist on writing the test before the implementation exists, and watching it fail first?",
+    "choices": [
+      "pytest requires test files to be created before the code files they import",
+      "A test you never watched fail can pass by accident because it's checking the wrong thing, and you'd have no way to notice",
+      "Python raises a SyntaxError if a test file is created after the module it imports from",
+      "It makes the test run faster once the implementation is written"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cs-foundations/tier-2/testing-and-debugging-discipline/q2",
+    "type": "multiple_choice",
+    "prompt": "You run this buggy binary_search on a target that isn't in the list, and the program just hangs with no output and no traceback:\n\n```python\ndef binary_search(sorted_items, target):\n    low, high = 0, len(sorted_items)\n    while low < high:\n        mid = (low + high) // 2\n        if sorted_items[mid] == target:\n            return mid\n        elif sorted_items[mid] < target:\n            low = mid\n        else:\n            high = mid\n    return -1\n```\n\nWhat's the actual defect, and why doesn't a stack trace help you find it?",
+    "choices": [
+      "`mid` is computed with integer division instead of float division, so it silently loses precision \u2014 no exception is ever raised because Python doesn't error on inexact math",
+      "`low = mid` fails to advance `low` past the middle index on the 'too small' branch, so once `low == mid`, the loop repeats the exact same state forever \u2014 there's no exception at all, just an infinite loop, so there's nothing for a traceback to report",
+      "`high = mid` should be `high = mid - 1`, which causes an off-by-one IndexError on the last element",
+      "The function never checks whether `sorted_items` is actually sorted, so it raises a TypeError comparing incompatible types"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cs-foundations/tier-2/testing-and-debugging-discipline/q3",
+    "type": "short_answer",
+    "prompt": "In a Python traceback, which single line should you read first to find out what actually broke: the top line, the bottom line, or the middle frame?",
+    "acceptedAnswers": [
+      "the bottom line",
+      "bottom line",
+      "the last line",
+      "last line",
+      "bottom"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-2/testing-and-debugging-discipline/q4",
+    "type": "short_answer",
+    "prompt": "In pdb, what single-letter command resumes execution and runs until the next breakpoint (or the program ends)?",
+    "acceptedAnswers": [
+      "c",
+      "continue"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-2/testing-and-debugging-discipline/q5",
+    "type": "explain_back",
+    "prompt": "Explain, in your own words, what `@pytest.mark.parametrize` buys you over writing five separate, copy-pasted test functions for five inputs \u2014 and then explain what `pytest.raises` checks that a plain `try/except` inside a test function wouldn't reliably catch if the code stopped raising the exception at all."
+  }
+]

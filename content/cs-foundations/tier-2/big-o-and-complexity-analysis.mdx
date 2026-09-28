@@ -1,0 +1,201 @@
+---
+trackId: cs-foundations
+tier: 2
+title: Big-O & Complexity Analysis
+order: 1
+estimatedHours: 10
+---
+
+Every algorithm you write from here on gets judged by a question that has nothing to do with whether it's correct: how does its cost grow as the input grows? A function that's perfectly fine on a list of ten items can be the exact same function that never finishes on a list of ten million — and Big-O is the vocabulary for spotting that difference before you find out the hard way in production. This lesson gives you the formal notation (`O`, `Ω`, `Θ`) and the counting habits that let you look at a loop or a recursive function and predict how it behaves at scale, before you ever run it.
+
+## What you'll leave this lesson knowing
+
+- What `O(g(n))`, `Ω(g(n))`, and `Θ(g(n))` actually claim mathematically, and why casual "Big-O" almost always means "the tightest bound I know," not just "some upper bound"
+- How to derive the time complexity of loop-based code — single loops, sequential loops, nested loops, and loops with a bound that depends on the outer variable — by counting operations instead of guessing from vibes
+- How to derive the time complexity of a recursive function from how many calls it makes, and why naive recursive Fibonacci is exponential while recursive factorial is linear
+- The difference between time complexity and space complexity, including why recursion has a real, measurable memory cost that a simple loop doesn't
+- Why best-case, worst-case, and average-case are three different questions about the same algorithm, and why unqualified "Big-O" conventionally answers the worst-case one
+
+## Do this
+
+1. **Pin down what O, Ω, and Θ actually claim, then use the definitions instead of quoting them.** These are the real definitions, not metaphors:
+   - `f(n)` is `O(g(n))` if there exist positive constants `c` and `n0` such that `f(n) <= c * g(n)` for every `n >= n0`. `g` is an upper bound on `f`'s growth, once `n` is big enough.
+   - `f(n)` is `Ω(g(n))` if there exist positive constants `c` and `n0` such that `f(n) >= c * g(n)` for every `n >= n0`. The mirror image: a lower bound.
+   - `f(n)` is `Θ(g(n))` if it's both at once — sandwiched between `c1 * g(n)` and `c2 * g(n)` for large enough `n`. This is the tightest, most informative of the three, and the one to reach for whenever you actually know it.
+
+   Worked example: show `3n + 5` is `O(n)` with concrete numbers — pick `c = 4` and `n0 = 5`. Check it: for any `n >= 5`, is `3n + 5 <= 4n`? Subtract `3n` from both sides and that's just `5 <= n`, which is exactly the assumption. The definition holds, so `3n + 5` is `O(n)`.
+
+   Now do the mirror exercise yourself, on paper, before reading on: show that `n^2` is **not** `O(n)`. Try to find *any* `c` and `n0` that make `n^2 <= c * n` hold for every `n >= n0`. Divide both sides by `n` and look at what's left — you'll see why no fixed `c` can ever work once `n` grows past it. Being able to say that in one sentence *is* the proof; you don't need more machinery than that.
+
+2. **Classify four loop shapes by counting operations, before you check yourself.** Read each function below and decide its time complexity as a function of `n = len(nums)`, writing down your reasoning, before scrolling to the answers underneath.
+
+   ```python
+   def sum_list(nums):
+       total = 0
+       for x in nums:
+           total += x
+       return total
+
+   def scan_twice(nums):
+       total = 0
+       for x in nums:
+           total += x
+       biggest = nums[0]
+       for x in nums:
+           if x > biggest:
+               biggest = x
+       return total, biggest
+
+   def has_duplicate_pair(nums):
+       n = len(nums)
+       for i in range(n):
+           for j in range(n):
+               if i != j and nums[i] == nums[j]:
+                   return True
+       return False
+
+   def count_pairs(nums):
+       n = len(nums)
+       count = 0
+       for i in range(n):
+           for j in range(i + 1, n):
+               count += 1
+       return count
+   ```
+
+   Answers: `sum_list` is `O(n)` — one pass, one operation per element. `scan_twice` is `O(n)` too, not `O(n^2)` — two separate `O(n)` passes add to `O(2n)`, and constant factors drop out of Big-O, so `O(2n) = O(n)`. `has_duplicate_pair` is `O(n^2)` — the inner loop runs the full `n` iterations for every one of the `n` outer iterations. `count_pairs` is *also* `O(n^2)`, which trips people up: the inner loop only runs `n - i - 1` times instead of `n`, so it does roughly half the work of `has_duplicate_pair`. Half of `n^2` is still a quadratic function of `n` — the constant factor changed, the growth *shape* didn't. That distinction (fewer operations vs. a different growth curve) is the single most common source of Big-O mistakes, so sit with it before moving on.
+
+3. **Confirm your loop analysis with a real operation counter, not a guess.** Instrument `count_pairs` to return the number of times its inner body actually ran, and run it at increasing sizes:
+
+   ```python
+   def count_pairs_instrumented(n):
+       counter = 0
+       for i in range(n):
+           for j in range(i + 1, n):
+               counter += 1
+       return counter
+
+   for n in [10, 100, 1000, 10000]:
+       print(n, count_pairs_instrumented(n))
+   ```
+
+   You should get exactly `45`, `4950`, `499500`, `49995000` — which is exactly `n * (n - 1) // 2` at every size, confirming the quadratic shape isn't approximate, it's exact. Now run the **doubling test**, a real technique you'll reuse constantly: compare `count_pairs_instrumented(1000)` against `count_pairs_instrumented(2000)` and compute the ratio. You should land close to `4`. That's the empirical signature of `O(n^2)`: doubling `n` roughly quadruples the work. (For reference, doubling `n` roughly doubles the work for `O(n)`, and roughly doubles-plus-a-bit for `O(n log n)` — you'll use this exact ratio trick again in Module 3 to check real sorting algorithms against their predicted Big-O.)
+
+4. **Find the time complexity of a recursive function by counting calls, not by staring at the code.** Add a call counter to recursive factorial and run it at a few sizes:
+
+   ```python
+   def factorial(n, calls=None):
+       if calls is None:
+           calls = [0]
+       calls[0] += 1
+       if n == 0:
+           return 1, calls[0]
+       result, _ = factorial(n - 1, calls)
+       return n * result, calls[0]
+
+   for n in [5, 10, 20]:
+       _, call_count = factorial(n)
+       print(n, call_count)
+   ```
+
+   You should see `6`, `11`, `21` — exactly `n + 1` calls every time. One call per recursive step, one unit of work per call, so `O(n)` calls times `O(1)` work each gives `O(n)` overall. Now do the same to the naive recursive Fibonacci you first met back in Tier 1's functions module — the one that got noticeably slow around `fib(32)`:
+
+   ```python
+   def fib_calls(n, calls):
+       calls[0] += 1
+       if n <= 1:
+           return n
+       return fib_calls(n - 1, calls) + fib_calls(n - 2, calls)
+
+   for n in [10, 20, 30]:
+       calls = [0]
+       fib_calls(n, calls)
+       print(n, calls[0])
+   ```
+
+   You should get `177`, `21891`, `2692537`. Look at the ratios: `21891 / 177 ≈ 124`, and `2692537 / 21891 ≈ 123`. Each time `n` goes up by a fixed amount (10), the call count multiplies by roughly the *same* factor, regardless of where you started — that constant-ratio-per-fixed-step pattern is the signature of exponential growth, and it's exactly why Tier 1 warned you `fib(32)` would feel slow: every call branches into two more calls instead of tail-passing into one, so the call tree's size roughly doubles (loosely `O(2^n)`) with every extra level. That's the concrete reason a one-line change in Module 2 (memoizing the results) turns this into a fast algorithm without changing what it computes.
+
+5. **Measure space complexity by breaking something on purpose.** Time complexity counts operations; space complexity counts memory that scales with the input, and recursion has a cost here that a plain loop doesn't — every pending call keeps its own stack frame alive until it returns. Prove it:
+
+   ```python
+   def factorial_iterative(n):
+       result = 1
+       for i in range(1, n + 1):
+           result *= i
+       return result
+
+   def factorial_recursive(n):
+       if n == 0:
+           return 1
+       return n * factorial_recursive(n - 1)
+
+   print(factorial_iterative(50000) is not None)  # runs fine
+
+   try:
+       factorial_recursive(50000)
+   except RecursionError as e:
+       print("RecursionError:", e)
+   ```
+
+   The iterative version handles `n = 50000` without complaint — it uses one `result` variable no matter how big `n` gets, so its auxiliary space is `O(1)`. The recursive version crashes with `RecursionError: maximum recursion depth exceeded` long before it gets there, because Python's default call-stack limit (`sys.getrecursionlimit()`, `1000` by default) is far smaller than 50000 pending stack frames. That's `O(n)` auxiliary space made visible as an actual crash, not an abstract accounting exercise — the same mechanism behind the `RecursionError` you triggered on purpose in Tier 1 with a base-case-less countdown.
+
+6. **Separate best, worst, and average case using one search function.** Write linear search from scratch — no `in`, no `.index()`:
+
+   ```python
+   def linear_search(items, target):
+       for i, value in enumerate(items):
+           if value == target:
+               return i
+       return -1
+   ```
+
+   Build a large list (a few million integers) and time three scenarios yourself with `time.perf_counter()`: the target at index `0`, the target at the last index, and a target that isn't in the list at all. You should see the first case return almost instantly regardless of list size, while the other two take time that visibly scales with the list's length and land at nearly identical runtimes to each other. That's best case versus worst case as *measured facts*, not just theory: `linear_search`'s best case is `Θ(1)` (found immediately), and its worst case — which includes both "found at the end" and "not found at all" — is `Θ(n)`. The average case, over a target at a uniformly random position, is also `Θ(n)`: you examine `n / 2` elements on average, and the constant factor of `1/2` doesn't change the growth class. When someone says "linear search is `O(n)`" with no qualifier, they mean the worst case (and here, the average case too) — the best case is a genuinely different, smaller answer about the *same* function, not a contradiction of it.
+
+7. **Classify six functions before you check the key.** For each one, decide the tightest Big-O you can justify, purely by reading — don't run anything yet.
+
+   ```python
+   def first_item(items):
+       return items[0]
+
+   def count_halvings(n):
+       steps = 0
+       while n > 1:
+           n = n // 2
+           steps += 1
+       return steps
+
+   def sum_range(n):
+       total = 0
+       for i in range(n):
+           total += i
+       return total
+
+   def repeated_halving_work(n):
+       total = 0
+       for _ in range(n):
+           k = n
+           while k > 1:
+               k = k // 2
+               total += 1
+       return total
+
+   def all_pairs(n):
+       total = 0
+       for i in range(n):
+           for j in range(n):
+               total += 1
+       return total
+
+   def naive_fib(n):
+       if n <= 1:
+           return n
+       return naive_fib(n - 1) + naive_fib(n - 2)
+   ```
+
+   Answer key: `first_item` is `O(1)` — no dependence on input size at all. `count_halvings` is `O(log n)` — it divides `n` in half each iteration, so it takes about `log2(n)` steps to reach `1` (try it on `n = 1000000`; you should get `19`). `sum_range` is `O(n)`. `repeated_halving_work` is `O(n log n)` — the outer loop runs `n` times, and each pass does the `O(log n)` work from `count_halvings`; instrument it and confirm the total always equals `n * count_halvings(n)` exactly. `all_pairs` is `O(n^2)`. `naive_fib` is exponential, same shape as step 4's `fib_calls`. If any of your answers came from pattern-matching the shape of the code rather than actually counting what happens as `n` grows, go back and count for that one specifically — that's the habit this whole lesson is trying to build.
+
+## Check on learning
+
+- Explain why an algorithm's unqualified "Big-O" is conventionally understood as its worst case, using `linear_search`'s best case versus worst case from step 6 as your concrete example.
+- Without running any code, predict the Big-O of a function with one loop from `0` to `n` where each iteration calls a helper containing its own loop from `0` to `n` — then describe exactly how you'd use the operation-counting and doubling techniques from steps 2-3 to confirm your prediction.
+- Explain why recursion has a real, measurable space cost that a plain loop doesn't, tying your answer directly to the `RecursionError` you triggered in step 5.

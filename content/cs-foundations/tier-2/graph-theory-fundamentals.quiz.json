@@ -1,0 +1,51 @@
+[
+  {
+    "id": "cs-foundations/tier-2/graph-theory-fundamentals/q1",
+    "type": "multiple_choice",
+    "prompt": "You're representing a sparse graph (a social network with thousands of users, each friends with only a few dozen others) where E is much smaller than V\u00b2. Which representation uses meaningfully less memory?",
+    "choices": [
+      "Adjacency list",
+      "Adjacency matrix",
+      "They always use exactly the same amount of memory",
+      "Adjacency matrix, because 2D arrays are faster to allocate than dictionaries"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "cs-foundations/tier-2/graph-theory-fundamentals/q2",
+    "type": "short_answer",
+    "prompt": "In a correct BFS implementation using collections.deque, which method must you call to remove the next node to process, so that nodes come out in the same order they went in (FIFO)?",
+    "acceptedAnswers": [
+      "popleft",
+      "popleft()",
+      ".popleft()",
+      "popleft method"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-2/graph-theory-fundamentals/q3",
+    "type": "multiple_choice",
+    "prompt": "Given this function, run on a graph stored as an adjacency list (dict of node -> list of neighbors):\n\n```python\ndef bfs(graph, start):\n    visited = {start}\n    queue = deque([start])\n    while queue:\n        node = queue.popleft()\n        for neighbor in graph.neighbors(node):\n            if neighbor not in visited:\n                visited.add(neighbor)\n                queue.append(neighbor)\n    return visited\n```\n\nWhat is its time complexity in terms of V (vertices) and E (edges)?",
+    "choices": [
+      "O(V)",
+      "O(E)",
+      "O(V + E)",
+      "O(V * E)"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "cs-foundations/tier-2/graph-theory-fundamentals/q4",
+    "type": "short_answer",
+    "prompt": "A graph has 12 nodes total. Running BFS from node A visits exactly 7 nodes (including A itself). What is the minimum possible number of connected components in this graph?",
+    "acceptedAnswers": [
+      "2",
+      "two"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-2/graph-theory-fundamentals/q5",
+    "type": "explain_back",
+    "prompt": "In your own words, explain why running DFS from a start node and recording parent pointers does not generally give you shortest paths to other nodes, while doing the same with BFS does. Use the idea of BFS processing nodes 'layer by layer' versus DFS 'plunging deep' down one branch before backtracking, and give a concrete example (like a node reachable by a direct one-edge connection that DFS still visits several steps late) to make the difference tangible."
+  }
+]

@@ -1,0 +1,43 @@
+[
+  {
+    "id": "cs-foundations/tier-3/greedy-and-graph-algorithms-ii/q1",
+    "type": "multiple_choice",
+    "prompt": "Why does Dijkstra's algorithm give incorrect results on a graph with negative edge weights?",
+    "choices": [
+      "Python's heapq module raises an error when a negative number is pushed onto the heap",
+      "Once a vertex is marked visited/finalized, the algorithm never reconsiders it, even if a later relaxation through another vertex would produce a shorter distance",
+      "Negative weights always create a negative-weight cycle, so no shortest path can exist",
+      "The algorithm cannot store negative numbers in its distance dictionary"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cs-foundations/tier-3/greedy-and-graph-algorithms-ii/q2",
+    "type": "multiple_choice",
+    "prompt": "What does the cut property say, in the context of minimum spanning tree algorithms?",
+    "choices": [
+      "Every spanning tree has exactly n-1 edges, regardless of which cut you choose",
+      "For any way of splitting the vertices into two nonempty groups, the minimum-weight edge crossing that split belongs to at least one MST",
+      "Removing the highest-weight edge from any cycle always produces a valid MST",
+      "A cut vertex (articulation point) must always be included in the minimum spanning tree"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cs-foundations/tier-3/greedy-and-graph-algorithms-ii/q3",
+    "type": "short_answer",
+    "prompt": "In Kruskal's algorithm, you call dsu.union(u, v) on a candidate edge (u, v) and it returns False. What single word names the structure that adding edge (u, v) to the MST-in-progress would have created?",
+    "acceptedAnswers": ["cycle", "a cycle"]
+  },
+  {
+    "id": "cs-foundations/tier-3/greedy-and-graph-algorithms-ii/q4",
+    "type": "short_answer",
+    "prompt": "Using the shared lesson graph with edges B-C=1, A-C=2, D-E=2, E-F=3, A-B=4, B-D=5, D-F=6, C-D=8, C-E=10, what is the total weight of the minimum spanning tree?",
+    "acceptedAnswers": ["13"]
+  },
+  {
+    "id": "cs-foundations/tier-3/greedy-and-graph-algorithms-ii/q5",
+    "type": "explain_back",
+    "prompt": "Explain, in your own words, the exchange-argument proof that Kruskal's algorithm produces a minimum spanning tree. Start from the cut property, describe what happens when you add the minimum crossing edge e to an MST T that doesn't already contain it, explain why the resulting cycle must contain another edge e' crossing the same cut, and say why swapping e' out for e can never make the tree's total weight worse."
+  }
+]

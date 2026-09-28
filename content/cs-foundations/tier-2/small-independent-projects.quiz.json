@@ -1,0 +1,52 @@
+[
+  {
+    "id": "cs-foundations/tier-2/small-independent-projects/q1",
+    "type": "multiple_choice",
+    "prompt": "In an unweighted graph, why does breadth-first search (BFS) always find a shortest path between two nodes, while depth-first search (DFS) is not guaranteed to?",
+    "choices": [
+      "BFS runs in O(1) time while DFS runs in O(V+E) time, so BFS finishes before it can find a longer path",
+      "BFS explores nodes in increasing order of distance from the source, layer by layer, so the first time it reaches the target is guaranteed to be via a shortest path; DFS commits to one branch and follows it all the way down before backtracking, so it can reach the target via a much longer route first",
+      "DFS is only allowed to visit each node once, while BFS can revisit nodes to find a shorter route",
+      "BFS uses a stack internally and DFS uses a queue, and stack-based traversal is inherently shorter"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cs-foundations/tier-2/small-independent-projects/q2",
+    "type": "multiple_choice",
+    "prompt": "Your cache's get method looks like this:\n\ndef get(self, key):\n    if key not in self.table:\n        return None\n    node = self.table[key]\n    self._move_to_front(node)  # O(1) pointer surgery on a doubly linked list\n    return node.value\n\nself.table is your own hash table with O(1) average-case lookup, and _move_to_front does O(1) pointer surgery on a doubly linked list. What is the average-case time complexity of this get call?",
+    "choices": [
+      "O(1)",
+      "O(log n)",
+      "O(n)",
+      "O(n log n)"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "cs-foundations/tier-2/small-independent-projects/q3",
+    "type": "short_answer",
+    "prompt": "You build an LRU cache with capacity 2 and run this sequence: put(1, \"a\"); put(2, \"b\"); get(1); put(3, \"c\"); get(2). What does that final get(2) call return?",
+    "acceptedAnswers": [
+      "None",
+      "none"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-2/small-independent-projects/q4",
+    "type": "multiple_choice",
+    "prompt": "This module's cache project requires building get/put on top of your own hash table instead of using Python's dict, collections.OrderedDict, or functools.lru_cache. Why?",
+    "choices": [
+      "Because Python's dict does not provide O(1) average-case lookups",
+      "Because the exercise is specifically about combining a hash table with a recency-tracking structure yourself to get O(1) average-case eviction \u2014 reaching for a built-in cache skips exactly the design work being practiced",
+      "Because collections.OrderedDict was removed in recent versions of Python",
+      "Because functools.lru_cache cannot be given a custom capacity"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cs-foundations/tier-2/small-independent-projects/q5",
+    "type": "explain_back",
+    "prompt": "In your maze solver, BFS and DFS both find a path from S to E, but the paths often have different lengths, and DFS typically explores more cells down a wrong branch before backtracking. Using your own maze results, explain why BFS is guaranteed to return the shortest path while DFS is not \u2014 and explain why a longer DFS path doesn't mean your DFS implementation has a bug."
+  }
+]
