@@ -7,7 +7,7 @@ flowchart LR
 
     MDX --> VELITE["velite build\n(typed content index)"]
     VELITE --> SEED["prisma/seed.ts"]
-    SEED --> DB[("SQLite / Postgres\nUser, Module, Progress,\nQuiz, QuizAttempt,\nCheckpoint, ReviewState")]
+    SEED --> DB[("SQLite / Postgres\nUser, Module, Progress,\nQuizAttempt, Checkpoint,\nReviewState")]
 
     QUIZ --> UI
     VELITE --> UI["Next.js App Router\npages + components"]

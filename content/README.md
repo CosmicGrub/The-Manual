@@ -18,4 +18,4 @@ Lesson body in MDX (Markdown + JSX) goes here...
 
 Quiz questions for a lesson live in a sibling `<slug>.quiz.json` file (array of `QuizQuestion` objects, shape defined in `app/src/components/QuizRunner.tsx`) — kept separate from lesson prose so quizzes can be regenerated/revised independently.
 
-See `MASTERFILE.md` for the full 8-track x 6-tier curriculum map this content fills in.
+See `MASTERFILE.md` §4 for the curriculum map overview, and `docs/curriculum/<track-id>.md` for each track's full tier-by-tier module list, quiz types, checkpoint project, and curated resources — that's the syllabus this directory's `.mdx` files should be written against, module by module.

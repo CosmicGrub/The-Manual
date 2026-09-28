@@ -19,10 +19,14 @@ All notable changes to The Manual (curriculum + app) are logged here. This file 
 - Single-user, local-first by default (SQLite); schema is `userId`-scoped throughout so multi-user/Postgres is a config change, not a rewrite.
 - Tiers are a soft gate (nudge, not lock) — this is a self-study tool, not a paywalled course platform.
 
+**Added (curriculum content, from the parallel design pass)**
+- `docs/curriculum/<track-id>.md` × 8 — full tier-by-tier syllabus per track (modules, quiz types, checkpoint project, creative methods, curated resources), linked from MASTERFILE.md §4. ~3,265 estimated hours of curriculum mapped across all 8 tracks × 6 tiers.
+- MASTERFILE.md §5 filled in with the independent reviewer's findings: 14 gaps, 8 redundancies, 14 prioritized recommended additions, 7 structural fixes, and 9 standout strengths to preserve. This is the running answer to "what more can we add."
+
 **Open / deferred (see MASTERFILE.md §3.6 and §5 for the full list)**
-- Full lesson content for all 8 tracks × 6 tiers (only Tier 0 of one track is fully written so far — the map is complete, the content is not).
+- Full lesson *prose* content for all 8 tracks × 6 tiers (only Tier 0 of CS Foundations is fully written as MDX so far — the syllabus/map is complete, the lesson text is not; writing ~240 modules of lesson content is its own large, separate effort).
 - `/tracks/[trackId]`, lesson pages, `/review`, `/checkpoints/[id]`, `/resources` UI routes.
 - Multi-user auth, AI-graded "explain it back," adaptive sequencing.
-- Reviewer-flagged gaps and recommended additions — see MASTERFILE.md §5.
+- The reviewer's top structural fix — no cross-track sequencing/prerequisite map exists yet, so the 8 tracks currently read as 8 excellent but disconnected books. Recommended as the next design pass before writing lesson content at scale.
 
 **Not synced this round:** Claude persistent memory / claude.ai Project knowledge — no tool in this session can write either; only the repo and Google Drive were updated.
