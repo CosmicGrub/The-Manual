@@ -1,0 +1,227 @@
+---
+trackId: languages
+tier: 4
+title: "Performance Engineering Across Languages"
+order: 5
+estimatedHours: 10
+slug: performance-engineering-across-languages
+---
+
+## Capstone: Performance Is an Empirical Discipline
+
+Every language track module before this one taught you how to write correct, idiomatic code in C, C++, Go, Rust, Python, and JS. This module is about the discipline that sits on top of all of them: how to know, with evidence rather than vibes, where time and memory actually go — and how to avoid fooling yourself while finding out. The tools differ by language; the discipline is identical. That's the point of doing this as one module instead of five.
+
+## 1. Benchmarking Methodology: How to Not Lie to Yourself
+
+### Microbenchmarks lie by default
+
+A benchmark that isolates one function from its real calling context routinely reports numbers that have nothing to do with production behavior. The two biggest culprits:
+
+**Dead code elimination.** If the optimizer can prove a computed value is never observed, it can delete the computation — including the loop around it.
+
+```rust
+use std::hint::black_box;
+use std::time::Instant;
+
+fn sum_naive(data: &[u64]) -> u64 {
+    data.iter().sum()
+}
+
+fn main() {
+    let data: Vec<u64> = (0..1_000_000).collect();
+
+    // In a release build, the optimizer can see the result of sum_naive
+    // is never used and may delete the call, or even the whole loop.
+    let start = Instant::now();
+    for _ in 0..100 {
+        sum_naive(&data);
+    }
+    println!("naive: {:?}", start.elapsed()); // can report ~0ns
+
+    // black_box tells the compiler "treat this as if it escapes" —
+    // it can't prove the value is dead, so it must actually compute it.
+    let start = Instant::now();
+    for _ in 0..100 {
+        black_box(sum_naive(black_box(&data)));
+    }
+    println!("guarded: {:?}", start.elapsed());
+}
+```
+
+The same failure mode exists in C++ (`benchmark::DoNotOptimize`), and it's why hand-rolled `for` loops around "just time it" code are unreliable — use `criterion` (Rust) or Google Benchmark (C++), which apply these guards for you and also solve the next problem.
+
+**Measuring the wrong thing.** A microbenchmark usually runs hot-cache, single-threaded, with no allocator contention, no syscalls, and a warmed-up JIT (for Go/Java/JS). Production code runs cold-start, under concurrent load, with a fragmented heap and a scheduler stealing your cache lines. Before trusting a number, ask: is this throughput or latency? p50 or p99? Steady-state or first-call? A cache that looks free in a benchmark because it never evicts is not free in a service that runs a hundred other things between requests.
+
+### Statistical noise
+
+A single timed run is not data. CPU frequency scaling (turbo boost ramping up/down), OS scheduler jitter, and thermal throttling all inject noise on the order of 5-20%. Practical mitigations:
+
+- Run many iterations, report the **median** and a spread (p10/p90), not just the mean — a handful of outlier pauses (page faults, GC, a context switch) will wreck a mean but barely move a median.
+- Pin to a core (`taskset -c 2 ./bench` on Linux) and, where you control the machine, disable turbo boost for comparative runs.
+- Use tools built for this: `criterion` (Rust) runs enough samples to give you a confidence interval automatically; `hyperfine` does the same at the process level for CLI tools in any language, warming the cache with a few throwaway runs before it starts measuring:
+
+```bash
+hyperfine --warmup 3 --min-runs 20 './sort_impl_a data.bin' './sort_impl_b data.bin'
+```
+
+If two implementations' confidence intervals overlap, you don't have a winner yet — you have noise.
+
+## 2. Big-O in Practice: When the "Better" Algorithm Loses
+
+Asymptotic complexity describes behavior as n → ∞. Real programs run at n = 12, or n = 4,000, or n = whatever fits in L2 cache — regimes where constant factors and memory access patterns dominate.
+
+**Concrete case: sorted `vector` + binary search vs. `unordered_map`.**
+
+```cpp
+#include <algorithm>
+#include <chrono>
+#include <cstdio>
+#include <random>
+#include <unordered_map>
+#include <vector>
+
+using Clock = std::chrono::steady_clock;
+
+int main() {
+    for (int n : {8, 16, 32, 64, 256, 1024, 1 << 16}) {
+        std::vector<std::pair<int,int>> sorted_vec;
+        std::unordered_map<int,int> map;
+        for (int i = 0; i < n; ++i) {
+            sorted_vec.push_back({i * 2, i});
+            map[i * 2] = i;
+        }
+
+        std::mt19937 rng(42);
+        std::uniform_int_distribution<int> dist(0, n - 1);
+        std::vector<int> queries(1'000'000);
+        for (auto& q : queries) q = dist(rng) * 2;
+
+        volatile long sink = 0;
+
+        auto t0 = Clock::now();
+        for (int q : queries) {
+            auto it = std::lower_bound(sorted_vec.begin(), sorted_vec.end(),
+                                        std::make_pair(q, 0));
+            sink += it->second;
+        }
+        auto t1 = Clock::now();
+        for (int q : queries) sink += map[q];
+        auto t2 = Clock::now();
+
+        double vec_ns = std::chrono::duration<double, std::nano>(t1 - t0).count() / queries.size();
+        double map_ns = std::chrono::duration<double, std::nano>(t2 - t1).count() / queries.size();
+        printf("n=%6d  sorted_vector=%.1fns  unordered_map=%.1fns\n", n, vec_ns, map_ns);
+    }
+}
+```
+
+Run this and a consistent pattern shows up: for n up to a few hundred, the sorted vector wins by 2-4x despite doing O(log n) comparisons against the map's O(1) hash lookup. Once n grows past what fits comfortably in L2 (tens of thousands of entries here), the map pulls ahead and stays ahead. Why: for small n, the vector's whole working set sits in L1, binary search touches maybe 3-8 cache lines total, and there's zero hashing cost. `unordered_map` pays for computing a hash, then chases a pointer into a bucket that's likely a cold cache line, every single lookup — overhead that doesn't shrink with n. This is exactly why Abseil's `flat_hash_map`, Rust's `indexmap`, and most STL implementations of `std::sort` switch to a flat/linear strategy (insertion sort, in `sort`'s case) below a small-size threshold: they're not fighting Big-O, they're exploiting the fact that Big-O's hidden constant dominates until n is large enough to matter.
+
+The lesson generalizes: before reaching for the asymptotically superior structure, know your actual n, and check — with a benchmark, not intuition — where the crossover sits for your data and your machine.
+
+## 3. A Cross-Language Profiler Tour
+
+You've used `cProfile`, Chrome DevTools, `perf`, and `pprof` already in earlier tiers of this track for basic call-time breakdowns. All four (and every other profiler you'll meet) are one of two models: **instrumenting** (inserts code at every function entry/exit, exact but adds overhead that can itself distort the result) or **sampling** (interrupts the running program periodically and records the stack, near-zero overhead but statistical). Knowing which kind you're looking at tells you how much to trust the numbers.
+
+**Python — beyond cProfile.** `cProfile` is instrumenting, and in call-heavy code its overhead can be 2-5x, which skews relative hotness toward functions with many small calls. For a truer picture under real load, use `py-spy`, a sampling profiler that attaches to an already-running process from the outside — no code changes, negligible overhead:
+
+```bash
+py-spy top --pid 34521
+py-spy record -o profile.svg --pid 34521   # flamegraph
+```
+
+For line-level detail inside a function you've already identified as hot, `line_profiler` (`kernprof -l -v script.py`) gives per-line timings that `cProfile`'s function-granularity can't.
+
+**JavaScript — beyond the Performance panel.** You already know how to read a DevTools flame chart (frame width = time; deeper = called-from). The deeper skill is spotting V8 deoptimizations: a function that looked hot and fast can suddenly get slow because V8 bailed out of optimized code back to the interpreter, usually from a hidden-class change (adding a property in a different order, or passing sometimes-int sometimes-string). `node --trace-deopt` surfaces these by name. For server-side Node without a browser attached, `node --cpu-prof app.js` writes a `.cpuprofile` file you can load into DevTools' Performance panel directly, or feed to `0x` for an instant flamegraph.
+
+**C/C++ — beyond `perf report`.** You've used `perf record` / `perf report` for call attribution. Go one level lower with `perf stat` to get hardware counters, which tell you *why* code is slow, not just *where*:
+
+```bash
+perf stat -e cycles,instructions,cache-references,cache-misses,branch-misses ./a.out
+```
+
+A low instructions-per-cycle (IPC) ratio with a high cache-miss rate is the fingerprint of exactly the memory-bound behavior from Section 2. `perf annotate` goes further, showing hot assembly lines against source — useful for confirming a loop actually vectorized. `perf record -g --call-graph dwarf` plus `perf script | inferno-flamegraph` (or the classic Brendan Gregg `stackcollapse-perf.pl`/`flamegraph.pl` pair) turns a call graph into a flamegraph with the same visual grammar as the JS and Go ones below.
+
+**Go — beyond basic `pprof`.** You know `go tool pprof cpu.prof`. Two things worth knowing that most tutorials skip: first, `go tool pprof -http=:8080 cpu.prof` gives you an interactive flamegraph in a browser, generally nicer than the terminal REPL. Second, and genuinely cross-cutting: the `pprof` wire format (`profile.proto`) isn't Go-specific — it's a de facto standard. Rust's `pprof-rs` crate emits the same format, which means `go tool pprof` (or its web UI) can visualize a *Rust* CPU profile. And because Go compiles to native code with frame pointers preserved by default, `perf record` works directly on a Go binary too — the profiler tour isn't four disconnected toolchains, it's two formats (`perf`'s and `profile.proto`) that most modern languages can produce or consume.
+
+## 4. Memory Profiling: Allocation Count Beats Allocation Size
+
+A near-universal surprise: a program that allocates 100,000 sixteen-byte objects is usually slower than one that allocates a single 1.6MB block, even though total bytes are identical. Two reasons, and they apply differently to GC'd vs. manually-managed languages:
+
+- **Per-call overhead.** Every `malloc`/`new`/GC-allocation call does bookkeeping — size-class lookup, free-list manipulation, sometimes a lock. That cost is roughly fixed per call, so it's paid 100,000 times instead of once.
+- **Object-count-proportional scanning.** In a generational GC (Go, Java, the JS engines), the mark phase must visit every *live* object individually to trace its pointers — cost scales with object count, not bytes. More allocations also means the allocation-rate threshold that triggers a GC cycle is crossed more often, so you get more, not just longer, pauses.
+
+See it in Go directly:
+
+```go
+type Point struct{ X, Y float64 }
+
+func BenchmarkManySmallAllocs(b *testing.B) {
+    for i := 0; i < b.N; i++ {
+        pts := make([]*Point, 1000)
+        for j := range pts {
+            pts[j] = &Point{X: float64(j), Y: float64(j)}
+        }
+        _ = pts
+    }
+}
+
+func BenchmarkOneBigAlloc(b *testing.B) {
+    for i := 0; i < b.N; i++ {
+        pts := make([]Point, 1000)
+        for j := range pts {
+            pts[j] = Point{X: float64(j), Y: float64(j)}
+        }
+        _ = pts
+    }
+}
+```
+
+`go test -bench=. -benchmem` reports `ManySmallAllocs` at roughly 1000 allocs/op with meaningfully higher ns/op, and `OneBigAlloc` at 1 alloc/op. `GODEBUG=gctrace=1 go run main.go` will show GC cycles firing more often under the first pattern — the trace line's cadence tracks allocation rate directly. `go build -gcflags="-m"` shows escape analysis decisions: a `Point` that never leaves a function's scope can stay on the stack and cost nothing at all, which is often the actual fix, not a smarter allocator.
+
+In Rust and C, ownership gives you the stack-allocation escape hatch by default (a `Point` on the stack is free), but when you genuinely need many heap objects, replace N separate `malloc`s with one **arena**:
+
+```rust
+use bumpalo::Bump;
+
+struct Point { x: f64, y: f64 }
+
+fn build_points(n: usize) -> Vec<&'static Point> {
+    let arena = Box::leak(Box::new(Bump::new()));
+    (0..n).map(|i| &*arena.alloc(Point { x: i as f64, y: i as f64 })).collect()
+    // one allocator call under the hood grows the arena in chunks;
+    // there is no per-Point free() — the whole arena drops at once.
+}
+```
+
+Contrast with `Vec<Box<Point>>`, which performs n individual heap allocations and, on drop, n individual frees through Rust's global allocator (by default a `malloc` wrapper with the same per-call overhead as C). The manually-managed side of this trade-off: you don't pay GC scan cost, but you pay allocator-call cost per object, same as Go's small-object case — the fix (batch the allocation) is identical in spirit even though the runtime model is opposite. `valgrind --tool=massif` or `heaptrack` let you see allocation-count-over-time in C/C++/Rust the way `gctrace` does in Go; both answer the same question: is the problem bytes, or is it *calls*?
+
+## Exercise
+
+You're handed this Go HTTP handler, and it's burning unexpected GC CPU under load:
+
+```go
+func handle(w http.ResponseWriter, r *http.Request) {
+    var raw []map[string]interface{}
+    json.NewDecoder(r.Body).Decode(&raw)
+
+    records := make([]*Record, 0)
+    for _, m := range raw {
+        rec := &Record{
+            ID:    m["id"].(string),
+            Value: m["value"].(float64),
+        }
+        records = append(records, rec)
+    }
+
+    var total float64
+    for _, rec := range records {
+        total += rec.Value
+    }
+    fmt.Fprintf(w, "%f", total)
+}
+```
+
+Write a benchmark for this handler, run it with `-benchmem` to get a baseline allocs/op, then use `runtime/pprof` (or `net/http/pprof` if you serve it live) to get a heap profile and confirm exactly where the allocations come from. Rewrite the hot path to cut allocation count, and re-measure.
+
+**Hint:** decoding into `[]map[string]interface{}` doesn't just allocate one map per record — every value inside gets boxed into an `interface{}`, and `make([]*Record, 0)` followed by repeated `append` forces the slice to reallocate and copy as it grows. There's a way to have `encoding/json` decode straight into your own typed struct, and a way to give the slice its final capacity up front. Neither requires touching the aggregation logic.

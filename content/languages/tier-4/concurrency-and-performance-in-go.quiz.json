@@ -1,0 +1,98 @@
+[
+  {
+    "id": "languages/tier-4/concurrency-and-performance-in-go/q1",
+    "type": "multiple_choice",
+    "prompt": "What happens when this program runs?\n\nfunc main() {\n\tch := make(chan int)\n\tch <- 1\n\tfmt.Println(<-ch)\n}",
+    "choices": [
+      "It prints 1 and exits normally",
+      "It deadlocks: fatal error, all goroutines are asleep",
+      "It prints 0 because the channel is unbuffered",
+      "It fails to compile"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-4/concurrency-and-performance-in-go/q2",
+    "type": "multiple_choice",
+    "prompt": "A channel is created with `make(chan int, 2)`. Two values are sent without any receiver present. What happens on a third send with still no receiver?",
+    "choices": [
+      "It succeeds immediately, the buffer silently grows",
+      "It blocks until something receives from the channel",
+      "It panics with 'send on full channel'",
+      "It silently drops the oldest buffered value"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-4/concurrency-and-performance-in-go/q3",
+    "type": "multiple_choice",
+    "prompt": "In a `select` statement, two case channels are both ready to proceed at the same time. Which case runs?",
+    "choices": [
+      "The one listed first in source order",
+      "The one whose channel was created first",
+      "Go makes a pseudo-random uniform choice between the ready cases",
+      "Both run, one after the other, in the same select"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "languages/tier-4/concurrency-and-performance-in-go/q4",
+    "type": "multiple_choice",
+    "prompt": "What is wrong with this code?\n\nvar wg sync.WaitGroup\nfor i := 0; i < 5; i++ {\n\tgo func() {\n\t\twg.Add(1)\n\t\tdefer wg.Done()\n\t\tdoWork()\n\t}()\n}\nwg.Wait()",
+    "choices": [
+      "sync.WaitGroup cannot be used with closures at all",
+      "wg.Add(1) races with wg.Wait(); Wait() can return before any goroutine has incremented the counter",
+      "defer wg.Done() should be called before doWork(), not after",
+      "The loop variable i is captured incorrectly, causing all goroutines to run the same iteration"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-4/concurrency-and-performance-in-go/q5",
+    "type": "multiple_choice",
+    "prompt": "You have a single int64 counter incremented by thousands of goroutines and read occasionally elsewhere. Which approach is the most idiomatic and lowest-overhead?",
+    "choices": [
+      "Route every increment through a dedicated channel and owning goroutine",
+      "Guard the counter with a sync.Mutex",
+      "Use sync/atomic (e.g. atomic.AddInt64 or atomic.Int64)",
+      "Give each goroutine its own copy and sum them with reflection at the end"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "languages/tier-4/concurrency-and-performance-in-go/q6",
+    "type": "multiple_choice",
+    "prompt": "You run `go run -race` on a program and it reports no data races. What can you conclude?",
+    "choices": [
+      "The program is provably free of data races under any execution",
+      "No data race occurred during this particular execution, but one could still exist on a different code path or timing",
+      "The program is safe for production because -race checks every possible goroutine interleaving",
+      "The race detector only checks for deadlocks, not data races, so this result is unrelated"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-4/concurrency-and-performance-in-go/q7",
+    "type": "multiple_choice",
+    "prompt": "After importing `_ \"net/http/pprof\"` and serving it on localhost:6060, what does `go tool pprof http://localhost:6060/debug/pprof/heap` profile?",
+    "choices": [
+      "CPU time spent in each function over the last 30 seconds",
+      "Current in-use memory allocations (the heap), not CPU time",
+      "Disk I/O latency per handler",
+      "The number of live goroutines only"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-4/concurrency-and-performance-in-go/q8",
+    "type": "multiple_choice",
+    "prompt": "In the fanIn pattern, several goroutines each read from their own input channel and send into one shared `out` channel. Which statement about closing `out` is correct?",
+    "choices": [
+      "Each of the reading goroutines should close out itself when its own input channel is drained",
+      "Exactly one goroutine should close out, and only after all senders are guaranteed to be done (e.g. via a WaitGroup)",
+      "out never needs to be closed since range will exit on its own once senders stop",
+      "Closing out multiple times is safe as long as it happens after all values are sent"
+    ],
+    "correctIndex": 1
+  }
+]

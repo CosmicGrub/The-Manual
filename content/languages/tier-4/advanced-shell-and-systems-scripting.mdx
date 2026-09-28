@@ -1,0 +1,259 @@
+---
+trackId: languages
+tier: 4
+title: "Advanced Shell & Systems Scripting"
+order: 4
+estimatedHours: 8
+slug: advanced-shell-and-systems-scripting
+---
+
+Tier 1 covered the mechanics — variables, `if`/`case`, `for`/`while`, and pipes. Assume all of that. This module is about the gap between "a script that works on my machine" and "a script I'd trust in production": portability, signal-correct process management, and real deployment via cron and systemd.
+
+## POSIX portability: when `bash` isn't guaranteed
+
+Not every target runs `bash`. Alpine-based containers, embedded Linux, and some CI images ship `dash` as `/bin/sh`. If your shebang says `#!/bin/bash` but the script gets invoked as `sh script.sh`, or if you write `#!/bin/sh` and use bash-only syntax inside, you get silent breakage or a hard failure.
+
+The common bashisms that break under `dash`/POSIX `sh`:
+
+```bash
+# Bashisms — fail under dash
+arr=(a b c)              # arrays: not POSIX
+echo "${arr[1]}"
+[[ "$x" == y* ]]          # [[ ]] : not POSIX, use [ ] with case or glob
+function foo { :; }       # 'function' keyword: use foo() { :; }
+local x=1                 # 'local' is a bash/ksh extension, not POSIX (works in practice on most sh, but not guaranteed)
+echo -e "a\tb"             # -e flag to echo is not portable; use printf
+source file.sh             # POSIX uses '.', not 'source'
+x=$(<file)                 # process substitution / fast read: bash-only
+```
+
+The POSIX-safe equivalents:
+
+```sh
+#!/bin/sh
+# case instead of [[ ]] glob matching
+case "$x" in
+  y*) echo "matches" ;;
+  *)  echo "no match" ;;
+esac
+
+# printf instead of echo -e
+printf '%s\t%s\n' "a" "b"
+
+# '.' instead of 'source'
+. ./lib.sh
+
+# read a file into a variable, POSIX way
+x=$(cat file)
+```
+
+Decide up front: if the script only ever runs where you control the interpreter (your own servers, your own containers with bash installed), write bash and use its features — `[[`, arrays, `mapfile`, `local`. If it ships as part of a package that might run under arbitrary `/bin/sh`, either force the interpreter (`#!/usr/bin/env bash`, and depend on bash) or write strict POSIX and verify with `checkbashisms` (Debian's `devscripts` package) or `shellcheck --shell=sh`:
+
+```bash
+shellcheck --shell=sh deploy.sh
+checkbashisms deploy.sh
+```
+
+`#!/usr/bin/env bash` over `#!/bin/bash` is itself a portability choice — it finds bash via `PATH`, which matters on systems (some BSDs, Nix) where bash isn't at `/bin/bash`.
+
+## `set -euo pipefail`, and where it doesn't save you
+
+Put this at the top of essentially every production bash script:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+IFS=$'\n\t'
+```
+
+Each flag does something specific:
+
+- **`-e`** (`errexit`): exit immediately if a command exits nonzero. Without it, a failed `cp` or `curl` just gets silently ignored and the script keeps going with stale or missing data.
+- **`-u`** (`nounset`): reference to an unset variable is an error instead of expanding to an empty string. Catches typos like `$SRC_DR` instead of `$SRC_DIR` before they turn into `rm -rf /` on an empty path.
+- **`-o pipefail`**: without it, `false | true` exits 0 — the pipeline's exit status is only the *last* command's. With `pipefail`, the pipeline fails if *any* stage fails. Critical for pipelines like `curl ... | tar xz`, where a failed download with a truncated tarball would otherwise report success.
+- **`IFS=$'\n\t'`**: the default `IFS` (space, tab, newline) makes unquoted word-splitting split on spaces too, which mangles filenames with spaces. Restricting it to newline/tab reduces (but doesn't eliminate) that class of bug — it's not a substitute for quoting.
+
+Where `-e` does *not* fire — these are the traps people fall into after adding `set -e` and assuming they're now safe:
+
+```bash
+set -e
+
+# 1. Command in a conditional context doesn't trigger -e, by design —
+#    otherwise no 'if' could ever test a failing command.
+if grep -q pattern file.txt; then
+  echo "found"
+fi
+# grep exiting 1 here does NOT abort the script. This is correct/expected.
+
+# 2. Command as part of && / || also doesn't trigger -e
+false && echo "unreachable"   # false's nonzero status is "handled" by &&, script continues
+
+# 3. Command substitution assigned to a variable: the *assignment* exits 0
+#    even though the substitution failed, UNLESS the command failure
+#    happens directly, not behind e.g. a function that swallows it.
+x=$(false)
+echo "still running, x is empty"   # this line DOES still execute — wait, actually
+# correction via demonstration: command substitution failure DOES trigger -e
+# in bash when the result is used in a simple command. But inside a function
+# whose return value isn't checked, or in a pipeline, it can be masked.
+
+# 4. The classic footgun: last command of a function inside `if fn; then`
+#    or that feeds a pipeline can mask an early failure inside the function.
+```
+
+The practical rule: `set -euo pipefail` is a floor, not a guarantee. Always check exit codes explicitly for anything load-bearing, and never assume `-e` will catch a failure buried inside `&&`, `||`, `if`, or a pipeline stage that isn't the last one (pipefail fixes that last case).
+
+Add `-x` (trace mode) only while debugging, or gate it behind an env var:
+
+```bash
+[ "${DEBUG:-0}" = "1" ] && set -x
+```
+
+## Signal handling: `trap`, background jobs, and what signals actually mean
+
+A production script that creates temp files, holds a lock, or spawns children needs to clean up even when killed. That's `trap`.
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+WORKDIR=$(mktemp -d)
+
+cleanup() {
+  local exit_code=$?
+  echo "cleaning up $WORKDIR" >&2
+  rm -rf -- "$WORKDIR"
+  exit "$exit_code"
+}
+trap cleanup EXIT
+trap 'echo "interrupted" >&2; exit 130' INT
+trap 'echo "terminated" >&2; exit 143' TERM
+
+# ... work that uses $WORKDIR ...
+```
+
+`trap cleanup EXIT` fires on *any* script exit — normal completion, `exit`, or an uncaught signal that isn't `SIGKILL`. That's why a single `EXIT` trap is usually enough for cleanup; separate `INT`/`TERM` traps are for custom messaging or exit codes (by convention, 128 + signal number: 130 for `SIGINT`, 143 for `SIGTERM`).
+
+Signals that matter in practice:
+
+| Signal | Number | Catchable? | Meaning |
+|---|---|---|---|
+| `SIGINT` | 2 | yes | Ctrl-C from a terminal; polite interrupt |
+| `SIGHUP` | 1 | yes | Controlling terminal closed; also reused as "reload config" by many daemons |
+| `SIGTERM` | 15 | yes | The *standard* "please shut down" request — `kill pid` and `systemctl stop` send this by default |
+| `SIGKILL` | 9 | **no** | Unconditional termination by the kernel. No cleanup, no trap, no flushing buffers. Last resort. |
+
+`SIGTERM` is a request the process can intercept, finish in-flight work, close files, and exit cleanly. `SIGKILL` bypasses the process entirely — the kernel just tears it down. This is why `systemd` (and most process supervisors) send `SIGTERM` first and only escalate to `SIGKILL` after a timeout: it gives well-behaved code a chance to trap the signal and exit gracefully, but guarantees termination even if the process ignores everything.
+
+Background jobs and waiting for them correctly:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+pids=()
+for host in web1 web2 web3; do
+  ssh "$host" 'systemctl status app' &
+  pids+=("$!")
+done
+
+status=0
+for pid in "${pids[@]}"; do
+  if ! wait "$pid"; then
+    status=1
+  fi
+done
+exit "$status"
+```
+
+`$!` captures the PID of the most recently backgrounded job. `wait pid` blocks until that specific job finishes and returns *its* exit code — plain `wait` with no argument waits for all jobs but discards individual statuses, which is why the loop above waits on each PID explicitly to detect which one failed.
+
+For a hard time budget on a subprocess, don't hand-roll `sleep` + `kill`; use `timeout`, which itself sends `SIGTERM` then `SIGKILL` after a grace period:
+
+```bash
+timeout --signal=TERM --kill-after=10s 60s ./maybe-hangs.sh
+```
+
+## Deploying with cron and systemd
+
+### cron
+
+A cron job runs with a minimal environment — no login shell, often no `PATH` beyond `/usr/bin:/bin`, no `$HOME` set the way you expect. Scripts that work interactively and mysteriously fail under cron are almost always an environment problem. Defend against it inside the script, not just in the crontab:
+
+```
+# crontab -e
+# m h dom mon dow  command
+17 3 * * *  /usr/bin/flock -n /var/lock/backup.lock /opt/scripts/backup.sh >> /var/log/backup.log 2>&1
+```
+
+- `flock -n` prevents overlapping runs if a previous invocation is still going (a common cause of production incidents: a slow backup run + a tight cron schedule = two backups fighting over the same files).
+- Explicit output redirection, because cron mails stdout/stderr by default (or silently drops it, depending on config) and you want it in a log file instead.
+- Absolute paths everywhere — `/usr/bin/flock`, `/opt/scripts/backup.sh` — because `PATH` cannot be trusted.
+
+### systemd timers
+
+For anything beyond a one-liner, a systemd service + timer pair beats cron: structured logging via `journalctl`, dependency ordering (`After=network-online.target`), resource limits, and automatic restart policies.
+
+`/etc/systemd/system/backup.service`:
+
+```ini
+[Unit]
+Description=Nightly backup
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/scripts/backup.sh
+TimeoutStopSec=30
+User=backup
+Group=backup
+```
+
+`/etc/systemd/system/backup.timer`:
+
+```ini
+[Unit]
+Description=Run backup.service nightly at 03:17
+
+[Timer]
+OnCalendar=*-*-* 03:17:00
+Persistent=true
+RandomizedDelaySec=120
+
+[Install]
+WantedBy=timers.target
+```
+
+`Persistent=true` runs the job on next boot if the machine was off at the scheduled time — cron has no equivalent. `RandomizedDelaySec` spreads load if this unit is deployed identically across a fleet. Enable it:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now backup.timer
+systemctl list-timers backup.timer
+journalctl -u backup.service --since today
+```
+
+`TimeoutStopSec=30` matters because of the signal discussion above: on `systemctl stop`, systemd sends `SIGTERM`, waits up to 30 seconds, then sends `SIGKILL` if the process hasn't exited. Your script's `trap ... TERM` is what makes those 30 seconds useful instead of wasted.
+
+## Production-readiness checklist
+
+- **Quote every expansion**: `"$var"`, `"$@"`, `"${arr[@]}"`. Unquoted `$var` undergoes word-splitting and glob expansion — `rm -rf $dir/*` with `dir` unset becomes `rm -rf /*` after splitting on the empty string and globbing. Unquoted `"$@"` vs `$@` is the difference between preserving argument boundaries and mangling them.
+- **Check exit codes explicitly** for anything `set -e` won't catch (inside `if`, `&&`/`||`, non-last pipeline stages without `pipefail`).
+- **Use `mktemp`/`mktemp -d`**, never hand-built temp paths like `/tmp/out.$$` — predictable temp names are a symlink-attack vector and a collision risk.
+- **Never parse `ls`.** Use globs or `find -print0` piped to `xargs -0` / `while IFS= read -r -d ''`.
+- **Prefer `$(...)` over backticks** — nests cleanly, and quote the result unless you explicitly want splitting.
+- **Check `cd` succeeded** before doing anything destructive: `cd "$dir" || exit 1` — a failed `cd` under `set -e` does abort, but don't rely on that alone in a script someone might source instead of execute.
+- **Avoid `useless cat`** (`cat file | grep x` → `grep x file`) — minor, but it's a shellcheck signal you're not reading your own pipelines carefully.
+- **Run `shellcheck`** in CI on every script. It catches the quoting and word-splitting bugs above automatically, before they reach production.
+
+## Exercise
+
+Write `rotate-logs.sh`: it takes a directory as `$1`, compresses every `*.log` file older than 7 days with `gzip`, and deletes compressed logs older than 30 days. Requirements:
+
+- `set -euo pipefail`, POSIX-safe if you can manage it (or justify why you need bash).
+- A `trap` that removes any partial `.gz` file if the script is killed mid-compression.
+- A `flock`-based guard so two invocations can't run concurrently.
+- A systemd `.service` + `.timer` pair that runs it nightly, with `Persistent=true`.
+
+**Hint**: `find "$dir" -name '*.log' -mtime +7 -print0 | while IFS= read -r -d '' f; do ...; done` avoids the parse-`ls` footgun and handles filenames with spaces. For the trap, set a variable to the current file being compressed *before* starting `gzip`, and have the trap check whether that variable's target `.gz` file is incomplete.

@@ -1,0 +1,98 @@
+[
+  {
+    "id": "languages/tier-4/contributing-to-open-source-at-scale/q1",
+    "type": "multiple_choice",
+    "prompt": "In a real, actively maintained repo, what does the CODEOWNERS file primarily tell a contributor?",
+    "choices": [
+      "Which specific people or teams must approve changes to particular paths, which sets your real review timeline",
+      "Which contributors are banned from opening pull requests",
+      "The license each file in the repo is released under",
+      "Which files are auto-formatted by CI and don't need manual formatting"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-4/contributing-to-open-source-at-scale/q2",
+    "type": "multiple_choice",
+    "prompt": "A project's CI runs `cargo fmt --all -- --check` as its formatting step. You run `cargo fmt --all` locally (no `--check`) and see no errors, then push. What happens?",
+    "choices": [
+      "CI passes, since both commands check the same formatting rules",
+      "CI may still fail, because `cargo fmt` without `--check` reformats files in place rather than reporting whether they're already formatted, and you may not have committed the resulting changes",
+      "CI is skipped entirely because formatting was already validated locally",
+      "The push is rejected by git itself before CI ever runs"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-4/contributing-to-open-source-at-scale/q3",
+    "type": "multiple_choice",
+    "prompt": "You run `git commit --fixup=a1b2c3d` followed by `git rebase -i --autosquash origin/main`. What does `--autosquash` do in that rebase?",
+    "choices": [
+      "It deletes commit a1b2c3d and replaces it with your new commit",
+      "It automatically reorders the todo list so the fixup! commit is placed right after a1b2c3d and marked to be squashed into it, without you needing to manually reorder lines",
+      "It squashes every commit in the branch into a single commit regardless of target",
+      "It signs every commit in the range with your GPG key"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-4/contributing-to-open-source-at-scale/q4",
+    "type": "multiple_choice",
+    "prompt": "Why prefer `git push --force-with-lease` over plain `git push --force` after rebasing a PR branch to fold in review fixes?",
+    "choices": [
+      "`--force-with-lease` is faster over slow network connections",
+      "`--force-with-lease` refuses to overwrite the remote branch if it has commits you haven't fetched (e.g. a maintainer pushed directly to your branch), while plain `--force` overwrites blindly",
+      "`--force-with-lease` automatically resolves merge conflicts, unlike `--force`",
+      "There is no functional difference; `--force-with-lease` is just the newer name"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-4/contributing-to-open-source-at-scale/q5",
+    "type": "multiple_choice",
+    "prompt": "A project uses squash-merge for all PRs into main. What's the practical implication for how you write your PR title and description?",
+    "choices": [
+      "They don't matter since GitHub discards them once merged",
+      "They become the actual, permanent commit message on main, so they should be written like a good commit message, not a casual note to the reviewer",
+      "They only affect the changelog, never the git history",
+      "They must exactly match the branch name or the merge will be rejected"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-4/contributing-to-open-source-at-scale/q6",
+    "type": "multiple_choice",
+    "prompt": "During review, a maintainer requests a change to something introduced in the first commit of your four-commit PR. What's the better practice, and why?",
+    "choices": [
+      "Add a new final commit titled \"fix review comments\", since rewriting history after a PR is opened is considered bad etiquette",
+      "Close the PR and open a fresh one with a single clean commit",
+      "Use `git commit --fixup` targeting the original commit, then `git rebase -i --autosquash` so the fix is folded into the commit it actually belongs to, keeping history readable",
+      "Ask the maintainer to make the change themselves via GitHub's web editor"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "languages/tier-4/contributing-to-open-source-at-scale/q7",
+    "type": "multiple_choice",
+    "prompt": "One CI matrix leg fails on a large project's PR check, but the failing test is unrelated to any file your PR touches and passed on a previous run. What's the appropriate next step?",
+    "choices": [
+      "Immediately start debugging and rewriting the unrelated failing test yourself before asking anyone",
+      "Force-merge past the failing check using admin override if you have it",
+      "Note in the PR that the failure looks unrelated to your change and ask a maintainer to re-run the job, rather than assuming your code caused it",
+      "Close the PR, since a red CI check always means the change is not mergeable"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "languages/tier-4/contributing-to-open-source-at-scale/q8",
+    "type": "multiple_choice",
+    "prompt": "You add a `Signed-off-by:` trailer with `git commit -s`. What is this trailer for on a project that requires a DCO (Developer Certificate of Origin)?",
+    "choices": [
+      "It's a cryptographic GPG signature proving the commit wasn't tampered with",
+      "It certifies that you have the right to contribute the code under the project's license, as a lightweight alternative to a signed CLA",
+      "It automatically assigns copyright of the commit to the project maintainers",
+      "It's required only for commits that modify CI configuration files"
+    ],
+    "correctIndex": 1
+  }
+]

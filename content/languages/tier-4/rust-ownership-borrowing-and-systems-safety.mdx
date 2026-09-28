@@ -1,0 +1,297 @@
+---
+trackId: languages
+tier: 4
+title: "Rust Ownership, Borrowing & Systems Safety"
+order: 1
+estimatedHours: 18
+slug: rust-ownership-borrowing-and-systems-safety
+---
+
+## A New Memory Model, Not Just a New Syntax
+
+Tier 2 gave you manual `malloc`/`free` and made you feel every leak and double-free by hand. Tier 3's C++ fixed the worst of that with RAII and smart pointers — but only as a *library* convention: nothing stops you from writing a class that gets the Rule of Three wrong, and the compiler will happily let a raw pointer alias a vector's backing store the instant you `push_back` into it. Rust takes the same problem — who owns this memory, and when is it safe to touch it — and moves the enforcement into the type system itself, checked entirely at compile time, with zero runtime cost. This module assumes you're fluent in pointers, heap allocation, and RAII already; the new material is how Rust's compiler statically proves the invariants you were previously trusting yourself (or a destructor) to maintain.
+
+## Ownership: Why Assignment Moves Instead of Copies
+
+A `String` in Rust is, under the hood, exactly the struct you'd write in C++: a pointer to heap data, a length, and a capacity, sitting on the stack. Bitwise-copying that struct — the default C++ behavior you saw break in Tier 3's `Buffer` example — produces two owners of the same heap allocation and a double free when both go out of scope. Rust's answer is to make that bitwise copy illegal by default. Assigning a non-`Copy` value doesn't duplicate it; it *moves* it, and the compiler statically forbids using the old binding afterward.
+
+```rust
+fn main() {
+    let s1 = String::from("hello");
+    let s2 = s1;               // s1's data is moved into s2
+    println!("{}", s1);        // compile error: value borrowed after move
+}
+```
+
+```text
+error[E0382]: borrow of moved value: `s1`
+  --> src/main.rs:4:20
+   |
+2  |     let s1 = String::from("hello");
+   |         -- move occurs because `s1` has type `String`, which does not implement the `Copy` trait
+3  |     let s2 = s1;
+   |              -- value moved here
+4  |     println!("{}", s1);
+   |                    ^^ value borrowed here after move
+```
+
+There is no double free here because there is, statically, only ever one owner: after the move, `s1` doesn't exist as a usable binding, full stop — checked before the program ever runs, not caught by a sanitizer after it crashes. This is the ownership rule in full: every value has exactly one owner at a time, and when the owner goes out of scope, the value is dropped (Rust's equivalent of the destructor firing).
+
+Two ways out when you don't want move semantics. First, `Copy`: small, stack-only types (`i32`, `bool`, `char`, tuples of `Copy` types) implement a marker trait that makes assignment perform a bitwise copy instead of a move, since duplicating them is cheap and safe:
+
+```rust
+let x = 5;
+let y = x;                     // i32 is Copy: this copies, doesn't move
+println!("{} {}", x, y);       // fine, both still valid
+```
+
+Second, `.clone()`, for when you explicitly want a deep copy of something that isn't `Copy`:
+
+```rust
+let s1 = String::from("hello");
+let s2 = s1.clone();           // explicit, visible heap allocation
+println!("{} {}", s1, s2);     // both valid
+```
+
+The important shift from what you know: in C++, copying is the silent default and you opt into moving with `std::move`. In Rust, moving is the silent default and you opt into copying — either implicitly via `Copy` for cheap types, or explicitly via `.clone()` when it costs something. That inversion is deliberate: it makes the expensive operation visible in the source and the safe one automatic.
+
+## Borrowing: `&`, `&mut`, and What the Checker Is Actually Protecting
+
+Moving ownership every time you want to pass data to a function would be unworkable, so Rust gives you references — borrows — that grant temporary access without transferring ownership. The rule the compiler enforces: at any point, you may have *either* any number of immutable borrows (`&T`) *or* exactly one mutable borrow (`&mut T`), never both at once.
+
+```rust
+fn main() {
+    let mut v = vec![1, 2, 3];
+    let first = &v[0];         // immutable borrow of v starts
+    v.push(4);                 // error: v borrowed mutably here...
+    println!("{}", first);     // ...while first, an immutable borrow, is still live
+}
+```
+
+```text
+error[E0502]: cannot borrow `v` as mutable because it is also borrowed as immutable
+```
+
+Read that error as a bug report, not an obstacle. `Vec::push` can trigger a reallocation: if capacity is exceeded, the vector allocates a new, larger buffer, copies the elements over, and frees the old one. `first` points at an element in the *old* buffer. In C++, this exact sequence — take a reference or iterator into a vector, then push into it — compiles cleanly and is undefined behavior: `first` may now dangle, and whether your program crashes, reads garbage, or "seems fine" depends on allocator luck. Rust's borrow checker isn't being pedantic here; it caught a real dangling-reference bug, the same class you'd have needed ASan or a very unlucky production incident to find in C++, and it caught it before the code ever ran.
+
+The rule isn't purely about lexical scope, either. Rust tracks a borrow's *actual last use* (this is called non-lexical lifetimes, NLL), so this compiles fine:
+
+```rust
+fn main() {
+    let mut v = vec![1, 2, 3];
+    let first = &v[0];
+    println!("{}", first);     // last use of `first` is right here
+    v.push(4);                 // fine: the borrow already ended
+}
+```
+
+Moving and borrowing interact, too, and this is where the checker catches use-after-move the same way it catches use-after-invalidate:
+
+```rust
+fn takes_ownership(s: String) { println!("{s}"); }
+
+fn main() {
+    let s = String::from("hi");
+    takes_ownership(s);        // s moved into the function, dropped at its end
+    println!("{s}");           // error: value used here after move
+}
+```
+
+The fix, as in any language, is to pass a borrow instead when the callee doesn't need ownership: `fn takes_ownership(s: &str)`, called as `takes_ownership(&s)`. Get comfortable with that instinct — "does this function need to *own* the data, or just *look at* it?" — because it's the question the borrow checker is constantly forcing you to answer explicitly, where C++ let you leave it implicit and hope.
+
+## Lifetimes: Reading the Annotations, Understanding the Errors
+
+References have to stay valid for as long as they're used — that's the whole borrow-checker deal — and for local variables the compiler can see the scopes and verify this itself. The trouble starts at function boundaries: given `fn longest(x: &str, y: &str) -> &str`, the compiler cannot tell, just from the signature, whether the returned reference's validity is tied to `x`, to `y`, or to neither. Lifetime parameters are how you tell it.
+
+```rust
+fn longest<'a>(x: &'a str, y: &'a str) -> &'a str {
+    if x.len() > y.len() { x } else { y }
+}
+```
+
+Read `<'a>` as "there's some scope, call it `'a`, and I'm asserting all three references share it." This is not a runtime concept — no lifetime exists in the compiled binary — it's purely a promise checked at compile time: *whatever region of code both `x` and `y` are valid for, the returned reference is valid for that same region too.* The compiler then verifies every call site actually satisfies that promise:
+
+```rust
+fn main() {
+    let result;
+    {
+        let s2 = String::from("world");
+        result = longest("hello", &s2);
+    }                           // s2 is dropped here
+    println!("{}", result);    // error: `s2` does not live long enough
+}
+```
+
+```text
+error[E0597]: `s2` does not live long enough
+  --> src/main.rs:5:31
+   |
+4  |     let s2 = String::from("world");
+   |         -- binding `s2` declared here
+5  |     result = longest("hello", &s2);
+   |                               ^^^ borrowed value does not live long enough
+6  |     }
+   |     - `s2` dropped here while still borrowed
+7  |     println!("{}", result);
+   |                    ------ borrow later used here
+```
+
+Translate the error literally: `result`'s lifetime was constrained to `'a`, and `'a` had to cover both inputs, and `s2` — one of those inputs — stopped existing at the closing brace, but `result` is still in use after that point. This is the same dangling-pointer bug as returning the address of a stack local from a function in C — Rust just refuses to let you write it, rather than letting you find out at runtime that the pointer now points at garbage.
+
+Most of the time you won't write lifetime annotations at all — the elision rules cover the common cases (a method borrowing `&self` and returning a borrow from it, for instance, is inferred automatically). You need this skill mainly for reading: when a signature has `'a` in it, and when the compiler says something "does not live long enough," you now know exactly what claim was violated and where to shorten a scope or restructure ownership to fix it.
+
+## `Result`, `Option`, and Traits vs. Exceptions and Multi-Return Errors
+
+You've seen two error-handling models already: C++ exceptions, where a `throw` can unwind an arbitrary number of stack frames invisibly (a function's signature tells you nothing about whether it can throw, though RAII at least guarantees destructors still run during unwinding), and Go's `(value, error)` multi-return, where nothing forces you to check the `error` you got back. Rust's approach is a third thing: errors are ordinary values, but the compiler makes ignoring them uncomfortable.
+
+```rust
+use std::io::{self, Read};
+
+fn read_config(path: &str) -> Result<String, io::Error> {
+    let mut f = std::fs::File::open(path)?;   // returns early on Err, converting the error
+    let mut contents = String::new();
+    f.read_to_string(&mut contents)?;
+    Ok(contents)
+}
+```
+
+`Result<T, E>` is a plain two-variant enum, `Ok(T)` or `Err(E)` — no unwinding, no hidden control-flow jump. The `?` operator is sugar: if the `Result` is `Err`, it returns that error immediately from the enclosing function (running any `From` conversion needed to match the function's own error type); if `Ok`, it unwraps to the value and execution continues. Unlike Go's convention, `Result` is `#[must_use]` — silently discarding one produces a compiler warning, so "forgot to check the error" is visible in code review or CI, not just a bug waiting in production. Unlike C++ exceptions, the possibility of failure is part of the function's *type*, visible at every call site, not an invisible side channel.
+
+`Option<T>` applies the same idea to absence: instead of a nullable pointer (the C `NULL` you had to remember to check, the C++ `nullptr` you had to remember to check), "might not have a value" is `Option<T>`, and there is no way to use the `T` inside without first handling the `None` case — `match`, `if let`, `.unwrap_or(default)`, or `?` inside a function that itself returns `Option`. A whole bug category — the null-pointer dereference — becomes a type error instead of a runtime crash.
+
+Traits are Rust's interfaces, and they're what make generic, error-handling code composable:
+
+```rust
+trait Summary {
+    fn summarize(&self) -> String;
+}
+
+struct Article { title: String, body: String }
+
+impl Summary for Article {
+    fn summarize(&self) -> String {
+        format!("{}: {}...", self.title, &self.body[..20.min(self.body.len())])
+    }
+}
+
+fn print_summary<T: Summary>(item: &T) {   // static dispatch: monomorphized per T
+    println!("{}", item.summarize());
+}
+
+fn print_summary_dyn(item: &dyn Summary) { // dynamic dispatch: vtable, one copy of the code
+    println!("{}", item.summarize());
+}
+```
+
+`print_summary` is closer to a C++ template: the compiler generates a specialized copy for each concrete type used, with the trait bound checked once at the generic function's definition (unlike a C++ template, you don't get a wall of errors from deep inside the function body if you pass a type that doesn't satisfy the bound — the trait bound itself fails clearly, at the call site). `&dyn Summary` is closer to a C++ virtual function through a base-class pointer: one compiled function, a vtable, runtime dispatch, and the ability to hold different concrete types behind the same reference. `std::error::Error` is a trait too, which is why library errors compose: real projects typically reach for the `thiserror` crate to derive custom error enums and `anyhow` for a catch-all error type in application code, rather than hand-rolling `String` errors the way the CLI tool below does for simplicity.
+
+## Cargo and the Crate Ecosystem
+
+Cargo is Rust's build system, package manager, and test runner in one binary, and it removes an entire category of pain you may recall from wiring up CMake by hand in Tier 3.
+
+```bash
+cargo new wordcount       # scaffolds Cargo.toml + src/main.rs, git-initialized
+cd wordcount
+cargo add clap --features derive   # adds a dependency, writes Cargo.toml
+cargo build                # compiles, resolving deps from crates.io
+cargo run -- --help        # builds (if needed) and runs, args after --
+cargo test                 # runs #[test]-annotated functions
+cargo build --release      # optimized build, target/release/
+```
+
+`Cargo.toml` declares dependencies by semantic-version range; `Cargo.lock` pins the exact resolved versions for reproducible builds — check the lockfile into version control for a binary, leave it out for a library so downstream crates resolve versions themselves. `crates.io` is the central registry (the npm/PyPI equivalent); `cargo doc --open` builds and opens the docs for your dependency tree locally. For multi-binary projects, a Cargo workspace (`[workspace]` in a root `Cargo.toml` listing member crates) shares one `Cargo.lock` and one `target/` directory across related crates — the closest analog to a monorepo of CMake subprojects, minus the hand-written glue.
+
+## Building It: A Small, Real CLI Tool
+
+A `wc`-style word counter, end to end — argument parsing via `clap`, file I/O via `Result` and `?`, and ownership/borrowing used the way you'd actually use them in a real tool.
+
+```toml
+# Cargo.toml
+[package]
+name = "wordcount"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+```
+
+```rust
+// src/main.rs
+use clap::Parser;
+use std::fs;
+use std::io::{self, Read};
+use std::path::PathBuf;
+use std::process::ExitCode;
+
+#[derive(Parser)]
+#[command(name = "wordcount", about = "Count lines, words, and bytes in files")]
+struct Args {
+    /// Files to count. Reads stdin if none are given.
+    files: Vec<PathBuf>,
+    /// Only print the line count
+    #[arg(short = 'l', long)]
+    lines_only: bool,
+}
+
+struct Counts { lines: usize, words: usize, bytes: usize }
+
+fn count(text: &str) -> Counts {
+    Counts {
+        lines: text.lines().count(),
+        words: text.split_whitespace().count(),
+        bytes: text.len(),
+    }
+}
+
+fn report(c: &Counts, label: &str, lines_only: bool) {
+    if lines_only {
+        println!("{:>7} {}", c.lines, label);
+    } else {
+        println!("{:>7} {:>7} {:>7} {}", c.lines, c.words, c.bytes, label);
+    }
+}
+
+fn run(args: &Args) -> Result<(), String> {
+    if args.files.is_empty() {
+        let mut text = String::new();
+        io::stdin().read_to_string(&mut text).map_err(|e| format!("stdin: {e}"))?;
+        report(&count(&text), "-", args.lines_only);
+        return Ok(());
+    }
+
+    let mut total = Counts { lines: 0, words: 0, bytes: 0 };
+    for path in &args.files {
+        let text = fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
+        let c = count(&text);                       // count borrows text, doesn't own it
+        report(&c, &path.display().to_string(), args.lines_only);
+        total.lines += c.lines;
+        total.words += c.words;
+        total.bytes += c.bytes;
+    }                                                  // each `text` dropped here, per iteration
+
+    if args.files.len() > 1 {
+        report(&total, "total", args.lines_only);
+    }
+    Ok(())
+}
+
+fn main() -> ExitCode {
+    let args = Args::parse();
+    match run(&args) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(e) => {
+            eprintln!("wordcount: {e}");
+            ExitCode::FAILURE
+        }
+    }
+}
+```
+
+Notice the shape of the ownership story: `fs::read_to_string` returns an owned `String` per file, `count` only ever borrows it (`&str`), and each `text` is dropped automatically at the end of its loop iteration — no explicit cleanup, no risk of a stale reference outliving the buffer, because the borrow checker would have rejected any code that tried to hold one past that point. `run` returning `Result<(), String>` and `main` translating `Err` into a nonzero `ExitCode` is the idiomatic Rust CLI pattern: errors propagate via `?` all the way up, and the *only* place a message gets printed and a process exit code gets chosen is `main`, once.
+
+## Exercise
+
+Extend `wordcount` with a `--max-line-length` flag: for each file, additionally report the length (in bytes) of its longest line. Add the field to `Counts`, compute it in `count`, and thread a new flag through `Args` and `report` the same way `lines_only` is threaded through now.
+
+Hint: `text.lines()` gives you an iterator of `&str`; you need the max of their lengths, defaulting sensibly for an empty file (an empty file has no lines, so decide what "longest line" should report and make that decision explicit rather than calling `.unwrap()` on a `None` from `.max()`).

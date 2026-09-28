@@ -1,0 +1,98 @@
+[
+  {
+    "id": "languages/tier-4/advanced-cpp-templates-move-semantics-and-concurrency/q1",
+    "type": "multiple_choice",
+    "prompt": "A C++ function template instantiated with int and double at different call sites results in:",
+    "choices": [
+      "Two separate compiled functions, generated at compile time for each concrete type",
+      "One generic function that branches on type at runtime, like Java generics with erasure",
+      "One function compiled once, using void* internally for both types",
+      "A compile error, since templates require explicit instantiation declarations"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-4/advanced-cpp-templates-move-semantics-and-concurrency/q2",
+    "type": "multiple_choice",
+    "prompt": "What does std::move(x) actually do at runtime?",
+    "choices": [
+      "Casts x to an rvalue reference; it performs no move itself",
+      "Immediately transfers x's resources to a temporary and destroys x",
+      "Calls x's move constructor and returns the new object",
+      "Marks x's memory as free for the allocator to reclaim"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-4/advanced-cpp-templates-move-semantics-and-concurrency/q3",
+    "type": "multiple_choice",
+    "prompt": "A class defines a custom destructor and copy constructor (to deep-copy a raw pointer) but declares no move constructor or move assignment operator. What happens when you write 'Widget b = std::move(a);'?",
+    "choices": [
+      "It silently falls back to the copy constructor, since declaring a copy constructor suppresses compiler-generated move operations",
+      "It fails to compile, since std::move requires a move constructor to exist",
+      "It performs a shallow bitwise move regardless of the missing move constructor",
+      "It throws a runtime exception on the first move attempt"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-4/advanced-cpp-templates-move-semantics-and-concurrency/q4",
+    "type": "multiple_choice",
+    "prompt": "Why does std::vector refuse to use a type's move constructor during reallocation unless that move constructor is marked noexcept?",
+    "choices": [
+      "A throwing move mid-reallocation could leave the vector in a state it can't safely recover from, so the vector falls back to copying instead",
+      "The noexcept keyword is required by the language for any move constructor to be callable at all",
+      "Non-noexcept moves are always slower than copies for STL containers",
+      "It's a stylistic convention with no functional effect on vector's behavior"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-4/advanced-cpp-templates-move-semantics-and-concurrency/q5",
+    "type": "multiple_choice",
+    "prompt": "Four std::threads each run a loop incrementing a shared, unsynchronized global int counter 100000 times each. What is true of the program?",
+    "choices": [
+      "It compiles and runs without error or warning, but counter's final value is unpredictable and usually not 400000",
+      "The compiler rejects the program because counter is not declared std::atomic",
+      "The result is always exactly 400000 because ++ is a single machine instruction",
+      "It causes a crash (segmentation fault) due to concurrent writes to the same address"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-4/advanced-cpp-templates-move-semantics-and-concurrency/q6",
+    "type": "multiple_choice",
+    "prompt": "How does Rust's approach to the data-race bug in the previous question fundamentally differ from C++'s?",
+    "choices": [
+      "Rust's borrow checker rejects the equivalent program at compile time via Send/Sync, while C++ compiles it silently and the bug only appears at runtime",
+      "Rust has no way to share mutable state across threads at all, so the comparison doesn't apply",
+      "Both languages catch the bug at compile time, but with different error message formats",
+      "Rust catches it at runtime via a mandatory garbage collector pause, same as C++'s sanitizers"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-4/advanced-cpp-templates-move-semantics-and-concurrency/q7",
+    "type": "multiple_choice",
+    "prompt": "For a simple shared integer counter incremented by multiple threads, which is both correct and generally faster than wrapping every increment in a std::mutex lock/unlock?",
+    "choices": [
+      "std::atomic<int> with fetch_add or ++, compiling to a single hardware atomic instruction",
+      "A std::vector<int> with one slot per thread, summed at the end with no synchronization needed",
+      "Removing synchronization entirely once the loop count is known in advance",
+      "std::condition_variable used to serialize increments one thread at a time"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-4/advanced-cpp-templates-move-semantics-and-concurrency/q8",
+    "type": "multiple_choice",
+    "prompt": "You run perf record -g on a C++ program and find the majority of samples land inside allocator and std::string::append calls rather than your own loop body. What does this indicate and what's the standard fix?",
+    "choices": [
+      "The string is being repeatedly reallocated as it grows; call .reserve() up front to avoid the repeated reallocations",
+      "The profiler is misattributing time due to inlining, and the result should be ignored",
+      "The program is CPU-bound on integer math, and switching to std::atomic would fix it",
+      "perf only measures wall-clock time, so this result says nothing about the actual bottleneck"
+    ],
+    "correctIndex": 0
+  }
+]

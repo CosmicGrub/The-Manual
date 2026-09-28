@@ -1,0 +1,206 @@
+---
+trackId: languages
+tier: 4
+title: "Contributing to Open Source at Scale"
+order: 6
+estimatedHours: 10
+slug: contributing-to-open-source-at-scale
+---
+
+## Where this picks up
+
+Tier 3 already got you through finding a small first issue and landing a PR against code you didn't write — that part is assumed here. This module is about a harder, more realistic case: a project with a real `CONTRIBUTING.md`, a CI pipeline that actually blocks merges, maintainers triaging a backlog, and a review process measured in days or weeks instead of minutes.
+
+## Read the contract before you read the code
+
+Every actively maintained project has an implicit (sometimes explicit) contract for contributors. Before you touch an editor, find and read:
+
+- `CONTRIBUTING.md` (or `docs/CONTRIBUTING.md`, `.github/CONTRIBUTING.md`)
+- `CODEOWNERS` — tells you who actually has to approve changes to the files you're about to touch
+- Any `GOVERNANCE.md` or "how decisions get made" doc
+- The last 10-15 *merged* PRs, not just the open ones — this tells you what a PR that actually lands looks like: how big, how it's described, how many review rounds it took
+
+A `CONTRIBUTING.md` on a serious project usually answers five questions. If it doesn't answer one, that's itself useful information (ask, don't guess):
+
+1. How do I build and test this locally, exactly?
+2. What must pass before a human will look at my PR?
+3. What's the commit/branch naming convention?
+4. Do commits need a sign-off (DCO) or is a CLA required?
+5. Who reviews what, and how do I request review?
+
+`CODEOWNERS` matters more than people expect. If you send a 400-line PR touching `src/parser/*` and `src/parser/` is owned by one person who reviews on Tuesdays, that's your real timeline — not "whenever CI goes green."
+
+## Reverse-engineer the CI pipeline, don't wait for it to fail
+
+The single biggest time-waster for new contributors on a large project is a push-wait-fail-fix-push-wait loop, burning both your time and shared CI minutes. Read the workflow files directly instead of guessing.
+
+```bash
+# find every CI config in the repo before writing a line of code
+find .github/workflows -name '*.yml' -o -name '*.yaml'
+```
+
+A typical Rust project's CI looks something like this:
+
+```yaml
+# .github/workflows/ci.yml
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        rust: [stable, beta]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.rust }}
+          components: rustfmt, clippy
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --all-targets --all-features -- -D warnings
+      - run: cargo test --all-features
+      - run: cargo build --release --locked
+```
+
+Read that top to bottom and you now know the *exact* local sequence that will predict CI's verdict, in order, before you push anything:
+
+```bash
+cargo fmt --all -- --check      # formatting, not `cargo fmt` — check-only, matches CI
+cargo clippy --all-targets --all-features -- -D warnings   # warnings are errors here
+cargo test --all-features
+cargo build --release --locked  # --locked: your Cargo.lock must match Cargo.toml exactly
+```
+
+Two details people miss constantly:
+
+- `cargo fmt --all -- --check` fails the build but doesn't reformat anything; plain `cargo fmt` mutates files. Run the check version to match CI, then the plain version to actually fix it.
+- `--locked` means "fail if `Cargo.lock` would change." If you added a dependency and didn't commit the updated lockfile, this is the job that catches you, and the error message from CI often looks unrelated to what you actually did.
+
+For a Go project the equivalent read-then-reproduce move looks like:
+
+```yaml
+- run: go vet ./...
+- run: gofmt -l .
+- run: golangci-lint run
+- run: go test -race ./...
+```
+
+```bash
+go vet ./...
+gofmt -l .            # non-empty output means unformatted files, exit code 0 regardless
+golangci-lint run
+go test -race ./...   # -race matters: races that never fail without it will fail in CI intermittently
+```
+
+Set this up as a pre-push habit, not a manual step you might forget:
+
+```bash
+# .git/hooks/pre-push (chmod +x)
+#!/usr/bin/env bash
+set -euo pipefail
+cargo fmt --all -- --check
+cargo clippy --all-targets --all-features -- -D warnings
+cargo test --all-features
+```
+
+This is a *local* hook — it isn't committed, isn't shared with other contributors, and won't survive a fresh clone. That's fine; it's there to save you round trips, not to enforce policy.
+
+## Getting review right, round after round
+
+On a small repo, review is often "LGTM, merged." On a real project, expect two to five rounds, each with substantive feedback. How you handle that determines whether maintainers want to review your next PR.
+
+**Open as a draft if you're not done.** GitHub's draft PR state tells maintainers "don't review yet, but here's visibility into what I'm doing" — useful when you want early architectural feedback without triggering a full review pass.
+
+**Write a PR description that answers the review before it's asked.** State what changed, why, how you tested it, and what you deliberately did *not* do:
+
+```markdown
+## What
+Fix reconnect logic doubling the backoff interval on every retry instead of
+resetting it after a successful connection.
+
+## Why
+Fixes #4821 — long-lived clients that flap briefly end up backed off by
+minutes even after the network recovers.
+
+## Testing
+Added a regression test (`test_backoff_resets_after_success`) and manually
+verified against a local server with `tc qdisc` packet loss injection.
+
+## Out of scope
+Did not touch the initial-connection backoff path — that's a separate,
+larger change and I didn't want to bundle it here.
+```
+
+**Reply to every review comment, even to just say "done" or "good catch, fixed in <commit>."** An unanswered comment reads as ignored, not resolved. If you disagree with a suggestion, say why concretely, don't just push back — "I kept it recursive because the tree depth is bounded at 12 by the parser, so the stack cost is fixed and small" is a real argument; "I think this is fine" is not.
+
+**Amend the right commit, not the latest one.** When round 2 of review asks for a change to something you wrote in commit 1 of a 4-commit PR, don't bolt a "fix review comments" commit onto the end — that makes the history unreadable and makes it look like you didn't actually address the root of the feedback.
+
+```bash
+# make the fix, stage it, then attach it to the commit it belongs to
+git add src/backoff.rs
+git commit --fixup=a1b2c3d      # a1b2c3d is the commit introducing the bug
+
+# fold every fixup! commit into its target, in one interactive rebase
+git rebase -i --autosquash origin/main
+```
+
+`--autosquash` reorders the rebase todo list so every `fixup!` commit is moved right after the commit it targets and marked to be squashed automatically — you just save and quit the editor, you don't have to hand-reorder anything.
+
+Then push the rewritten branch, not a new commit stacked on top:
+
+```bash
+git push --force-with-lease origin fix/backoff-reset
+```
+
+`--force-with-lease` refuses to push if the remote branch has commits you haven't seen (e.g., a maintainer pushed a small fix directly to your PR branch, which happens more than you'd expect on some projects). Plain `--force` overwrites blind. Always leave a short comment like "rebased to squash the fixups from the last round" so reviewers know a force-push is coming and isn't hiding new changes.
+
+## Landing the PR: the actual mechanics
+
+Getting "approved" is not the same as getting merged. On an active project:
+
+- **Rebase on current `main` right before merge**, not just when you opened the PR. A PR open for two weeks has almost certainly drifted.
+  ```bash
+  git fetch origin
+  git rebase origin/main
+  git push --force-with-lease
+  ```
+- **CI flakiness is real.** A red check unrelated to your diff (a network timeout in an unrelated test, a flaky matrix leg) is common on large suites. Don't immediately start "fixing" code that isn't broken — check whether the failure touches files you changed, and if not, ask a maintainer to re-run the job or push an empty commit / use the "re-run failed jobs" button if you have permission.
+- **Sign your commits if the project requires a DCO.** This is a `Signed-off-by:` trailer certifying you have the right to contribute the code, distinct from an actual GPG signature:
+  ```bash
+  git commit -s -m "backoff: reset interval after successful reconnect"
+  ```
+  If you forgot it on already-written commits:
+  ```bash
+  git rebase HEAD~3 --exec 'git commit --amend --no-edit --signoff'
+  ```
+- **Know your merge strategy going in.** Squash-merge is common on projects that want one clean commit per PR on `main` — in that case your *PR title and description* become the permanent commit message, so write them like a commit message, not like a comment to a reviewer. Rebase-merge or a real merge commit preserves your individual commits, in which case each one needs to build and pass tests on its own, since tools like `git bisect` will land on them individually.
+- **Understand maintainer bandwidth is the real bottleneck**, not your code quality. A green CI run and an approving review can still sit for a week because the maintainer who can merge is dealing with a release. Pinging once after a reasonable gap (a week of silence on an active project, longer on a slower one) with a plain "just checking this hasn't fallen off — anything you need from me?" is normal. Pinging daily is how you get quietly deprioritized.
+
+## Walkthrough: one PR, start to finish
+
+1. **Find the issue.** Not "good first issue" — a real bug report with a maintainer comment like "confirmed, would take a fix" or "agreed this needs to happen." That comment is your signal the work is wanted, not just tolerated.
+2. **Comment your plan before coding**, especially for anything touching a public API or more than one file: "Planning to fix this by resetting the backoff counter in `on_connect_success` rather than adding a timer — will that work with the retry queue changes in #4790?" This costs you a day of latency and saves you a rewritten PR.
+3. **Branch, implement, test locally against the exact CI commands** from the workflow file.
+4. **Open as ready-for-review** with a description matching the earlier example.
+5. **Round 1 review**: two comments — a naming nit and a real concern about a missed edge case (what happens if `on_connect_success` fires twice). You fix both, `--fixup` into the right commits, `rebase -i --autosquash`, force-push with a note.
+6. **Round 2 review**: approved, but CI is red — one matrix leg failed on an unrelated flaky test. You point this out in a comment rather than silently re-pushing; a maintainer re-runs the job.
+7. **Rebase on `main`** (three days have passed, `main` moved), force-push again.
+8. **Maintainer squash-merges** using your PR title as the commit message. Issue auto-closes because your PR description included `Fixes #4821`.
+
+Total elapsed time: eleven days. Total actual coding time: under two hours. That ratio is normal, not a sign anything went wrong.
+
+## Exercise
+
+Pick a project you genuinely use (not one you're inventing a reason to touch) with more than a few hundred stars and commits in the last month. Do the following without writing any application code yet:
+
+1. Read its `CONTRIBUTING.md` in full and locate its `CODEOWNERS` file if one exists.
+2. Find its CI workflow file(s) and write down, in order, the exact commands CI runs.
+3. Clone the repo fresh and reproduce every one of those commands locally, in order, on the unmodified `main` branch, so you know your baseline is clean before you change anything.
+4. Find an open issue with a maintainer comment confirming the bug or the desired change (not just a report sitting untouched) and post a short, concrete comment proposing your approach — then wait for a response before writing code.
+
+Hint: step 3 is the one people skip, and it's the one that saves you the most time — if a check fails on a clean `main` before you've changed anything, that's an environment problem, not a code problem, and you want to know that before it's mixed in with your diff.

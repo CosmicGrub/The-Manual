@@ -1,0 +1,98 @@
+[
+  {
+    "id": "languages/tier-4/performance-engineering-across-languages/q1",
+    "type": "multiple_choice",
+    "prompt": "In a release-mode benchmark, why can a function like `fn sum(data: &[u64]) -> u64 { data.iter().sum() }` appear to run in near-zero time if you just call it in a loop and discard the result?",
+    "choices": [
+      "The compiler can prove the result is never used and eliminate the call entirely (dead-code elimination)",
+      "The CPU cache warms up so the sum becomes free after the first iteration",
+      "Rust's `sum()` is lazy and never actually executes until the result is printed",
+      "The loop triggers tail-call optimization, replacing the sum with a constant"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-4/performance-engineering-across-languages/q2",
+    "type": "multiple_choice",
+    "prompt": "What does `std::hint::black_box` (Rust) or `benchmark::DoNotOptimize` (Google Benchmark) do in a microbenchmark?",
+    "choices": [
+      "Runs the code in a separate thread to avoid measurement overhead",
+      "Forces the optimizer to treat a value as if it could be observed externally, preventing it from being eliminated or hoisted away",
+      "Disables all compiler optimizations for the enclosing function",
+      "Adds a memory fence so the CPU cannot reorder instructions around it"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-4/performance-engineering-across-languages/q3",
+    "type": "multiple_choice",
+    "prompt": "For n = 16 elements, a sorted `std::vector` with binary search often beats `std::unordered_map` even though binary search is O(log n) and the map is O(1). What's the primary reason?",
+    "choices": [
+      "std::unordered_map has a bug that makes small maps slow",
+      "Binary search over 16 elements fits entirely in L1 cache with zero hashing overhead, while the hash map still pays a hash computation plus a pointer-chase into a likely-cold bucket on every lookup",
+      "O(log n) is mathematically faster than O(1) whenever n is small",
+      "std::vector always outperforms std::unordered_map regardless of size"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-4/performance-engineering-across-languages/q4",
+    "type": "multiple_choice",
+    "prompt": "Given a Go benchmark that allocates 1000 individual `*Point` values via `&Point{...}` in a loop, versus one that allocates a single `[]Point` of length 1000, what will `go test -bench=. -benchmem` most likely report?",
+    "choices": [
+      "Both report exactly 1 alloc/op, since Go's escape analysis merges them automatically",
+      "The individual-pointer version reports roughly 1000+ allocs/op and higher ns/op; the single-slice version reports about 1 alloc/op and lower ns/op",
+      "The single-slice version reports more allocs/op because slices always over-allocate capacity",
+      "Allocation counts are identical between the two; only bytes/op differs"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-4/performance-engineering-across-languages/q5",
+    "type": "multiple_choice",
+    "prompt": "Which `perf stat` counter most directly tells you whether a slowdown comes from poor cache behavior rather than simply executing more instructions?",
+    "choices": [
+      "instructions",
+      "cache-misses (relative to cache-references)",
+      "context-switches",
+      "page-faults alone"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-4/performance-engineering-across-languages/q6",
+    "type": "multiple_choice",
+    "prompt": "What is notable about the `pprof` profile format (`profile.proto`) that Go's `runtime/pprof` produces?",
+    "choices": [
+      "It only works with Go binaries compiled with cgo disabled",
+      "It's a de facto standard binary format that other languages' tooling, such as Rust's pprof-rs crate, also emits \u2014 so `go tool pprof` can visualize non-Go profiles too",
+      "It can only represent CPU profiles, never heap or memory profiles",
+      "It requires a live network connection to a Google profiling service to decode"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-4/performance-engineering-across-languages/q7",
+    "type": "multiple_choice",
+    "prompt": "In a generational GC like Go's, why does allocating 100,000 tiny 16-byte objects usually cost more than allocating one 1.6MB slice, even though total bytes allocated is roughly the same?",
+    "choices": [
+      "Small objects are always padded up to 1KB by the runtime allocator",
+      "The GC's mark phase must individually visit and scan every live object's pointers, so mark cost scales with object count, not just bytes \u2014 and a higher allocation rate also triggers GC cycles more often",
+      "Go's garbage collector refuses to free objects smaller than 64 bytes",
+      "Small allocations are automatically placed on a slower NUMA node"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-4/performance-engineering-across-languages/q8",
+    "type": "multiple_choice",
+    "prompt": "Why might py-spy give a truer picture of where a Python service spends time under real production load than cProfile?",
+    "choices": [
+      "py-spy is a sampling profiler that attaches to an already-running process from the outside with near-zero overhead, while cProfile instruments every function call/return and can itself distort timing in call-heavy code",
+      "cProfile only works under Python 2, making it irrelevant for modern services",
+      "py-spy rewrites the bytecode to execute faster, which cProfile is incapable of",
+      "cProfile can only profile calls into C extensions, not pure Python functions"
+    ],
+    "correctIndex": 0
+  }
+]

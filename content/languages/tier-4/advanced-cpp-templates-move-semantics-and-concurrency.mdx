@@ -1,0 +1,306 @@
+---
+trackId: languages
+tier: 4
+title: "Advanced C++: Templates, Move Semantics & Concurrency"
+order: 2
+estimatedHours: 14
+slug: advanced-cpp-templates-move-semantics-and-concurrency
+---
+
+## Compile-time polymorphism: templates
+
+Tier 3 gave you classes, RAII, the STL, and smart pointers — assume that's solid. What Tier 3's `std::vector<T>` and `std::unique_ptr<T>` glossed over is *how* that `<T>` works. It isn't runtime dispatch through a vtable, like a Java `List<Shape>` calling `shape.draw()` through an interface reference. It's the compiler generating a distinct, fully concrete function or class for every type you instantiate it with, before your program ever runs.
+
+### Function templates
+
+```cpp
+#include <iostream>
+
+template <typename T>
+T max_of(T a, T b) {
+    return (a > b) ? a : b;
+}
+
+int main() {
+    std::cout << max_of(3, 7) << "\n";          // instantiates max_of<int>
+    std::cout << max_of(3.14, 2.71) << "\n";    // instantiates max_of<double>
+    std::cout << max_of<std::string>("ab", "z") << "\n";
+}
+```
+
+Each call site with a new `T` causes the compiler to stamp out a fresh, monomorphized `max_of<int>`, `max_of<double>`, etc. There's no boxing, no indirection, no runtime type check — the generated code is as tight as if you'd hand-written `int max_of_int(int, int)`. Compare this to Java's generics, which are erased to `Object` and rely on the JIT and virtual dispatch at runtime; or to a C++ `virtual` function, which costs a vtable lookup per call. Templates trade compile time and binary size (each instantiation is separate code) for zero runtime dispatch cost.
+
+### Class templates
+
+```cpp
+template <typename T>
+class Stack {
+public:
+    void push(T value) { data_.push_back(std::move(value)); }
+    T pop() {
+        T value = std::move(data_.back());
+        data_.pop_back();
+        return value;
+    }
+    bool empty() const { return data_.empty(); }
+
+private:
+    std::vector<T> data_;
+};
+
+Stack<int> ints;
+ints.push(1);
+ints.push(2);
+
+Stack<std::string> strs;
+strs.push("hello");
+```
+
+`Stack<int>` and `Stack<std::string>` are entirely separate types at compile time — `sizeof`, member layout, and every generated method are specific to `T`. This is why a template error message is often a wall of text: you're seeing the failure of one specific instantiation, not a generic rule.
+
+### Constraining templates
+
+Before C++20, a bad instantiation (e.g., calling `max_of` on a type with no `operator>`) produced a cryptic error deep inside the template body. C++20 concepts let you state the requirement up front:
+
+```cpp
+#include <concepts>
+
+template <typename T>
+requires std::totally_ordered<T>
+T max_of(T a, T b) {
+    return (a > b) ? a : b;
+}
+```
+
+Now a bad call fails at the call site with a readable "constraint not satisfied" message instead of a stack trace through library internals. Treat concepts as documentation the compiler enforces — you'll want them on any template whose API isn't self-evident from its signature.
+
+Template specialization lets you override the generic behavior for a specific type:
+
+```cpp
+template <>
+const char* max_of<const char*>(const char* a, const char* b) {
+    return (std::strcmp(a, b) > 0) ? a : b;
+}
+```
+
+Without this, `max_of` on two `const char*` would compare pointer addresses, not string contents — a classic template footgun.
+
+## Move semantics and the Rule of Five
+
+Tier 3's Rule of Three (destructor, copy constructor, copy assignment) said: if you manage a resource, define all three or none. What it glossed over is that *every* pass-by-value, every `return`, every `vector::push_back` that grows the buffer was silently paying for a full copy — allocate, memcpy, free the old one — even when the source object was about to be discarded anyway.
+
+An rvalue reference (`T&&`) binds to a temporary — a value that has no name and is about to die. `std::move` doesn't move anything; it's just `static_cast<T&&>(x)`, a promise to the compiler that "you may cannibalize this object's guts, because I won't use it again."
+
+```cpp
+#include <cstring>
+#include <utility>
+
+class Buffer {
+public:
+    explicit Buffer(size_t size) : size_(size), data_(new char[size]) {}
+
+    // Copy constructor: allocates and duplicates — expensive.
+    Buffer(const Buffer& other) : size_(other.size_), data_(new char[other.size_]) {
+        std::memcpy(data_, other.data_, size_);
+        std::cout << "copy ctor\n";
+    }
+
+    // Move constructor: steals the pointer, leaves the source empty — O(1).
+    Buffer(Buffer&& other) noexcept : size_(other.size_), data_(other.data_) {
+        other.data_ = nullptr;
+        other.size_ = 0;
+        std::cout << "move ctor\n";
+    }
+
+    Buffer& operator=(const Buffer& other) {
+        if (this == &other) return *this;
+        delete[] data_;
+        size_ = other.size_;
+        data_ = new char[size_];
+        std::memcpy(data_, other.data_, size_);
+        return *this;
+    }
+
+    Buffer& operator=(Buffer&& other) noexcept {
+        if (this == &other) return *this;
+        delete[] data_;
+        data_ = other.data_;
+        size_ = other.size_;
+        other.data_ = nullptr;
+        other.size_ = 0;
+        return *this;
+    }
+
+    ~Buffer() { delete[] data_; }
+
+private:
+    size_t size_;
+    char* data_;
+};
+
+Buffer make_big_buffer() {
+    Buffer b(1'000'000);
+    return b;  // NRVO or move — not a copy
+}
+
+int main() {
+    Buffer a(1'000'000);
+    Buffer b = std::move(a);        // prints "move ctor" — a.data_ is now null
+    Buffer c = make_big_buffer();   // usually elided entirely (NRVO)
+}
+```
+
+Three details that trip people up:
+
+1. **`noexcept` on the move constructor matters.** `std::vector` will only use your move constructor during reallocation if it's marked `noexcept`; otherwise it falls back to copying, because a throwing move mid-reallocation would leave the vector in a corrupt, unrecoverable state.
+2. **A moved-from object must stay destructible and assignable**, just in an unspecified state. Don't read its old value; do expect its destructor to run safely (which is why `other.data_ = nullptr` matters — deleting `nullptr` is a no-op).
+3. **The Rule of Five**: if you write any of destructor, copy ctor, copy assignment, move ctor, or move assignment, you almost certainly need all five (or `= default` / `= delete` the ones you don't customize). Declaring only a copy constructor suppresses the compiler-generated move operations, silently downgrading every "move" of your type back into a copy — a real performance bug that produces no warning.
+
+### Perfect forwarding
+
+Templates and move semantics combine in generic factory functions. If you write a template that forwards its argument to a constructor, you want to preserve whether the caller passed an lvalue or an rvalue:
+
+```cpp
+template <typename T, typename... Args>
+std::unique_ptr<T> make(Args&&... args) {
+    return std::make_unique<T>(std::forward<Args>(args)...);
+}
+```
+
+`Args&&` here is a *forwarding reference* (not a plain rvalue reference — the distinction is that `T` is itself deduced), and `std::forward` conditionally casts back to rvalue only if the caller's argument was one. Without it, `args` inside the function body is always an lvalue (it has a name), so every call would copy instead of move.
+
+## Concurrency: std::thread and mutex
+
+Go, back in Tier 3, gave you goroutines and channels: "don't communicate by sharing memory; share memory by communicating." C++ gives you the opposite default — raw shared memory, with `std::thread` and `std::mutex` as opt-in discipline you must apply yourself. Nothing in the type system stops you from forgetting.
+
+```cpp
+#include <thread>
+#include <vector>
+#include <iostream>
+
+int counter = 0;
+
+void increment(int n) {
+    for (int i = 0; i < n; ++i) {
+        ++counter;  // DATA RACE: no synchronization
+    }
+}
+
+int main() {
+    std::vector<std::thread> threads;
+    for (int i = 0; i < 4; ++i) {
+        threads.emplace_back(increment, 100'000);
+    }
+    for (auto& t : threads) t.join();
+    std::cout << counter << "\n";  // almost never 400000
+}
+```
+
+Run this and you'll get a different wrong answer nearly every time — `++counter` is a read-modify-write, and four threads interleave those steps unpredictably. This compiles cleanly and gives no warning; the bug only shows up at runtime, and only sometimes.
+
+Fix it with `std::mutex` and `std::lock_guard` (RAII — the mutex unlocks automatically when the guard goes out of scope, even on exception):
+
+```cpp
+#include <mutex>
+
+int counter = 0;
+std::mutex counter_mutex;
+
+void increment(int n) {
+    for (int i = 0; i < n; ++i) {
+        std::lock_guard<std::mutex> lock(counter_mutex);
+        ++counter;
+    }
+}
+```
+
+Correct now, but locking per-increment is slow. For a simple counter, `std::atomic<int>` is both correct and faster, because it compiles to a single hardware atomic instruction instead of a full lock/unlock:
+
+```cpp
+#include <atomic>
+std::atomic<int> counter{0};
+// counter.fetch_add(1) or ++counter — both atomic, no mutex needed
+```
+
+**This is where the contrast with your other Tier 4 language matters.** Rust's borrow checker makes the `increment` bug above a *compile error*: a plain `int` shared across threads without a `Mutex<T>` or `Atomic*` wrapper doesn't implement `Sync`, and `std::thread::spawn` won't accept a closure that captures non-`Send`/`Sync` state without one. C++ has no such gate — `std::thread`, `std::mutex`, and raw shared variables are all just library types and conventions. The compiler will happily build and ship the race in the first example. Tools help close this gap after the fact: ThreadSanitizer (`-fsanitize=thread`) instruments your binary and flags races *at runtime, when they actually occur*, but it can't prove their absence the way Rust's type system does statically. Treat every shared mutable variable in C++ as a manual proof obligation — you are the borrow checker.
+
+## Profiling: finding where time actually goes
+
+Intuition about hot spots is frequently wrong. Measure before you optimize.
+
+```cpp
+// slow.cpp
+#include <vector>
+#include <string>
+#include <iostream>
+
+std::string build_report(const std::vector<int>& data) {
+    std::string report;
+    for (int x : data) {
+        report += std::to_string(x) + ",";  // reallocates repeatedly
+    }
+    return report;
+}
+
+int main() {
+    std::vector<int> data(2'000'000);
+    for (size_t i = 0; i < data.size(); ++i) data[i] = static_cast<int>(i);
+    std::string result = build_report(data);
+    std::cout << result.size() << "\n";
+}
+```
+
+Build with symbols and no aggressive inlining destroying your call stack:
+
+```bash
+g++ -O2 -g slow.cpp -o slow
+```
+
+**perf** (Linux, sampling profiler, low overhead — the standard tool now):
+
+```bash
+perf stat ./slow                # high-level: cycles, instructions, cache misses
+perf record -g ./slow           # samples the call stack
+perf report                     # interactive breakdown by function
+```
+
+`perf report` on this program shows the overwhelming majority of samples inside `std::string::append` / allocator calls, not in your loop logic — because `report += ... + ","` builds a temporary string, then reallocates `report`'s buffer on nearly every iteration as it grows past its capacity.
+
+**gprof** (older, instrumentation-based — needs a recompile with `-pg`, useful when `perf` isn't available or you want a call-graph with exact call counts):
+
+```bash
+g++ -O2 -pg slow.cpp -o slow_prof
+./slow_prof            # writes gmon.out
+gprof slow_prof gmon.out | head -30
+```
+
+gprof's flat profile gives you self-time per function; its call-graph section shows who called whom how many times — useful for spotting an accidentally quadratic call pattern that `perf`'s sampling might smear across many small frames.
+
+The fix, once you've identified the allocator as the bottleneck, is to reserve capacity up front:
+
+```cpp
+std::string build_report(const std::vector<int>& data) {
+    std::string report;
+    report.reserve(data.size() * 8);  // avoid repeated reallocation
+    for (int x : data) {
+        report += std::to_string(x);
+        report += ',';
+    }
+    return report;
+}
+```
+
+Re-run `perf stat`: instruction count and wall time both drop substantially, and `perf report` no longer shows the allocator dominating the profile. This is the actual workflow — profile, form a hypothesis about the cost, fix, re-profile to confirm — not guessing based on which code "looks slow."
+
+## Exercise
+
+Write a small thread pool that processes a shared work queue of tasks (model a task as a `std::function<void()>` or a simple struct). Requirements:
+
+- A fixed number of worker threads, started once, pulling from a shared `std::queue`.
+- Correct synchronization on the queue (a `std::mutex` plus a `std::condition_variable` to avoid busy-waiting workers).
+- A clean shutdown: workers should exit once told to stop and the queue is drained, not be killed mid-task.
+- Submit 10,000 trivial tasks (e.g., each increments a shared `std::atomic<long>` counter) and verify the final count is exactly 10,000.
+
+Then profile it with `perf stat` under 2 threads vs. 8 threads on your machine and explain, from the counters, why more threads didn't give you a proportional speedup for trivial tasks.
+
+**Hint:** `std::condition_variable::wait` takes a predicate overload — `cv.wait(lock, [&]{ return !queue.empty() || stopping; });` — which correctly handles spurious wakeups without a manual while-loop. Think about where contention on the single queue mutex becomes the bottleneck as thread count grows; that's the same class of problem the `perf stat` cache-miss and context-switch counters are built to expose.

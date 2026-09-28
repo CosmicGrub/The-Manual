@@ -213,3 +213,12 @@ All notable changes to The Manual (curriculum + app) are logged here. This file 
 - `assemble_tier_v2.py` now runs `html.unescape()` on every lesson body and every quiz prompt/choice before writing, instead of relying on a post-hoc grep-and-fix pass — closes the entity-escaping bug class at the tooling level rather than per-tier.
 
 **Status:** Language Mastery Tier 3 complete (66h, 6 lessons). Language Mastery is now 4/6 tiers content-complete (Tiers 0-3, 175h); Tiers 4-5 remain. `npm run build` passed clean (0 errors).
+
+## [0.14.0] — 2026-09-28 — Language Mastery Tier 4: complete (Advanced/Specialist level)
+
+**Context:** Continuing the tier-by-tier pattern. This tier's prompt added an explicit "do not HTML-escape" instruction to try to stop the entity-escaping issue at the source rather than the tooling; it did not fully work (a few agents still emitted `&amp;`/`&lt;`), which confirms `assemble_tier_v2.py`'s write-time `html.unescape()` fix from the previous commit is the right place for that guard, not agent-prompt wording alone.
+
+**Added**
+- `content/languages/tier-4/*.mdx` (6 files) + matching quizzes: Rust Ownership, Borrowing & Systems Safety (a genuinely new memory model, contrasted directly against Tier 2's manual malloc/free and Tier 3's RAII/smart pointers), Advanced C++: Templates, Move Semantics & Concurrency (going deep where Tier 3 stayed intro-level), Concurrency & Performance in Go (the real deep dive Tier 3's goroutines/channels module deliberately deferred), Advanced Shell & Systems Scripting (production-hardening Tier 1's basic Bash), Performance Engineering Across Languages (a cross-cutting capstone-flavored module spanning the whole track's languages), Contributing to Open Source at Scale (going beyond Tier 3's first-PR module into a real, actively-maintained project).
+
+**Status:** Language Mastery Tier 4 complete (70h, 6 lessons). Language Mastery is now 5/6 tiers content-complete (Tiers 0-4, 245h); only Tier 5 (Expert/Innovator) remains. `npm run build` passed clean (0 errors).

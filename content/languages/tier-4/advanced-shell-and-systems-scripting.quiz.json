@@ -1,0 +1,98 @@
+[
+  {
+    "id": "languages/tier-4/advanced-shell-and-systems-scripting/q1",
+    "type": "multiple_choice",
+    "prompt": "Under `set -o pipefail`, what is the exit status of `false | true`?",
+    "choices": [
+      "0, because the last command in the pipeline succeeded",
+      "Nonzero, because pipefail makes the pipeline fail if any stage fails",
+      "It depends on the shell's default IFS",
+      "1, always, regardless of which command failed"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-4/advanced-shell-and-systems-scripting/q2",
+    "type": "multiple_choice",
+    "prompt": "A script runs `grep -q pattern file.txt` inside `if grep -q pattern file.txt; then ... fi` with `set -e` active, and the pattern is not found. What happens?",
+    "choices": [
+      "The script aborts immediately because grep exited nonzero",
+      "The script continues normally; commands in an `if` condition don't trigger -e",
+      "Bash prints an 'unbound variable' error",
+      "The script hangs waiting for input"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-4/advanced-shell-and-systems-scripting/q3",
+    "type": "multiple_choice",
+    "prompt": "Which signal cannot be caught, blocked, or handled by a trap in the target process?",
+    "choices": [
+      "SIGTERM",
+      "SIGINT",
+      "SIGHUP",
+      "SIGKILL"
+    ],
+    "correctIndex": 3
+  },
+  {
+    "id": "languages/tier-4/advanced-shell-and-systems-scripting/q4",
+    "type": "multiple_choice",
+    "prompt": "Spot the bug: `rm -rf $BACKUP_DIR/*` where `BACKUP_DIR` is unset and `set -u` is NOT active. What is the most likely dangerous outcome?",
+    "choices": [
+      "The script fails immediately with a syntax error",
+      "Nothing happens; rm silently no-ops on an empty path",
+      "After word-splitting, the command effectively becomes `rm -rf /*`",
+      "Bash refuses to expand an unset variable in a path"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "languages/tier-4/advanced-shell-and-systems-scripting/q5",
+    "type": "multiple_choice",
+    "prompt": "In a systemd timer setup, what does `Persistent=true` in the `.timer` unit do?",
+    "choices": [
+      "Keeps the service running continuously instead of on a schedule",
+      "Runs the missed job on next boot if the machine was off at the scheduled time",
+      "Prevents the timer from ever being disabled",
+      "Persists the service's stdout to a log file"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-4/advanced-shell-and-systems-scripting/q6",
+    "type": "multiple_choice",
+    "prompt": "Why does a cron job that works fine when run manually from a terminal often fail when run by cron itself?",
+    "choices": [
+      "Cron runs scripts as root only, breaking permission-dependent logic",
+      "Cron jobs run with a minimal environment (limited PATH, no login shell) that the interactive shell doesn't have",
+      "Cron cannot execute scripts with a bash shebang",
+      "Cron always runs scripts with set -e forced on"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-4/advanced-shell-and-systems-scripting/q7",
+    "type": "multiple_choice",
+    "prompt": "What is the main risk of writing `#!/bin/sh` at the top of a script but using bash-only syntax like arrays or `[[ ]]` inside it?",
+    "choices": [
+      "The script will run slower than with #!/bin/bash",
+      "On systems where /bin/sh is dash or another POSIX shell (not bash), the script fails or behaves incorrectly",
+      "It will trigger a compiler warning at parse time",
+      "systemd will refuse to execute the script"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-4/advanced-shell-and-systems-scripting/q8",
+    "type": "multiple_choice",
+    "prompt": "Why does `systemctl stop` typically give a service a grace period before force-killing it, rather than killing it immediately?",
+    "choices": [
+      "It sends SIGTERM first so the process can trap it and shut down cleanly, only escalating to SIGKILL if it doesn't exit in time",
+      "systemd always waits 30 seconds for every stop by law of the init system",
+      "It needs time to flush the journal logs before sending any signal",
+      "SIGKILL requires a confirmation prompt from the user"
+    ],
+    "correctIndex": 0
+  }
+]

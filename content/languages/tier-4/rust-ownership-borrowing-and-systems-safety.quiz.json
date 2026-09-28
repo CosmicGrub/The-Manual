@@ -1,0 +1,98 @@
+[
+  {
+    "id": "languages/tier-4/rust-ownership-borrowing-and-systems-safety/q1",
+    "type": "multiple_choice",
+    "prompt": "Why does `let s2 = s1;` move s1 into s2 for a String, rather than copying it the way C++ assignment would?",
+    "choices": [
+      "Because String does not implement the Copy trait, so assignment transfers ownership instead of performing a bitwise copy",
+      "Because Rust always copies values under 24 bytes and moves anything larger",
+      "Because `let` bindings in Rust are references, never owned values",
+      "Because String is stored entirely on the stack, making a move cheaper than a copy would be"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-4/rust-ownership-borrowing-and-systems-safety/q2",
+    "type": "multiple_choice",
+    "prompt": "fn main() {\n    let mut v = vec![1, 2, 3];\n    let first = &v[0];\n    v.push(4);\n    println!(\"{}\", first);\n}\n\nWhat happens when this is compiled?",
+    "choices": [
+      "It compiles and prints 1",
+      "It compiles and prints 4",
+      "It fails to compile: v cannot be borrowed as mutable while it is also borrowed as immutable through `first`",
+      "It compiles but panics at runtime with an out-of-bounds index error"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "languages/tier-4/rust-ownership-borrowing-and-systems-safety/q3",
+    "type": "multiple_choice",
+    "prompt": "Which combination of borrows is Rust's borrow checker guaranteed to allow at the same point in a scope?",
+    "choices": [
+      "Any number of immutable borrows (&T), OR exactly one mutable borrow (&mut T) -- never both kinds at once",
+      "Exactly one borrow of any kind at a time, mutable or immutable",
+      "Any number of mutable borrows, as long as there are no immutable borrows",
+      "Unlimited borrows of both kinds, since borrow checking only happens at runtime"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-4/rust-ownership-borrowing-and-systems-safety/q4",
+    "type": "multiple_choice",
+    "prompt": "fn longest<'a>(x: &'a str, y: &'a str) -> &'a str {\n    if x.len() > y.len() { x } else { y }\n}\n\nfn main() {\n    let result;\n    {\n        let s2 = String::from(\"world\");\n        result = longest(\"hello\", &s2);\n    }\n    println!(\"{}\", result);\n}\n\nWhat happens when this is compiled?",
+    "choices": [
+      "It compiles and prints \"hello\"",
+      "It compiles and prints \"world\"",
+      "It fails to compile: `s2` does not live long enough, since result's lifetime is tied to both inputs but s2 is dropped before result is used",
+      "It compiles, but result holds an empty string after s2 is dropped"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "languages/tier-4/rust-ownership-borrowing-and-systems-safety/q5",
+    "type": "multiple_choice",
+    "prompt": "How does Rust's Result<T, E> differ from Go's (value, error) multi-return convention for handling failure?",
+    "choices": [
+      "Result is a single enum value the compiler marks #[must_use], so silently ignoring it produces a warning, rather than a second return value nothing forces you to check",
+      "Result behaves identically to Go's convention, just with different syntax for the same guarantees",
+      "Result can only be returned from functions that perform file or network I/O",
+      "Result unwinds the call stack the way a C++ exception does, while Go's error values never do"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-4/rust-ownership-borrowing-and-systems-safety/q6",
+    "type": "multiple_choice",
+    "prompt": "fn main() {\n    let x = 5;\n    let y = x;\n    println!(\"{} {}\", x, y);\n\n    let s1 = String::from(\"hi\");\n    let s2 = s1;\n    println!(\"{} {}\", s1, s2);\n}\n\nWhat happens when this is compiled?",
+    "choices": [
+      "It compiles cleanly and prints both lines",
+      "It fails to compile on the second println!: s1 was moved into s2 because String isn't Copy, while the first println! is fine because i32 is Copy",
+      "It fails to compile on both println! calls, since all assignment moves values in Rust",
+      "It compiles, but s1 prints as an empty string because moving a value clears the original binding"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-4/rust-ownership-borrowing-and-systems-safety/q7",
+    "type": "multiple_choice",
+    "prompt": "What does the `?` operator do when applied to a Result value inside a function?",
+    "choices": [
+      "If the Result is Err, it returns that error immediately from the enclosing function (converting it via From if needed); if Ok, it evaluates to the contained value",
+      "It suppresses any error and substitutes a default value so execution continues",
+      "It immediately panics if the Result is Err",
+      "It converts the Result into an Option, discarding the error entirely"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-4/rust-ownership-borrowing-and-systems-safety/q8",
+    "type": "multiple_choice",
+    "prompt": "What is the key practical difference between a function generic over `T: Summary` and one taking `&dyn Summary`?",
+    "choices": [
+      "There is no real difference; both compile to identical machine code",
+      "The generic version is monomorphized into a separate compiled copy per concrete type (static dispatch), while &dyn Summary uses a vtable for runtime dispatch and can hold different concrete types behind the same reference",
+      "&dyn Summary is always strictly faster because it avoids generating duplicate code",
+      "Generics can only be constrained by built-in types, never by user-defined traits like Summary"
+    ],
+    "correctIndex": 1
+  }
+]
