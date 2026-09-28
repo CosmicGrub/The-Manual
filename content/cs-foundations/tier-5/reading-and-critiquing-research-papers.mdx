@@ -1,0 +1,98 @@
+---
+trackId: cs-foundations
+tier: 5
+title: Reading & Critiquing Research Papers
+order: 1
+estimatedHours: 10
+---
+
+Every algorithm you've touched so far arrived pre-verified — a textbook, a professor, or a maintainer's CI had already confirmed it correct before it reached you. A research paper offers no such guarantee: peer review catches obvious nonsense, not a missing baseline, an overclaimed result, or a mechanism you only think you understand because the prose made it sound obvious. Learning to read papers well is really learning to run your own peer review, on demand, on material nobody pre-chewed for you — and it's the one skill this entire tier assumes you already have, because Module 2's research note, Module 3's upstream contributions, and Module 5's frontier content all hand you a real paper and expect you to extract something true from it.
+
+## What you'll leave this lesson knowing
+
+- How to use S. Keshav's three-pass reading method to decide, in under ten minutes, whether a paper is worth your afternoon — and how to stop after pass one without guilt when it isn't
+- How to name the specific failure modes real published ML papers actually fall into (speculation dressed as explanation, unattributed empirical gains, "mathiness," and loose language), instead of vaguely intuiting that "something feels off"
+- How to turn a paper's own equations and prose-pseudocode into working, numerically-verified code, using "Attention Is All You Need"'s scaled dot-product attention as the concrete target — and state its complexity precisely enough to see why it's a problem
+- How to use the Semantic Scholar Graph API and arXiv's own listings to trace a paper's lineage in both directions — what it built on, and what it later enabled — as an actual queryable graph instead of a vague sense of "related work"
+- How to write a structured, falsifiable critique of a real paper using Keshav's "five Cs," instead of a vague, unfalsifiable "I liked it" reaction
+
+## Do this
+
+1. **Read the reading method itself first.** S. Keshav, ["How to Read a Paper,"](https://doi.org/10.1145/1273445.1273458) *ACM SIGCOMM Computer Communication Review* 37(3), 2007. It's two pages, freely available (search the title — Waterloo's own site hosts a mirror), and it's the actual source of the strategy this lesson and the rest of this tier assume you already know. Extract two things into your own notes: the **three-pass method** — pass one (5-10 minutes: title, abstract, intro, section headings, conclusion, and a glance at the references, to decide category, context, and whether to continue), pass two (up to an hour: read the whole paper with care but skip proofs and derivations you can't verify quickly, noting figures and unfamiliar terms), pass three (several hours: mentally re-implement the paper as if you were doing the work yourself, and only now are you positioned to actually critique it) — and the **five Cs** Keshav proposes for evaluating any paper: **Category** (what kind of paper is this — new algorithm, measurement study, systems paper, theory?), **Context** (which other work does it build on or compete with?), **Correctness** (do the assumptions actually hold, and could you verify the central claim yourself?), **Contributions** (what specifically is new — and is there more than zero?), **Clarity** (is it well written, independent of whether it's important). You'll use both by name for the rest of this module.
+
+2. **Sharpen "Correctness" and "Clarity" with a real catalog of what goes wrong.** Read Zachary Lipton and Jacob Steinhardt's ["Troubling Trends in Machine Learning Scholarship"](https://arxiv.org/abs/1807.03341) (arXiv:1807.03341, presented at ICML 2018's Machine Learning Debates workshop and later run in *Communications of the ACM*) — it's short and directly on-theme for a lesson about critiquing papers, not just reading them. It catalogs recurring failure modes worth carrying into every future paper you read: mistaking speculation for explanation (a plausible-sounding story for *why* a method works, presented with the confidence of a tested hypothesis); failing to identify which specific change actually produced an empirical gain (a paper that changes five things at once and reports one number, with no ablation isolating which change mattered); "mathiness" (notation and formalism that dress up a simple idea as deeper theory than it is); and loose, anthropomorphic language that overstates what a result actually shows (a model doesn't "understand" anything just because a paper's prose says so). Keep this list next to Keshav's five Cs — you'll apply both to the same paper in step 7.
+
+3. **Practice pass one — triage, not reading — on three or four real, unread papers.** Pick from this list, all genuinely on-theme for this tier's checkpoint (algorithmic efficiency in ML systems), or substitute your own finds from [arXiv's cs.LG](https://arxiv.org/list/cs.LG/recent) or [cs.DS](https://arxiv.org/list/cs.DS/recent) listings:
+
+   - "Attention Is All You Need" (Vaswani et al., 2017) — [arXiv:1706.03762](https://arxiv.org/abs/1706.03762)
+   - "FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness" (Dao et al., 2022) — [arXiv:2205.14135](https://arxiv.org/abs/2205.14135)
+   - "The Lottery Ticket Hypothesis: Finding Sparse, Trainable Neural Networks" (Frankle & Carbin, 2018) — [arXiv:1803.03635](https://arxiv.org/abs/1803.03635)
+   - "Fast Inference from Transformers via Speculative Decoding" (Leviathan, Kalman & Matias, 2022) — [arXiv:2211.17192](https://arxiv.org/abs/2211.17192)
+
+   Give yourself a hard 10-minute cap per paper: title, abstract, introduction, section headings, and conclusion only — do not open the method or results sections, that restriction is the entire point of pass one. For each, write one sentence each for **category**, **context** (which specific prior work does it say it's building on or replacing?), and a plain yes/no on whether you'd commit an hour to pass two. This isn't a warm-up you can skip — it's the discipline that keeps you from losing a weekend to a paper that, on its first page, turns out not to be what you assumed.
+
+4. **Do a full pass two — and start pass three — on "Attention Is All You Need" specifically.** This paper is the one the rest of this module builds on, and it's also the direct ancestor of Module 5's FlashAttention material, so the deep read here pays off twice. Read the whole paper with attention to its figures (Figure 1's encoder-decoder stack; Figure 2's scaled dot-product and multi-head attention diagrams), letting yourself skip derivations you can't verify in the time budget. Keep a running list of every term you don't already know cold — you should hit "positional encoding," "layer normalization," and "residual connection" at minimum — and look each one up individually rather than pushing past it. Before moving on, read the paper's own related-work paragraphs and write down, in your own words, what it claims is genuinely new versus what it's explicitly building on (this is Keshav's Context and Contributions Cs, applied while the paper is still open in front of you, not reconstructed from memory later). Flag Section 3.2 ("Attention") as the part you're about to be forced to fully understand, because step 5 is pass three for real: a complete re-implementation, not a mental one.
+
+5. **Reproduce the paper's core algorithm from its own equations — not from a library, and not from someone else's blog-post reimplementation.** Section 3.2.1 defines scaled dot-product attention as `Attention(Q, K, V) = softmax(QKᵀ / √d_k) V`; Section 3.2.2 defines multi-head attention as running that computation in parallel across `h` linearly-projected subspaces, concatenating the results, and passing them through one more learned projection `W^O`. Implement both directly from that description, in plain NumPy, importing nothing that already knows what attention is:
+
+   ```python
+   import numpy as np
+
+   def scaled_dot_product_attention(Q, K, V, mask=None):
+       d_k = Q.shape[-1]
+       scores = Q @ np.swapaxes(K, -1, -2) / np.sqrt(d_k)
+       if mask is not None:
+           scores = np.where(mask, scores, -np.inf)
+       weights = np.exp(scores - scores.max(axis=-1, keepdims=True))  # subtract max: numerically stable softmax
+       weights /= weights.sum(axis=-1, keepdims=True)
+       return weights @ V
+
+   def multi_head_attention(X, Wq, Wk, Wv, Wo, num_heads):
+       batch, seq_len, d_model = X.shape
+       d_k = d_model // num_heads
+
+       def split_heads(Z):
+           Z = Z.reshape(batch, seq_len, num_heads, d_k)
+           return Z.transpose(0, 2, 1, 3)
+
+       Q, K, V = split_heads(X @ Wq), split_heads(X @ Wk), split_heads(X @ Wv)
+       heads = scaled_dot_product_attention(Q, K, V)
+       heads = heads.transpose(0, 2, 1, 3).reshape(batch, seq_len, d_model)
+       return heads @ Wo
+   ```
+
+   Then prove it wasn't a lucky-looking coincidence: build the same inputs in PyTorch and check your NumPy output against `torch.nn.functional.scaled_dot_product_attention` on identical data, asserting numerical agreement instead of eyeballing it.
+
+   ```python
+   import torch
+
+   def to_torch(x):
+       return torch.tensor(x, dtype=torch.float32)
+
+   Q, K, V = (np.random.randn(2, 4, 8, 16) for _ in range(3))  # batch, heads, seq, d_k
+   mine = scaled_dot_product_attention(Q, K, V)
+   ref = torch.nn.functional.scaled_dot_product_attention(to_torch(Q), to_torch(K), to_torch(V))
+   assert np.allclose(mine, ref.numpy(), atol=1e-5), "reimplementation disagrees with the reference"
+   print("scaled dot-product attention matches PyTorch's reference to within 1e-5")
+   ```
+
+   A reproduction you haven't checked against an independent implementation is a guess wearing a reproduction's clothes. Before moving on, state its complexity precisely, not just "it works": for sequence length `n`, `scores = Q @ Kᵀ` is an `n × n` matrix per head — O(n²) time to compute and O(n²) memory to hold, for *every* head, *every* layer. Print `scores.nbytes` for a sequence length of 1,024 versus 8,192 and confirm it grows quadratically, not linearly. That single fact — not an abstract complaint about "attention being slow" — is the precise reason Module 5's FlashAttention material exists at all: it's an algorithm for computing exactly this same mathematical result without ever materializing the full `n × n` matrix. Keep this code; Module 5 reuses it directly as the naive baseline it benchmarks the I/O-aware version against. (Optional cross-check: [paperswithcode.com's page for this paper](https://paperswithcode.com/paper/attention-is-all-you-need) links the official implementation and tracks later reproductions — useful for confirming your understanding of the architecture, not a substitute for building it yourself.)
+
+6. **Trace the paper's citation lineage in both directions, with real tools, not memory.** Query the [Semantic Scholar Graph API](https://api.semanticscholar.org/api-docs/graph) directly — no key required at this volume:
+
+   ```bash
+   curl "https://api.semanticscholar.org/graph/v1/paper/arXiv:1706.03762?fields=title,year,citationCount,references.title,references.year"
+   curl "https://api.semanticscholar.org/graph/v1/paper/arXiv:1706.03762/citations?fields=title,year,citationCount,influentialCitationCount&limit=50"
+   ```
+
+   **Backward:** confirm the paper's own reference list includes Bahdanau, Cho & Bengio's ["Neural Machine Translation by Jointly Learning to Align and Translate"](https://arxiv.org/abs/1409.0473) (arXiv:1409.0473 — the paper that introduced attention as a learned alignment mechanism) and Luong, Pham & Manning's ["Effective Approaches to Attention-based Neural Machine Translation"](https://arxiv.org/abs/1508.04025) (arXiv:1508.04025 — the paper whose multiplicative/dot-product attention "Attention Is All You Need" scales and builds on directly). **Forward:** sort the citations response by `citationCount` and confirm you can find Dao et al.'s "FlashAttention" (arXiv:2205.14135) in the list — a real citation edge connecting this module to Module 5's frontier content, not a coincidence of syllabus design. Note the separate `influentialCitationCount` field: it's Semantic Scholar's own estimate of citations that meaningfully build on the paper, as opposed to a passing mention in a related-work paragraph — a genuinely useful filter once a paper has thousands of raw citations. As a visual, no-code cross-check on the same lineage, run the paper through [Connected Papers](https://www.connectedpapers.com/) and compare its graph layout against what the raw API gave you.
+
+7. **Write a one-page critique using Keshav's five Cs as literal section headings, informed by step 2's failure-mode catalog.** Category, Context, Correctness, Contributions, Clarity — one paragraph each, on "Attention Is All You Need" or whichever paper you carried through pass three. Your Correctness paragraph must cite something specific from your own step-5 reproduction — did the numbers actually validate what the paper claims the mechanism computes, or are you still taking part of it on faith? Your Clarity paragraph should name at least one spot where the paper risks a Lipton-and-Steinhardt failure mode (for instance: does it isolate which architectural choice — attention itself, versus the positional encoding, versus removing recurrence — drives the reported gains, or does it report one aggregate number for several simultaneous changes?). A critique that never touches your own hands-on verification, or never engages with a real failure mode instead of a generic compliment, is exactly the "I read it once and have opinions" mode this lesson exists to train you out of. Keep this critique — it's a direct input to this tier's Module 2 (choosing a research problem) and to the checkpoint's written research-note requirement.
+
+## Check on learning
+
+Quizzes are retired at this tier — every check below is peer- or mentor-reviewed, not self-graded.
+
+- Have a peer, mentor, or study partner read your five-Cs critique from step 7 and answer, from the Correctness and Clarity paragraphs alone: can they tell exactly what you verified numerically versus what you're still taking on the paper's word, and can they name the specific failure mode you flagged? If they can't, it isn't specific enough yet.
+- Explain-back, live and without notes: walk a peer through the scaled dot-product attention formula, why the `1/√d_k` scaling term exists (what breaks numerically without it, at large `d_k`), why the operation is O(n²) in sequence length, and how you actually know your NumPy reimplementation is correct rather than merely runnable.
+- Show a peer or mentor your citation-lineage trace from step 6 and have them independently re-derive the same backward/forward path using only Semantic Scholar or arXiv themselves — if they land somewhere different, walk through exactly where and why your paths diverged.

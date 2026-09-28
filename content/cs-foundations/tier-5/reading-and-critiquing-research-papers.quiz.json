@@ -1,0 +1,21 @@
+[
+  {
+    "id": "cs-foundations/tier-5/reading-and-critiquing-research-papers/q1",
+    "type": "short_answer",
+    "prompt": "What is the title of the 2007 paper by S. Keshav, published in ACM SIGCOMM Computer Communication Review, that introduces the three-pass method this lesson's reading strategy is built on?",
+    "acceptedAnswers": [
+      "How to Read a Paper",
+      "\"How to Read a Paper\""
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-5/reading-and-critiquing-research-papers/q2",
+    "type": "explain_back",
+    "prompt": "Write a one-page critique of \"Attention Is All You Need\" (or the paper you carried through this lesson's pass three) structured under Keshav's five Cs — Category, Context, Correctness, Contributions, Clarity — as literal section headings, one paragraph each. The Correctness section must cite specific evidence from your own NumPy reproduction of scaled dot-product attention, not just restate the paper's claims, and the Clarity section must name a specific Lipton-and-Steinhardt-style failure mode (speculation-as-explanation, an unattributed empirical gain, mathiness, or loose language) the paper risks or avoids. Have a peer or mentor evaluate it against this rubric: (1) each of the five Cs is addressed specifically, with concrete detail from the paper, not generic filler; (2) Correctness clearly distinguishes what you personally verified numerically from what you're taking on faith; (3) it includes at least one concrete, answerable question you would ask the authors."
+  },
+  {
+    "id": "cs-foundations/tier-5/reading-and-critiquing-research-papers/q3",
+    "type": "explain_back",
+    "prompt": "Without notes, explain to a peer or mentor: (a) how you traced \"Attention Is All You Need\"'s citation lineage both backward (to Bahdanau et al. 2014 and/or Luong et al. 2015) and forward (toward Dao et al.'s FlashAttention) using the Semantic Scholar Graph API, and (b) how your scaled dot-product attention reimplementation works well enough that they could independently reproduce your numerical validation against a reference PyTorch implementation. Have them flag any point where your explanation didn't hold up to a follow-up question, and note here what, if anything, you had to go back and fix."
+  }
+]
