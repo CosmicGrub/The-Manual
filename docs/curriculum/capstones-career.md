@@ -14,9 +14,9 @@ This is the synthesis track — it teaches no language and no single domain, it 
 
 **Goal:** LIGHT TIER, by design: at Tier 0 the learner has no domain fundamentals yet from any other track, so no real capstone is possible or honest to assign. Instead this tier builds the meta-infrastructure everything later depends on — version-control literacy, a public presence, a habit of documenting one's own learning, and a first honest look at the six specialization branches and what a tech career/portfolio even looks like — so that Tier 1's first capstone has somewhere real to land.
 
-**Modules** (~13h):
+**Modules** (~11h):
 
-- **Git & GitHub Literacy** — ~4h: what version control solves and why it exists, repo/commit/branch/merge vocabulary, fork vs. clone, pull requests and issues as conversations, not just code, writing a README, choosing an open-source license
+- **Open-Source Etiquette & Licensing** — ~2h: assumes CS Foundations Tier 0's git basics — adds what this track specifically needs: pull requests and issues as conversations (not just code), writing a README that sells a project to a stranger, choosing an open-source license
 - **Building Your "Learning OS"** — ~3h: a personal knowledge base (plain markdown + git, or a tool like Obsidian), a dev journal habit: what you tried, what broke, what you learned, tagging/linking notes so they compound over tiers, why writing things down beats re-learning them twice
 - **The Specialization Map** — ~3h: overview of the six branches: security/red-blue team, data engineering, robotics/IoT, game dev, ML research, systems/compilers, reading a 'day in the life' account or talk for each branch, what kind of thinker each branch tends to reward, building a first-pass ranked list of interest (to be revisited, not locked in)
 - **Career Literacy 101** — ~3h: what a tech portfolio is and isn't, reading real job postings to reverse-engineer required skills, resume and LinkedIn basics (structure, not polish yet), the difference between a tutorial-follower and a portfolio project
@@ -86,7 +86,7 @@ This is the synthesis track — it teaches no language and no single domain, it 
 
 **Modules** (~34h):
 
-- **Cross-Track Capstone #2** — ~10h: combining 2-3 tracks' Tier-2 material into one independent project, picking a project that visibly connects to a specialization interest, no hand-holding: you scope, build, and debug it yourself
+- **Cross-Track Capstone #2** — ~10h: combining 2-3 tracks' Tier-2 material — typically **CS Foundations + Language Mastery + Software Engineering** Tier 2 (the "bedrock trio"), since those are the tracks most learners have reached by now — into one independent project, picking a project that visibly connects to a specialization interest, no hand-holding: you scope, build, and debug it yourself
 - **DS&A Practice Sprint 1** — ~10h: sorting and searching algorithms and their tradeoffs, recursion, stacks, queues, and linked lists, ~30 solved problems, tracked, with post-mortems on the ones you got wrong
 - **Open Source 101** — ~6h: anatomy of a real repo: CONTRIBUTING.md, CODE_OF_CONDUCT, issue templates, how to find a genuinely good first issue, the fork -> branch -> PR -> review -> merge loop end to end, handling review feedback without taking it personally
 - **Specialization Deep-Dive Intro** — ~8h: pick one of the six branches based on your Tier-1 taster results, foundational reading/docs for that branch, one guided mini-project inside it, slightly beyond a tutorial
@@ -121,7 +121,7 @@ This is the synthesis track — it teaches no language and no single domain, it 
 
 **Modules** (~76h):
 
-- **Cross-Track Capstone #3** — ~20h: a multi-component project: API + frontend + persistence, or a game with a save system, or a small data pipeline, pulling from 3+ tracks at Tier-3 depth, deploying it somewhere real, not just running it locally
+- **Cross-Track Capstone #3** — ~20h: a multi-component project: API + frontend + persistence, or a game with a save system, or a small data pipeline, pulling from 3+ tracks at Tier-3 depth — commonly **CS Foundations + Language Mastery + Software Engineering + Platforms** Tier 3 for an API+frontend+persistence app, or swap in **AI/ML** Tier 3 for an AI-feature-centric capstone — deploying it somewhere real, not just running it locally
 - **DS&A Pattern Mastery** — ~20h: trees and graphs (traversals, BFS/DFS), heaps and priority queues, intro dynamic programming, the common interview 'patterns' (two pointers, sliding window, binary search on answer)
 - **Sustained Open-Source Contribution** — ~15h: picking one real project to stay with, not a different one each time, reading a large unfamiliar codebase without panicking, landing 3+ merged PRs across the tier, responding to maintainer pushback constructively
 - **Specialization Selection + Applied Project** — ~15h: confirming (or changing) your primary specialization branch based on real evidence from Tiers 1-2, an applied, intermediate-difficulty project inside it, connecting the specialization work back into Capstone #3 where possible

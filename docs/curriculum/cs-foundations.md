@@ -4,6 +4,8 @@ _Part of [The Manual](../../MASTERFILE.md) — track `cs-foundations`. Tier numb
 
 This is the bedrock track of The Manual: computational thinking, discrete math, algorithms & data structures, complexity/Big-O, and the algebra/stats/logic primer every other track (web, mobile, systems, hardware, security, AI/ML) quietly depends on. Unlike some tracks in this curriculum, no tier here is "light" — this track is designed to run at full depth from Tier 0 through Tier 5, because it IS the rigor the other seven tracks borrow. The one deliberate scoping choice: Tier 4's "Advanced Algorithms Specialization" module offers three alternate deep-dive paths (competitive-programming algorithms, compilers/PL theory, or theory-of-computation) rather than forcing all three — full compiler construction and deep systems/OS work are intentionally left to their own dedicated tracks elsewhere in The Manual, so this track goes deep on algorithmic and mathematical reasoning rather than becoming a systems track in disguise. A single teaching language (Python) carries Tiers 0-2 for maximum focus; Tier 3 deliberately introduces a second, statically-typed language purely for conceptual contrast, not as a switch of primary language.
 
+**Canonical ownership (see MASTERFILE.md §4.5):** this track is the sole canonical owner of general Tier-0 computer/terminal/git literacy, the full math spine (linear algebra, probability/stats, calculus, discrete math — including the information-theory and convex-optimization/numerical-stability extensions below), and OOP *concepts*. Every other track's Tier 0 assumes this track's Tier 0 is done, and AI/ML's Tier 1 applies this track's math rather than re-deriving it.
+
 **How this feeds AI/prompting literacy:** This track is the difference between "prompting by vibes" and prompting like an engineer. Big-O reasoning explains WHY LLM context windows are expensive and quadratic-in-length attention exists (so you learn to write short, structured prompts and use retrieval/chunking instead of dumping walls of text). Discrete logic and proof-writing (Tier 1-2) train you to treat a prompt as a formal spec with preconditions/postconditions — the same discipline you use to debug code is what you use to debug a bad AI answer (reproduce it, isolate the variable, don't just re-roll). Complexity theory (Tier 3-4: P vs NP, NP-hardness, approximation) teaches you what is fundamentally, provably hard — so you stop expecting an LLM to reliably "just solve" NP-hard scheduling/optimization/routing problems exactly, and instead prompt it correctly for a heuristic, a decomposition, or a verifiable partial solution. DP and graph-search algorithms are literally the mechanics under decoding strategies (beam search, greedy sampling), so understanding them demystifies what "the model is doing" when it generates text. Every tier's "prompting drills" creative method (get an AI to help solve X, then verify its reasoning against ground truth) is deliberately embedded here first, because this track supplies the ground truth to check the AI against.
 
 **How this transfers across platforms (PC/mobile/web/embedded):** A hash table is a hash table whether it's a Python dict on a server, a Swift Dictionary in an iOS app, a JS Map in a browser, or a C struct on a microcontroller — the reasoning taught here (Big-O, data structure choice, recursion/stack depth, memory layout) transfers unchanged across PC, mobile, web, and embedded targets, which is exactly why it's the FIRST track rather than being folded into any one platform track. Tier 3's deliberate second language (a statically-typed one) is chosen specifically so the learner has already felt a type system and a compiler before hitting Swift/Kotlin/Java in the mobile track or C/Rust in the systems/hardware track. Tier 4's performance-engineering module (cache-aware algorithms, profiling, benchmarking discipline) maps directly onto why the same "correct" algorithm can be fine on a desktop and yet drain a phone's battery, blow a serverless function's timeout, or overrun a microcontroller's RAM — the complexity math doesn't change, only the constraints do. Recursion and stack-depth understanding here is exactly why mobile apps crash with "stack overflow" on deep recursion, and graph/BFS-DFS fluency here is the same algorithm used for routing on a website, pathfinding in a mobile game, and dependency resolution in a build system. This track deliberately produces platform-agnostic reasoning so every later, platform-specific track can move fast without re-teaching fundamentals.
@@ -50,7 +52,7 @@ This is the bedrock track of The Manual: computational thinking, discrete math, 
 
 **Goal:** Build real, tightly-scaffolded fluency in one teaching language (Python) — variables, control flow, functions, core data structures, basic I/O and error handling — while starting the parallel math track (algebra refresher, intro probability/statistics) and discrete math (logic, sets) that Big-O and later proofs will depend on.
 
-**Modules** (~66h):
+**Modules** (~68h):
 
 - **Python Core Syntax** — ~10h: variables and types, arithmetic and string operations, input/output, conditionals (if/elif/else), operators and truthiness
 - **Loops & Iteration** — ~8h: for vs while loops, iterating over sequences, break/continue, common off-by-one bugs
@@ -59,7 +61,7 @@ This is the bedrock track of The Manual: computational thinking, discrete math, 
 - **Working with Text & Files** — ~6h: string methods and formatting, reading/writing files, try/except basic error handling
 - **Math Primer: Algebra & Functions Refresher** — ~8h: linear equations, exponents and logarithms, function notation, graphing intuition (foundation for later Big-O graphs)
 - **Discrete Math I: Logic & Sets** — ~10h: propositional logic and truth tables, direct proof and contrapositive intuition, set operations, functions and relations basics
-- **Intro to Probability & Statistics** — ~8h: mean, median, variance, basic probability rules, why this matters for algorithm analysis and later ML
+- **Intro to Probability & Statistics** — ~10h: mean, median, variance, basic probability rules, why this matters for algorithm analysis and later ML, plus an information-theory primer (bits as a measure of uncertainty, entropy, cross-entropy — the same "bits" from Tier 0's number systems now measuring information instead of storage, and the direct prerequisite for AI/ML's loss-function material)
 
 **Quizzes / assessment:**
 
@@ -96,7 +98,7 @@ This is the bedrock track of The Manual: computational thinking, discrete math, 
 - **Sorting & Searching** — ~10h: binary search, bubble/insertion/merge/quicksort implemented from scratch, empirical benchmarking vs predicted Big-O
 - **Discrete Math II: Induction, Recursion & Combinatorics** — ~10h: proof by induction, recurrence relations linked to recursive algorithms, permutations and combinations
 - **Graph Theory Fundamentals** — ~8h: adjacency list vs matrix representations, breadth-first and depth-first search, connectivity and shortest unweighted path
-- **Object-Oriented Thinking** — ~8h: classes and objects, encapsulation, basic inheritance vs composition, when OOP helps vs. adds needless ceremony
+- **Object-Oriented Thinking** — ~8h: classes and objects, encapsulation, basic inheritance vs composition, when OOP helps vs. adds needless ceremony (this is the canonical conceptual treatment of OOP in The Manual — Language Mastery and Software Engineering both build on these concepts rather than re-teaching them)
 - **Testing & Debugging Discipline** — ~6h: unit testing with pytest, writing tests alongside code, using a real debugger (breakpoints, stepping), reading stack traces
 - **Small Independent Projects** — ~15h: Advent-of-Code-style daily problem solving, a maze solver using BFS/DFS, a simple hash-table-backed cache
 
@@ -128,7 +130,7 @@ This is the bedrock track of The Manual: computational thinking, discrete math, 
 
 **Goal:** Handle intermediate real-world patterns: divide-and-conquer, dynamic programming, greedy algorithms, and an intro to complexity classes (P vs NP); organize genuine multi-file projects; read other people's codebases; and pick up a second, statically-typed language purely for contrast — plus enough linear algebra/calculus to be ML-ready later.
 
-**Modules** (~80h):
+**Modules** (~84h):
 
 - **Divide & Conquer + Recursion Mastery** — ~10h: master theorem intuition, merge sort and quickselect, recursive tree problems
 - **Dynamic Programming** — ~12h: memoization vs tabulation, classic problems: knapsack, longest common subsequence, edit distance, recognizing DP-shaped problems
@@ -137,7 +139,7 @@ This is the bedrock track of The Manual: computational thinking, discrete math, 
 - **Multi-File Project Architecture** — ~10h: organizing modules and packages, separation of concerns, dependency management (venv/poetry), design patterns where they actually help (strategy, factory)
 - **Reading Real Codebases** — ~8h: navigating a mid-size open-source repo, grep/ctags/IDE code navigation, tracing execution paths, reading commit history and PRs to recover design intent
 - **Second Language for Contrast** — ~12h: a statically-typed language (Go, Java, or Rust) far enough to compare type systems, compiled vs interpreted execution, paradigm contrast with Python
-- **Math Primer II: Linear Algebra & Calculus Basics for ML-Readiness** — ~10h: vectors and matrices, dot product and matrix multiplication, derivative intuition as rate of change
+- **Math Primer II: Linear Algebra & Calculus Basics for ML-Readiness** — ~14h: vectors and matrices, dot product and matrix multiplication, derivative intuition as rate of change, plus convex optimization intuition (why gradient descent provably converges for convex functions, local vs. global minima) and numerical stability basics (floating-point error accumulation, why a mathematically-equivalent formula can be numerically unstable) — this is the complete math foundation AI/ML's Tier 1 builds on directly, not a preview of it
 
 **Quizzes / assessment:**
 

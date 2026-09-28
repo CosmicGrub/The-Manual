@@ -50,10 +50,10 @@ This track is where "I can write code" turns into "I can build and maintain syst
 **Modules** (~37h):
 
 - **Git Deep Dive: Branching, Merging & Collaboration** — ~6h: Feature branches; merge vs. rebase, Resolving merge conflicts by hand, Pull requests and review etiquette, Issues, labels, and linking commits to issues
-- **Intro to Automated Testing** — ~6h: What a unit test is and why manual testing doesn't scale, Arrange-Act-Assert pattern, Using a real test runner (pytest, Jest, or JUnit), First look at test doubles: stub vs. mock
+- **Intro to Automated Testing** — ~6h: (canonical testing/TDD-philosophy module for The Manual — Language Mastery's testing content is runner-syntax only and points here for philosophy) What a unit test is and why manual testing doesn't scale, Arrange-Act-Assert pattern, Using a real test runner (pytest, Jest, or JUnit), First look at test doubles: stub vs. mock
 - **Functions, Modules & Clean Code Basics** — ~5h: Single Responsibility at the function level, Naming, DRY, avoiding magic numbers, Intro to code smells (long functions, deep nesting, duplicated logic)
-- **Relational Databases & SQL Fundamentals** — ~8h: Tables, rows, primary/foreign keys, SELECT / WHERE / JOIN / GROUP BY / ORDER BY, Normalization basics (1NF-3NF), Using a real client (psql/DBeaver) against a local Postgres or SQLite DB
-- **Building & Consuming a Basic REST API** — ~8h: HTTP verbs, status codes, headers, JSON, Calling a public API from code, Building a minimal CRUD API (Flask or Express), Basic request validation and error responses
+- **Relational Databases & SQL Fundamentals** — ~8h: (canonical SQL module for The Manual — see MASTERFILE.md §4.5; Language Mastery's Tier 2 only covers calling SQL from a driver/ORM and points here for query/schema depth) Tables, rows, primary/foreign keys, SELECT / WHERE / JOIN / GROUP BY / ORDER BY, Normalization basics (1NF-3NF), Using a real client (psql/DBeaver) against a local Postgres or SQLite DB
+- **Building & Consuming a Basic REST API** — ~8h: (this module's HTTP coverage is for API-building purposes only; for the TCP/IP/DNS protocol theory underneath, see Hardware & Computer Systems Tier 3, the canonical deep networking module) HTTP verbs, status codes, headers, JSON, Calling a public API from code, Building a minimal CRUD API (Flask or Express), Basic request validation and error responses
 - **Intro to NoSQL** — ~4h: Document stores vs. relational tables, When to reach for NoSQL vs. SQL, Basic CRUD in MongoDB, Schema-on-read vs. schema-on-write
 
 **Quizzes / assessment:**
@@ -121,7 +121,7 @@ This track is where "I can write code" turns into "I can build and maintain syst
 
 **Goal:** Work at the scale of real systems: multi-file, multi-service thinking, clean/hexagonal architecture, contract and end-to-end testing, deliberate API design (not just "it works"), polyglot persistence, and — critically — reading and contributing to code you did not write. Code review shifts from a checkpoint gimmick to a practiced discipline.
 
-**Modules** (~54h):
+**Modules** (~51h):
 
 - **Clean Architecture & Hexagonal Design** — ~10h: Separating domain / application / infrastructure layers, Dependency inversion in practice (ports & adapters), Why this makes the same core logic swappable behind a REST API, CLI, or mobile SDK
 - **End-to-End & Contract Testing** — ~8h: Test pyramid: unit vs. integration vs. e2e trade-offs, Browser/API e2e basics (Playwright or Cypress-style), Contract testing between two services, Diagnosing and fixing flaky tests
@@ -129,7 +129,7 @@ This track is where "I can write code" turns into "I can build and maintain syst
 - **Polyglot Persistence** — ~8h: Combining relational + document store + cache (Redis) in one system, Choosing the right store per data shape, Transactions vs. eventual consistency — a first taste
 - **Reading & Contributing to Open Source** — ~8h: Navigating a large unfamiliar codebase (entry points, tests-as-docs), Finding and scoping a good-first-issue, Writing a real PR and responding to maintainer feedback
 - **Code Review as a Practiced Discipline** — ~5h: What to look for beyond "does it work", Giving specific, actionable, kind feedback, Using a review checklist consistently
-- **Intro to CI & Automated Quality Gates** — ~5h: GitHub Actions basics: running tests/linters on push, Branch protection rules, Failing a build on coverage or lint regressions
+- **What CI Is (Just Enough to Work on a Team)** — ~2h: (deliberately light — DevOps Tier 2 is the canonical deep CI/CD module in The Manual; this is only enough to understand what gates your PRs) GitHub Actions basics: running tests/linters on push, branch protection rules, reading a failed build's output
 
 **Quizzes / assessment:**
 

@@ -12,11 +12,10 @@ This track takes a learner from "what is a bit, physically" to designing their o
 
 ## Tier 0: Orientation & Literacy
 
-**Goal:** By the end of Tier 0 the learner is comfortable in a terminal on their own machine, can convert fluently between binary/hex/decimal and explain two's complement, can name and describe the role of every major component inside a real computer, understands voltage/current/resistance well enough to work safely with low-voltage DC, and has a working truth-table-level grasp of AND/OR/NOT/XOR. This tier is deliberately light on two things and says so explicitly: assembly language (zero exposure — it requires Tier 1's boolean-logic foundation first) and networking (zero exposure — it requires Tier 3's OS foundation). Everything here is literacy and safety, not building.
+**Goal:** General terminal/OS literacy is assumed complete from CS Foundations Tier 0 and is not re-taught here. By the end of this tier the learner can convert fluently between binary/hex/decimal and explain two's complement, can name and describe the role of every major component inside a real computer, understands voltage/current/resistance well enough to work safely with low-voltage DC, and has a working truth-table-level grasp of AND/OR/NOT/XOR. This tier is deliberately light on two things and says so explicitly: assembly language (zero exposure — it requires Tier 1's boolean-logic foundation first) and networking (zero exposure — it requires Tier 3's OS foundation). Everything here is literacy and safety, not building.
 
-**Modules** (~28h):
+**Modules** (~22h, plus general terminal/OS literacy assumed complete from CS Foundations Tier 0 — see MASTERFILE.md §4.5):
 
-- **Terminal & OS Literacy** — ~6h: navigating a shell (bash and PowerShell), files, directories, and paths, processes as a concept (what 'running' means), installing and configuring a code editor, basic SSH
 - **Number Systems & Boolean Basics** — ~8h: binary, octal, hexadecimal, and decimal, two's complement signed integers, ASCII and a first look at Unicode, truth tables for AND/OR/NOT/XOR, bits, nibbles, bytes, words
 - **What's Actually Inside a Computer** — ~5h: CPU, RAM, storage, motherboard, GPU, PSU and their roles, von Neumann vs. Harvard architecture at a glance, safe PC disassembly and ESD precautions, reading a spec sheet without being fooled by marketing numbers
 - **Electricity Fundamentals & Lab Safety** — ~6h: voltage, current, resistance, Ohm's law, breadboard layout basics, multimeter use (continuity, voltage, resistance), safe practice with low-voltage DC only, circuit simulation before touching real components
@@ -132,7 +131,7 @@ This track takes a learner from "what is a bit, physically" to designing their o
 - **Operating Systems: Processes, Threads & Scheduling** — ~20h: process vs. thread, context switching, scheduling algorithms (round robin, CFS overview), mutexes and semaphores, reading real scheduler code
 - **Operating Systems: Memory Management & Filesystems** — ~20h: virtual memory and paging, page tables and TLBs, malloc internals, inodes and journaling filesystems
 - **Build Your Own OS Kernel (xv6)** — ~25h: reading MIT's xv6 source end to end, adding a syscall, running under QEMU with GDB attached
-- **Networking Fundamentals: TCP/IP, DNS, HTTP** — ~20h: OSI vs. TCP/IP model, IP addressing and subnetting, TCP handshake and basic congestion control, DNS resolution, HTTP request/response, raw socket programming, packet capture with Wireshark
+- **Networking Fundamentals: TCP/IP, DNS, HTTP** — ~20h: (this is the canonical deep networking module for The Manual — see MASTERFILE.md §4.5; Software Engineering and DevOps teach only their applied HTTP-for-APIs and networking-for-ops angles and point here for full protocol depth) OSI vs. TCP/IP model, IP addressing and subnetting, TCP handshake and basic congestion control, DNS resolution, HTTP request/response, raw socket programming, packet capture with Wireshark
 - **Real-Time & Networked Embedded Systems** — ~18h: RTOS concepts (FreeRTOS tasks, priorities, ISRs), adding Wi-Fi/MQTT to an ESP32 project, I2C/SPI sensor fusion
 - **Assembly & C in Systems Context** — ~12h: reading real context-switch assembly, calling conventions across ABI boundaries, objdump, gdb, strace, ltrace on real binaries
 
@@ -204,7 +203,7 @@ This track takes a learner from "what is a bit, physically" to designing their o
 
 ## Tier 5: Expert / Innovator
 
-**Goal:** By the end of Tier 5 the learner can design a novel (or meaningfully remixed) systems component, contribute upstream at a maintainer-recognized level, mentor others through earlier tiers, and read current architecture/systems research with an informed, critical eye. This tier is explicitly scoped: literal semiconductor fabrication and VLSI research are out of reach for a self-learner without a fab and six-to-seven-figure tooling, so 'invent, don't just apply' is channeled into the genuinely reachable 2026 frontier — FPGA-realized novel cores, reproduced published research, and real OS/RTOS subsystem design.
+**Goal:** Per The Manual's uniform Tier-5 assessment policy (MASTERFILE.md §4.5), traditional quizzes are retired here in favor of portfolio/peer/maintainer review — everything below is a judged, practical artifact, not a recognition test. By the end of Tier 5 the learner can design a novel (or meaningfully remixed) systems component, contribute upstream at a maintainer-recognized level, mentor others through earlier tiers, and read current architecture/systems research with an informed, critical eye. This tier is explicitly scoped: literal semiconductor fabrication and VLSI research are out of reach for a self-learner without a fab and six-to-seven-figure tooling, so 'invent, don't just apply' is channeled into the genuinely reachable 2026 frontier — FPGA-realized novel cores, reproduced published research, and real OS/RTOS subsystem design.
 
 **Modules** (~130h):
 

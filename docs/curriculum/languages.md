@@ -14,12 +14,12 @@ Track: Programming Language Mastery. A deliberate polyglot path from absolute-be
 
 **Goal:** Get comfortable with the terminal, git, and the 'what is code, really' mental model, and stand up a working multi-language development environment. This tier is intentionally LIGHT on general computer/digital literacy (files, folders, what a CPU/OS does) — that groundwork is assumed to live in a separate Computer Science & Systems Foundations track. Here the focus narrows specifically to what a polyglot programmer needs before touching real syntax: a working shell, a working editor/debugger, working toolchains for multiple languages, and working version control.
 
-**Modules** (~27h):
+**Modules** (~23h):
 
 - **The Command Line & Filesystem Mental Model** — ~6h: shell prompt & navigation (cd/ls/pwd), absolute vs relative paths, file permissions & the PATH variable, stdin/stdout/stderr and pipes/redirection, reading man pages / --help
 - **Editor & Debugger Setup** — ~4h: installing VS Code + language extensions, integrated terminal, attaching a debugger and setting breakpoints, workspace settings & extensions per language
 - **What Code Actually Is: Interpreters vs Compilers vs VMs** — ~4h: source code to machine code pipeline, interpreted (Python/JS) vs compiled (C/C++/Rust/Go) vs bytecode-VM (Java/C#), why 'hello world' behaves differently per language family
-- **Version Control Literacy with Git & GitHub** — ~6h: init/add/commit/push/pull, branches & .gitignore, resolving a merge conflict by hand, writing a real README
+- **Polyglot Repo Conventions** — ~2h: assumes CS Foundations Tier 0's "Git Day Zero" (init/commit/push/branches) is complete; this module adds only what a multi-language codebase needs beyond that — per-language `.gitignore` conventions, monorepo vs. polyrepo tradeoffs for multi-language projects
 - **Installing & Managing Toolchains** — ~4h: pyenv/python.org, nvm/node, rustup, apt/Homebrew/winget package managers, verifying installs & troubleshooting PATH issues across Windows/macOS/Linux
 - **Hello, World Across Five Languages (Rosetta Stone Lab)** — ~3h: writing & running hello world in Python, Node/JS, C, Java, Bash, spotting syntax-family resemblances, first contact with compiling (gcc) vs running (python/node) vs a build tool (javac+java)
 
@@ -85,13 +85,13 @@ Track: Programming Language Mastery. A deliberate polyglot path from absolute-be
 
 **Goal:** Work independently on small projects without hand-holding. Deepen Python into real OOP and stdlib fluency, add static typing via TypeScript, take the first real step into a systems language (C) with pointers and manual memory, and pick up SQL and testing discipline.
 
-**Modules** (~51h):
+**Modules** (~41h):
 
-- **Intermediate Python: OOP & Standard Library** — ~10h: inheritance & dunder methods, decorators & context managers, itertools/collections/dataclasses
+- **Intermediate Python: OOP & Standard Library** — ~10h: assumes CS Foundations Tier 2's OOP concepts (classes, inheritance, composition) are already understood — this module is Python's *syntax* for them (dunder methods, decorators & context managers) plus itertools/collections/dataclasses
 - **TypeScript Fundamentals** — ~8h: adding static types atop JS, interfaces & basic generics, tsconfig and compiling TS to JS
 - **Introduction to C: Memory & Pointers** — ~14h: the stack/heap memory model, pointers, arrays, and structs, manual memory management (malloc/free), compiling with gcc/clang and a basic Makefile
-- **SQL Foundations** — ~8h: SELECT/WHERE/JOIN/GROUP BY, basic schema design & primary/foreign keys, using SQLite and Postgres locally
-- **Testing & Debugging Practices** — ~6h: unit tests with pytest and Jest, writing good assertions, basic TDD: red-green-refactor
+- **Calling SQL From Your Language** — ~3h: query/schema depth is Software Engineering Tier 1's job (canonical owner, see MASTERFILE.md §4.5) — this module covers only the driver/ORM layer: Python's `sqlite3` and SQLAlchemy basics, Node's `pg`/Prisma equivalents
+- **Test-Runner Mechanics** — ~4h: TDD philosophy (red-green-refactor, why it works) is Software Engineering's job — this module covers only the language-specific runner syntax: pytest fixtures/assertions, Jest `describe`/`it`/`expect`
 - **Package & Build Tooling Literacy** — ~5h: pip + venv + requirements.txt, npm + package.json + semantic versioning, Makefiles as a build-automation concept that recurs in C/C++/Go
 
 **Quizzes / assessment:**

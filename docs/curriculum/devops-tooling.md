@@ -12,16 +12,14 @@ This track turns a self-learner into someone who can take code from a laptop to 
 
 ## Tier 0: Orientation & Literacy
 
-**Goal:** Give an absolute beginner real fluency with a terminal, a filesystem, and a working dev environment, plus a correct mental model of what 'code,' 'a variable,' and 'a server' actually are. NOTE ON WEIGHT: unlike other tracks where Tier 0 is a light on-ramp, this tier is intentionally substantial for the DevOps track — CLI mastery is a named focus of this whole track, not a prerequisite to rush through.
+**Goal:** NOTE ON WEIGHT (per MASTERFILE.md §4.5): general terminal/filesystem/git literacy is CS Foundations Tier 0's job and is assumed complete before this tier — this is NOT a from-scratch re-teach. What makes this tier "heavier" than other tracks' light Tier 0s is deliberate and explicit: CLI mastery is this whole track's home turf, so this tier goes straight past basics into ops-specific depth (professional piping/redirection patterns, WSL2 for a real Linux environment, the client-server/cloud mental model, permissions and processes from an operations angle) that no other track teaches at all.
 
-**Modules** (~24h):
+**Modules** (~15h):
 
-- **What a computer is actually doing** — ~3h: files vs. programs vs. processes, the OS as a resource manager, PATH and environment variables, binary/text file distinction
-- **Terminal fundamentals** — ~6h: shell basics (bash/zsh), navigating the filesystem (cd, ls, pwd, mv, cp, rm), pipes and redirection, man pages and --help, keyboard-only workflow
-- **Editor & environment setup** — ~4h: VS Code + core extensions, integrated terminal, installing package managers (apt/homebrew/winget), WSL2 setup for Windows users
-- **Version control literacy** — ~4h: what version control solves, git/GitHub account and SSH key setup, clone/commit/push vocabulary (concept only, not workflow yet)
+- **Terminal Fluency for Ops** — ~4h: assumes cd/ls/pwd/mkdir basics from CS Foundations — goes straight to ops-relevant depth: pipes and redirection chains, man pages and --help as a research habit, keyboard-only workflow, WSL2 setup for Windows users (a real Linux environment, not a toy)
 - **Client-server and 'the cloud,' demystified** — ~3h: client vs. server, what a server actually is (a computer, always-on), IaaS/PaaS/SaaS in plain language, what 'deploying' means
-- **Files, permissions, and processes on a real machine** — ~4h: file permissions basics, what a running process is, opening/using a free-tier cloud shell for the first time
+- **Files, Permissions & Processes, the Ops Angle** — ~4h: file permissions in a multi-user/server context (not just "your own laptop"), what a running process is from an operations perspective, opening/using a free-tier cloud shell for the first time
+- **Environment Setup for Ops Work** — ~4h: package managers beyond a single dev machine (apt/homebrew/winget at ops scale), installing package managers, verifying a reproducible setup a teammate could follow
 
 **Quizzes / assessment:**
 
@@ -56,7 +54,7 @@ This track turns a self-learner into someone who can take code from a laptop to 
 - **GitHub collaboration workflows** — ~5h: forks and pull requests, issues and project boards, branch protection basics, first real open-source PR
 - **Bash scripting fundamentals** — ~8h: variables and quoting, conditionals and loops, functions and exit codes, reading arguments, basic error handling with set -e
 - **Linux fundamentals for developers** — ~10h: filesystem hierarchy standard, permissions (chmod/chown, octal notation), processes and signals (ps, kill, jobs), package management (apt/yum), systemd basics: starting/stopping a service
-- **Networking basics for developers** — ~6h: IP addresses, DNS, ports, HTTP request/response basics, curl and wget, localhost vs. remote, SSH fundamentals
+- **Networking basics for developers** — ~6h: (applied, ops-focused angle only — Hardware & Computer Systems Tier 3 is the canonical deep networking module, see MASTERFILE.md §4.5) IP addresses, DNS, ports, HTTP request/response basics, curl and wget, localhost vs. remote, SSH fundamentals
 - **First contact with containers** — ~6h: VM vs. container distinction, installing Docker, docker run / ps / logs / exec, images vs. containers
 - **First contact with the cloud** — ~5h: provisioning a free-tier VM (AWS EC2/GCP Compute Engine/Azure VM), SSH-ing into a real remote machine, shutting it down responsibly (cost awareness from day one)
 
@@ -93,7 +91,7 @@ This track turns a self-learner into someone who can take code from a laptop to 
 
 - **Dockerizing a real application** — ~10h: writing a correct Dockerfile, multi-stage builds for smaller images, docker-compose for multi-container local dev, volumes and networking between containers
 - **Container registries and image hygiene** — ~4h: pushing to Docker Hub / GitHub Container Registry, tagging strategy (latest vs. semver vs. git SHA), image size and layer-caching optimization
-- **CI/CD fundamentals with GitHub Actions** — ~10h: workflow YAML syntax, build/test/deploy stages, caching dependencies, secrets in CI, triggering on PR vs. push vs. tag
+- **CI/CD fundamentals with GitHub Actions** — ~10h: (this is the canonical CI/CD module for The Manual — see MASTERFILE.md §4.5; Software Engineering Tier 3 only covers what CI is, just enough to work on a team, and points here to actually build a pipeline) workflow YAML syntax, build/test/deploy stages, caching dependencies, secrets in CI, triggering on PR vs. push vs. tag
 - **Deploying a container to the cloud** — ~8h: choosing a target (Cloud Run / ECS Fargate / Azure Container Apps), environment variables and config at deploy time, rolling back a bad deploy
 - **Infrastructure as Code, first pass (Terraform)** — ~10h: providers and resources, terraform plan/apply/destroy, state file basics, variables and outputs
 - **Basic observability** — ~6h: structured (JSON) logging vs. print debugging, shipping logs to CloudWatch/Cloud Logging, a real health-check endpoint

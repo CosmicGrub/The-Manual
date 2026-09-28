@@ -14,10 +14,10 @@ This track takes a learner from "what is a terminal" to shipping and architectin
 
 **Goal:** LIGHT TIER for this track, deliberately: general computer literacy (what is a variable, what is a file, what is RAM) is owned by the Foundations/CS-Systems track, so this tier does not re-teach it. Its only job is to orient the learner to the *platform landscape* specifically — terminal fluency, git, and a working mental model of what a browser/OS/mobile-OS/cloud-server each are and how they differ — so Tier 1 onward makes sense without conceptual confusion about 'which computer is doing the work.'
 
-**Modules** (~22h):
+**Modules** (~16h):
 
 - **Command Line & Dev Environment Setup** — ~6h: terminal navigation (cd, ls, mkdir, pwd, mv, rm), installing VS Code and useful extensions, installing Node.js/npm and a package manager (Homebrew/apt/winget), PATH and environment variables, installing platform SDKs later needs (preview only, not hands-on yet)
-- **Version Control Basics with Git & GitHub** — ~8h: git init/add/commit/push/pull, branches and basic merging, creating a GitHub account and repo, cloning and forking, .gitignore, resolving a simple merge conflict
+- **Platform-Specific Repo Conventions** — ~2h: assumes CS Foundations Tier 0's git basics are complete — adds only what shipping to multiple platforms needs: `.gitignore` templates per platform (node_modules, build artifacts, mobile signing keys), git-lfs for binary app assets
 - **The Platform Landscape** — ~4h: browser runtime vs operating system vs mobile OS vs cloud server, client vs server, compiled vs interpreted vs JIT execution (conceptual, no coding), what 'cross-platform' actually trades off, app stores vs web distribution vs package managers
 - **Your First Program on Every Surface (Guided Tour, No Building)** — ~4h: viewing a hello-world webpage in a browser + inspecting it with DevTools, running a hello-world script in a terminal, watching a mobile app run in an emulator, watching a desktop app window launch, spotting the family resemblance between all four
 
