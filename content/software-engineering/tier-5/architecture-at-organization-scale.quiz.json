@@ -1,0 +1,98 @@
+[
+  {
+    "id": "software-engineering/tier-5/architecture-at-organization-scale/q1",
+    "type": "multiple_choice",
+    "prompt": "According to Steve Yegge's account of Jeff Bezos's internal API mandate at Amazon (recounted in \"Stevey's Google Platforms Rant\"), what was the core requirement placed on every team?",
+    "choices": [
+      "Every team must migrate to Java within one year",
+      "Teams must expose their data and functionality only through service interfaces, with no direct back-door access to another team's data store",
+      "Every internal service must be released as an open-source project",
+      "Teams must buy rather than build all of their infrastructure"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-5/architecture-at-organization-scale/q2",
+    "type": "multiple_choice",
+    "prompt": "A small startup needs enterprise SSO/SAML working within six weeks to close a deal, and SSO is not something that differentiates their product from competitors. Using the build-vs-buy criteria from the lesson, which choice is best supported?",
+    "choices": [
+      "Buy a narrow SSO/SCIM product (like WorkOS or Clerk) because it optimizes for time-to-market and inherited compliance on a capability that isn't a differentiator",
+      "Roll their own SAML implementation from scratch, since owning the code always minimizes long-term risk",
+      "Self-host Keycloak, since it's free and therefore always the lowest-cost option",
+      "Postpone the deal until a full internal identity platform can be built in-house"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "software-engineering/tier-5/architecture-at-organization-scale/q3",
+    "type": "multiple_choice",
+    "prompt": "Why did GitHub build its own custom code-search engine (Blackbird), described in their March 2023 engineering blog, instead of continuing to scale Elasticsearch for github.com code search?",
+    "choices": [
+      "Elastic discontinued the open-source license GitHub depended on",
+      "GitHub's exact-match and regex search requirements at their scale had outgrown what a general-purpose search product could serve efficiently",
+      "A data-residency law required GitHub to remove all third-party search vendors",
+      "Elasticsearch could not be run inside a Kubernetes cluster"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-5/architecture-at-organization-scale/q4",
+    "type": "multiple_choice",
+    "prompt": "Spotify's Backstage (open-sourced 2020, now a CNCF project) is used in the lesson as a good developer-experience example because of its 'golden path' templates. What specifically makes this good DX, contrasted with a ticket-gated infrastructure request?",
+    "choices": [
+      "It lets engineers self-service scaffold a new service \u2014 with CI, deploy pipeline, and catalog entry wired up \u2014 in minutes, instead of waiting days on a manually reviewed ticket",
+      "It requires every engineer to use the exact same programming language for all services",
+      "It replaces the need for any platform team to exist",
+      "It is primarily a chat tool for filing infrastructure tickets faster"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "software-engineering/tier-5/architecture-at-organization-scale/q5",
+    "type": "multiple_choice",
+    "prompt": "What is the central argument of the SPACE framework (Forsgren, Storey, Maddila, Zimmermann, Houck, and Butler, ACM Queue 2021) about measuring developer productivity?",
+    "choices": [
+      "A single metric, such as commit count or lines of code, is sufficient to measure productivity",
+      "Productivity should be measured across five dimensions \u2014 Satisfaction, Performance, Activity, Communication, and Efficiency \u2014 rather than collapsed into one number",
+      "Only deployment frequency matters, since it is the sole DORA metric worth tracking",
+      "Developer productivity cannot be meaningfully measured under any circumstances"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-5/architecture-at-organization-scale/q6",
+    "type": "multiple_choice",
+    "prompt": "Segment's 2020 post \"Goodbye Microservices\" described consolidating roughly 140 small services back into one monolith. Per the lesson, what was the primary documented driver behind that decision?",
+    "choices": [
+      "Cloud compute costs for running many small services became unaffordable",
+      "The operational and cognitive overhead of debugging and on-call across hundreds of independently deployed services outweighed the isolation benefits for that workload",
+      "A company-wide executive mandate banned microservices outright",
+      "Kubernetes reached end-of-life and forced a redesign"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-5/architecture-at-organization-scale/q7",
+    "type": "multiple_choice",
+    "prompt": "Using Wardley Mapping's evolution axis (genesis, custom-built, product, commodity/utility), where should a company's actual product differentiator sit relative to a commodity capability like standard SSO/auth, and what does that imply for where build effort should go?",
+    "choices": [
+      "Both should be treated identically, since evolution stage doesn't affect sourcing decisions",
+      "The differentiator typically sits closer to genesis/custom-built, while SSO/auth sits at product/commodity \u2014 so build effort belongs on the differentiator, and commodity capabilities should generally be bought",
+      "Commodity capabilities should always be built in-house to maximize long-term control",
+      "Genesis-stage capabilities should always be purchased from the most mature vendor available"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-5/architecture-at-organization-scale/q8",
+    "type": "multiple_choice",
+    "prompt": "A staff engineer is writing a technical strategy document to align four teams on adopting a shared event schema registry. Per the lesson's guidance (modeled on Segment's strategy-doc structure), which element is most essential to keep the doc from becoming an ignored wiki page?",
+    "choices": [
+      "An exhaustive enumeration of every conceivable future edge case the registry might encounter",
+      "A concrete decision with an owner, a migration plan with dates, and a stated condition for when the decision should be revisited",
+      "A requirement that all four teams rewrite their entire codebases within a single sprint",
+      "Omitting any discussion of trade-offs or rejected alternatives so the decision cannot be challenged"
+    ],
+    "correctIndex": 1
+  }
+]

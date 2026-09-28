@@ -288,3 +288,12 @@ All notable changes to The Manual (curriculum + app) are logged here. This file 
 **Result:** `npm run build` passed clean on the first attempt. 107 unique slugs verified repo-wide.
 
 **Status:** Software Engineering Tier 4 complete (54h, 6 lessons). Software Engineering is now 5/6 tiers content-complete (Tiers 0-4, 201h); only Tier 5 (Expert/Innovator) remains.
+
+## [0.21.0] — 2026-09-28 — Software Engineering Tier 5: complete — track is now fully content-complete
+
+**Context:** Final tier of Software Engineering. Written with an explicit instruction to use real, named examples rather than generic placeholders — the result draws on real project histories (PostgreSQL's `MERGE` statement's multi-year path through the CommitFest process, Django's DEP governance process) rather than abstract descriptions of "how open source works."
+
+**Added**
+- `content/software-engineering/tier-5/*.mdx` (5 files) + matching quizzes: Contributing Upstream to Major Infrastructure Projects (real case studies: PostgreSQL's mailing-list/CommitFest process, Django's DEP process, and SQLite's deliberate no-external-contributions policy as a useful counter-example), Novel System/Framework Design, Reading & Reproducing Systems Papers, Teaching & Curriculum Design, Architecture at Organization Scale.
+
+**Status:** Software Engineering Tier 5 complete (68h, 5 lessons). **Software Engineering is now the third fully content-complete track in The Manual** — all 6 tiers, 269 hours, 34 lessons — joining CS Foundations and Language Mastery. All three "bedrock trio" tracks (MASTERFILE §4.6) are now complete. `npm run build` passed clean, 112 unique slugs verified. 6 tracks remain at syllabus-only depth: Hardware Systems, AI/ML, Platforms, DevOps, Cybersecurity & Ethical Hacking, Capstones.

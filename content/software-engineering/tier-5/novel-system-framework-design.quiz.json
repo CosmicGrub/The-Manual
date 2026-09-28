@@ -1,0 +1,98 @@
+[
+  {
+    "id": "software-engineering/tier-5/novel-system-framework-design/q1",
+    "type": "multiple_choice",
+    "prompt": "What real, specific gap does the `verdict` design in this lesson target that neither pytest nor unittest fills well?",
+    "choices": [
+      "Testing single-file CLI scripts that shell out to subprocesses, with built-in JSON CI output and no config file required",
+      "Running tests faster than pytest on large monorepos with thousands of tests",
+      "Providing a mocking and snapshot library for JavaScript projects",
+      "Replacing unittest's assertEqual methods with a faster comparison algorithm"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "software-engineering/tier-5/novel-system-framework-design/q2",
+    "type": "multiple_choice",
+    "prompt": "In the lesson's pytest fixture example, what specifically causes a confusing failure when the `client` fixture function is renamed?",
+    "choices": [
+      "pytest fixtures are resolved by matching a test's parameter name against whatever fixture is visible (same file or any conftest.py up the tree), not by an explicit reference",
+      "pytest fixtures must be manually imported into every test file that uses them",
+      "pytest requires every fixture function to return None on first call",
+      "pytest caches fixture results indefinitely across separate test runs"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "software-engineering/tier-5/novel-system-framework-design/q3",
+    "type": "multiple_choice",
+    "prompt": "Per the verdict/core.py sketch in the lesson, how does verdict's runner resolve fixtures differently from pytest's approach?",
+    "choices": [
+      "It scans conftest.py files recursively up the directory tree, same as pytest",
+      "Fixtures are passed explicitly as arguments to the @test decorator and resolved from that captured list, never by matching a parameter name",
+      "It uses Python's import system to auto-discover any function whose name starts with fixture_",
+      "It requires all fixtures to be registered in a separate YAML config file"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-5/novel-system-framework-design/q4",
+    "type": "multiple_choice",
+    "prompt": "Why does verdict default to thread-pool parallelism while pytest needs the separate pytest-xdist plugin, which runs tests in isolated processes?",
+    "choices": [
+      "Threads are unconditionally faster than processes for any Python workload",
+      "verdict requires tests to be pure functions over explicit fixtures with no shared mutable state, which makes thread-based parallelism safe by construction; pytest makes no such guarantee, so xdist isolates tests with full processes instead",
+      "pytest-xdist exists only because pytest cannot import Python's threading module",
+      "The Python language specification requires all test runners to use separate processes"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-5/novel-system-framework-design/q5",
+    "type": "multiple_choice",
+    "prompt": "verdict is at v1.2.3. A maintainer changes the default value of --workers from 1 (serial) to auto (CPU count), which changes execution order and timing for any existing suite that depended on serial execution. Per SemVer, what should the next version be?",
+    "choices": [
+      "1.2.4, since no function or decorator signature changed",
+      "1.3.0, since it's just a new default for an existing flag",
+      "2.0.0, since changing a default in a way that breaks an existing implicit contract is a breaking change even without a signature change",
+      "1.2.3 can stay the same, since default values aren't considered part of the public API"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "software-engineering/tier-5/novel-system-framework-design/q6",
+    "type": "multiple_choice",
+    "prompt": "A learner adds a new optional parameter to their own mini ORM's query() function. It has a sensible default and doesn't change behavior for any existing caller. What's the correct SemVer bump from 1.4.2?",
+    "choices": [
+      "1.4.3 (patch)",
+      "1.5.0 (minor)",
+      "2.0.0 (major)",
+      "No version bump is needed since nothing broke"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-5/novel-system-framework-design/q7",
+    "type": "multiple_choice",
+    "prompt": "Per the lesson, why does verdict ship a DESIGN.md documenting decisions like \"no conftest.py, no plugin system\" instead of leaving that reasoning only in commit messages?",
+    "choices": [
+      "A DESIGN.md file is required by PyPI before a package can be published",
+      "It applies the ADR discipline from Tier 4: writing the \"why\" down explicitly stops future contributors, including the original author later, from relitigating a settled trade-off",
+      "It is required by the terms of the MIT license",
+      "It replaces the need for a README entirely"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-5/novel-system-framework-design/q8",
+    "type": "multiple_choice",
+    "prompt": "What does verdict's CHANGELOG.md add that a raw `git log` of the same commits does not?",
+    "choices": [
+      "A single flat bullet list of every commit hash with no version headers",
+      "Changes grouped under categories like Added, Changed, and Fixed, tied to specific dated version headers, written for someone deciding whether to upgrade rather than for the commit itself",
+      "Automatically generated performance benchmarks for every version",
+      "Nothing \u2014 it is a redundant duplicate of git log kept only by convention"
+    ],
+    "correctIndex": 1
+  }
+]

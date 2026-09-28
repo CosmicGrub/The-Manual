@@ -1,0 +1,151 @@
+---
+trackId: software-engineering
+tier: 5
+title: "Reading & Reproducing Systems Papers"
+order: 3
+estimatedHours: 15
+slug: reading-and-reproducing-systems-papers
+---
+
+## What this module assumes you can already do
+
+Tier 3's "Reading & Contributing to Open Source" taught you to reverse-engineer a system you didn't build: find the entry point, read the tests as the real specification, use `git blame` and `git log -p` as archaeology tools, and separate a well-scoped task from a trap. You're not relearning any of that here. You're pointing the same muscle at a different kind of artifact — a systems paper instead of a GitHub repo — and adding one new discipline on top: writing down, explicitly and honestly, where your miniature version stops being true to the original.
+
+That discipline — divergence documentation — is the actual skill this module teaches. Not "I read a paper." Not even "I built a prototype." The skill is: *I can tell you, in writing, exactly which claim I tested, under what simplifications, and which of the paper's other guarantees my prototype says nothing about.* This is what separates an engineer who can read primary research and act on it from one who skims an abstract and cargo-cults a term like "eventual consistency" into a design doc.
+
+## Finding the claim, not summarizing the abstract
+
+Every systems paper has an abstract that oversells the generality of the work, because that's what abstracts are for. Your job is to find the one or two *falsifiable* claims buried in the evaluation section — the assertions that could, in principle, have come out false, and that the authors backed with a specific mechanism and specific numbers.
+
+Take the actual abstract line from Dean and Ghemawat's "MapReduce: Simplified Data Processing on Large Clusters" (OSDI 2004): "a programming model and an implementation for processing and generating large data sets." That's not falsifiable. You can't write a test that passes or fails against "a programming model." It's a description of scope, not a claim.
+
+The falsifiable claims are further in, in Section 3. Section 3.6, "Backup Tasks," makes a specific, checkable assertion: stragglers — the slow tail of map or reduce workers — are the dominant reason a MapReduce job's tail latency blows out, and re-launching a backup copy of the last few in-progress tasks on other machines fixes it. They back this with a number: disabling backup task execution made a particular large sort job take 44% longer to complete. That's a claim you could, in principle, disprove by building the mechanism and measuring nothing.
+
+Ongaro and Ousterhout's Raft paper ("In Search of an Understandable Consensus Algorithm," USENIX ATC 2014) is unusually generous about this — Figure 3 lists five named safety properties as an explicit table, each independently falsifiable. The one you'll reproduce below is **Election Safety**: *at most one leader can be elected in a given term.* It's stated as a theorem-shaped sentence precisely because the authors wanted readers to be able to check it.
+
+DeCandia et al.'s "Dynamo: Amazon's Highly Available Key-value Store" (SOSP 2007) makes its central claim in Section 2: an "always writeable" data store — one that accepts writes even during network partitions or replica failure, by using vector clocks and sloppy quorums to defer conflict resolution to read time instead of blocking on write. Section 4.4 backs this with an operational number from production: over a 24-hour period, 99.94% of requests saw exactly one version of an object; the remaining roughly 0.06% required the client (or read-repair) to reconcile sibling versions. That's a specific, checkable claim about how often the "always writeable" design actually produces divergent history in practice, not just in theory.
+
+Notice what all three have in common: a mechanism (backup tasks, majority-vote leader election, vector-clock reconciliation) tied to a measurable consequence (44% faster, zero double-leaders per term, 99.94% single-version reads). That pairing is what you're looking for. If you can't find a number or a testable invariant attached to the claim you've picked, you haven't found the claim yet — you've found the summary.
+
+## Building the smallest thing that could be wrong
+
+Once you have a falsifiable claim, the prototype's job is narrow: produce evidence for or against *that one claim*, as cheaply as possible. Not a working Raft cluster. Not a working MapReduce. The smallest artifact that could actually fail the check.
+
+For Raft's Election Safety property, the mechanism under test is: candidates request votes by term; a node grants at most one vote per term; a candidate becomes leader only with a majority. If that mechanism is implemented correctly, no term should ever produce two leaders — even with message loss, even with multiple simultaneous candidates. Everything else in the real Raft protocol (log replication, persistence, snapshotting, cluster membership changes) is irrelevant to checking this specific property, so it doesn't belong in the prototype.
+
+Here's a complete, runnable version — a synchronous, round-based simulation, not a real network:
+
+```python
+import random
+
+FOLLOWER, CANDIDATE, LEADER = "follower", "candidate", "leader"
+N_NODES = 5
+DROP_RATE = 0.15
+MAJORITY = N_NODES // 2 + 1
+
+
+class Node:
+    def __init__(self, node_id):
+        self.id = node_id
+        self.term = 0
+        self.state = FOLLOWER
+        self.voted_for = None
+        self.election_timeout = random.randint(5, 10)  # ticks
+
+
+def request_vote(candidate, peer):
+    """Peer's RequestVote handler. Returns True if it grants the vote."""
+    if random.random() < DROP_RATE:
+        return False  # RPC lost in flight
+
+    if candidate.term > peer.term:
+        peer.term = candidate.term
+        peer.state = FOLLOWER
+        peer.voted_for = None
+
+    if candidate.term == peer.term and peer.voted_for in (None, candidate.id):
+        peer.voted_for = candidate.id
+        return True
+    return False
+
+
+def run_election(candidate, nodes):
+    candidate.state = CANDIDATE
+    candidate.term += 1
+    candidate.voted_for = candidate.id
+    votes = 1  # votes for itself
+    for peer in nodes:
+        if peer.id != candidate.id and request_vote(candidate, peer):
+            votes += 1
+    candidate.state = LEADER if votes >= MAJORITY else FOLLOWER
+    return candidate.state == LEADER
+
+
+def simulate_trial(ticks=200):
+    nodes = [Node(i) for i in range(N_NODES)]
+    leaders_by_term = {}
+    for _ in range(ticks):
+        for node in nodes:
+            node.election_timeout -= 1
+            if node.election_timeout <= 0 and node.state != LEADER:
+                node.election_timeout = random.randint(5, 10)
+                if run_election(node, nodes):
+                    leaders_by_term.setdefault(node.term, []).append(node.id)
+    return leaders_by_term
+
+
+def check_election_safety(n_trials=10_000):
+    violations = 0
+    for _ in range(n_trials):
+        for term, leaders in simulate_trial().items():
+            if len(leaders) > 1:
+                violations += 1
+                print(f"VIOLATION: term {term} elected leaders {leaders}")
+    print(f"{n_trials} trials, {violations} Election Safety violations")
+
+
+check_election_safety()
+```
+
+Run it. Across 10,000 trials with random election timeouts and a 15% independent message-drop rate, you should see zero violations — the term-scoped, vote-once, majority-quorum mechanism does what the paper says it does. That's your evidence. It took about eighty lines of Python and no networking library.
+
+## The habit that actually matters: writing the divergence doc
+
+Here's where most people stop, and where the real skill starts. "It passed 10,000 trials" is not the same claim as "I reproduced Raft's safety." The gap between those two sentences is exactly what you write down.
+
+For the prototype above, the honest divergence doc looks like this:
+
+**What was tested:** Election Safety (Figure 3, Raft paper) — at most one leader per term — under a majority-quorum, vote-once-per-term election mechanism, across 10,000 randomized trials with independent 15% RPC loss.
+
+**What was not tested, and why that matters:**
+
+1. **No log replication.** The prototype never appends, replicates, or commits a single log entry, so it says nothing about Log Matching or Leader Completeness — the other two of Raft's five safety properties that actually make the log itself trustworthy. A cluster could satisfy Election Safety perfectly and still lose committed writes if the replication logic were broken.
+
+2. **No persistence across restarts.** `term` and `voted_for` live only in memory, and nodes never crash mid-run. The real Raft paper (Section 5.1) requires these fields be written to stable storage *before* a node responds to an RPC, specifically to prevent a node from crashing, restarting, forgetting it already voted this term, and voting a second time — which would break Election Safety outright. My prototype cannot produce this bug class because it can't crash a node.
+
+3. **Synchronous, round-based scheduling instead of a real asynchronous network.** Raft's safety argument doesn't assume synchrony — it holds under arbitrary delay, reordering, and duplication. My tick-based loop can't generate the pathological message reorderings a real network (or a fault injector) produces, so it's a weaker test of the mechanism than the paper's own argument requires.
+
+4. **Independent random drops, not real partitions.** A 15% independent drop rate never produces a genuine network partition — a minority of nodes that can reach each other but not the majority, or vice versa. The paper's discussion of a leader getting isolated in a minority partition, and the stale-read hazard that motivates leader leases or a read-index check, is exactly the scenario this model cannot produce.
+
+5. **No cluster membership changes.** The simulated cluster is a fixed five nodes for the whole run. Section 6's joint-consensus protocol for safely changing configuration is where a large share of real-world Raft implementation bugs have historically shown up; this prototype says nothing about it.
+
+That's the artifact. Five numbered, specific, falsifiable statements about what the ten-thousand-trial result does and doesn't mean. Compare that to the two extremes engineers actually fall into: treating a paper's abstract as gospel without ever checking a claim against code, or treating "my toy passed" as equivalent to "I've verified the algorithm" — which is the same overclaiming mistake in the other direction.
+
+Both extremes have real, named counterexamples worth knowing. Diego Ongaro himself wrote a formal TLA+ specification of Raft (`ongardie/raft.tla`) and machine-checked its safety properties — that's what an actual proof-level reproduction looks like, several orders of magnitude more rigorous than the trial-based script above. And Kyle Kingsbury's Jepsen test suite found real linearizability and consistency violations in production Raft-based systems — etcd and Consul among them — precisely by injecting the kind of correlated network partitions and process pauses that a naive prototype (like the one above) doesn't model. Both are evidence that the gap between "paper" and "production implementation" is where the real bugs live, and that gap is what your divergence doc is supposed to map, one honest sentence at a time.
+
+## Why this is the actual deliverable, not the code
+
+Nobody outside your own learning is going to run your 80-line Raft toy in production. What they might read — a colleague evaluating whether to adopt a Raft-based store, a future you revisiting an old note, a reviewer of a design doc that cites this paper — is your divergence doc. It's the artifact that lets someone else calibrate exactly how much weight your reproduction can bear. "I built a thing that behaves like Raft" is a claim nobody can act on. "I verified Election Safety holds under a synchronous simulation with independent message loss, and here are the five properties I did not touch" is a claim someone can actually use to decide what still needs checking before they trust the real system.
+
+This is also, not coincidentally, the same discipline that Section 8 ("Related Work") of a good paper practices on other papers, and the same discipline a good architecture decision record practices on a vendor's marketing claims. You've been building toward it since Tier 4's ADR work — this module just applies it to primary research instead of internal design decisions.
+
+## Exercise
+
+Pick one of the two remaining claims from this lesson and reproduce it in miniature, the same way:
+
+- **MapReduce's backup-task claim** (Section 3.6): build a tiny task scheduler with N workers, where one worker is artificially slowed down (simulate a straggler), and measure completion time with and without speculative re-execution of the last few in-flight tasks on other workers. You don't need real MapReduce semantics — a list of "tasks" with random durations and one deliberately slow worker is enough to test the mechanism.
+- **Dynamo's sibling-version claim** (Section 4.4): build a tiny key-value store where writes are accepted by any of three replicas without coordination, versions are tracked with a simple vector clock (dict of replica id → counter), and reads across replicas detect and count concurrent (sibling) versions. Run enough random concurrent writes to get a stable estimate of how often siblings actually occur under your chosen write pattern, and compare the *shape* of your result to the paper's — not the exact percentage, which depends entirely on your synthetic workload.
+
+Whichever you pick, the deliverable is not just working code — write the five-point divergence doc, in the same style as the Raft one above, before you consider the exercise done. If you can't find at least three honest divergences, you haven't looked hard enough at what your prototype left out.
+
+*Hint: for the MapReduce version, the easiest way to make the 44% number meaningful (rather than an arbitrary constant) is to run your simulation twice — once with speculative execution on, once off — with the same random seed for worker slowness, so the comparison is apples-to-apples the same way the paper's was.*

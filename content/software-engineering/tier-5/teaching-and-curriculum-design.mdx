@@ -1,0 +1,118 @@
+---
+trackId: software-engineering
+tier: 5
+title: "Teaching & Curriculum Design"
+order: 4
+estimatedHours: 10
+slug: teaching-and-curriculum-design
+---
+
+## Teaching is a different transfer problem than reviewing
+
+Tier 4 taught you how to calibrate feedback on code someone else already wrote — tagging severity, explaining the *why* so a junior can generalize the lesson to their next PR. Teaching a lesson is the same transfer problem run in the opposite direction: instead of reacting to a mistake that already happened, you're designing the sequence of experiences that determines which mistakes a learner makes *first*, in a room (or a doc) where you control the pacing. Do it well and a beginner internalizes in 45 minutes what would otherwise take three painful PRs to learn the hard way. Do it badly and you get a room of people who can recite a definition and still can't apply it — which is a failure mode you can now name precisely, because it's exactly the recall/application gap Tier 4's calibrated-review examples were built to avoid on the feedback side.
+
+This module is about the other side: designing instruction, running a feedback loop tight enough to catch failure *before* it compounds, and writing assessment that actually discriminates understanding from memorized vocabulary.
+
+## Backward design: start from what the learner can do, not what you'll say
+
+The default instinct when asked to "teach SOLID" is to open a slide deck and start explaining. Wiggins and McTighe's *Understanding by Design* names the failure in that instinct directly: content-first planning optimizes for coverage, not for whether anyone can do anything with it afterward. Their alternative, backward design, has three stages, worked in this order:
+
+1. **Desired results** — not "the learner understands SRP," which isn't observable, but a specific, checkable performance: *given a class they haven't seen before that mixes two or more responsibilities, the learner can name which responsibilities are mixed and split it into separate classes with correct method placement — without being told SRP applies.*
+2. **Acceptable evidence** — decide, before you write a single slide, exactly what artifact will tell you the objective was met. Here: an independent-practice submission, graded against a short rubric (responsibilities correctly separated, no logic duplicated across the split, no new coupling introduced).
+3. **Learning plan** — only now do you design the actual sequence of hook, examples, and practice that gets a learner from zero to that evidence.
+
+Notice what stage 1 buys you: "understands SRP" is unfalsifiable — you can't fail to meet it, which means you also can't tell if you succeeded. "Splits an unfamiliar mixed-responsibility class correctly, unprompted" is a claim you can actually check, on a specific artifact, against a specific rubric. Everything below is stage 3, built backward from that objective.
+
+## Worked example: a 45-minute lesson on SRP for a Tier 1–2 learner
+
+You already have tested teaching material sitting in this track — Tier 2's `Invoice` class, which mixes pricing math, database persistence, and receipt formatting in one file. Reusing it isn't laziness; it's a real curriculum-design principle: content you've already watched real learners get confused by is more valuable than a fresh example you're guessing about, because you already know where the misconceptions cluster.
+
+```python
+class Invoice:
+    def __init__(self, items):
+        self.items = items
+
+    def total(self):
+        return sum(price * qty for _, price, qty in self.items)
+
+    def save_to_db(self):
+        import sqlite3
+        conn = sqlite3.connect("invoices.db")
+        conn.execute("INSERT INTO invoices (total) VALUES (?)", (self.total(),))
+        conn.commit()
+        conn.close()
+
+    def print_receipt(self):
+        print("RECEIPT")
+        for name, price, qty in self.items:
+            print(f"{name:20s} {qty} x ${price:.2f}")
+        print(f"TOTAL: ${self.total():.2f}")
+```
+
+Sweller's cognitive load research on the worked-example effect is the reason the plan below front-loads a *fully worked* example instead of dropping learners straight into this code and asking them to fix it: a genuine beginner has no schema yet for "responsibility," so unstructured struggle mostly burns working memory on the wrong things (syntax, which file to edit) instead of the concept you're actually trying to teach. Fade the scaffolding out only once a first correct example exists in their head to pattern-match against — the same "review, guided practice, independent practice" progression Rosenshine's principles of instruction describe.
+
+| Time | Segment | What happens |
+|---|---|---|
+| 0:00–0:05 | Hook | Tell it as an incident: "a fix to the receipt format broke a production database save, because they lived in the same class." Real pain, not an abstract definition. |
+| 0:05–0:20 | Fully worked example | Live-code the `Invoice` → `Invoice` / `InvoiceRepository` / `ReceiptPrinter` split yourself, out loud, on a shared screen — including a mistake you catch and fix live. |
+| 0:20–0:30 | Faded example | Give a second mixed class (e.g. a `User` that validates, saves, and emails). Split responsibility #1 for them; they do #2 and #3. |
+| 0:30–0:33 | Formative check | Everyone pastes their split into a shared doc or thread. You skim it live. |
+| 0:33–0:43 | Independent practice | A third class, no scaffolding, no help — this is the evidence artifact from stage 2. |
+| 0:43–0:45 | Exit ticket | One question, described below. |
+
+The live-coding mistake at 0:05–0:20 is deliberate, not a risk to avoid — it's a core practice from The Carpentries (the organization behind Software Carpentry, which trains researchers to teach programming using exactly this method). Typing code live and visibly debugging it shows the *process* of arriving at a correct split, not just the polished result, which is the part a finished slide always hides — Greg Wilson's *Teaching Tech Together* makes this the centerpiece of its advice for exactly this reason: a clean answer on a slide teaches "here is truth," while a debugged mistake teaches "here is what to do when you're wrong," which is the actual skill.
+
+## A feedback loop you can act on inside the same session
+
+"Ask for feedback" fails because a form filled out after the fact tells you whether people enjoyed the room, which is close to useless for knowing whether the lesson worked. You need signal while you can still act on it, and signal after the fact that tells you whether it transferred.
+
+**Inside the session**, borrow The Carpentries' sticky-note system directly: every learner keeps a green and a red sticky (or a Slack emoji, in a remote session) visible at all times — green means "on track," red means "stuck." You glance at the room, not their faces, and you know in real time whether to slow down, without anyone having to raise a hand and admit confusion in front of peers.
+
+**At the formative check (0:30–0:33 above)**, set a concrete go/no-go threshold before the session starts, not in the moment: if fewer than roughly 70% of the pasted-in splits correctly separate persistence from pricing math, stop and run a second worked example before moving to independent practice — don't build 15 more minutes on a misunderstanding that's already visible to you in the doc. This is the mechanism the Tier 4 module's calibrated-review habit generalizes into for teaching: don't wait for the final artifact to discover the problem; catch it at the earliest checkpoint where it's cheap to fix.
+
+**After the session**, Kirkpatrick's four levels of training evaluation give you the vocabulary for what kind of evidence you're actually looking at, and which levels are worth collecting:
+
+- **Level 1, Reaction** — "did they like it." An end-of-session survey. Real, but the weakest signal; a lesson can be enjoyable and teach nothing.
+- **Level 2, Learning** — did a pre/post skill check inside the session show a measurable gain. Your independent-practice submission at 0:33–0:43 *is* this level.
+- **Level 3, Behavior** — does the skill show up unprompted, later, in real work. Concretely: three weeks out, tag every merged PR where a reviewer flagged a mixed-responsibility class, and check whether attendees are now splitting responsibilities *before* review catches it.
+- **Level 4, Results** — did a team-level number move. Did average review round-trips on "please split this class" comments actually drop this quarter.
+
+Most workshops measure Level 1 and stop, which is precisely backward: it's the cheapest signal to collect and the least informative about whether you did your job. If you're teaching the same concept to more than one cohort, you can go further and treat it as an actual experiment: run two cohorts through different worked examples, compare their independent-practice first-attempt correct-split rate, and you have a falsifiable answer to "which version of this lesson is better" instead of an opinion.
+
+## Assessment that measures understanding, not recall
+
+Bloom's taxonomy draws the line you need: *remember* (can you recall a fact) sits at the bottom, *apply* and *analyze* sit well above it, and a question aimed at the wrong level will pass learners who memorized a sentence and never touched code.
+
+**Bad, for this same concept:**
+
+> Which of the following best defines the Single Responsibility Principle?
+> A) A class should have only one method
+> B) A class should have only one reason to change
+> C) A class should never call another class
+> D) A class should be as short as possible
+
+This is answerable from a flashcard. A learner who read the definition once, without ever looking at a mixed-responsibility class, picks B and passes — Bloom's *remember* level, nothing higher. It gives you zero evidence toward the actual objective from stage 1 of backward design.
+
+**Better, same concept, same format constraint:**
+
+> The `Invoice` class above saves itself to a database and formats a printed receipt, in addition to computing totals. Which of the following splits correctly applies SRP, with no responsibility duplicated across the resulting classes?
+> A) Move `save_to_db` and `print_receipt` into one new `InvoiceIO` class, keeping `total()` on `Invoice`
+> B) Move `save_to_db` into `InvoiceRepository` and `print_receipt` into `ReceiptPrinter`; both call `invoice.total()` rather than recomputing it
+> C) Keep all methods on `Invoice`, but rename `save_to_db` to `persist` and `print_receipt` to `render`
+> D) Move `print_receipt` into `ReceiptPrinter`, but have it recompute the total itself from `self.items` instead of calling `invoice.total()`
+
+This is still multiple choice, but it's *analyze*: you can't answer it from the definition, only by reasoning about the actual code. And the distractors aren't random — each one encodes a real misconception you'd see in actual submissions: A merges two distinct responsibilities into one new class because "fewer classes feels cleaner," C mistakes renaming for restructuring, D re-derives duplicate logic instead of reusing the source of truth, which is its own SRP-adjacent smell. A learner who picks A tells you something specific and fixable — a wrong answer on the bad version tells you nothing at all about what they misunderstand.
+
+Tier 5's syllabus is deliberately lighter on quizzes than earlier tiers, for exactly this reason: the strongest assessment of "can this person teach SRP to a beginner" isn't a multiple-choice question at all, it's the rubric-graded lesson plan and the independent-practice evidence it produces — closer to the RFC-review rubric from Tier 4 than to a recall quiz. But the skill of writing a *good* constrained-format question doesn't disappear just because your primary assessment is a portfolio artifact — you'll need it anywhere a live rubric review isn't practical, so it's worth having deliberately, not by accident.
+
+## Exercise
+
+Design a complete 30-minute lesson for a genuine Tier 1 beginner on one narrow slice of a concept from earlier in this track — not "teach TDD," but something as narrow as "write one failing test for one function, and make it pass" (Tier 2's `ShoppingCart` Red-Green-Refactor material is fair game to reuse, the same way this module reused `Invoice`). Produce, in writing:
+
+1. A backward-design objective stated as an observable performance, not "understands X."
+2. A one-paragraph hook grounded in a real, concrete failure.
+3. An outline of the worked → faded → independent practice sequence, with rough timings.
+4. One concrete, real-time formative-check mechanism (not "ask if there are questions") and the specific threshold that would make you stop and re-teach.
+5. One bad (recall-level) assessment question and one better (apply/analyze-level) question for the same concept, with a sentence on what each wrong answer in the better version would tell you.
+
+*Hint: the narrower the objective, the easier every other step gets — if you can't state in one sentence what the learner will be able to do that they couldn't do before, the scope is still too big to design backward from.*

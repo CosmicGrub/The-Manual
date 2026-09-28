@@ -1,0 +1,98 @@
+[
+  {
+    "id": "software-engineering/tier-5/teaching-and-curriculum-design/q1",
+    "type": "multiple_choice",
+    "prompt": "You're using Wiggins and McTighe's backward design process to plan a lesson. What should you define first?",
+    "choices": [
+      "The slides and lecture script you'll present",
+      "The terminal, observable performance the learner should be able to do by the end, and how you'll check for it",
+      "The total number of quiz questions you'll need",
+      "Which tools or IDE the learner should install"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-5/teaching-and-curriculum-design/q2",
+    "type": "multiple_choice",
+    "prompt": "A lesson's stated objective is 'the learner understands the Single Responsibility Principle.' Under backward design, what's the main problem with this objective as written?",
+    "choices": [
+      "It's too short to be a real learning objective",
+      "It doesn't name an observable action, so there's no way to design a check that tells you whether it was actually met",
+      "It should mention the Open/Closed Principle instead of SRP",
+      "It's fine as written, since understanding is always demonstrated by a good quiz score"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-5/teaching-and-curriculum-design/q3",
+    "type": "multiple_choice",
+    "prompt": "Sweller's research on cognitive load and the worked-example effect suggests that, for a genuine beginner encountering a new design concept, the most effective early sequencing is:",
+    "choices": [
+      "Pure discovery: give them the buggy class and no example, and let them struggle to the correct split on their own",
+      "A fully worked example first, then a partially completed ('faded') example, then independent practice",
+      "A written definition, followed immediately by an independent practice problem with no example",
+      "Independent practice first, followed by the correct answer as an example afterward"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-5/teaching-and-curriculum-design/q4",
+    "type": "multiple_choice",
+    "prompt": "In a live workshop, which of these is a concrete, real-time feedback mechanism, as opposed to 'ask for feedback' in the abstract?",
+    "choices": [
+      "Sending a satisfaction survey by email after the workshop ends",
+      "Asking 'any questions?' at the end of each section and moving on if no one speaks up",
+      "A visible sticky-note system (green/red on a laptop lid) that lets you see, second by second, who's stuck, the way The Carpentries trains instructors to run it",
+      "Assuming the lesson worked if nobody complained"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "software-engineering/tier-5/teaching-and-curriculum-design/q5",
+    "type": "multiple_choice",
+    "prompt": "Three weeks after a workshop on SRP, you audit merged PRs and find that attendees are now splitting mixed-responsibility classes unprompted in real code, without being told to. In Kirkpatrick's four levels of training evaluation, this evidence sits at which level?",
+    "choices": [
+      "Level 1 (Reaction) \u2014 it just means they liked the workshop",
+      "Level 2 (Learning) \u2014 it only shows they passed an in-session quiz",
+      "Level 3 (Behavior) \u2014 it shows the skill transferred into real, unprompted on-the-job work",
+      "Level 4 (Results) \u2014 it directly proves the team's defect rate dropped"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "software-engineering/tier-5/teaching-and-curriculum-design/q6",
+    "type": "multiple_choice",
+    "prompt": "Which of these best measures whether a learner actually understands SRP, rather than just recalling a definition, per Bloom's taxonomy?",
+    "choices": [
+      "'What does the S in SOLID stand for?'",
+      "'Which of the following statements best defines the Single Responsibility Principle?'",
+      "Given a short class that mixes pricing math, database persistence, and receipt printing, ask the learner to identify which extraction correctly isolates each responsibility with none duplicated",
+      "'True or False: SRP is one of the five SOLID principles.'"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "software-engineering/tier-5/teaching-and-curriculum-design/q7",
+    "type": "multiple_choice",
+    "prompt": "In multiple-choice assessment design, why are 'attractive distractors' built from real, observed misconceptions (e.g., the common wrong belief that SRP means 'one method per class') better than random plausible-sounding wrong answers?",
+    "choices": [
+      "They make the question harder to guess, which is the only goal of a good distractor",
+      "A distractor that encodes a real misconception tells you, from the choice a learner picks, exactly which specific misunderstanding they have, not just that they got it wrong",
+      "Random wrong answers are actually preferred because they're faster to write",
+      "Distractors don't affect what a multiple-choice question measures, only its difficulty"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-5/teaching-and-curriculum-design/q8",
+    "type": "multiple_choice",
+    "prompt": "You're designing a 30-minute lesson on TDD's Red-Green-Refactor cycle for a genuine Tier 1 beginner. Why narrow the scope to 'write one failing test for one function and make it pass' instead of 'teach TDD'?",
+    "choices": [
+      "Because TDD is not worth teaching to beginners at all",
+      "A narrower, concretely-scoped objective is one you can actually build a full worked example, formative check, and independent practice around in the time available \u2014 'teach TDD' isn't an objective you can design backward from",
+      "Because Red-Green-Refactor only applies to small functions, never to larger systems",
+      "Because beginners cannot write failing tests"
+    ],
+    "correctIndex": 1
+  }
+]

@@ -1,0 +1,134 @@
+---
+trackId: software-engineering
+tier: 5
+title: "Architecture at Organization Scale"
+order: 5
+estimatedHours: 8
+slug: architecture-at-organization-scale
+---
+
+## Where this module sits
+
+By tier 5 you've made architecture decisions inside a team and inside a codebase. This module is about the layer above that: decisions that commit money, headcount, and multiple teams' roadmaps for years. Three skills, worked with real examples: evaluating build-vs-buy with criteria you can defend in a budget review, treating developer experience as an engineering discipline with its own metrics and failure modes, and writing a strategy document that actually changes what other teams do — not one that gets acknowledged in a meeting and then ignored.
+
+## Build vs. buy: auth, worked end to end
+
+Take a concrete, recurring decision: your B2B SaaS product needs enterprise SSO (SAML/OIDC) and SCIM provisioning because a $400k/year deal is blocked on it. You have four realistic paths:
+
+1. **Roll your own** — implement SAML 2.0 and OIDC handling directly against whatever IdP the customer uses (Okta, Azure AD/Entra ID, Google Workspace, OneLogin, PingFederate).
+2. **Self-host an identity server** — Keycloak (Red Hat/CNCF) or Ory Kratos + Hydra, run on your own infra.
+3. **Buy a narrow, embeddable product** — WorkOS or Clerk, which specifically sell "SSO/SCIM as an API" for exactly this problem.
+4. **Buy a full identity platform** — Auth0 (now part of Okta) or Okta itself, which cover SSO plus general user auth, MFA, and session management.
+
+Don't evaluate these on "build is more flexible, buy is faster" — that's a slogan, not analysis. Use criteria you can put numbers or dates against:
+
+| Criterion | Roll your own | Keycloak/Ory (self-host) | WorkOS/Clerk | Auth0/Okta |
+|---|---|---|---|---|
+| Time to first working integration | 6-10 weeks (SAML's XML-signature edge cases are brutal) | 2-4 weeks (infra + config) | 3-5 days | 1-2 weeks |
+| Ongoing maintenance cost | High — every new IdP a customer brings is a new bug report | Medium — you own upgrades, CVEs, uptime | Low — vendor owns IdP quirks | Low-medium |
+| Differentiation to your product | None — customers don't buy you for SSO | None | None | None |
+| Compliance surface (SOC 2, audit logs) | You build and prove it yourself | You build and prove it yourself | Vendor is already SOC 2 Type II; you inherit it | Vendor is already SOC 2 Type II |
+| Exit cost / lock-in | None (it's yours) | Low | Medium — you're on their session/token model | Medium-high — deep coupling to Auth0 Rules/Actions is common |
+| Talent required | Security engineer who's done SAML before (rare, expensive) | DevOps + occasional security review | Generalist backend engineer | Generalist backend engineer |
+
+The decision isn't "buy always wins" — it's that **none of these four options let you differentiate on auth**, so the only criteria that matter are speed, ongoing cost, and compliance inheritance. For a company under roughly 200 engineers with revenue riding on closing the deal, WorkOS or Clerk wins on that table almost every time: narrow surface area, fast integration, and you're not paying for (or configuring) the parts of Auth0 you don't need. Self-hosting Keycloak makes sense only when you have a genuine constraint buying can't satisfy — data residency in a jurisdiction no vendor serves, or an existing platform team that already runs Keycloak for five other things and the marginal cost of one more integration is near zero.
+
+The part people skip: **write down the condition under which you'd revisit this.** For auth, that's usually a scale or compliance trigger — "if we cross 50 enterprise SSO customers, or a client requires us to host identity data on-prem, re-evaluate self-hosting." That single sentence is what turns a one-off decision into something a future team can act on without re-litigating it from zero.
+
+This same pattern — buy while the capability is a commodity, build once your requirements diverge from what commodity products solve — is why GitHub, after years running Elasticsearch for code search on github.com, built their own engine (Blackbird, written in Rust, described in their March 2023 engineering blog "The technology behind GitHub's new code search"). Elasticsearch is a great generic full-text search product; it is not built for exact-match and regex search across tens of billions of files at GitHub's scale. GitHub bought first, proved the need was real and durable, then built. That ordering — buy to validate demand and requirements, build once you can name specifically what the bought product can't do — is the pattern to default to. Building first, before you can name the gap a product leaves, is how companies end up maintaining a worse version of Elasticsearch for a decade.
+
+A useful framing tool here is **Wardley Mapping** (Simon Wardley): plot a capability on an evolution axis from genesis (novel, you're inventing it) through custom-built, product, to commodity/utility. Auth for a B2B SaaS company is firmly in "product/commodity" territory — treat it accordingly. Your actual differentiator (the thing your product does that competitors don't) is usually still in "custom-built" or "genesis," and that's where build effort belongs.
+
+## Developer experience is a product discipline, not a values statement
+
+"Make it easy for developers" is not a strategy — it's the outcome you want, stated as if it were the plan. DX as a discipline means treating internal engineers as customers of a product (your platform, your internal tooling, your APIs) with the same rigor you'd apply to an external product: you define the golden path, you measure friction, and you ship fixes against a backlog.
+
+**Concrete good example:** Spotify built Backstage (open-sourced in 2020, now a CNCF incubating project) specifically to solve "engineers don't know what services exist, how to provision one, or what the standard is for on-call/CI." Backstage's core idea is the **golden path** — a scaffolded template that produces a new service with CI, deploy pipeline, on-call rotation hookup, and a service catalog entry already wired up, in minutes, self-service, no ticket. The measurable DX claim isn't "developers like it" — it's "time from `create-new-service` to first deploy to production" as a tracked number that Backstage was built to shrink.
+
+**Concrete bad example, and it's extremely common:** a platform team that requires a Jira ticket to provision a new Postgres database or a new Kubernetes namespace, with a 3-5 business day SLA, and where the only documentation is a Confluence page last edited two years ago that doesn't match the current Terraform module. This isn't a strawman — it's the median state of internal platforms at mid-size companies that built infrastructure but never treated the *interface to that infrastructure* as a product. The failure isn't that a human reviews the request (sometimes that's genuinely required for cost or security reasons) — it's that there's no self-service path for the 95% of requests that are routine, so routine and risky requests get the same multi-day friction.
+
+The difference between those two is measurable, and there are named frameworks for measuring it rather than going on vibes:
+
+- **DORA metrics** (DevOps Research and Assessment, the research program behind the book *Accelerate* by Nicole Forsgren, Jez Humble, and Gene Kim) — deployment frequency, lead time for changes, change failure rate, time to restore service. These measure the pipeline your DX either speeds up or clogs.
+- **SPACE framework** (Forsgren, Storey, Maddila, Zimmermann, Houck, Butler; ACM Queue, 2021) — argues productivity has to be measured across five dimensions (Satisfaction, Performance, Activity, Communication, Efficiency), explicitly because collapsing it into one number like commit count or lines shipped produces bad incentives.
+- **DX Core 4** (from DX, the developer-productivity research company co-founded by Abi Noda) — a more recent framework combining speed, effectiveness, quality, and business impact, designed specifically for platform teams to report DX health to leadership in numbers, not anecdotes.
+
+Practical signals worth instrumenting directly, regardless of which framework you report against: time from repo clone to a passing local test run; time from PR open to first CI signal; time from "I need a new service/database/queue" to it existing in production; percentage of infra requests handled self-service versus by ticket; and the error-message quality of your internal tools (does a failed deploy tell you *what* failed and *what to do*, or just "Error: task failed"). A platform team that ships a feature nobody asked for while these numbers stay flat is optimizing the wrong thing — DX work is validated by the numbers moving, the same way product work is validated by usage and retention, not by the feature existing.
+
+This connects directly to the architecture decisions this tier is about: a bad service-boundary or data-ownership decision shows up first as DX pain — teams filing tickets to get data they should own, on-call rotations dreading a specific service, new hires unable to run the system locally — long before it shows up as an incident. Reading DX signals is one of the earliest, cheapest ways to detect that an architecture decision needs revisiting.
+
+## Writing a technical strategy document that actually moves teams
+
+A design doc gets one team to build one thing correctly. A **strategy document** gets multiple teams to move in the same direction over multiple quarters, often against short-term local incentive to do something else. It needs a different shape.
+
+Two real examples worth knowing by name because they represent opposite, both-valid structures:
+
+**The mandate, forced by an executive decision.** The most famous technical strategy document in the industry is one most engineers have only heard about secondhand: Jeff Bezos's internal 2002 API mandate at Amazon, recounted publicly by Steve Yegge in his 2011 "Stevey's Google Platforms Rant." The mandate, paraphrased from Yegge's account: all teams must expose their data and functionality through service interfaces; teams must communicate only through those interfaces; no back-door data-store access; interfaces must be built as if they'll eventually be externalized to third-party developers; anyone who doesn't comply gets fired. That's a strategy document as blunt instrument — short, unambiguous, backed by executive authority, and it reshaped Amazon's entire internal architecture (and arguably made AWS possible, since Amazon's internal services were already API-shaped when AWS launched). Most of you will never have Bezos's authority to write a mandate like that, and most decisions shouldn't be made that way — but the clarity is the lesson: it named the exact behavior required, the exact behavior forbidden, and the consequence.
+
+**The reversal, backed by data.** Segment (now part of Twilio) published "Goodbye Microservices: From 100s of problem children to 1 superstar" in 2020, describing consolidating a system of roughly 140-plus small services (one per customer-facing destination integration) back into a single, well-factored monolith. The strategy behind that move — as described in the post — didn't start from ideology in either direction. It started from measured pain: the on-call and cognitive load of debugging across hundreds of independently deployed services outweighed the isolation benefit those services were originally bought with. The post lays out the actual structure a strategy document needs: the problem quantified (not "microservices are bad," but specific operational cost), the options considered, the decision, a concrete migration plan, and — critically — how they'd know it worked.
+
+Use that Segment structure as your default template; the Bezos mandate as the exception for when you have unilateral authority and genuinely don't need buy-in. A worked, condensed example, for a plausible cross-team decision:
+
+```markdown
+# Strategy: Consolidating on One Event Schema Registry
+
+## Problem (with numbers, not adjectives)
+Nine teams publish events to Kafka today. Six of them have shipped a
+breaking schema change in the last two quarters that broke a downstream
+consumer in production; three of those caused customer-facing incidents
+(INC-2291, INC-2340, INC-2401). There is no shared schema registry —
+each team's producer and each downstream consumer independently guess
+at the contract from reading the last message they saw.
+
+## Decision
+All new Kafka topics register their schema in Confluent Schema Registry
+(already running, owned by the Data Platform team) using Avro, with
+BACKWARD compatibility enforced by CI before a producer can deploy.
+Existing topics migrate on a rolling basis over two quarters, prioritized
+by incident history (Payments and Fulfillment topics first).
+
+## Options considered
+1. Status quo + better docs. Rejected: three incidents in two quarters
+   with docs already "current" shows documentation isn't the failure mode.
+2. Protobuf + Buf schema registry, greenfield. Rejected: would require
+   rewriting nine teams' existing Avro-based producers for no measured
+   benefit over enforcing compatibility on what we already run.
+3. Confluent Schema Registry, enforced compatibility. Chosen.
+
+## Non-goals
+This does not mandate a specific event framework, ordering guarantee,
+or exactly-once semantics. It only standardizes schema registration and
+compatibility checking.
+
+## Migration plan
+- Q1: CI compatibility check ships as a warning (non-blocking) on all
+  topics; Data Platform team pairs with Payments and Fulfillment to
+  register their schemas.
+- Q2: check becomes blocking on Payments and Fulfillment; remaining
+  seven teams register on their own schedule, blocking by Q2 end.
+- Owner: Data Platform team (schema registry infra); each producing
+  team owns their own schema definitions.
+
+## How we'll know it worked
+Zero schema-compatibility-caused incidents in the two quarters after full
+migration (baseline: 3 in the two quarters prior). Reviewed at the Q3
+architecture review.
+
+## When to revisit this
+If schema registration adds more than 2 days to a team's time-to-ship
+for a new event type, or if a second registry technology becomes a hard
+requirement for a new region/vendor, re-open this decision.
+```
+
+Notice what's *not* in there: no restating of what Kafka is, no generic praise for "consistency," no aspirational language. Every section either states a fact, makes a decision, or assigns an owner and a date. That's what makes a strategy doc different from a wiki page — a wiki page can be true and still change nothing; a strategy doc is judged by whether the thing it describes actually happens.
+
+The most common failure mode isn't a badly written doc — it's a doc with no decision in it. "We should consider standardizing our approach to X" is not a strategy. If a doc doesn't survive being rewritten as "we will do Y, owned by Z, by date D, and we'll know it worked when M," it isn't finished yet.
+
+## Exercise
+
+Pick a capability at a company you know well (your employer, an open-source project you contribute to, or a plausible startup scenario) that currently has no clear owner or standard across teams — candidates: internal notification/email sending, feature flagging, secrets management, or service-to-service authentication. Write two artifacts:
+
+1. A build-vs-buy table for it, using the six criteria from the auth worked example (time to first integration, ongoing maintenance cost, differentiation, compliance surface, exit cost, talent required), with a one-sentence revisit trigger.
+2. A one-page strategy document in the Segment-style structure above (problem with numbers, decision, non-goals, migration plan with an owner and dates, how you'll know it worked, when to revisit) proposing how the org should standardize on it.
+
+**Hint:** the hardest part is almost never the decision — it's making the "problem" section concrete enough that someone who disagrees with you can't dismiss it as an opinion. If you can't attach a number (incidents, hours lost, tickets filed, weeks of delay) to the problem, go find one before you write the decision section.

@@ -1,0 +1,98 @@
+[
+  {
+    "id": "software-engineering/tier-5/reading-and-reproducing-systems-papers/q1",
+    "type": "multiple_choice",
+    "prompt": "According to Dean and Ghemawat's MapReduce paper (OSDI 2004), what happened to a large sort job's completion time when backup (speculative) task execution was disabled?",
+    "choices": [
+      "It had no measurable effect",
+      "It increased by about 44%",
+      "The job failed outright",
+      "It decreased by about 44%"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-5/reading-and-reproducing-systems-papers/q2",
+    "type": "multiple_choice",
+    "prompt": "As stated in the Raft paper (Ongaro & Ousterhout, 2014), what does the Election Safety property guarantee?",
+    "choices": [
+      "A leader always has the most up-to-date log in the cluster",
+      "At most one leader can be elected in a given term",
+      "Every committed log entry appears in the logs of all future leaders",
+      "A follower always votes for the first candidate that contacts it"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-5/reading-and-reproducing-systems-papers/q3",
+    "type": "multiple_choice",
+    "prompt": "In Dynamo (DeCandia et al., SOSP 2007), what mechanism lets the store remain 'always writeable' during partitions or node failures, deferring conflict resolution instead of blocking the write?",
+    "choices": [
+      "Two-phase commit across all replicas before acknowledging a write",
+      "A single elected coordinator that serializes every write",
+      "Vector clocks combined with sloppy quorums, reconciling sibling versions at read time",
+      "Synchronous replication to a majority before any client sees an acknowledgment"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "software-engineering/tier-5/reading-and-reproducing-systems-papers/q4",
+    "type": "multiple_choice",
+    "prompt": "Why is the MapReduce abstract's phrase 'a programming model and an implementation for processing and generating large data sets' a poor choice as the claim to reproduce in a miniature prototype?",
+    "choices": [
+      "It's factually incorrect about what MapReduce does",
+      "It's too broad and not directly falsifiable in isolation -- it describes the whole system rather than one checkable assertion",
+      "It only applied to Google's internal infrastructure and nothing external",
+      "The paper never explains the programming model anywhere else"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-5/reading-and-reproducing-systems-papers/q5",
+    "type": "multiple_choice",
+    "prompt": "A learner builds a synchronous, round-based Raft leader-election simulator with independent random packet drops, runs 10,000 trials, sees zero terms with more than one leader, and concludes 'I've proven Raft is safe.' What is the honest scope of that result?",
+    "choices": [
+      "They've proven Raft is fully safe, since Election Safety is Raft's only safety property",
+      "The result is meaningless, since toy prototypes never resemble real systems",
+      "It's empirical evidence for one of Raft's five safety properties, under a simplified synchronous model that tests nothing about log replication, crash persistence, real partitions, or membership changes",
+      "The result proves Raft's liveness guarantee under the broadcastTime much-less-than electionTimeout much-less-than MTBF inequality"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "software-engineering/tier-5/reading-and-reproducing-systems-papers/q6",
+    "type": "multiple_choice",
+    "prompt": "A miniature Raft prototype keeps `term` and `voted_for` only in memory and never restarts nodes mid-run. What real-world Raft bug class does this fail to test?",
+    "choices": [
+      "Log compaction snapshot corruption",
+      "A node crashing, restarting, forgetting it already voted in the current term, and voting again -- violating Election Safety",
+      "Client-side retry storms during leader failover",
+      "Clock drift between a client and the leader"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-5/reading-and-reproducing-systems-papers/q7",
+    "type": "multiple_choice",
+    "prompt": "Kyle Kingsbury's Jepsen test suite became well known in distributed-systems circles for what?",
+    "choices": [
+      "Formally proving Raft's safety properties in TLA+",
+      "Finding real linearizability and consistency bugs in production Raft-based systems like etcd and Consul under injected network partitions",
+      "Writing the evaluation section of the original Dynamo paper",
+      "Benchmarking MapReduce throughput on commodity hardware clusters"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-5/reading-and-reproducing-systems-papers/q8",
+    "type": "multiple_choice",
+    "prompt": "The Dynamo paper reports that 99.94% of requests over a 24-hour period saw exactly one version of an object. Roughly what fraction saw more than one (sibling) version requiring reconciliation?",
+    "choices": [
+      "About 50%",
+      "About 0.06%",
+      "About 25%",
+      "Essentially 0%, since Dynamo blocks writes until conflicts resolve"
+    ],
+    "correctIndex": 1
+  }
+]

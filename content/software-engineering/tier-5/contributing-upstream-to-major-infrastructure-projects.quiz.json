@@ -1,0 +1,98 @@
+[
+  {
+    "id": "software-engineering/tier-5/contributing-upstream-to-major-infrastructure-projects/q1",
+    "type": "multiple_choice",
+    "prompt": "Why is SQLite a poor target for practicing the kind of external-contribution process this module teaches, despite being enormously widely deployed?",
+    "choices": [
+      "It has too few real-world users to matter",
+      "Its maintainers deliberately do not accept external code contributions, citing the public-domain provenance of the code and testing burden",
+      "It requires a paid contributor license before any patch is considered",
+      "It is written in a language too obscure for most contributors to read"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-5/contributing-upstream-to-major-infrastructure-projects/q2",
+    "type": "multiple_choice",
+    "prompt": "Where does substantive design discussion and review for a PostgreSQL patch actually happen?",
+    "choices": [
+      "In comments on the postgres/postgres GitHub mirror",
+      "On the pgsql-hackers mailing list, with patch status tracked through the CommitFest app",
+      "In a private Slack channel restricted to committers",
+      "In Trac tickets, the same system Django uses"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-5/contributing-upstream-to-major-infrastructure-projects/q3",
+    "type": "multiple_choice",
+    "prompt": "Roughly how long did PostgreSQL's MERGE command take to go from first proposal to being committed, and what was the core technical issue that kept stalling it?",
+    "choices": [
+      "About 2 years, stalled over disagreement on SQL-standard syntax",
+      "About 13 years, stalled repeatedly over how MERGE's per-row actions interact with MVCC and concurrent updates",
+      "About 6 months, stalled purely from lack of committer interest",
+      "About 5 years, stalled over a licensing dispute"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-5/contributing-upstream-to-major-infrastructure-projects/q4",
+    "type": "multiple_choice",
+    "prompt": "Django's DEP 0009 (async support), championed by Andrew Godwin, is a useful example mainly because of which characteristic of how it landed?",
+    "choices": [
+      "It was implemented in full as a single massive pull request in one release",
+      "The Technical Board rejected it outright and it was never implemented",
+      "It was deliberately phased across multiple releases: ASGI handling first, then async views and middleware, then incremental async ORM support",
+      "It bypassed Django's design-review process entirely because Godwin held special authority"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "software-engineering/tier-5/contributing-upstream-to-major-infrastructure-projects/q5",
+    "type": "multiple_choice",
+    "prompt": "A contributor opens a 900-line PR against SQLAlchemy adding a new bulk-insert API with no prior issue or discussion, and Mike Bayer closes it saying to discuss the design first. What does this illustrate?",
+    "choices": [
+      "SQLAlchemy rejects all contributions from people outside its core team on principle",
+      "Substantive design changes need discussion and buy-in before implementation \u2014 writing the code first is often the wrong order of operations, even for skilled contributors",
+      "The PR was closed only because it exceeded a hard 500-line limit",
+      "SQLAlchemy only accepts contributions from paid contractors"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-5/contributing-upstream-to-major-infrastructure-projects/q6",
+    "type": "multiple_choice",
+    "prompt": "What structurally distinguishes a genuinely non-trivial contribution (to Django, SQLAlchemy, or PostgreSQL) from a typo-fix PR?",
+    "choices": [
+      "Only the number of lines changed \u2014 anything over 50 lines counts as non-trivial",
+      "Whether the change happens to touch a test file",
+      "A non-trivial change involves a stated problem, discussion of alternatives and backward compatibility, an implementation meeting the project's test/doc bar, and typically several review rounds that can span months",
+      "Whether the change was written in a statically typed language"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "software-engineering/tier-5/contributing-upstream-to-major-infrastructure-projects/q7",
+    "type": "multiple_choice",
+    "prompt": "In PostgreSQL's CommitFest workflow, what does a patch status of \"Returned with Feedback\" mean?",
+    "choices": [
+      "The patch is permanently rejected and cannot ever be resubmitted",
+      "The patch was committed but still needs a documentation follow-up",
+      "The patch isn't ready to be committed in this cycle and is sent back to the author, who can improve it and resubmit in a future CommitFest",
+      "The patch has been auto-merged pending a committer's final sign-off"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "software-engineering/tier-5/contributing-upstream-to-major-infrastructure-projects/q8",
+    "type": "multiple_choice",
+    "prompt": "Compared to the open-source contribution work covered in Tier 3, what makes projects like Django's core, SQLAlchemy, and PostgreSQL a meaningfully higher bar for this tier?",
+    "choices": [
+      "They are written in a different programming language than the Tier 3 projects",
+      "They have real governance, high correctness and compatibility stakes, and require navigating an actual design-review process rather than picking up a labeled starter issue",
+      "They no longer use git for version control",
+      "They do not accept any external contributions, so the work is purely observational"
+    ],
+    "correctIndex": 1
+  }
+]

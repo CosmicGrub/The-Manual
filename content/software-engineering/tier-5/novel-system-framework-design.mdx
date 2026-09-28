@@ -1,0 +1,234 @@
+---
+trackId: software-engineering
+tier: 5
+title: "Novel System / Framework Design"
+order: 2
+estimatedHours: 20
+slug: novel-system-framework-design
+---
+
+## From tool user to tool designer
+
+You've spent four tiers using pytest, unittest, SQLAlchemy, Express, whatever. Tier 3 taught you to read someone else's codebase and land a PR in it without breaking their conventions. That's a different skill from what this module asks of you: designing something original enough that *your* conventions are the ones a future contributor has to learn. This module walks through one complete, real design — a small test framework called `verdict` — end to end: the actual problem, the actual decisions, the actual versioning and documentation. Not "here is how to design software" in the abstract. One artifact, built in front of you, with the trade-offs argued out against the real tools you already know.
+
+Pick your own target for the exercise at the end — a mini ORM, a mini API gateway, something else entirely — but the reasoning process is the transferable part.
+
+## The gap, stated precisely
+
+"I want to build my own test framework" is not a design brief — it's a hobby. A real design starts from a gap that named, real tools leave open, stated precisely enough that you could be proven wrong.
+
+Here's the gap `verdict` targets: **testing single-file scripts and CLI tools that shell out to subprocesses, in a way that produces structured CI output with zero configuration files and predictable parallelism** — without installing a plugin or writing a `conftest.py`.
+
+Why don't the obvious tools already do this?
+
+- **unittest** (stdlib) is verbose by design — `TestCase` subclasses, `self.assertEqual(a, b)` boilerplate — but ships with every Python install and needs no config. Fine for a script, tedious for more than a handful of tests.
+- **pytest** is the real workhorse, and rightly so: fixtures, parametrization, a huge plugin ecosystem. But its power comes from machinery that's overkill for a 200-line script — `conftest.py` resolution walking up the directory tree, fixtures resolved by matching a test's *parameter name* against whatever fixture pytest can see, assert-statement rewriting via AST manipulation that has to be re-verified against every new CPython bytecode release. Structured JSON output isn't built in — you install `pytest-json-report`. Parallelism isn't built in — you install `pytest-xdist`, which runs workers as separate *processes*, because pytest makes no guarantee that your tests don't share mutable module-level state.
+- **Go's `testing` package** takes the opposite philosophy on purpose: no built-in assertion library at all. You write `if got != want { t.Errorf(...) }` by hand, every time. The Go team's stated reasoning is that an assertion library hides what actually failed behind a generic message — explicit code is more debuggable. It's a real, defensible design stance, and it's exactly the opposite trade-off `verdict` makes.
+- **Jest** solves the JSON-output and zero-config problems well — but it's Node-specific, and its snapshot-testing and transform pipeline are heavy for what should be a lightweight script test.
+- **`gotestsum`** is worth naming because it's the closest real precedent: it *wraps* `go test` specifically to add structured, CI-friendly output that the stdlib tool doesn't provide on its own. That's a strong signal the gap is real, not invented — someone already needed exactly this for a different language's stdlib test runner.
+
+None of this is a strawman fight. pytest is genuinely better than `verdict` for testing a real application with an import graph. `verdict` is for the specific, narrower case above. Naming that boundary precisely is the actual design work — a tool that claims to be good at everything ends up mediocre at the one thing it was actually built for.
+
+One alternative worth ruling out explicitly: could this just be a pytest *plugin* instead of a new framework? It was considered and rejected — getting default thread-based parallelism and eliminating `conftest.py` resolution would mean fighting pytest's own collection internals more than writing the ~300 lines of runner code from scratch, and pytest's plugin hook API has changed enough across major versions (6 → 7 → 8) that maintaining a plugin is its own ongoing cost. Sometimes the right call is a new tool, not an extension — but only after you've priced out the extension.
+
+## Design decision 1: discovery, without a config file
+
+`verdict` keeps the `test_*.py` / `test_` prefix convention from pytest and unittest — no reason to relearn muscle memory that already works. But discovery is a flat walk of the target directory with no `conftest.py` concept and no plugin hook system. `conftest.py` resolution order — which file's fixtures win when two directories both define one with the same name — is one of the most frequently asked pytest questions on Stack Overflow, and it's confusing precisely because the resolution is implicit. Removing it removes that entire class of bug, at a real cost: no shared setup that "just appears" in every test under a directory. You import what you need, explicitly, in every file. That's the trade-off, stated plainly rather than hidden.
+
+## Design decision 2: fixtures, resolved explicitly instead of by name
+
+This is the sharpest contrast with pytest. In pytest, a fixture is matched to a test purely by the test function's *parameter name*:
+
+```python
+@pytest.fixture
+def client():
+    return APIClient(base_url="http://localhost:8080")
+
+def test_get_user(client):        # "client" is matched by name against
+    resp = client.get("/users/1") # whatever fixture pytest can see —
+    assert resp.status_code == 200 # same file or any conftest.py up the tree.
+```
+
+Rename the fixture function and every call site breaks with `fixture 'client' not found` — an error that points at the test, not at the rename that actually caused it. It's implicit, and implicit binding is exactly the kind of magic that costs you an afternoon the first time it bites.
+
+`verdict`'s runner resolves fixtures from an explicit list captured at decoration time, never from a name lookup:
+
+```python
+# verdict/core.py — the actual resolution mechanism, simplified
+
+_REGISTRY = {}
+
+class Fixture:
+    def __init__(self, fn):
+        self.fn = fn
+    def __call__(self):
+        return self.fn()
+
+def fixture(fn):
+    return Fixture(fn)
+
+def test(*deps):
+    def wrap(fn):
+        fn._verdict_deps = deps     # explicit, positional, captured here —
+        return fn                    # never resolved by name at run time
+    return wrap
+
+def run_test(fn):
+    args = [dep() for dep in fn._verdict_deps]
+    return fn(*args)
+```
+
+Usage:
+
+```python
+from verdict import fixture, test
+
+@fixture
+def client():
+    return APIClient(base_url="http://localhost:8080")
+
+@test(client)
+def get_user_returns_200(c):
+    resp = c.get("/users/1")
+    assert resp.status_code == 200
+```
+
+Renaming `client` to `api_client` now breaks loudly at the `@test(client)` call site — a `NameError` at import time, not a mysterious runtime resolution failure. That's the whole point: the same category of bug, made impossible to hide.
+
+## Design decision 3: assertions, without AST rewriting
+
+pytest's `assert some_dict == other_dict` producing a readable diff is genuinely nice developer experience — and it works by rewriting the bytecode of every `assert` statement at import time via `_pytest.assertion.rewrite`. That's real, ongoing engineering cost: it has to track CPython's changing internals release over release. `verdict` doesn't attempt that. Plain `assert` statements work and produce a plain `AssertionError`; a small set of typed helpers (`assert_eq`, `assert_raises`) produce a real diff for the cases where you actually want one, by explicit opt-in rather than by rewriting your code under you. Less magic, less power, a documented trade-off — not an oversight.
+
+## Design decision 4: parallelism, and why the concurrency model follows from decision 2
+
+`verdict` defaults to a thread pool, not the process pool `pytest-xdist` requires:
+
+```python
+from concurrent.futures import ThreadPoolExecutor
+
+def run_suite(tests, workers=8):
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        return list(pool.map(run_test, tests))
+```
+
+This is only safe *because* of decision 2. pytest can't default to threads because it has no way to guarantee a test doesn't mutate shared module state — hence `xdist` isolates workers with full separate processes. `verdict` requires every test to be a pure function over its explicit fixture arguments; that constraint, stated in the documentation as a hard requirement rather than a suggestion, is what makes thread-based parallelism safe by construction. The target workload — tests that mostly shell out to subprocesses and wait on I/O — is exactly where threads beat processes: no interpreter startup cost per worker, no pickling fixture state across a process boundary. This is what "design decisions compound" actually looks like: decision 2 isn't just about fixtures, it's the precondition that makes decision 4 work.
+
+## Design decision 5: structured output isn't a plugin, it's core
+
+```bash
+$ verdict tests/ --json > results.json
+```
+
+```json
+{
+  "schema": "verdict.v1",
+  "summary": { "total": 42, "passed": 40, "failed": 2, "duration_ms": 812 },
+  "tests": [
+    { "name": "get_user_returns_200", "file": "tests/test_api.py", "outcome": "passed", "duration_ms": 14 },
+    { "name": "get_user_not_found_returns_404", "file": "tests/test_api.py", "outcome": "failed",
+      "duration_ms": 9, "message": "assert 500 == 404" }
+  ]
+}
+```
+
+CI integration is the actual use case, not an optional add-on discovered later — so it ships in core, versioned as part of the public API (`schema: "verdict.v1"`), not bolted on as a plugin someone has to know exists.
+
+## Publishing it properly: SemVer, applied to real changes
+
+SemVer isn't "bump the number when you feel like it" — it's a promise about what a version *number* tells a caller without them reading the diff. Here's `verdict`'s actual version history and the reasoning behind each bump:
+
+| Version | Change | Why this bump |
+|---|---|---|
+| 0.1.0 | Initial release: discovery, fixtures, assertions, thread-pool runner | Pre-1.0 — the API isn't promised stable yet |
+| 0.2.0 | Added `--json` flag | New capability, fully backward compatible → minor |
+| 0.2.1 | Fixed: `duration_ms` was reported in seconds, not milliseconds | Bug fix, no API change → patch |
+| 1.0.0 | `@fixture`/`@test` decorator signatures and CLI flags declared stable | The SemVer promise starts here |
+| 1.1.0 | Added opt-in `--workers N` flag; default stays 1 (serial) | New, backward-compatible option → minor |
+| 2.0.0 | Changed default `--workers` from `1` to `auto` (CPU count) | **Breaking**, even though no function signature changed |
+
+That last row is the one people get wrong. No code signature changed, but any suite that implicitly depended on serial execution order now behaves differently by default — that's a broken contract, and SemVer counts it as major. The lesson generalizes: SemVer tracks the *behavioral* contract with your callers, not just the type signatures in your code.
+
+## The changelog: what a version number can't tell you
+
+A version bump says *what kind* of change happened. A changelog says *what actually changed*, in language a human reads before upgrading — which a `git log` never does well, because commit messages are written for the commit, not for a reader deciding whether to upgrade. `verdict` follows the [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) convention:
+
+```markdown
+# Changelog
+All notable changes to this project are documented here.
+The format follows Keep a Changelog, and this project adheres to
+Semantic Versioning (https://semver.org/).
+
+## [2.0.0] - 2026-03-02
+### Changed
+- **Breaking:** default `--workers` changed from `1` to `auto` (CPU count).
+  Suites relying on serial execution must now pass `--workers 1` explicitly.
+
+## [1.1.0] - 2026-01-14
+### Added
+- `--workers N` flag for opt-in parallel execution (default remains serial).
+
+## [1.0.0] - 2025-11-30
+### Added
+- First stable release. Decorator signatures and CLI flags are now
+  covered by SemVer.
+
+## [0.2.1] - 2025-10-02
+### Fixed
+- `duration_ms` in `--json` output was reported in seconds, not milliseconds.
+
+## [0.2.0] - 2025-09-18
+### Added
+- `--json` flag for structured CI output.
+
+## [0.1.0] - 2025-09-01
+### Added
+- Initial release: discovery, explicit fixtures, thread-pool runner.
+```
+
+Every entry above maps directly to a row in the version table — that traceability is the entire point of keeping the two artifacts in sync.
+
+## Documentation: README, DESIGN.md, and what you already know from Tier 4
+
+A README for a tool like this has one job most people skip: telling a reader *when not to use it*.
+
+```markdown
+# verdict
+
+A test runner for single-file scripts and CLI tools that shell out to
+subprocesses — not a pytest replacement.
+
+## Why not pytest?
+pytest is the right tool for testing a library or application with a real
+import graph. verdict is for the narrower case: a script with a
+`test_script.py` next to it, where you want zero config files,
+deterministic thread-based parallelism for subprocess-heavy tests, and
+CI-ready JSON output with nothing extra to install.
+
+| | verdict | pytest | unittest |
+|---|---|---|---|
+| Fixture resolution | explicit, decorator args | implicit, by parameter name | manual `setUp`/`tearDown` |
+| Config file required | no | usually (`conftest.py`) | no |
+| Built-in JSON output | yes | plugin (`pytest-json-report`) | no |
+| Default parallelism | thread pool | none (needs `pytest-xdist`) | none |
+```
+
+The comparison table isn't marketing — it's the same information a caller needs to make a real build-vs-adopt decision, stated as facts they can verify.
+
+The second document matters more than the README, and it's not new material for you: `verdict` ships a `DESIGN.md` explaining *why* there's no `conftest.py`, why fixtures are explicit, why parallelism defaults on. This is the exact discipline you built in Tier 4's Architecture Decision Records module — you already know how to write one. Apply it to your own project instead of a team's, and the payoff is identical: six months from now, a contributor (quite possibly you) proposes "let's just add `conftest.py` support," and instead of re-litigating a settled trade-off from memory, you point at the ADR that already argued it out.
+
+The same continuity applies to the human side of publishing. Tier 3 taught you to read a `CONTRIBUTING.md` as a *consumer*, checking the local rules before opening a PR. Now you write one as the *maintainer* — and the exact PR hygiene you learned to look for back then (one logical change per PR, matching existing conventions, a description with What/Why/How I tested it) is precisely what you now ask incoming contributors to give you. You're not learning new etiquette; you're applying the etiquette you already know from the other side of the table.
+
+## Shipping it
+
+Package it (`pyproject.toml`, `python -m build`, `twine upload`), pick a license and mean it — MIT if you want the simplest possible permissive grant, Apache-2.0 if you specifically want the explicit patent grant it carries, which matters more than people assume once a project has any commercial adopters — tag the release to match the version (`git tag v1.0.0`), and let the GitHub Release notes be pulled straight from the matching CHANGELOG section rather than written fresh. None of this is optional ceremony; skipping it is how a genuinely good design never gets used by anyone but its author.
+
+## Exercise
+
+Design your own small, original tool from scratch — a mini ORM, a mini API gateway/reverse proxy, or something else you've felt a real gap for. Produce, in order:
+
+1. A one-paragraph problem statement naming at least two real, existing alternatives by name, and the specific gap neither fills.
+2. Three concrete design decisions, each justified against how a named real alternative does it differently — not against a strawman.
+3. A `CHANGELOG.md` with at least four version entries that include one minor bump, one patch bump, and one major bump you can defend under SemVer's actual rules.
+4. A short `DESIGN.md` (ADR-style) for your single most debatable decision.
+
+*Hint: pick the concurrency or extensibility decision last, not first — as `verdict`'s thread-pool default shows, the right answer there usually falls out of an earlier decision (like requiring pure functions) rather than being independent of it. If your first draft has your hardest decision made in isolation, you've probably designed the wrong thing to defend it against.*

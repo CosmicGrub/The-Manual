@@ -1,0 +1,78 @@
+---
+trackId: software-engineering
+tier: 5
+title: "Contributing Upstream to Major Infrastructure Projects"
+order: 1
+estimatedHours: 15
+slug: contributing-upstream-to-major-infrastructure-projects
+---
+
+## Where this tier starts
+
+Tier 3 gave you the mechanics: forking a repo, standing up a dev environment, running a test suite, writing a commit message a maintainer won't wince at, and getting a "good first issue" merged. If you haven't done that yet, this module will be frustrating — everything below assumes you already know how to get code from your machine into someone else's repository without anyone having to explain git to you.
+
+This module is about a different problem: landing something that *matters* in a project where a wrong design decision breaks millions of applications, and where the people reviewing your code have spent a decade thinking about exactly the tradeoff you're proposing to change. Typo fixes and doc corrections get you commit access to nothing. This is about the actual shape of contributing a real feature or fix — with design discussion, rejection risk, and multiple rounds of rework — to a database, an ORM, or a framework with real governance.
+
+## Choosing a project that actually matters
+
+"Popular on GitHub" is not the filter. Star count tells you about marketing, not about whether contributing there will teach you anything or whether your work will be used by anyone who depends on correctness. Use three filters instead:
+
+1. **Does the project have a real, documented decision process?** Not a `CONTRIBUTING.md` that says "open a PR," but an actual mechanism for resolving disagreement about design — a mailing list, an RFC repo, a technical steering body, a commit-fest. If a project doesn't have one, "governance" is really just "whoever the maintainer trusts that week," and you'll learn less about how real infrastructure decisions get made.
+2. **Do people's production systems depend on it being correct?** PostgreSQL, Django, SQLAlchemy, Rails, Kubernetes, Redis, LLVM, rustc — these are load-bearing. A bug or a bad API decision in any of them has a blast radius measured in company-years. That stakes level is exactly what forces the process you're here to learn: nobody merges a novel locking behavior into PostgreSQL on vibes.
+3. **Do you already have a real reason to be there?** The strongest way into a high-governance project is hitting a genuine limitation in something you run in production, then discovering (a) it's a known, real gap and (b) nobody has proposed a design for it that stuck. That gives you both motivation that survives six months of review rounds and instant credibility in the discussion — "I hit this while doing X" lands very differently than "I wanted a project to contribute to."
+
+Also learn to recognize when a project's governance model means "not a fit for what this module is teaching." **SQLite is the canonical counter-example.** It is arguably the single most deployed database engine on Earth, and its maintainers — D. Richard Hipp and a small team — do not accept external code contributions at all. The reasons are stated plainly on their own site: SQLite's source is public domain, and taking in patches from outside contributors would entangle that provenance with other people's copyright claims, on top of the enormous cross-platform testing burden any change has to clear. SQLite has essentially no external-contribution governance process because it has decided, deliberately, not to have external contributors. That's a legitimate governance choice — it's just not one you can practice this module's skills against. Compare that to PostgreSQL (fully open, mailing-list-driven, dozens of committers across companies), Django (an elected technical body plus a funded review staff), and SQLAlchemy (a single opinionated maintainer who reviews almost everything personally) — three real, very different answers to "how does a serious infrastructure project decide what goes in," and three different sets of skills for you to build.
+
+## Case study: PostgreSQL's `MERGE` — thirteen years from proposal to commit
+
+PostgreSQL doesn't use GitHub pull requests for real development. The canonical `postgres/postgres` GitHub mirror is read-only. Design discussion and patch review happen on the **pgsql-hackers** mailing list, and the state of every in-flight patch is tracked in the **CommitFest app** at commitfest.postgresql.org, where each patch carries a status: *Needs Review*, *Waiting on Author*, *Ready for Committer*, *Committed*, *Returned with Feedback*, *Rejected*, or *Withdrawn*. A CommitFest runs roughly every two months; if your patch doesn't get committer attention in one, it rolls (or gets bumped) into the next.
+
+The SQL `MERGE` statement is the clearest illustration of what "real design process" costs. It was first proposed and patched on pgsql-hackers around 2009 by Pavan Deolasee. It did not land until PostgreSQL 15, in 2022 — committed by Alvaro Herrera. Thirteen years.
+
+The reason it stalled for so long wasn't laziness or lost interest — multiple people picked the patch back up across that decade, including a serious push led by Simon Riggs. The reason was a genuinely hard design problem: `MERGE` lets a single statement insert, update, or delete rows conditionally based on a join, and PostgreSQL's MVCC (multi-version concurrency control) model has very specific rules about what happens when two transactions try to modify the same row concurrently. Ordinary `UPDATE` and `INSERT ... ON CONFLICT` already have carefully worked-out concurrent-update semantics; `MERGE` had to get equivalent guarantees for a statement that could take *either* action per row, without introducing new classes of race condition or serialization anomaly. Early versions of the patch got returned with feedback specifically on this point, more than once. The version that finally landed didn't reuse the original 2009 implementation strategy — it was substantially re-architected as its own executor node integrated with `ModifyTable`, informed by everything the community had learned rejecting and reworking earlier attempts.
+
+The shape to notice: **proposal → mailing list discussion surfaces a hard semantic problem → patch submitted to a CommitFest → reviewed, found wanting, returned → repeat across years → eventually a committer with enough context and authority finishes it in a way the whole list can sign off on.** Other long-running patches — various attempts at global temporary tables are a good example — have gone through this exact cycle *without* landing, sometimes for a decade, because the community never converged on an implementation everyone trusted. Getting "returned with feedback" three CommitFests in a row is not failure; it's the normal cost of proposing something nontrivial to a system this load-bearing.
+
+## Case study: Django's DEP process — async support (DEP 0009)
+
+Django's formal design-change vehicle is the DEP (Django Enhancement Proposal), modeled openly on Python's PEPs. A DEP is a reStructuredText document with a required header — DEP number, title, author, status (Draft / Accepted / Rejected / Withdrawn / Final), type — living in the `django/deps` repo, discussed on the Django Forum (previously the django-developers mailing list) before anyone writes production code against it.
+
+DEP 0009, "Async Django," proposed by Andrew Godwin in 2019, is a good example precisely because it *wasn't* delivered as one giant PR. It shipped in phases, each one its own multi-month review cycle:
+
+- **Django 3.0**: the ASGI handler landed — Django could be served asynchronously at all, running alongside the existing WSGI handler, with no user-facing async views yet.
+- **Django 3.1**: async views, async middleware, and async-aware URL routing landed on top of that foundation.
+- **Django 4.1 and later**: the ORM — historically synchronous by design, and the hardest, most contentious layer to touch — started gaining async methods (`aget`, `acreate`, `afilter`, async iteration over querysets), initially bridged through `sync_to_async` rather than native async all the way down, with more of the surface converted release over release.
+
+That phasing wasn't a failure to plan — it *was* the plan, and it's what let a genuinely large architectural change get real-world validation and course-correction at each stage instead of betting the whole design on one merge. This is also where Django's current governance shows up mechanically: since 2022, design authority sits with an elected **Technical Board** rather than an informal "core team," and day-to-day ticket triage and review is done substantially by the **Fellows program** — DSF-funded contributors (people like Mariusz Felisiak, Natalia Bidart, and Sarah Boyce have held this role) who are your actual first reviewers on anything nontrivial. A Django ticket for a real feature needs "Accepted" triage status, a DEP if it's big enough to need one, a patch with tests *and* documentation *and* a release-notes entry in the same PR, and — for anything not clearly trivial — review and sign-off from more than one person with merge authority before it goes in.
+
+## Case study: SQLAlchemy — one very opinionated reviewer
+
+SQLAlchemy runs a different governance model entirely: Mike Bayer, the original author, is still the primary architect and reviews nearly everything that touches core design. There's no elected board here, no DEP repository — design discussion happens in GitHub issues, and Bayer is often the one steering it in real time, including a well-known pattern where he'll take a contributor's PR, keep the underlying idea, and substantially rewrite the implementation himself to fit the internal architecture and API philosophy before it merges. New contributors sometimes read this as rejection. It isn't — it's what a single-maintainer, high-context-density review model looks like when the codebase's internal consistency matters more than preserving any one patch's exact shape.
+
+The best evidence of the bar here is the SQLAlchemy 1.4 → 2.0 transition: a multi-year, heavily discussed API redesign (the "2.0 style" query API, unified `Session`/`Connection` execution) shipped with an explicit, long migration guide and a deprecation period spanning multiple minor releases specifically so downstream projects wouldn't break overnight. If you want to see what "getting a nontrivial change into SQLAlchemy" looks like mechanically: every accepted change needs a changelog fragment — a small `.rst` file under `doc/build/changelog/unreleased_XX/`, referencing the tracking issue — added in the same PR, on top of the code and tests. Proposing a new public API surface (a new bulk-operations method, a new dialect-level hook) without first opening an issue and getting Bayer's read on the design is the single most common way to get a large PR closed unreviewed. Discussion first, code second — not because it's polite, but because in a single-maintainer-reviewed codebase, code written before the design is settled is usually code that gets thrown away.
+
+## The anatomy of a non-trivial contribution
+
+Across all three governance styles, a real feature or non-trivial bug fix follows the same general shape, and it is categorically different from a typo fix:
+
+1. **Confirm it's real and unclaimed.** Search the mailing list archive / issue tracker / CommitFest history first. A design question that looks obvious to you has usually been raised before — find out why it didn't land.
+2. **Discuss before you implement.** Open the issue, forum thread, or hackers-list post that states the problem, a proposed approach, and at least one alternative you considered and rejected. This is where you find out whether a committer will champion the idea at all.
+3. **Get a read from someone with authority** — a Django Fellow, a PostgreSQL committer active in that area, Bayer himself for SQLAlchemy — before investing in a full implementation. This is the step that separates people who land real features from people who spend a month writing code nobody asked for.
+4. **Implement to the project's actual bar**: tests across the relevant matrix (Django: multiple database backends; SQLAlchemy: multiple dialects; PostgreSQL: the regression suite plus, for anything touching the planner or executor, careful attention to plan-shape stability), documentation, and whatever bookkeeping artifact the project requires (release note, changelog fragment, DEP update).
+5. **Survive review rounds.** Expect several — sometimes across CommitFests or release cycles, not just PR comments in one sitting. Expect specific, technical pushback on edge cases you didn't think about: concurrency, backward compatibility, what happens on the less-common database backend or platform.
+6. **Accept that "returned with feedback" or a full rewrite is a normal outcome**, not a verdict on your competence — see MERGE, thirteen years and multiple failed attempts by capable people before it landed.
+7. **Someone else merges it.** Even contributors with commit access rarely self-merge a substantive change; a second qualified reviewer signing off is part of what makes the bar real.
+
+A typo fix skips essentially all of steps 1–6. That's the actual, structural difference — not line count, not file count.
+
+## Exercise: write a reviewer note on a real, open design question
+
+Pick one:
+
+- **PostgreSQL**: go to commitfest.postgresql.org, find an open CommitFest, and locate a patch sitting in *Needs Review* status (ideally one that's rolled over from a prior CommitFest — that's a signal it's stuck on something real). Follow the thread link to the pgsql-hackers archive.
+- **Django**: find a ticket on the Django Forum or Trac marked "Accepted" with active discussion but no merged patch, where there's a genuine open question about API shape or behavior.
+- **SQLAlchemy**: find an open GitHub issue on `sqlalchemy/sqlalchemy` tagged as a feature request where Bayer or another maintainer has asked a design question that hasn't been answered yet.
+
+Read the last several messages of the actual discussion. Then write a half-page reviewer note, as if you were the assigned reviewer: state the problem in your own words, identify one *specific* unresolved design or edge-case question (not "needs more tests" — an actual semantic or API question), and propose a concrete resolution with your reasoning for why it's better than the alternative left on the table.
+
+**Hint:** a patch stuck for multiple review cycles is almost never stuck on a coding bug — bugs get fixed in a day. It's stuck because nobody has proposed an answer to a design question that the maintainers actually trust. Your job in this exercise is to find that specific unanswered question, not to summarize the whole thread.
