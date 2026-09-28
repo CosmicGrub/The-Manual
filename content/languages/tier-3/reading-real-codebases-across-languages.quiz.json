@@ -1,6 +1,6 @@
 [
   {
-    "id": "languages/tier-3/reading-real-codebases/q1",
+    "id": "languages/tier-3/reading-real-codebases-across-languages/q1",
     "type": "multiple_choice",
     "prompt": "In a Go codebase, why can grep for a method name like `.Save(` be insufficient to know which implementation actually runs at a given call site?",
     "choices": [
@@ -12,7 +12,7 @@
     "correctIndex": 1
   },
   {
-    "id": "languages/tier-3/reading-real-codebases/q2",
+    "id": "languages/tier-3/reading-real-codebases-across-languages/q2",
     "type": "multiple_choice",
     "prompt": "You build a Go binary with plain `go build -o app .`, then run `dlv exec ./app` and set a breakpoint inside a small helper function. Execution never stops there, even though you're certain the function runs. What's the most likely cause?",
     "choices": [
@@ -24,7 +24,7 @@
     "correctIndex": 1
   },
   {
-    "id": "languages/tier-3/reading-real-codebases/q3",
+    "id": "languages/tier-3/reading-real-codebases-across-languages/q3",
     "type": "multiple_choice",
     "prompt": "In `go tool pprof` output, a function showing high \"flat\" time should be read as:",
     "choices": [
@@ -36,7 +36,7 @@
     "correctIndex": 1
   },
   {
-    "id": "languages/tier-3/reading-real-codebases/q4",
+    "id": "languages/tier-3/reading-real-codebases-across-languages/q4",
     "type": "multiple_choice",
     "prompt": "Given `result += e + \"\\n\"` inside a loop over N strings in Go, what happens to running time as N grows, and why?",
     "choices": [
@@ -48,7 +48,7 @@
     "correctIndex": 1
   },
   {
-    "id": "languages/tier-3/reading-real-codebases/q5",
+    "id": "languages/tier-3/reading-real-codebases-across-languages/q5",
     "type": "multiple_choice",
     "prompt": "How does contributing to the core Go standard library (the `golang/go` repository) differ from contributing to most Go open-source projects hosted on GitHub?",
     "choices": [
@@ -60,7 +60,7 @@
     "correctIndex": 2
   },
   {
-    "id": "languages/tier-3/reading-real-codebases/q6",
+    "id": "languages/tier-3/reading-real-codebases-across-languages/q6",
     "type": "multiple_choice",
     "prompt": "While stopped at a breakpoint inside `LedgerService.Deposit`, you run `print s.store` in Delve and see `main.Store(*main.MemStore) 0xc0000a4010`. What does this tell you that reading `service.go` alone never could?",
     "choices": [
@@ -72,7 +72,7 @@
     "correctIndex": 1
   },
   {
-    "id": "languages/tier-3/reading-real-codebases/q7",
+    "id": "languages/tier-3/reading-real-codebases-across-languages/q7",
     "type": "multiple_choice",
     "prompt": "After reading a \"good first issue\" and understanding the bug, what's the most reliable next step before writing the fix itself?",
     "choices": [
@@ -84,7 +84,7 @@
     "correctIndex": 1
   },
   {
-    "id": "languages/tier-3/reading-real-codebases/q8",
+    "id": "languages/tier-3/reading-real-codebases-across-languages/q8",
     "type": "multiple_choice",
     "prompt": "What does `git commit -s` add to a commit, and why do some open-source projects require it before merging a PR?",
     "choices": [

@@ -1,0 +1,133 @@
+---
+trackId: software-engineering
+tier: 0
+title: "Reading Docs & Getting Unstuck (including AI-assisted)"
+order: 4
+estimatedHours: 2
+slug: reading-docs-and-getting-unstuck
+---
+
+Every later tier assumes you can navigate a filesystem and read a man page's structure — that's CS Foundations Tier 0 territory, and it's assumed here. What's new in this module is judgment: which source of truth to trust, and how to ask for help — of a human or a machine — in a way that actually gets you unstuck instead of burning a day.
+
+## The hierarchy of sources
+
+When something breaks or you don't know how an API works, you have four kinds of sources, in order of trust:
+
+1. **Official docs** — the language/framework's own reference (docs.python.org, developer.mozilla.org for web APIs, the README and docs site of a library you installed).
+2. **`--help` and man pages** — the tool telling you, right now, on your machine, with your installed version, exactly what it does.
+3. **Curated community writing** — a well-reviewed Stack Overflow answer, an official blog post, a maintainer's changelog.
+4. **Random blog posts and tutorials** — Medium posts, "10 tips" listicles, AI-generated SEO filler, tutorials from 2016.
+
+The problem with #4 isn't that it's always wrong — it's that you have no way to verify it's *still* right for the version you're using, and no way to know if the author understood the thing they were writing about. A blog post from 2019 explaining a JavaScript API pre-dates three spec revisions. A "top answer" on a forum might be top because it was posted first, not because it's correct. Official docs get updated when the software changes; a five-year-old blog post never does.
+
+This doesn't mean never read blog posts — sometimes they explain a concept more clearly than a terse reference. It means: when you read one, check the date, check it against the official docs before trusting code from it, and never let it be your *only* source for how something currently behaves.
+
+## Reading official docs efficiently
+
+Official docs are usually structured as **reference** (exhaustive, precise, boring — "what does this function take and return") plus sometimes a **guide** or **tutorial** (narrative, "how do I accomplish X"). Know which one you need. If you already understand the concept and just forgot a function signature, go straight to the reference — don't re-read a tutorial.
+
+Practice this now. Open Python's docs for `str.split` (docs.python.org/3/library/stdtypes.html#str.split) and answer, from the page alone: what does `split()` return when the string has no matches for the separator? What's the difference between `split(sep)` and `split(sep, maxsplit)`? Reference docs are dense on purpose — they're optimized for someone who already knows roughly what they're looking for, not for first-time explanation. Learning to scan one for the one paragraph you need, instead of reading it top to bottom, is the actual skill.
+
+## `--help` and man pages: check the tool before the web
+
+Every CLI tool you'll use ships its own documentation, and it's more likely to be *accurate for the exact version installed on your machine* than anything you'd find by searching. Before reaching for a browser:
+
+```bash
+git commit --help        # opens the full man-style page
+git commit -h            # short usage summary, most tools
+man curl                 # the man page, if one is installed
+curl --help all          # curl's own flag reference
+python3 --help
+node --help
+```
+
+Say you need to know how to squash the last three commits' messages together non-interactively. Instead of searching "how to squash commits" and landing on a blog post that may assume an older git version, run:
+
+```bash
+git rebase --help
+```
+
+and search (`/squash` in the pager) for the relevant section. It's slower to read than a blog post's copy-paste command, but it's guaranteed to match the git version actually on your machine, and you'll often notice a flag or caveat the blog post left out.
+
+Make this a habit, not a rule you apply only when told to: `--help` first, official docs second, web search third.
+
+## Writing a bug report that gets answered
+
+A bad bug report looks like this:
+
+> "My code doesn't work, it says error. Here's my whole file [200 lines]. Please help."
+
+Nobody — human or AI — can act on that efficiently. A good bug report has four parts, always:
+
+1. **A minimal reproduction** — the smallest possible code that still triggers the bug. Strip out everything unrelated. If you can trigger it in 5 lines, don't paste 200.
+2. **The exact error text** — copy-pasted verbatim, full traceback included, not paraphrased as "it says something about a type error."
+3. **What you expected vs. what happened.**
+4. **What you already tried** — so the reader doesn't waste time suggesting something you ruled out.
+
+Compare:
+
+**Bad:** "My Flask app crashes when I submit the form. Attached is my whole project."
+
+**Good:**
+
+```
+Expected: submitting the form redirects to /success.
+Actual: 500 error. Traceback:
+
+  File "app.py", line 42, in submit
+    user_id = int(request.form["id"])
+ValueError: invalid literal for int() with base 10: ''
+
+Minimal repro:
+
+  from flask import Flask, request
+  app = Flask(__name__)
+
+  @app.route("/submit", methods=["POST"])
+  def submit():
+      return str(int(request.form["id"]))
+
+Submitting the form with the "id" field left blank triggers it.
+I confirmed the field is actually empty by printing request.form
+before the int() call. Already tried: adding required="true" to
+the HTML input, but the crash also needs a server-side check.
+```
+
+The second version gets answered fast because the reader can see the whole problem without doing detective work. Notice this is the *same skill* whether you're posting on Stack Overflow, filing a GitHub issue, or asking a teammate in Slack.
+
+## The AI-era version: prompting a debugging assistant well
+
+An AI coding assistant is, for this purpose, a very fast, very patient reader of exactly the bug report above — and it fails in the same way a human would if you give it the bad version.
+
+**Vague prompt:**
+
+> "This doesn't work, fix it: [pastes 300-line file]"
+
+This forces the model to guess what "doesn't work" means, guess which of the 300 lines matter, and often produces a plausible-looking fix for the wrong problem, or rewrites code that was already fine.
+
+**Specific prompt:**
+
+> "This Flask route throws `ValueError: invalid literal for int() with base 10: ''` on line 42 when the form's `id` field is submitted empty. Expected behavior: return a 400 with a message instead of crashing. Here's the minimal route:
+>
+> ```python
+> @app.route("/submit", methods=["POST"])
+> def submit():
+>     return str(int(request.form["id"]))
+> ```
+>
+> I've confirmed via logging that `request.form["id"]` really is `''` in this case, not missing entirely. I don't want to just add a client-side `required` attribute — the fix needs to hold even if the request comes from something other than the browser form."
+
+The second prompt gives the model the same four ingredients as the good bug report: exact error, minimal repro, expected vs. actual, and what's already ruled out. It gets a targeted answer — probably a `try/except ValueError` with a 400 response — on the first try, instead of a multi-turn back-and-forth where you paste more context each time the model guesses wrong.
+
+The underlying discipline doesn't change based on who's reading: isolate the problem, quote it exactly, say what you've ruled out. AI assistants just make the payoff for doing this well immediate — you get a correct answer in one round instead of three.
+
+## Exercise
+
+Take a real bug you've hit recently (or introduce one on purpose: write a Python script that crashes with an `IndexError` or `KeyError` on some input). Write it up twice:
+
+1. As a bug report you could post to a project's GitHub issues, following the four-part structure above.
+2. As a prompt to an AI assistant, using the same information but phrased as a request.
+
+Then check your minimal repro: delete lines from it one at a time and confirm the bug still happens after each deletion. If you can delete a line and the bug still reproduces, your "minimal" repro wasn't minimal yet.
+
+*Hint: the fastest way to find your true minimal repro is to start from the full crash and comment out unrelated functions/imports one at a time, rerunning after each, rather than trying to write a small repro from scratch and hoping it matches the real bug.*

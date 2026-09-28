@@ -1,0 +1,86 @@
+[
+  {
+    "id": "software-engineering/tier-0/what-software-engineering-is/q1",
+    "type": "multiple_choice",
+    "prompt": "Which of the following best distinguishes software engineering from programming?",
+    "choices": [
+      "Software engineering uses more advanced programming languages",
+      "Software engineering is programming considered across time, scale, and multiple people, not just whether the code runs once",
+      "Software engineering never involves writing code",
+      "Software engineering only applies to large companies"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-0/what-software-engineering-is/q2",
+    "type": "multiple_choice",
+    "prompt": "Which sequence puts the SDLC phases in their typical order?",
+    "choices": [
+      "Requirements, Design, Implementation, Testing, Deployment, Maintenance",
+      "Design, Requirements, Implementation, Deployment, Testing, Maintenance",
+      "Implementation, Requirements, Design, Testing, Maintenance, Deployment",
+      "Requirements, Implementation, Design, Testing, Deployment, Maintenance"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "software-engineering/tier-0/what-software-engineering-is/q3",
+    "type": "multiple_choice",
+    "prompt": "Six months after shipping a feature, you open the code to fix a bug and can't figure out why a particular check exists. Which practice from this lesson would most directly have prevented this problem?",
+    "choices": [
+      "Writing the code faster the first time",
+      "Leaving context behind, such as a commit message or comment explaining the reasoning, not just the change itself",
+      "Using a more advanced programming language",
+      "Skipping design discussion to ship sooner"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-0/what-software-engineering-is/q4",
+    "type": "multiple_choice",
+    "prompt": "You've just cloned an unfamiliar small open-source repository and want to get oriented efficiently. What does this lesson recommend as the first step?",
+    "choices": [
+      "Read every file in the repo top to bottom, in alphabetical order",
+      "Read the README to learn the project's purpose and see a usage example before opening any code",
+      "Immediately run the test suite and skip the README entirely",
+      "Search GitHub issues for open bugs first"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-0/what-software-engineering-is/q5",
+    "type": "multiple_choice",
+    "prompt": "In the Requests library walkthrough, what did opening requests/api.py reveal?",
+    "choices": [
+      "That the library has no public API",
+      "That functions like get() and post() are thin wrappers that all funnel into a shared request()/Session code path",
+      "That all HTTP logic is separately duplicated inside each verb function",
+      "That the library's tests are defined inside api.py"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-0/what-software-engineering-is/q6",
+    "type": "multiple_choice",
+    "prompt": "Why does a commit message like \"reject expired reset tokens; previously any token, even stale ones, still worked (#412)\" matter more in team software engineering than in a one-off solo script?",
+    "choices": [
+      "It makes the code execute faster",
+      "It communicates intent and context to teammates and future maintainers who weren't present when the change was made",
+      "It is a syntax requirement of most programming languages",
+      "It removes the need to write any tests"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-0/what-software-engineering-is/q7",
+    "type": "multiple_choice",
+    "prompt": "A team ships a feature, and three weeks later a user reports it breaks when their name contains an apostrophe. The team patches the bug and updates the input-validation tests. Which SDLC phase does this activity mainly represent?",
+    "choices": [
+      "Requirements",
+      "Design",
+      "Maintenance",
+      "Deployment"
+    ],
+    "correctIndex": 2
+  }
+]

@@ -1,0 +1,86 @@
+[
+  {
+    "id": "software-engineering/tier-0/git-and-github-absolute-basics/q1",
+    "type": "multiple_choice",
+    "prompt": "What is the core problem version control solves once more than one person works on the same codebase?",
+    "choices": [
+      "Keeping a single canonical backup of the project in case a laptop is lost",
+      "Letting multiple people change the same files independently over time while preserving who changed what and why, and giving a way to reconcile conflicting changes",
+      "Making code run faster by tracking performance metrics across commits",
+      "Automatically formatting code consistently across contributors"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-0/git-and-github-absolute-basics/q2",
+    "type": "multiple_choice",
+    "prompt": "In real day-to-day git use, why do experienced developers run `git status` far more often than beginners do?",
+    "choices": [
+      "Git refuses to let you commit unless you've run git status first",
+      "It shows exactly what's staged, what's changed but unstaged, and what's untracked, so you always know what your next commit would actually contain",
+      "It automatically stages all modified files for you",
+      "It replaces the need for git log entirely"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-0/git-and-github-absolute-basics/q3",
+    "type": "multiple_choice",
+    "prompt": "In one sitting you fixed a login bug, updated the README, and started a new settings screen. What's the best committing practice?",
+    "choices": [
+      "Run git add . once and make a single commit describing all three changes",
+      "Make three separate commits, each staged and described for just one of the changes",
+      "Only commit the bug fix now; skip committing the other two changes until they're finished",
+      "Wait until the whole project is done, then make one commit covering everything"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-0/git-and-github-absolute-basics/q4",
+    "type": "multiple_choice",
+    "prompt": "What does `git pull` actually do?",
+    "choices": [
+      "It only checks whether the remote has new commits, without changing your local files",
+      "It downloads new commits from the remote and merges them into your current local branch",
+      "It uploads your local commits to the remote repository",
+      "It deletes your local changes and replaces them with the remote's version"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-0/git-and-github-absolute-basics/q5",
+    "type": "multiple_choice",
+    "prompt": "You committed a .env file containing a real API key before setting up .gitignore. You've since added .env to .gitignore. What else must you do?",
+    "choices": [
+      "Nothing \u2014 adding it to .gitignore automatically removes it from git's history and tracking",
+      "Run git rm --cached .env and commit that change to stop tracking it going forward, and treat the leaked key as compromised",
+      "Delete the .git folder and run git init again",
+      "Rename the file so git no longer recognizes it"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-0/git-and-github-absolute-basics/q6",
+    "type": "multiple_choice",
+    "prompt": "Which of these belongs in a genuinely useful README for a real project?",
+    "choices": [
+      "A complete listing of every file in the repository",
+      "A one-line description of what the project does and why, plus concrete install and usage instructions someone unfamiliar with the project could follow",
+      "The full git commit history copy-pasted into the file",
+      "Nothing beyond the project name, since good code comments make a README redundant"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-0/git-and-github-absolute-basics/q7",
+    "type": "multiple_choice",
+    "prompt": "git status tells you: \"Your branch is behind 'origin/main' by 2 commits.\" What does this mean, and what should you do?",
+    "choices": [
+      "Your local repository is corrupted and needs to be re-cloned",
+      "A teammate pushed 2 commits you don't have locally yet; run git pull to bring your branch up to date before continuing",
+      "You have 2 uncommitted local changes that still need to be committed",
+      "You are 2 commits ahead of the remote and need to push"
+    ],
+    "correctIndex": 1
+  }
+]

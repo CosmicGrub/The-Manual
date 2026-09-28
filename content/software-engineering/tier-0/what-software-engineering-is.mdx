@@ -1,0 +1,74 @@
+---
+trackId: software-engineering
+tier: 0
+title: "What Software Engineering Is (vs. \"just coding\")"
+order: 1
+estimatedHours: 2
+slug: what-software-engineering-is
+---
+
+## Programming vs. Software Engineering
+
+Programming is writing code that does a thing. Software engineering is building and operating software as a product other people depend on — across a team, across changes in requirements, and after the original author has moved on to something else entirely.
+
+It's the same core skill, but a different unit of concern. A script you write to rename 200 files on your laptop only has to work once, for you, today. A payment-processing service has to keep working correctly after you're on vacation, after three other engineers have touched it, after the business adds a new currency, and after someone six months from now needs to understand *why* it was built this way before they can safely change it. That gap — between "code that runs" and "software that survives contact with time, scale, and other humans" — is what the rest of this track is about.
+
+A useful test: if you erased your memory of writing a piece of code, could someone else (including future-you) figure out what it does, why, and how to change it safely? Programming doesn't require you to answer that. Software engineering is mostly about making the answer "yes."
+
+## The SDLC, briefly
+
+Six phases. Real projects loop through them repeatedly rather than marching through once, but the phases themselves are stable and worth naming:
+
+- **Requirements** — what problem are we solving, for whom, and how will we know it's solved?
+- **Design** — what pieces make up the system, how do they talk to each other, and what are we deliberately *not* building?
+- **Implementation** — writing the code (the part CS Foundations already trained you for).
+- **Testing** — verifying the thing does what the requirements said, and that it didn't quietly break something else.
+- **Deployment** — getting the code from your machine into the place where it actually helps someone.
+- **Maintenance** — everything after "done": bug fixes, dependency upgrades, adapting to new requirements, and the discovery that "done" was temporary.
+
+Trace a real example through it: a "password reset" feature. Requirements — users who forget their password should regain access without contacting support. Design — a token scheme with an expiry, which service owns it, how the email gets sent. Implementation — writing it. Testing — does an expired token get rejected? Does a token work twice? Deployment — rolled out behind a feature flag to a slice of users first. Maintenance — three months later, someone reports reset emails landing in spam, or that the expiry window is too short.
+
+Most teams don't do this as a strict one-pass waterfall — they iterate through these activities in short cycles (this track covers iterative/agile practice later). But whatever the cadence, all six activities are things real software needs.
+
+## Why process, docs, and teammates-you-haven't-met matter
+
+Two things change once code has to outlive a single sitting:
+
+1. **You will not remember your own reasoning.** Six months from now, "why did I do it this way" isn't answerable from the code alone — you need the code *plus* context: a commit message, a comment, a linked ticket.
+2. **Someone who wasn't in the room will need to change it** — a teammate, a new hire long after you've left, a contributor who found the repo on GitHub. They have none of the context that was in your head. All they have is what you left behind.
+
+This reframes things you already know as tools with a purpose beyond convention. A commit message isn't a label on a save point — it's a message to a reader with no other way to know *why* a change happened. `fix bug` tells them nothing; `reject expired reset tokens; previously any token, even stale ones, still worked (#412)` tells them what changed, why, and where to read more. A README isn't decoration — it's the entry point for every stranger to the project, including future-you. Tests aren't just "checking your work" — they're an executable description of intended behavior that a teammate can re-run to confirm they haven't broken it. None of this matters for a script you run once and discard. All of it matters the instant more than one person, or more than one sitting, is involved — which is nearly all real software.
+
+## Orienting yourself in an unfamiliar codebase: a walkthrough
+
+The most common situation in software engineering is being dropped into code you didn't write. Here's a repeatable method, illustrated on a real project: **Requests**, the small, well-organized Python HTTP client (`psf/requests` on GitHub, used by millions of projects).
+
+**1. Read the README first, on purpose, before opening any code.** Requests' README states the problem in its first lines ("Requests allows you to send HTTP/1.1 requests extremely easily") and shows a usage example:
+
+```python
+import requests
+r = requests.get('https://api.github.com/user', auth=('user', 'pass'))
+r.status_code
+r.json()
+```
+
+That snippet alone maps the library's entire public shape before you've read a line of implementation: there's a `get()` function, and it returns something with `.status_code` and `.json()`.
+
+**2. Find the entry point.** The package manifest (`setup.py`) names the package: `requests/`. Open `requests/__init__.py` — it's short, and it just imports public names from `requests/api.py`. That tells you `api.py` is where the public functions actually live.
+
+**3. Open that file.** `requests/api.py` defines `get`, `post`, `put`, `delete`, and a few others — each one a thin wrapper that builds an argument dict and calls one shared `request()` function, which opens a `Session` and sends it. Ten minutes in, you already know the public API is a handful of verb functions that all funnel into one shared code path (`Session`) — exactly where you'd look next to understand retries, cookies, or auth.
+
+**4. Scan the folder structure around that anchor.** `requests/models.py` (request/response objects), `requests/sessions.py` (the shared machinery from step 3), `requests/exceptions.py`, and a `tests/` directory that mirrors the same structure — each test file describes what its corresponding module is expected to guarantee.
+
+That's the whole method, and it generalizes to almost any repo: **README → manifest/entry point → the file the README's example actually calls → the folder structure around it → tests.** You're not trying to read every file — you're building a map good enough to know where to look when you need to change something.
+
+## Exercise
+
+Pick a small, real open-source repository you've never opened before — something under a few thousand lines for a first pass (a small CLI tool or single-purpose library; skip frameworks or anything with a plugin ecosystem this first time). Without reading it top to bottom, answer:
+
+1. What problem does this project solve, in one sentence, based only on the README?
+2. What's the entry point — the file execution starts from, or the file defining the main public API?
+3. Pick one function or command from the README's usage example and trace it into the code: which file and function does it actually call?
+4. Where do the tests live, and does the test folder structure mirror the source folder structure?
+
+**Hint:** if the README has no usage example near the top, that's informative too — it usually means you should check the tests directory instead, since well-tested projects often use their own tests as de facto usage documentation.

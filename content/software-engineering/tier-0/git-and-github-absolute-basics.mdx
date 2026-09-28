@@ -1,0 +1,173 @@
+---
+trackId: software-engineering
+tier: 0
+title: "Git & GitHub Absolute Basics"
+order: 3
+estimatedHours: 4
+slug: git-and-github-absolute-basics
+---
+
+You already know what `git init`, `git commit`, `git push`, and a branch are — Git Day Zero walked you through what each command does. What it didn't get into is *why* those commands are shaped the way they are, which only becomes obvious once more than one person is touching the same code.
+
+## The problem, at team scale
+
+Git Day Zero framed version control against `essay_v2_FINAL.docx`. That's the *solo* failure mode. The real problem git was built for is worse: ten people editing the same files, in different time zones, some of them offline on a plane, all expecting their changes to eventually combine into one coherent project without anyone's work silently vanishing.
+
+A shared folder or a shared Google Doc handles this by locking or by "last write wins" — whoever saves last overwrites whoever saved before them. That's fine for a memo. It's catastrophic for code, where two people's changes to the same file are both usually *necessary* and need to be combined, not chosen between.
+
+Git's actual job is: let every contributor work on their own full copy of the entire history, independently and offline, then give everyone a precise, automatable way to reconcile those copies later — merging non-conflicting changes automatically, and flagging the handful of lines that genuinely conflict for a human to decide. Every design choice you'll meet later (branches, pull requests, merge conflicts, `git blame`) exists to serve that one job: many people, many versions in flight, one reconciled history.
+
+## `status`, `add`, `commit`, `log` as a daily loop, not a definition
+
+You've seen what these four commands do. In real project work they're not four isolated commands — they're one habit, run in a tight loop, dozens of times a day:
+
+```
+git status        # what's changed, what's staged, what's untracked?
+git diff          # what exactly changed, line by line?
+git add <file>    # stage exactly what belongs in this commit
+git commit -m "…" # seal it with a message
+git log --oneline # sanity-check the history so far
+```
+
+Two habits separate someone who's "used git" from someone who uses it well:
+
+**Stage deliberately, not `git add .` on reflex.** Say you're fixing a bug and you left a stray `print("here")` debug line in the same file. `git add .` stages both. Run `git diff` first, or stage file-by-file, or use `git add -p` to stage individual chunks — so every commit contains exactly the change it claims to, nothing extra.
+
+**Commit atomically.** One commit = one logical change. If in a single sitting you fixed a login bug, updated the README, and started a settings screen, that's three commits, not one:
+
+```
+git add src/auth.js
+git commit -m "Fix session token not clearing on logout"
+
+git add README.md
+git commit -m "Document the new auth flow"
+
+git add src/settings.js
+git commit -m "Add initial settings screen scaffold"
+```
+
+This isn't tidiness for its own sake. A history of small, honestly-described commits is what makes `git log` useful for finding *when* a bug was introduced, what makes `git revert` safe to undo one thing without touching another, and what makes a teammate's code review actually reviewable instead of a 40-file wall of text.
+
+## A real GitHub repo, not a practice one
+
+You've already created a GitHub account and pushed a practice repo. For a real project, two things change.
+
+First, decide where the repo starts. Day Zero had you start locally and push up (`git init` first, GitHub second) because starting on GitHub with a README would have created a second, unrelated history to reconcile. For a *new* real project, it's often simpler to do the opposite: create the repo on GitHub first, check "Add a README," add a `.gitignore` from GitHub's template list for your language, then clone it down and start working in an already-connected repo. Either order works — the difference is just whether you `git init` + `git remote add origin` or `git clone` to get connected.
+
+Second, set up SSH instead of typing your password (or a token) on every push. Generate a key once and add the public half to GitHub under Settings → SSH and GPG keys:
+
+```
+ssh-keygen -t ed25519 -C "you@example.com"
+cat ~/.ssh/id_ed25519.pub   # paste this into GitHub
+```
+
+Then use the SSH remote URL (`git@github.com:you/repo.git`) instead of the HTTPS one. This is the default professional setup — you'll be pushing to real repos often enough that re-authenticating every time is real friction worth removing once.
+
+## Push and pull, end to end
+
+Day Zero had you push and clone, but never pull — because with one contributor, there was never anything upstream to pull. On a real project there always is. Prove the full loop to yourself with two clones on your own machine, standing in for two teammates:
+
+```
+git clone git@github.com:you/project.git project-a
+git clone git@github.com:you/project.git project-b
+```
+
+In `project-a`, make a change and push it:
+
+```
+cd project-a
+echo "line added by A" >> notes.txt
+git add notes.txt && git commit -m "A: add a note"
+git push
+```
+
+Now go to `project-b`, which has no idea that happened yet:
+
+```
+cd ../project-b
+git status              # nothing shows — this clone is stale, not "wrong"
+git pull                # fetches A's commit and merges it into your local branch
+git log --oneline        # now shows A's commit
+```
+
+That's the real daily loop: `pull` before you start (to catch anything that landed while you were away), work and commit, `pull` again (in case someone pushed while you worked — `git status` will say your branch is "behind origin/main" if so), then `push`. Skipping the second pull is the single most common cause of an avoidable merge conflict.
+
+## Writing a README people actually read
+
+A README that only says the project's name is worse than none — it signals nobody bothered. A genuinely good one answers, in order, the questions a stranger has in their first sixty seconds:
+
+```markdown
+# project-name
+
+One sentence: what this does and who it's for.
+
+## Why
+
+Two or three sentences on the problem this solves — not a features list.
+
+## Install
+
+    git clone git@github.com:you/project-name.git
+    cd project-name
+    npm install
+
+## Usage
+
+    npm start
+    # or, for the common case:
+    node cli.js --file report.csv
+
+## Configuration
+
+Set these environment variables (see `.env.example`):
+- API_KEY — required, from your provider dashboard
+- PORT — optional, defaults to 3000
+
+## License
+
+MIT
+```
+
+Notice what's missing: a file listing (the repo itself is that), the commit history (that's what `git log` is for), and marketing language. A README's job is to get someone from "I found this repo" to "I have it running" as fast as possible.
+
+## A `.gitignore` that actually protects you
+
+A sensible `.gitignore` keeps three categories out of history: things that are *regenerated* (build output, `node_modules/`, `__pycache__/`), things that are *secret* (`.env`, credentials, private keys), and things that are *machine-specific junk* (`.DS_Store`, editor config folders). None of that belongs in a shared history — regenerated files just cause noisy diffs and merge conflicts, secrets are a security incident waiting to happen, and machine junk pollutes every contributor's `git status`.
+
+```gitignore
+# dependencies
+node_modules/
+
+# build output
+dist/
+build/
+
+# secrets
+.env
+.env.local
+
+# OS / editor
+.DS_Store
+.vscode/
+```
+
+Don't hand-write these from scratch every time — GitHub's own template list (offered when you create a repo) and [gitignore.io](https://www.toptal.com/developers/gitignore) generate a correct one for your language and editor in seconds.
+
+One sharp edge: `.gitignore` only stops git from tracking files it doesn't *already* know about. If you already committed `.env` before adding it to `.gitignore`, adding the rule does nothing to history — the file is still tracked and still in every past commit. You have to explicitly stop tracking it, and treat anything secret that leaked that way as compromised:
+
+```
+git rm --cached .env
+git commit -m "Stop tracking .env"
+```
+
+## Exercise
+
+Pick a small real project — an existing script you have lying around, or a fresh one you start now. Do the full loop, in order:
+
+1. Create the GitHub repo first (with a language-appropriate `.gitignore` template), then clone it locally.
+2. Write a README with at minimum: a one-line description, why it exists, and install/usage instructions someone else could actually follow.
+3. Make at least three separate, atomically-scoped commits as you build something small (not three commits of the README alone).
+4. Clone the repo again into a second folder to simulate a teammate. From the second clone, make one commit and push it. Then `git pull` it into your original clone and confirm the history matches.
+5. Deliberately create a file that should never be committed (a fake `.env` with a fake secret), confirm `.gitignore` keeps it out of `git status`, and verify with `git log` that it never entered history.
+
+**Hint:** if step 4 leaves your original clone saying it's "behind," that message is `git status` doing its job — it's telling you exactly which command to run next.

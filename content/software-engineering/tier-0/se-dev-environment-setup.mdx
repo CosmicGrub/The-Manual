@@ -1,0 +1,89 @@
+---
+trackId: software-engineering
+tier: 0
+title: "Dev Environment Setup"
+order: 2
+estimatedHours: 3
+slug: se-dev-environment-setup
+---
+
+## What's assumed
+
+CS Foundations Tier 0 already got you a terminal you're comfortable in, a filesystem you can navigate, and a first language runtime installed on your machine. This module doesn't re-teach any of that — it takes you from "I have a runtime installed somewhere" to "I have a professional setup I actually trust," which is a different problem.
+
+## Your editor is not done after `code --install-extension`
+
+Installing VS Code and a single language extension gets you syntax highlighting. It does not get you a productive setup. The extensions that actually change how fast you work are the ones that surface information you'd otherwise have to go looking for:
+
+- **Error Lens** — inline red/yellow squiggles become inline red/yellow *text*, right at the end of the offending line. You stop context-switching to a Problems panel to find out what's wrong.
+- **GitLens** — annotates the current line with who last touched it and when, without leaving the editor. Once you're reading other people's code (which is most of your job, eventually), this is not optional polish.
+- **EditorConfig for VS Code** — respects a project's `.editorconfig` file so your indentation and line endings match everyone else's on the team automatically, instead of your formatter fighting theirs in every diff.
+- A **formatter tied to "format on save"** (Prettier for JS/TS, Black or Ruff for Python, gofmt is built into Go tooling) — so style arguments never happen in code review, because the tool already settled them before you committed.
+
+None of these change what your code *does*. They change how much friction there is between "I wrote something" and "I understand what I wrote and whether it's right." That's the actual bar for a productive setup, and it's worth 20 minutes now rather than discovering the gap mid-project.
+
+## PATH, but the version that actually bites you
+
+CS Foundations had you confirm a runtime responds from the terminal. The professional version of that problem shows up differently: **you will eventually have more than one version of a runtime installed**, via a system package manager, a version manager (`nvm`, `pyenv`, `rbenv`, `asdf`), and maybe a manual install, all at once. Which one runs when you type `node` or `python3` depends entirely on PATH order — the list of directories your shell searches, in sequence, stopping at the first match.
+
+See every match, not just the one that wins, with `-a`:
+
+```bash
+which -a python3
+# /Users/you/.pyenv/shims/python3
+# /usr/local/bin/python3
+# /usr/bin/python3
+```
+
+The first line is what actually runs. On Windows, the equivalent is `where python`, which lists every match in PATH order the same way.
+
+The gotcha that catches people who otherwise know exactly what they're doing: **VS Code's integrated terminal doesn't always see the same PATH as your regular terminal.** If you install a new runtime version or edit your shell config (`.zshrc`, `.bashrc`) while VS Code is already open, the editor's terminal keeps the PATH it started with. `node --version` at the bottom of your screen can disagree with what a freshly opened system terminal reports, for no reason that's visible in your code. The fix is boring and easy to forget: close and reopen the integrated terminal (or restart VS Code) after any change to PATH or a version manager's active version, and re-check with `which -a` before assuming the editor is confused about something else.
+
+## Print statements don't pause time. Breakpoints do.
+
+`print()` and `console.log()` tell you what a value was, after the fact, at exactly the line you remembered to add logging to. A **breakpoint** stops your program mid-execution, in place, and hands you the entire live state: every local variable, the full call stack, and the ability to move forward one line at a time. It's a strictly more powerful tool, and every real editor setup should get you using it.
+
+Take a small, deliberately buggy example:
+
+```python
+def running_average(numbers):
+    total = 0
+    for i, n in enumerate(numbers):
+        total += n
+        avg = total / i  # bug: should be i + 1
+    return avg
+
+print(running_average([4, 8, 15, 16, 23, 42]))
+```
+
+This crashes on the first iteration with `ZeroDivisionError`, because `i` starts at `0`. In VS Code:
+
+1. Click in the gutter (left of the line numbers) on the `avg = total / i` line — a red dot appears. That's your breakpoint.
+2. Open **Run and Debug** (the triangle-with-a-bug icon), and run the file with the debugger instead of a plain run. VS Code auto-generates a `launch.json` the first time if one doesn't exist — accept the default for your language.
+3. Execution stops *at* that line, before it runs. The **Variables** panel shows `i = 0`, `n = 4`, `total = 4` — live, not printed.
+4. Use **Step Over** (F10) to execute the line and watch `avg` either get assigned or throw, **Step Into** (F11) to descend into a function call instead of running over it, and the **Call Stack** panel to see exactly how execution got to this point.
+
+With print-debugging, you'd add a `print(i, total)`, rerun, read the crash, remove the print, add a better one, rerun again. With a breakpoint, you saw the exact state that caused the failure on the first stop, and you can keep stepping forward to watch `avg` compute correctly on iteration 2 onward. On a loop with a bug that only shows up on iteration 200, this difference stops being convenience and starts being the only realistic way to find it — you set a **conditional breakpoint** (right-click the red dot → Edit Breakpoint → `i == 200`) and it only stops there, instead of you stepping through 199 iterations by hand.
+
+## REPL vs. interpreter vs. compiler — what you're actually running
+
+These three words get used loosely, but they name different things, and knowing which one you're in front of tells you what to expect:
+
+| Term | What it does | What it feels like |
+|---|---|---|
+| **REPL** (Read-Eval-Print Loop) | Reads one expression, evaluates it immediately, prints the result, loops | Typing `python3` or `node` with no file argument and getting a `>>>` or `>` prompt back |
+| **Interpreter** | Reads your source file and executes it directly, line by line, translating as it goes | `python3 script.py` — no separate build step, errors can surface mid-run |
+| **Compiler** | Translates your entire source file into another form (machine code, bytecode) *before* anything runs, as a distinct step | `gcc main.c -o main` produces a binary; running it is a second, separate command |
+
+The REPL and the interpreter for a language are usually the same underlying engine, just fed input differently — CPython interprets both a `.py` file and whatever you type at its REPL prompt. A compiler is a different kind of tool entirely: it produces an artifact (a binary, a `.class` file, a `.js` bundle from `tsc`) and does no actual work of running your program — a second command does that. Go blurs this on purpose: `go build` compiles to a standalone binary with no separate interpreter involved at runtime, while `go run` compiles to a temporary binary and immediately executes it, so it *feels* like an interpreted one-step run even though a real compile happened underneath. When you're debugging something confusing, the first useful question is often "am I even looking at the tool I think I am" — a REPL, an interpreter running your actual file, or a compiler that hasn't run anything yet.
+
+## Exercise
+
+Take the `running_average` function above (or write your own small function with a deliberate off-by-one or wrong-variable bug — division, indexing, and string slicing bugs work well). Do this without adding a single `print()`:
+
+1. Set a breakpoint on the line where the bug lives.
+2. Run it under the debugger and use the Variables panel to find the exact iteration and exact values where things go wrong.
+3. Use Step Over to confirm your fix would produce the right value, before you even edit the code.
+4. Fix it, remove the breakpoint, and run it normally to confirm.
+
+**Hint:** if your breakpoint never gets hit, check two things before assuming your code is wrong — that you launched with the debugger (not a plain "Run") and that VS Code's selected interpreter/runtime is actually the one on the PATH you verified earlier, not a different copy that doesn't have your file.

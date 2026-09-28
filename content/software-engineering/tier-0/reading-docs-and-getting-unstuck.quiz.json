@@ -1,0 +1,86 @@
+[
+  {
+    "id": "software-engineering/tier-0/reading-docs-and-getting-unstuck/q1",
+    "type": "multiple_choice",
+    "prompt": "Why is a five-year-old blog post a riskier source than the official docs for a library's current behavior?",
+    "choices": [
+      "Blog posts are always technically wrong",
+      "The official docs update when the software changes; the blog post never does, so it may not match the current version",
+      "Blog posts don't include code examples",
+      "Search engines rank official docs lower than blog posts"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-0/reading-docs-and-getting-unstuck/q2",
+    "type": "multiple_choice",
+    "prompt": "You forgot the exact arguments `str.split()` accepts in Python. What's the most efficient first move?",
+    "choices": [
+      "Search the web for a tutorial blog post about string splitting",
+      "Ask an AI assistant to write a splitting function from scratch",
+      "Go directly to the Python reference docs for str.split and scan for the signature",
+      "Read a full guide/tutorial on Python strings from the beginning"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "software-engineering/tier-0/reading-docs-and-getting-unstuck/q3",
+    "type": "multiple_choice",
+    "prompt": "Before searching the web for how to use an unfamiliar flag on a CLI tool already installed on your machine, what should you try first?",
+    "choices": [
+      "Searching Stack Overflow for the tool's name",
+      "Asking an AI assistant with no other context",
+      "Running the tool's --help or checking its man page",
+      "Reading the tool's GitHub issues for similar questions"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "software-engineering/tier-0/reading-docs-and-getting-unstuck/q4",
+    "type": "multiple_choice",
+    "prompt": "Which of the following is NOT one of the four parts of a good bug report?",
+    "choices": [
+      "The exact error text, copied verbatim",
+      "A minimal reproduction of the problem",
+      "A guess at which library is secretly at fault, stated as fact",
+      "What you already tried"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "software-engineering/tier-0/reading-docs-and-getting-unstuck/q5",
+    "type": "multiple_choice",
+    "prompt": "A teammate pastes their entire 400-line file into an AI assistant with the message 'this is broken, fix it.' What is the most likely consequence?",
+    "choices": [
+      "The assistant will always find and fix the exact bug immediately",
+      "The assistant may guess wrong about what 'broken' means or which lines matter, producing a plausible but off-target fix",
+      "The assistant will refuse to respond to files over 100 lines",
+      "Pasting more code always produces a more accurate fix than pasting less"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-0/reading-docs-and-getting-unstuck/q6",
+    "type": "multiple_choice",
+    "prompt": "You're testing whether your 'minimal reproduction' of a bug is actually minimal. What should you do?",
+    "choices": [
+      "Trust it once it's under 20 lines",
+      "Delete lines one at a time and confirm the bug still happens after each deletion; if it still reproduces after a deletion, it wasn't minimal yet",
+      "Add more context so the reader has full background, even if unrelated to the bug",
+      "Rewrite the whole reproduction from memory without testing it again"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-0/reading-docs-and-getting-unstuck/q7",
+    "type": "multiple_choice",
+    "prompt": "What is the key similarity between writing a good Stack-Overflow-style bug report and writing a good debugging prompt to an AI assistant?",
+    "choices": [
+      "Both require you to withhold the exact error message so the reader has to ask follow-up questions",
+      "Both are unnecessary if you paste the entire codebase",
+      "Both benefit from the same underlying discipline: isolate the problem, quote the exact error, state expected vs. actual, and say what's already been ruled out",
+      "AI assistants require far less detail than human readers because they can infer missing context"
+    ],
+    "correctIndex": 2
+  }
+]

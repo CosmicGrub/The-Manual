@@ -1,0 +1,86 @@
+[
+  {
+    "id": "software-engineering/tier-0/se-dev-environment-setup/q1",
+    "type": "multiple_choice",
+    "prompt": "Beyond a language-specific extension, which of these most directly makes a VS Code setup 'productive' rather than just functional?",
+    "choices": [
+      "A dark color theme, since it reduces eye strain during long sessions",
+      "Extensions like Error Lens and GitLens that surface information (errors, line history) inline without switching panels",
+      "Disabling autosave so you have full manual control over when files are written",
+      "Increasing the editor font size for readability"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-0/se-dev-environment-setup/q2",
+    "type": "multiple_choice",
+    "prompt": "You install a newer Python version with a version manager, then check VS Code's already-open integrated terminal, and it still reports the old version. What is the most likely explanation?",
+    "choices": [
+      "The new Python installation silently failed and needs to be reinstalled",
+      "VS Code's integrated terminal captured PATH when it started and hasn't picked up the change; reopening the terminal (or restarting VS Code) refreshes it",
+      "Python version managers are incompatible with VS Code entirely",
+      "The system terminal and VS Code's terminal always use completely separate, unrelated PATH variables by design"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-0/se-dev-environment-setup/q3",
+    "type": "multiple_choice",
+    "prompt": "Running `which -a python3` prints three different paths. What does that output tell you?",
+    "choices": [
+      "That python3 is broken and three copies need to be removed",
+      "Every directory on PATH that contains a python3 executable, listed in the search order \u2014 the first one is what actually runs when you type python3",
+      "The three most recently used Python virtual environments",
+      "That you must pick one and delete the other two before python3 will work"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-0/se-dev-environment-setup/q4",
+    "type": "multiple_choice",
+    "prompt": "A loop runs 500 iterations and a bug only appears on iteration 200. What debugging approach finds the exact failing state fastest?",
+    "choices": [
+      "Add a print() statement inside the loop and scroll through 500 lines of output",
+      "Set a conditional breakpoint (e.g. i == 200) so execution pauses only at the iteration that matters, with full live variable state available",
+      "Rewrite the loop to run fewer iterations so the bug is easier to spot",
+      "Comment out the loop body one line at a time until the crash stops"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-0/se-dev-environment-setup/q5",
+    "type": "multiple_choice",
+    "prompt": "What best distinguishes a REPL from running a script with an interpreter?",
+    "choices": [
+      "A REPL is a completely different program from the interpreter, written in a different language",
+      "A REPL reads and evaluates one expression at a time interactively and prints each result immediately, while running a script interprets the whole file's statements as source, without an interactive prompt per line",
+      "A REPL only works for compiled languages like C and Go",
+      "There is no real difference; the terms are interchangeable in every language"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-0/se-dev-environment-setup/q6",
+    "type": "multiple_choice",
+    "prompt": "Running `gcc main.c -o main` and then, separately, running `./main` demonstrates which distinction?",
+    "choices": [
+      "That gcc is a REPL and ./main is an interpreter",
+      "That compiling (translating source into an executable artifact) is a distinct step from actually running that artifact, unlike an interpreter which does both in one command",
+      "That C code must be run twice to execute correctly",
+      "That gcc and ./main are two names for the exact same operation"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-0/se-dev-environment-setup/q7",
+    "type": "multiple_choice",
+    "prompt": "You set a breakpoint in VS Code, but when you click the ordinary 'Run' button (not 'Run and Debug'), execution never pauses there. Why?",
+    "choices": [
+      "Breakpoints only work in compiled languages, not interpreted ones",
+      "A plain run executes the program without attaching the debugger, so breakpoints \u2014 which the debugger is responsible for honoring \u2014 are never checked",
+      "The breakpoint was set on the wrong file by mistake, which is the only possible cause",
+      "VS Code breakpoints expire after 60 seconds if unused"
+    ],
+    "correctIndex": 1
+  }
+]
