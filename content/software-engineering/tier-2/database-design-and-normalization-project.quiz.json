@@ -1,0 +1,98 @@
+[
+  {
+    "id": "software-engineering/tier-2/database-design-and-normalization-project/q1",
+    "type": "multiple_choice",
+    "prompt": "You create a composite B-tree index on issues(project_id, status, created_at DESC). Which query benefits most directly from this index?",
+    "choices": [
+      "SELECT * FROM issues WHERE status = 'open' (no project_id filter)",
+      "SELECT * FROM issues WHERE project_id = 42 AND status = 'open' ORDER BY created_at DESC",
+      "SELECT * FROM issues ORDER BY title",
+      "SELECT COUNT(*) FROM issues"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-2/database-design-and-normalization-project/q2",
+    "type": "multiple_choice",
+    "prompt": "Given a page of written product requirements, what's the recommended first step before writing any CREATE TABLE statements?",
+    "choices": [
+      "Write the CREATE TABLE statements directly from the requirements text, column by column",
+      "Identify the entities and the relationships (and their cardinality) between them",
+      "Add an index to every column mentioned in the requirements",
+      "Denormalize the obvious read-heavy fields first, then normalize afterward"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-2/database-design-and-normalization-project/q3",
+    "type": "multiple_choice",
+    "prompt": "A team adds projects.open_issue_count, kept in sync by a trigger on the issues table, to speed up a dashboard read. What trade-off are they accepting?",
+    "choices": [
+      "They lose the ability to enforce foreign keys on the issues table",
+      "Extra write-side complexity and a risk of the count drifting out of sync, in exchange for a much cheaper read",
+      "The issues table can no longer store a status column",
+      "Normalization rules no longer apply to any table in the schema"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-2/database-design-and-normalization-project/q4",
+    "type": "multiple_choice",
+    "prompt": "Which scenario is the strongest candidate for deliberate denormalization?",
+    "choices": [
+      "A write-heavy audit log table that is almost never queried",
+      "A frequently-read aggregate value (like a follower count) on a table whose reads vastly outnumber the writes that would change it",
+      "A lookup table with 12 rows that's queried once per user signup",
+      "A one-to-one relationship between a user and their profile settings"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-2/database-design-and-normalization-project/q5",
+    "type": "multiple_choice",
+    "prompt": "In Postgres, what does EXPLAIN ANALYZE do that plain EXPLAIN does not?",
+    "choices": [
+      "It only estimates cost without ever executing the query",
+      "It actually executes the query and reports real timing and row counts alongside the planned steps",
+      "It automatically rewrites the query to be faster",
+      "It creates whatever index would speed up the query"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-2/database-design-and-normalization-project/q6",
+    "type": "multiple_choice",
+    "prompt": "A write-heavy event_log table receives 100,000 inserts per minute and is rarely queried. A junior engineer adds an index on every column \"just in case.\" What's the problem with this?",
+    "choices": [
+      "PostgreSQL enforces a hard limit of 3 indexes per table",
+      "Indexes have no maintenance cost, so this can't cause any issue",
+      "Every index adds overhead to each insert/update/delete, which directly hurts this table's dominant write workload",
+      "Indexes only work on primary key columns"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "software-engineering/tier-2/database-design-and-normalization-project/q7",
+    "type": "multiple_choice",
+    "prompt": "Why are versioned migration files with a tracked schema_migrations table preferred over hand-editing a schema.sql file and re-running it against production?",
+    "choices": [
+      "Hand-editing a schema file is not valid SQL syntax",
+      "Versioned migrations give a reliable, ordered history of changes, apply consistently across environments, and support rollback; hand-editing gives none of that",
+      "Hand-edited schema changes execute faster on the database server",
+      "SQL databases require a migrations table to accept any ALTER TABLE statement"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-2/database-design-and-normalization-project/q8",
+    "type": "multiple_choice",
+    "prompt": "For the many-to-many relationship between issues and labels, what's the correct normalized schema pattern?",
+    "choices": [
+      "Store a comma-separated list of label names directly in a labels column on the issues table",
+      "A join table (issue_labels) with foreign keys to both issues and labels, and a composite key on the pair",
+      "Duplicate each issue row once per label it has",
+      "Store label IDs as a JSON array on issues with no foreign key constraints"
+    ],
+    "correctIndex": 1
+  }
+]

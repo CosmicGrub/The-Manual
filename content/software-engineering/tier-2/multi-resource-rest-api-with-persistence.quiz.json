@@ -1,0 +1,98 @@
+[
+  {
+    "id": "software-engineering/tier-2/multi-resource-rest-api-with-persistence/q1",
+    "type": "multiple_choice",
+    "prompt": "Why is hashing a password with a single round of unsalted SHA-256 considered insecure compared to bcrypt or argon2?",
+    "choices": [
+      "SHA-256 produces a hash that is too short to store in a database column",
+      "SHA-256 is fast and unsalted by default, which makes brute-force and rainbow-table attacks cheap at scale",
+      "SHA-256 cannot be computed from within Python",
+      "SHA-256 hashes are stored as binary data instead of text, which breaks JSON responses"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-2/multi-resource-rest-api-with-persistence/q2",
+    "type": "multiple_choice",
+    "prompt": "A client sends a request with a valid, unexpired JWT for user A, but tries to DELETE a post owned by user B. What status code best fits this situation?",
+    "choices": [
+      "401 Unauthorized",
+      "403 Forbidden",
+      "404 Not Found",
+      "400 Bad Request"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-2/multi-resource-rest-api-with-persistence/q3",
+    "type": "multiple_choice",
+    "prompt": "When a protected route successfully verifies a JWT, what has actually been confirmed?",
+    "choices": [
+      "The user's password is still correct today",
+      "The token was signed by a server holding the shared secret, and its payload and expiration are intact",
+      "The user's email address has been confirmed via a verification link",
+      "The request body contains valid JSON"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-2/multi-resource-rest-api-with-persistence/q4",
+    "type": "multiple_choice",
+    "prompt": "Where should the JWT signing secret live in a properly configured Flask app?",
+    "choices": [
+      "Hardcoded as a string literal in app.py so it's easy to find during debugging",
+      "Committed in a .env file so every teammate automatically has it after cloning",
+      "In an environment variable, loaded from an untracked .env file in development and a real secrets store in production",
+      "In the git commit message, so there's an audit trail of when it changed"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "software-engineering/tier-2/multi-resource-rest-api-with-persistence/q5",
+    "type": "multiple_choice",
+    "prompt": "Why does the posts table store author_id as a foreign key referencing users(id) instead of storing the author's username directly as text?",
+    "choices": [
+      "SQLite requires every table to have at least one foreign key",
+      "It prevents a post from ever referencing a user that doesn't exist, and keeps the username stored in exactly one place",
+      "Text columns cannot be used in a WHERE clause",
+      "It makes the JSON response returned to clients smaller"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-2/multi-resource-rest-api-with-persistence/q6",
+    "type": "multiple_choice",
+    "prompt": "A login endpoint returns \"user not found\" when the username doesn't exist, but a different message, \"incorrect password\", when the username exists and the password is wrong. What's the problem with this design?",
+    "choices": [
+      "Nothing \u2014 distinct messages are more helpful for users who mistype their password",
+      "It lets an attacker enumerate which usernames are registered just by watching which error message comes back",
+      "It violates the HTTP spec's rule that 401 responses must have identical bodies",
+      "It will cause the server to crash if the password field is missing from the request"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-2/multi-resource-rest-api-with-persistence/q7",
+    "type": "multiple_choice",
+    "prompt": "What is bcrypt.gensalt() used for?",
+    "choices": [
+      "It generates a random salt that gets mixed into the hash, so two identical passwords produce two different stored hashes",
+      "It compresses the password before hashing to save storage space",
+      "It generates the secret key used to sign JWTs",
+      "It encrypts the entire SQLite database file"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "software-engineering/tier-2/multi-resource-rest-api-with-persistence/q8",
+    "type": "multiple_choice",
+    "prompt": "A POST /users request sends {\"username\": \"ab\", \"email\": \"not-an-email\", \"password\": \"123\"}. Following this module's validation pattern, what should the API return?",
+    "choices": [
+      "500 Internal Server Error with a generic message",
+      "201 Created, since a username and password were both provided",
+      "422 Unprocessable Entity with a details object listing each invalid field",
+      "400 Bad Request, because the JSON itself is malformed"
+    ],
+    "correctIndex": 2
+  }
+]

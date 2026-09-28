@@ -1,0 +1,98 @@
+[
+  {
+    "id": "software-engineering/tier-2/test-driven-development-in-practice/q1",
+    "type": "multiple_choice",
+    "prompt": "In Red-Green-Refactor, what should you do immediately after writing a new test, before writing any implementation code for it?",
+    "choices": [
+      "Run it and confirm it fails for the expected reason",
+      "Immediately write the implementation that satisfies it",
+      "Skip running it since a new test obviously fails",
+      "Refactor the existing code first"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "software-engineering/tier-2/test-driven-development-in-practice/q2",
+    "type": "multiple_choice",
+    "prompt": "A teammate writes this test and says the feature is fully covered:\n\ndef test_calculate_tax():\n    calculate_tax(100, \"CA\")\n\nWhat's the actual problem with this test?",
+    "choices": [
+      "It doesn't exercise enough lines of the function",
+      "It never asserts on the return value, so it can't catch wrong output",
+      "It uses a hardcoded state code, which is not allowed in tests",
+      "There's no problem \u2014 the function runs without error, so it's verified"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-2/test-driven-development-in-practice/q3",
+    "type": "multiple_choice",
+    "prompt": "What does branch coverage measure that plain line coverage does not?",
+    "choices": [
+      "How many times each individual test function runs",
+      "Whether both the true and false paths of each conditional were executed at least once",
+      "The percentage of functions that have docstrings",
+      "Whether the full test suite finishes in under a set time limit"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-2/test-driven-development-in-practice/q4",
+    "type": "multiple_choice",
+    "prompt": "The business rule is \"carts of $50 or more qualify for a discount,\" but this is the implementation:\n\ndef is_eligible_for_discount(cart_total):\n    return cart_total > 50\n\nWhich single test input exposes the bug in this implementation?",
+    "choices": [
+      "cart_total = 0",
+      "cart_total = 25",
+      "cart_total = 50",
+      "cart_total = 100"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "software-engineering/tier-2/test-driven-development-in-practice/q5",
+    "type": "multiple_choice",
+    "prompt": "During the Green step of Red-Green-Refactor, what should you write?",
+    "choices": [
+      "The most general, production-ready solution you can think of",
+      "The simplest code that makes the currently failing test pass, even if it looks incomplete",
+      "Code that also anticipates features nobody has written a test for yet",
+      "Only comments describing the intended behavior"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-2/test-driven-development-in-practice/q6",
+    "type": "multiple_choice",
+    "prompt": "You refactor ShoppingCart.total() to use a generator expression instead of a for-loop. What should you do immediately after making that change?",
+    "choices": [
+      "Delete the old tests since the implementation changed",
+      "Re-run the full test suite and confirm every test still passes",
+      "Write a code comment explaining why the refactor was done",
+      "Raise the project's required coverage percentage"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-2/test-driven-development-in-practice/q7",
+    "type": "multiple_choice",
+    "prompt": "Which of the following is NOT a boundary condition worth testing deliberately?",
+    "choices": [
+      "An empty input, such as an empty list or empty string",
+      "A value sitting exactly at a threshold, like ==50 when the rule is >=50",
+      "The variable naming convention used inside the function",
+      "A None or null input passed where a value is expected"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "software-engineering/tier-2/test-driven-development-in-practice/q8",
+    "type": "multiple_choice",
+    "prompt": "A function has 100% line coverage, but its test only checks that calling the function doesn't throw an exception \u2014 it never checks what value comes back. What best describes this test?",
+    "choices": [
+      "A smoke test that looks like full verification of the function's behavior but isn't",
+      "A textbook example of a property-based test",
+      "A test double standing in for a real dependency",
+      "Full regression coverage of the function's logic"
+    ],
+    "correctIndex": 0
+  }
+]

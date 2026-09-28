@@ -1,0 +1,407 @@
+---
+trackId: software-engineering
+tier: 2
+title: "Multi-Resource REST API with Persistence"
+order: 5
+estimatedHours: 10
+slug: multi-resource-rest-api-with-persistence
+---
+
+## Picking up where Tier 1 left off
+
+Tier 1's CRUD API used one resource with in-memory storage — you already know HTTP verbs, status codes, and the `{"error": {"code", "message", "details"}}` envelope, so none of that gets re-taught here. This module adds four things Tier 1 deliberately skipped: real persistence across *multiple related* tables, password hashing done correctly, a working JWT auth flow end to end, and configuration that keeps secrets out of git.
+
+We'll build a small blog API: `users` who register and log in, and `posts` that belong to a user through a real foreign key. Everything runs on SQLite so there's no server to install, but the hashing, JWT, and config patterns here are exactly what you'd use against Postgres in production — only the connection string changes.
+
+## Project layout and dependencies
+
+```bash
+pip install flask bcrypt pyjwt python-dotenv
+```
+
+```
+blog_api/
+├── .env             # real secrets for THIS machine — never committed
+├── .env.example     # documents which vars exist, no real values — committed
+├── .gitignore
+├── config.py
+├── schema.sql
+└── app.py
+```
+
+## Schema: two tables, one real foreign key
+
+```sql
+PRAGMA foreign_keys = ON;
+
+CREATE TABLE IF NOT EXISTS users (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  username      TEXT NOT NULL UNIQUE,
+  email         TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS posts (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  author_id  INTEGER NOT NULL REFERENCES users(id),
+  title      TEXT NOT NULL,
+  body       TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+```
+
+`posts.author_id` references `users.id` — a post cannot exist for a user who doesn't exist, and the database enforces that, not your application code. Load the schema once: `sqlite3 blog.db < schema.sql`.
+
+Notice what's *not* here: there's no `author_username` column on `posts`. That's the normalization habit from the database design module carrying over — the username lives in exactly one place, and you `JOIN` to get it when you need it.
+
+## Configuration: dev secrets vs. prod secrets
+
+Two secrets matter here: the database location and the key used to sign JWTs. Neither belongs in your source code, and neither belongs in git — even the dev one. Put them in a `.env` file that's listed in `.gitignore`, and commit a `.env.example` with the same variable *names* and empty or placeholder values, so a new teammate (or future you) knows what to set without ever seeing a real secret.
+
+```ini
+# .env.example — committed, no real values
+FLASK_ENV=development
+JWT_SECRET=
+DATABASE_PATH=blog.db
+```
+
+```ini
+# .env — real values for this machine, gitignored
+FLASK_ENV=development
+JWT_SECRET=dev-only-bd93a1c6e6ec4b7e9c2f
+DATABASE_PATH=blog.db
+```
+
+```
+# .gitignore
+.env
+*.db
+```
+
+`config.py` reads from the environment and fails loudly if production is missing something critical, instead of silently running with a guessable secret:
+
+```python
+import os
+
+class Config:
+    ENV = os.environ.get("FLASK_ENV", "development")
+    DATABASE_PATH = os.environ.get("DATABASE_PATH", "blog.db")
+    JWT_SECRET = os.environ.get("JWT_SECRET")
+    JWT_EXP_MINUTES = int(os.environ.get("JWT_EXP_MINUTES", "60"))
+
+    @classmethod
+    def validate(cls):
+        if cls.ENV == "production" and not cls.JWT_SECRET:
+            raise RuntimeError("JWT_SECRET must be set via the environment in production")
+        if not cls.JWT_SECRET:
+            cls.JWT_SECRET = "dev-only-insecure-secret-do-not-deploy"
+```
+
+In production, `JWT_SECRET` comes from your host's real secrets mechanism (environment variables injected by the platform, a secrets manager) — never a file checked into the repo. The dev fallback exists only so a fresh clone runs without setup friction, and `validate()` makes sure that fallback can never reach production silently.
+
+## Connecting Flask to the database
+
+```python
+import sqlite3
+from flask import Flask, request, jsonify, g
+from dotenv import load_dotenv
+
+load_dotenv()
+
+from config import Config
+Config.validate()
+
+app = Flask(__name__)
+
+
+def get_db():
+    if "db" not in g:
+        g.db = sqlite3.connect(Config.DATABASE_PATH)
+        g.db.row_factory = sqlite3.Row
+        g.db.execute("PRAGMA foreign_keys = ON")
+    return g.db
+
+
+@app.teardown_appcontext
+def close_db(exception):
+    db = g.pop("db", None)
+    if db is not None:
+        db.close()
+
+
+def error_response(status_code, message, details=None):
+    body = {"error": {"code": status_code, "message": message}}
+    if details:
+        body["error"]["details"] = details
+    return jsonify(body), status_code
+```
+
+`sqlite3.Row` lets you read columns by name (`row["username"]`) instead of position — worth it the moment a query touches more than one table. `PRAGMA foreign_keys = ON` has to be set *per connection* in SQLite; forgetting it means your foreign keys are decorative.
+
+## Password hashing, done correctly
+
+Never do this:
+
+```python
+# WRONG — do not use this pattern anywhere, ever
+import hashlib
+password_hash = hashlib.sha256(password.encode()).hexdigest()
+```
+
+Two separate problems make this dangerous. First, it's unsalted: two users with the password `hunter2` get the identical hash, which leaks in a breach and lets an attacker crack every matching account with one lookup. Second, SHA-256 is *fast* — that's a feature for checksums and a disaster for passwords, because a modern GPU can test billions of guesses per second against a leaked hash dump.
+
+`bcrypt` (and `argon2`, its modern alternative) fix both: they generate a random salt per password automatically, and they're deliberately, tunably slow, so cracking millions of hashes takes actual GPU-years instead of an afternoon.
+
+```python
+import bcrypt
+
+def hash_password(plain: str) -> str:
+    return bcrypt.hashpw(plain.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+
+def verify_password(plain: str, hashed: str) -> bool:
+    return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
+```
+
+`bcrypt.gensalt()` produces a fresh random salt every call, and `hashpw` bakes that salt into the returned string itself — you don't need a separate salt column. Always compare with `checkpw`, never `==` on two hash strings by hand; `checkpw` is written to avoid leaking timing information about how many characters matched.
+
+## Validation, shared across every resource
+
+Same shape Tier 1 used, extended to a second resource so the pattern (not the code) is what repeats:
+
+```python
+import re
+
+EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def validate_user_payload(data):
+    if not isinstance(data, dict):
+        return {"_body": "Request body must be a JSON object"}
+    errors = {}
+    username = data.get("username")
+    if not isinstance(username, str) or not (3 <= len(username.strip()) <= 30):
+        errors["username"] = "username must be 3-30 characters"
+    email = data.get("email")
+    if not isinstance(email, str) or not EMAIL_RE.match(email.strip()):
+        errors["email"] = "email must be a valid email address"
+    password = data.get("password")
+    if not isinstance(password, str) or len(password) < 8:
+        errors["password"] = "password must be at least 8 characters"
+    return errors
+
+
+def validate_post_payload(data):
+    if not isinstance(data, dict):
+        return {"_body": "Request body must be a JSON object"}
+    errors = {}
+    if not isinstance(data.get("title"), str) or not data["title"].strip():
+        errors["title"] = "title is required and must be a non-empty string"
+    if not isinstance(data.get("body"), str) or not data["body"].strip():
+        errors["body"] = "body is required and must be a non-empty string"
+    return errors
+```
+
+Every endpoint below returns 400 for unparseable JSON, 422 with a `details` object for validation failures, and 409 when a database constraint (like `UNIQUE`) rejects something that looked valid on its own — one client-side error handler covers all three resources.
+
+## Registration and login
+
+```python
+@app.route("/users", methods=["POST"])
+def register_user():
+    data = request.get_json(silent=True)
+    if data is None:
+        return error_response(400, "Request body must be valid JSON")
+
+    errors = validate_user_payload(data)
+    if errors:
+        return error_response(422, "Validation failed", errors)
+
+    db = get_db()
+    try:
+        cursor = db.execute(
+            "INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)",
+            (data["username"].strip(), data["email"].strip().lower(), hash_password(data["password"])),
+        )
+        db.commit()
+    except sqlite3.IntegrityError:
+        return error_response(409, "Username or email is already taken")
+
+    return jsonify({"id": cursor.lastrowid, "username": data["username"], "email": data["email"]}), 201
+
+
+@app.route("/auth/login", methods=["POST"])
+def login():
+    data = request.get_json(silent=True)
+    if not data or "username" not in data or "password" not in data:
+        return error_response(400, "username and password are required")
+
+    db = get_db()
+    row = db.execute(
+        "SELECT id, password_hash FROM users WHERE username = ?", (data["username"],)
+    ).fetchone()
+
+    if row is None or not verify_password(data["password"], row["password_hash"]):
+        return error_response(401, "Invalid username or password")
+
+    return jsonify({"token": issue_token(row["id"])}), 200
+```
+
+`login` returns the *same* 401 message whether the username doesn't exist or the password is wrong. That's deliberate: distinguishing them lets an attacker enumerate every valid username on your system one guess at a time.
+
+## JWT: issuing and verifying
+
+A JWT is three base64url segments — header, payload, signature — joined by dots. The signature proves *your server* issued it and that the payload hasn't been tampered with; it does **not** encrypt the payload, so never put secrets inside it, only identifiers like a user ID.
+
+```python
+import jwt
+import datetime
+
+
+def issue_token(user_id: int) -> str:
+    payload = {
+        "sub": user_id,
+        "iat": datetime.datetime.utcnow(),
+        "exp": datetime.datetime.utcnow() + datetime.timedelta(minutes=Config.JWT_EXP_MINUTES),
+    }
+    return jwt.encode(payload, Config.JWT_SECRET, algorithm="HS256")
+```
+
+`exp` is what makes a stolen token eventually stop working on its own — without it, a leaked token is valid forever. Verifying happens in a decorator so every protected route gets the same check with one line:
+
+```python
+from functools import wraps
+
+def require_auth(f):
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        auth_header = request.headers.get("Authorization", "")
+        if not auth_header.startswith("Bearer "):
+            return error_response(401, "Missing or malformed Authorization header")
+
+        token = auth_header.split(" ", 1)[1]
+        try:
+            payload = jwt.decode(token, Config.JWT_SECRET, algorithms=["HS256"])
+        except jwt.ExpiredSignatureError:
+            return error_response(401, "Token has expired")
+        except jwt.InvalidTokenError:
+            return error_response(401, "Invalid token")
+
+        g.user_id = payload["sub"]
+        return f(*args, **kwargs)
+    return wrapper
+```
+
+`algorithms=["HS256"]` matters as much as the secret: `jwt.decode` without an explicit algorithm list will trust whatever algorithm the token *claims* to use, which is a known attack (an attacker can hand you a token signed with `alg: none` and have it accepted). Always pin the algorithm on the verifying side.
+
+## Multi-resource CRUD, with authorization beyond authentication
+
+```python
+@app.route("/posts", methods=["GET"])
+def list_posts():
+    db = get_db()
+    rows = db.execute("""
+        SELECT posts.id, posts.title, posts.body, posts.created_at,
+               users.id AS author_id, users.username AS author_username
+        FROM posts
+        JOIN users ON users.id = posts.author_id
+        ORDER BY posts.id DESC
+    """).fetchall()
+
+    posts = [
+        {
+            "id": r["id"], "title": r["title"], "body": r["body"], "created_at": r["created_at"],
+            "author": {"id": r["author_id"], "username": r["author_username"]},
+        }
+        for r in rows
+    ]
+    return jsonify(posts), 200
+
+
+@app.route("/posts", methods=["POST"])
+@require_auth
+def create_post():
+    data = request.get_json(silent=True)
+    if data is None:
+        return error_response(400, "Request body must be valid JSON")
+
+    errors = validate_post_payload(data)
+    if errors:
+        return error_response(422, "Validation failed", errors)
+
+    db = get_db()
+    cursor = db.execute(
+        "INSERT INTO posts (author_id, title, body) VALUES (?, ?, ?)",
+        (g.user_id, data["title"].strip(), data["body"].strip()),
+    )
+    db.commit()
+    return jsonify({"id": cursor.lastrowid, "title": data["title"], "body": data["body"], "author_id": g.user_id}), 201
+
+
+@app.route("/posts/<int:post_id>", methods=["DELETE"])
+@require_auth
+def delete_post(post_id):
+    db = get_db()
+    row = db.execute("SELECT author_id FROM posts WHERE id = ?", (post_id,)).fetchone()
+    if row is None:
+        return error_response(404, f"Post {post_id} not found")
+    if row["author_id"] != g.user_id:
+        return error_response(403, "You can only delete your own posts")
+
+    db.execute("DELETE FROM posts WHERE id = ?", (post_id,))
+    db.commit()
+    return "", 204
+```
+
+`delete_post` is where authentication and authorization split apart, which is easy to blur: `require_auth` only proves *who* is asking (a valid token) — it says nothing about whether they're allowed to delete *this specific* post. That second check is a plain application-level comparison (`row["author_id"] != g.user_id`), and it's why the response is 403, not 401: the token is perfectly valid, the identity is just not permitted to do this.
+
+## Trying it end to end
+
+```bash
+# Register
+curl -X POST http://localhost:5000/users \
+  -H "Content-Type: application/json" \
+  -d '{"username": "ava", "email": "ava@example.com", "password": "correct-horse"}'
+# -> 201, {"id": 1, "username": "ava", "email": "ava@example.com"}
+
+# Log in
+curl -X POST http://localhost:5000/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "ava", "password": "correct-horse"}'
+# -> 200, {"token": "eyJhbGciOi..."}
+
+# Create a post WITHOUT a token
+curl -X POST http://localhost:5000/posts \
+  -H "Content-Type: application/json" \
+  -d '{"title": "Hello", "body": "First post"}'
+# -> 401, {"error": {"code": 401, "message": "Missing or malformed Authorization header"}}
+
+# Create a post WITH the token from login
+curl -X POST http://localhost:5000/posts \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer eyJhbGciOi..." \
+  -d '{"title": "Hello", "body": "First post"}'
+# -> 201, {"id": 1, "title": "Hello", "body": "First post", "author_id": 1}
+
+# List posts — public, includes the joined author
+curl http://localhost:5000/posts
+# -> 200, [{"id": 1, "title": "Hello", ..., "author": {"id": 1, "username": "ava"}}]
+```
+
+Every response above uses the same status-code vocabulary and error shape from Tier 1 — that consistency is the actual payoff of building it once and reusing it, not a coincidence.
+
+## Exercise
+
+Add a third resource, `comments`, that belongs to both a `post` and a `user` (two foreign keys on one table). Requirements:
+
+- `POST /posts/<id>/comments` requires a valid token and creates a comment authored by the caller.
+- `GET /posts/<id>/comments` is public and returns each comment with its author's username joined in, the same way `list_posts` joins `author`.
+- `DELETE /comments/<id>` requires auth, and must return 403 (not 401) if the caller is neither the comment's author *nor* the post's author — two different people can legitimately be allowed to remove a comment.
+- Registration should also reject a `password` equal to the `username` (case-insensitive) with a 422, even though both fields individually pass their own length checks.
+
+**Hint:** the `comments` table needs `post_id INTEGER NOT NULL REFERENCES posts(id)` and `author_id INTEGER NOT NULL REFERENCES users(id)` — two foreign keys, same pattern as `posts.author_id`, just twice. The three-way authorization check in `DELETE /comments/<id>` needs one query that fetches both the comment's `author_id` and its post's `author_id` (a `JOIN` between `comments` and `posts`), not two separate lookups.
+
+## Recap
+
+Multi-resource persistence is normalization plus foreign keys plus a `JOIN`, all of which you already had. What's new here is the security surface: hash passwords with bcrypt or argon2, never anything faster or unsalted; issue short-lived, signed JWTs and verify them with a pinned algorithm; keep authentication (who is this?) and authorization (are they allowed to do *this*?) as two separate checks; and keep every secret — dev or prod — out of the repository entirely, loaded from the environment instead.

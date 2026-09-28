@@ -1,0 +1,238 @@
+---
+trackId: software-engineering
+tier: 2
+title: "Integration & API Testing"
+order: 6
+estimatedHours: 6
+slug: integration-and-api-testing
+---
+
+## From Calling a Function to Hitting an Endpoint
+
+Tier 1 covered the mechanics of automated testing — Arrange-Act-Assert, pytest, fixtures, and the stub-vs-mock distinction — so none of that gets re-taught here. This module is about a different boundary: instead of calling `calculate_discount(2000, 25)` directly and checking the return value, you send an actual HTTP request into your running application and check the actual HTTP response — status code, headers, JSON body — exactly the way a real client would. That's an **integration test** (sometimes called an **API test** when the whole point is the HTTP contract): it exercises routing, request parsing, your business logic, the database, and response serialization together, as one path. It catches a category of bug unit tests structurally cannot see: a route registered under the wrong verb, a serializer that silently drops a field, a status code that's technically wrong even though the underlying function returned the "correct" value.
+
+The trade-off is the one from the Tier 1 testing pyramid: integration tests are slower and touch more moving parts than unit tests, so you write fewer of them, aimed at your critical paths — not one per unit test you already have.
+
+## Making the App Testable: the Factory Pattern
+
+A Flask app built as one global `app = Flask(__name__)` at import time has a problem for testing: there's no way to hand it a different (test) database without mutating global state mid-test-run. The fix is the **application factory pattern** — a function that builds and returns a fresh, configured app instance on demand:
+
+```python
+# models.py
+from flask_sqlalchemy import SQLAlchemy
+
+db = SQLAlchemy()
+
+class Book(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    isbn = db.Column(db.String(20), unique=True, nullable=False)
+    title = db.Column(db.String(200), nullable=False)
+    available = db.Column(db.Boolean, default=True, nullable=False)
+
+    def to_dict(self):
+        return {"id": self.id, "isbn": self.isbn, "title": self.title, "available": self.available}
+```
+
+```python
+# app.py
+import requests
+from flask import Flask, request, jsonify
+from models import db, Book
+
+ISBN_LOOKUP_URL = "https://isbn-lookup.example.com/isbn/{}"
+
+def create_app(config=None):
+    app = Flask(__name__)
+    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///library.db"
+    app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+    if config:
+        app.config.update(config)
+
+    db.init_app(app)
+
+    @app.route("/books", methods=["POST"])
+    def create_book():
+        data = request.get_json(silent=True)
+        if not data or not data.get("isbn"):
+            return jsonify({"error": "isbn is required"}), 400
+
+        title = data.get("title", "Unknown")
+        try:
+            resp = requests.get(ISBN_LOOKUP_URL.format(data["isbn"]), timeout=3)
+            resp.raise_for_status()
+            title = resp.json().get("title", title)
+        except requests.RequestException:
+            pass  # metadata service is optional — fall back to whatever the caller sent
+
+        book = Book(isbn=data["isbn"], title=title, available=True)
+        db.session.add(book)
+        db.session.commit()
+        return jsonify(book.to_dict()), 201
+
+    @app.route("/books/<int:book_id>", methods=["GET"])
+    def get_book(book_id):
+        book = db.session.get(Book, book_id)
+        if book is None:
+            return jsonify({"error": "not found"}), 404
+        return jsonify(book.to_dict()), 200
+
+    @app.route("/books/<int:book_id>/checkout", methods=["POST"])
+    def checkout_book(book_id):
+        book = db.session.get(Book, book_id)
+        if book is None:
+            return jsonify({"error": "not found"}), 404
+        if not book.available:
+            return jsonify({"error": "already checked out"}), 409
+        book.available = False
+        db.session.commit()
+        return jsonify(book.to_dict()), 200
+
+    return app
+```
+
+Every test can now call `create_app({"SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:", "TESTING": True})` and get a completely fresh app wired to an isolated database — nothing shared with production, nothing shared between test runs.
+
+## A Real Test Database, Seeded and Torn Down Around Every Test
+
+"Real" here means an actual SQLite (or Postgres) database that your code runs actual SQL against — not a mocked-out ORM. Mocking the database itself would defeat the point: you'd stop testing whether your queries are even correct. What you control instead is its *lifecycle*: build it right before the test, throw it away right after.
+
+```python
+# conftest.py
+import pytest
+from app import create_app
+from models import db as _db, Book
+
+@pytest.fixture
+def app():
+    app = create_app({
+        "TESTING": True,
+        "SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:",
+    })
+    with app.app_context():
+        _db.create_all()
+        yield app
+        _db.session.remove()
+        _db.drop_all()
+
+@pytest.fixture
+def client(app):
+    return app.test_client()
+
+@pytest.fixture
+def seeded_book(app):
+    book = Book(isbn="9780000000001", title="Seed Book", available=True)
+    _db.session.add(book)
+    _db.session.commit()
+    return book.id
+```
+
+The `app` fixture has *function* scope (pytest's default), which is the important decision: it runs `create_all()` then `drop_all()` around **every single test**, not once for the whole file. That's what makes tests order-independent — test B never sees a row test A left behind, because by the time B starts, the schema was just rebuilt from nothing. If two tests share one long-lived database instead, they're coupled through hidden shared state, and you get the classic failure mode: every test passes alone, but the suite fails (or passes differently) depending on run order — because one test's leftover row satisfies, or breaks, an assumption in another.
+
+`seeded_book` is the seeding half of the topic: some tests need a row to already exist (you're testing `GET /books/<id>` or `checkout`, not creation), so a fixture inserts it directly through the ORM — bypassing the API — and hands back its id.
+
+One production caveat worth knowing now, even if you don't need it yet: in-memory SQLite is fast and perfectly fine for this kind of test, but it is *not* the same engine as a production Postgres database — it's more lenient about types and constraints, so a test suite can go green here while a Postgres-specific bug (a `CHECK` constraint, a `JSONB` query, an enforced foreign key) ships anyway. Teams whose production database is Postgres commonly run integration tests against a real, disposable Postgres instance instead — a Docker container or a `testcontainers` library spins one up, the fixture creates/drops a schema per test (or per test run, wrapping each test in a transaction that gets rolled back instead of committed, for speed), and it gets torn down when the suite finishes. Same lifecycle idea as above; just the real engine underneath.
+
+## Driving the API Over Real HTTP
+
+Flask's `app.test_client()` is the direct equivalent of Node's `supertest`: it sends a request through the *entire* WSGI stack — routing, your view function, serialization — and hands back a real response object, without you needing a live socket or a running server process.
+
+```python
+# test_books_api.py
+
+def test_get_seeded_book_returns_full_record(client, seeded_book):
+    resp = client.get(f"/books/{seeded_book}")
+    assert resp.status_code == 200
+    assert resp.get_json() == {
+        "id": seeded_book, "isbn": "9780000000001", "title": "Seed Book", "available": True,
+    }
+
+def test_get_nonexistent_book_returns_404(client):
+    resp = client.get("/books/9999")
+    assert resp.status_code == 404
+
+def test_checkout_twice_returns_conflict_on_second_call(client, seeded_book):
+    first = client.post(f"/books/{seeded_book}/checkout")
+    second = client.post(f"/books/{seeded_book}/checkout")
+
+    assert first.status_code == 200
+    assert first.get_json()["available"] is False
+    assert second.status_code == 409
+```
+
+Nothing here is a unit test of a function — every assertion is against what an actual caller over HTTP would see: the status code, the shape of the JSON body, the sequence of two real requests against the same book.
+
+## Mocking the External Service Call
+
+`create_book` calls a third-party ISBN metadata service over real HTTP. Running that in a test suite would make your tests slow, flaky (the service goes down, rate-limits you, or your CI box has no network access), and non-deterministic — three properties Tier 1 already told you a good test must never have. So you intercept the call before it leaves the process.
+
+`unittest.mock.patch` needs to know exactly *where* to install the fake — and that's not always where the real function is defined. The rule is: **patch the name where it's looked up, not where it was originally written.** If some module does `from external_api import fetch_data` and then calls `fetch_data()`, that module now owns its own local reference — patching `external_api.fetch_data` won't touch it; you have to patch `that_module.fetch_data`. `app.py` above sidesteps this trap on purpose by doing `import requests` and always calling through `requests.get(...)` — so the patch target is simply `app.requests.get`, matching how the code actually calls it.
+
+```python
+# test_books_api_external_call.py
+from unittest.mock import patch, Mock
+import requests
+
+def test_create_book_uses_title_from_isbn_lookup(client):
+    fake_response = Mock()
+    fake_response.raise_for_status.return_value = None
+    fake_response.json.return_value = {"title": "Dune"}
+
+    with patch("app.requests.get", return_value=fake_response) as mock_get:
+        resp = client.post("/books", json={"isbn": "9780441013593"})
+
+    assert resp.status_code == 201
+    assert resp.get_json()["title"] == "Dune"
+    mock_get.assert_called_once_with(
+        "https://isbn-lookup.example.com/isbn/9780441013593", timeout=3
+    )
+
+def test_create_book_falls_back_when_lookup_service_times_out(client):
+    with patch("app.requests.get", side_effect=requests.exceptions.Timeout):
+        resp = client.post("/books", json={"isbn": "000", "title": "Manual Entry"})
+
+    assert resp.status_code == 201
+    assert resp.get_json()["title"] == "Manual Entry"
+```
+
+Two tests, two behaviors: the happy path (the service responds, its title wins) and the resilience path (the service fails, your endpoint still succeeds using the caller's own data instead of 500ing). That second test is exactly the kind of case that's nearly impossible to trigger reliably against the real service on demand — mocking is what makes it testable at all.
+
+## If You're Working in Node: supertest at a Glance
+
+The shape is identical even though the library names differ. `supertest` wraps your Express `app` the same way Flask's test client wraps yours, and `jest.mock` (or `nock` for intercepting outbound HTTP specifically) plays the role of `unittest.mock.patch`:
+
+```javascript
+// books.test.js
+const request = require("supertest");
+const app = require("../app");
+const axios = require("axios");
+jest.mock("axios");
+
+beforeEach(async () => {
+  await db.sync({ force: true }); // rebuild tables fresh before every test
+});
+
+test("POST /books uses the title from the ISBN lookup service", async () => {
+  axios.get.mockResolvedValue({ data: { title: "Dune" } });
+
+  const res = await request(app).post("/books").send({ isbn: "9780441013593" });
+
+  expect(res.status).toBe(201);
+  expect(res.body.title).toBe("Dune");
+});
+```
+
+Same three ideas, same order: a real HTTP-shaped request through `supertest`, a database rebuilt in `beforeEach` so every test starts clean, and the external call replaced with `jest.mock` so nothing leaves the process.
+
+## Exercise
+
+Add a `POST /books/<id>/return` endpoint to the app above: it should flip `available` back to `True`, and afterward make a best-effort call to a notifications webhook (`requests.post("https://notify.example.com/returned", json={"book_id": book_id}, timeout=3)`) — a failure of that call should **not** fail the request, exactly like the ISBN lookup's failure doesn't fail creation. Then write the test suite for it, covering:
+
+1. Returning a book that is currently checked out (`available=False`) succeeds and flips the field.
+2. Returning a book that is already available returns `409 Conflict` and never calls the webhook.
+3. The webhook raising `requests.exceptions.ConnectionError` still results in a `200` response — the return itself must not depend on the notification succeeding.
+
+**Hint:** write case 2 first — it's the one where the webhook must *not* be called, so assert `mock_post.assert_not_called()` rather than just checking the status code. Getting that assertion in place before you write the endpoint logic is what stops you from accidentally sending a notification for a return that never happened.
+
+## Summary
+
+Integration/API tests exercise your whole HTTP boundary at once — via `app.test_client()` (or `supertest` in Node) — catching wiring and serialization bugs that unit tests never see. A function-scoped fixture that rebuilds the schema before every test and tears it down after is what keeps a real test database isolated and order-independent; seeding rows straight through the ORM (bypassing the API) sets up state for tests that aren't about creation. External service calls get patched at the name your code actually calls through — not necessarily where they're defined — so your suite stays fast, deterministic, and immune to a third party's uptime, and so you can deliberately test the failure path a live dependency would rarely hand you on demand.

@@ -1,0 +1,98 @@
+[
+  {
+    "id": "software-engineering/tier-2/intro-to-design-patterns-gof-essentials/q1",
+    "type": "multiple_choice",
+    "prompt": "What problem does the Factory pattern primarily solve?",
+    "choices": [
+      "Decoupling object creation from the code that uses the object, so new types can be added without editing existing call sites.",
+      "Letting an object notify other objects automatically when its internal state changes.",
+      "Guaranteeing that only one instance of a class ever exists.",
+      "Adding new behavior to an object at runtime by wrapping it in another object."
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "software-engineering/tier-2/intro-to-design-patterns-gof-essentials/q2",
+    "type": "multiple_choice",
+    "prompt": "A checkout system computes tax with one large if/elif chain branching on country code. Every time a new country launches, someone edits this same function, and existing countries' tax calculations occasionally break as a side effect. Which pattern best addresses this?",
+    "choices": [
+      "Singleton",
+      "Strategy",
+      "Observer",
+      "Decorator"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-2/intro-to-design-patterns-gof-essentials/q3",
+    "type": "multiple_choice",
+    "prompt": "In the Observer pattern, what is the relationship between the subject and its observers?",
+    "choices": [
+      "The subject holds references to observers and calls a known interface method on each when its state changes, without needing to know their concrete types.",
+      "Observers run a polling loop that repeatedly checks the subject for changes.",
+      "The subject and its observers are the same object accessed through two different interfaces.",
+      "Observers subclass the subject in order to access its private state directly."
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "software-engineering/tier-2/intro-to-design-patterns-gof-essentials/q4",
+    "type": "multiple_choice",
+    "prompt": "A ReportGenerator class calls Logger.instance() (a Singleton) directly inside its generate() method to write log lines, instead of receiving a logger through its constructor. What's the main problem this creates for testing?",
+    "choices": [
+      "ReportGenerator's dependency on a logger is hidden, so tests can't substitute a fake logger without resorting to global-state workarounds.",
+      "The code won't compile, because Singletons cannot be referenced from other classes.",
+      "It's purely a performance issue and has no effect on testing.",
+      "It violates the Liskov Substitution Principle because Logger is not a subclass of ReportGenerator."
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "software-engineering/tier-2/intro-to-design-patterns-gof-essentials/q5",
+    "type": "multiple_choice",
+    "prompt": "What's the strongest reason to use the Decorator pattern instead of creating a new subclass for every combination of optional features?",
+    "choices": [
+      "Decorator removes the need to define any interfaces.",
+      "Decorator lets you compose optional behaviors at runtime in any combination, avoiding a combinatorial explosion of subclasses.",
+      "Decorator is mandatory whenever two or more classes implement the same interface.",
+      "Decorator automatically makes the wrapped object immutable."
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-2/intro-to-design-patterns-gof-essentials/q6",
+    "type": "multiple_choice",
+    "prompt": "Having just learned Strategy, a developer refactors 'return full_price if not is_admin else full_price * 0.9' into an interface, two strategy classes, a context object, and a factory to construct the right strategy. What's the most accurate critique?",
+    "choices": [
+      "This is correct and idiomatic; every conditional should become a Strategy.",
+      "This is over-engineering: it adds indirection and extra classes for a two-branch condition with no real, growing axis of variation, when a plain conditional already reads clearly.",
+      "Strategy is the wrong label here; this should have used Singleton instead.",
+      "The only bug is that the two strategy classes don't share a common base class."
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-2/intro-to-design-patterns-gof-essentials/q7",
+    "type": "multiple_choice",
+    "prompt": "Why is Singleton often considered risky in practice, even though it does guarantee exactly one instance exists?",
+    "choices": [
+      "It is always slower at runtime than constructing a new object each time.",
+      "It introduces global mutable state and hides dependencies, which makes code harder to test and reason about.",
+      "Most languages, including Python, technically cannot implement it.",
+      "It can only be implemented using multiple inheritance, which is inherently buggy."
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-2/intro-to-design-patterns-gof-essentials/q8",
+    "type": "multiple_choice",
+    "prompt": "You're building a checkout completion flow where an in-app toast, an analytics tracker, and an audit logger all need to react whenever a purchase completes, and none of these three should know about the other two. Which pattern fits best?",
+    "choices": [
+      "Factory",
+      "Observer",
+      "Decorator",
+      "Singleton"
+    ],
+    "correctIndex": 1
+  }
+]

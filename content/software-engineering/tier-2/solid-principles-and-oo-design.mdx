@@ -1,0 +1,356 @@
+---
+trackId: software-engineering
+tier: 2
+title: "SOLID Principles & OO Design"
+order: 2
+estimatedHours: 8
+slug: solid-principles-and-oo-design
+---
+
+## Before we start
+
+Tier 1 already covered classes, inheritance, encapsulation, and polymorphism -- this module assumes you're comfortable writing a class and subclassing it. What it adds is the five **SOLID** principles: a set of design heuristics for keeping object-oriented code easy to change as it grows. Each one below gets a concrete "before" (real code that violates it) and "after" (the fix), because the definitions alone are useless without seeing the smell in actual code.
+
+## 1. Single Responsibility Principle (SRP)
+
+*A class should have only one reason to change.*
+
+**Before** -- this `Invoice` class mixes business math, persistence, and presentation:
+
+```python
+class Invoice:
+    def __init__(self, items):
+        self.items = items  # list of (name, price, qty)
+
+    def total(self):
+        return sum(price * qty for _, price, qty in self.items)
+
+    def save_to_db(self):
+        import sqlite3
+        conn = sqlite3.connect("invoices.db")
+        conn.execute("INSERT INTO invoices (total) VALUES (?)", (self.total(),))
+        conn.commit()
+        conn.close()
+
+    def print_receipt(self):
+        print("RECEIPT")
+        for name, price, qty in self.items:
+            print(f"{name:20s} {qty} x ${price:.2f}")
+        print(f"TOTAL: ${self.total():.2f}")
+```
+
+Three unrelated reasons to touch this file: pricing rules change, the database schema changes, or marketing wants a different receipt layout. Testing `total()` now drags in sqlite and stdout formatting concerns that have nothing to do with arithmetic.
+
+**After** -- split by responsibility:
+
+```python
+class Invoice:
+    def __init__(self, items):
+        self.items = items
+
+    def total(self):
+        return sum(price * qty for _, price, qty in self.items)
+
+
+class InvoiceRepository:
+    def __init__(self, db_path="invoices.db"):
+        self.db_path = db_path
+
+    def save(self, invoice: Invoice):
+        import sqlite3
+        conn = sqlite3.connect(self.db_path)
+        conn.execute("INSERT INTO invoices (total) VALUES (?)", (invoice.total(),))
+        conn.commit()
+        conn.close()
+
+
+class ReceiptPrinter:
+    def print(self, invoice: Invoice):
+        print("RECEIPT")
+        for name, price, qty in invoice.items:
+            print(f"{name:20s} {qty} x ${price:.2f}")
+        print(f"TOTAL: ${invoice.total():.2f}")
+```
+
+Now `Invoice` changes only when pricing logic changes. Each class has exactly one job and can be tested in isolation.
+
+## 2. Open/Closed Principle (OCP)
+
+*Software entities should be open for extension, closed for modification.*
+
+**Before** -- an if/elif chain keyed on a type string:
+
+```python
+class DiscountCalculator:
+    def discount(self, customer_type, amount):
+        if customer_type == "regular":
+            return amount * 0.0
+        elif customer_type == "silver":
+            return amount * 0.05
+        elif customer_type == "gold":
+            return amount * 0.10
+        elif customer_type == "platinum":
+            return amount * 0.15
+        else:
+            raise ValueError("unknown customer type")
+```
+
+Every new tier means editing this method -- and every edit risks breaking the tiers you didn't mean to touch.
+
+**After** -- polymorphism replaces the branch:
+
+```python
+from abc import ABC, abstractmethod
+
+class DiscountPolicy(ABC):
+    @abstractmethod
+    def discount(self, amount: float) -> float:
+        pass
+
+class RegularDiscount(DiscountPolicy):
+    def discount(self, amount): return 0.0
+
+class SilverDiscount(DiscountPolicy):
+    def discount(self, amount): return amount * 0.05
+
+class GoldDiscount(DiscountPolicy):
+    def discount(self, amount): return amount * 0.10
+
+class PlatinumDiscount(DiscountPolicy):
+    def discount(self, amount): return amount * 0.15
+
+def apply_discount(policy: DiscountPolicy, amount: float) -> float:
+    return amount - policy.discount(amount)
+
+# adding a new tier never touches existing classes:
+class DiamondDiscount(DiscountPolicy):
+    def discount(self, amount): return amount * 0.20
+```
+
+Extension now means "add a new class," not "edit a working one."
+
+## 3. Liskov Substitution Principle (LSP)
+
+*Subtypes must be usable anywhere their base type is expected, without surprising the caller.*
+
+**Before** -- the classic Rectangle/Square trap:
+
+```python
+class Rectangle:
+    def __init__(self, width, height):
+        self.width = width
+        self.height = height
+
+    def set_width(self, w): self.width = w
+    def set_height(self, h): self.height = h
+    def area(self): return self.width * self.height
+
+class Square(Rectangle):
+    def set_width(self, w):
+        self.width = w
+        self.height = w  # keep it square
+
+    def set_height(self, h):
+        self.width = h
+        self.height = h
+
+def resize_and_check(rect: Rectangle):
+    rect.set_width(4)
+    rect.set_height(5)
+    assert rect.area() == 20, f"expected 20, got {rect.area()}"
+
+resize_and_check(Rectangle(2, 3))  # passes
+resize_and_check(Square(2, 2))     # AssertionError: got 25
+```
+
+`Square` is a mathematical rectangle, but it silently breaks any code that assumes setting width and height independently controls the area -- code written against `Rectangle` cannot safely accept a `Square`.
+
+**After** -- don't force an inheritance relationship where the behavioral contract diverges:
+
+```python
+from abc import ABC, abstractmethod
+
+class Shape(ABC):
+    @abstractmethod
+    def area(self) -> float:
+        pass
+
+class Rectangle(Shape):
+    def __init__(self, width, height):
+        self.width = width
+        self.height = height
+    def area(self): return self.width * self.height
+
+class Square(Shape):
+    def __init__(self, side):
+        self.side = side
+    def area(self): return self.side * self.side
+
+def print_area(shape: Shape):
+    print(f"Area: {shape.area()}")
+
+print_area(Rectangle(4, 5))  # 20
+print_area(Square(4))        # 16, no surprises
+```
+
+Both classes now honor the same narrow contract (`area()`), and no client can be broken by swapping one for the other.
+
+## 4. Interface Segregation Principle (ISP)
+
+*Clients shouldn't be forced to depend on methods they don't use.*
+
+**Before** -- a fat interface:
+
+```python
+from abc import ABC, abstractmethod
+
+class Worker(ABC):
+    @abstractmethod
+    def work(self): pass
+    @abstractmethod
+    def eat(self): pass
+    @abstractmethod
+    def sleep(self): pass
+
+class HumanWorker(Worker):
+    def work(self): print("coding")
+    def eat(self): print("eating lunch")
+    def sleep(self): print("sleeping")
+
+class RobotWorker(Worker):
+    def work(self): print("welding")
+    def eat(self): raise NotImplementedError("robots don't eat")
+    def sleep(self): raise NotImplementedError("robots don't sleep")
+```
+
+`RobotWorker` is forced to implement methods it has no meaningful behavior for. Any code that loops over `Worker` objects and calls `eat()` will crash the moment a robot is in the list.
+
+**After** -- split into role-specific interfaces:
+
+```python
+from abc import ABC, abstractmethod
+
+class Workable(ABC):
+    @abstractmethod
+    def work(self): pass
+
+class Eatable(ABC):
+    @abstractmethod
+    def eat(self): pass
+
+class Sleepable(ABC):
+    @abstractmethod
+    def sleep(self): pass
+
+class HumanWorker(Workable, Eatable, Sleepable):
+    def work(self): print("coding")
+    def eat(self): print("eating lunch")
+    def sleep(self): print("sleeping")
+
+class RobotWorker(Workable):
+    def work(self): print("welding")
+```
+
+`RobotWorker` now only implements what it actually does. Code that schedules lunch breaks can depend on `Eatable` alone and never even see `RobotWorker`.
+
+## 5. Dependency Inversion Principle (DIP)
+
+*High-level modules shouldn't depend on low-level modules; both should depend on abstractions.*
+
+**Before** -- a high-level class hard-wires a concrete dependency:
+
+```python
+class MySQLDatabase:
+    def save(self, data):
+        print(f"Saving {data} to MySQL")
+
+class UserService:
+    def __init__(self):
+        self.db = MySQLDatabase()  # hard-coded
+
+    def register(self, username):
+        self.db.save({"username": username})
+```
+
+`UserService` is locked to MySQL. You can't test it without a real database, and switching to Postgres means editing `UserService` itself.
+
+**After** -- depend on an abstraction, inject the concrete implementation:
+
+```python
+from abc import ABC, abstractmethod
+
+class Database(ABC):
+    @abstractmethod
+    def save(self, data): pass
+
+class MySQLDatabase(Database):
+    def save(self, data):
+        print(f"Saving {data} to MySQL")
+
+class InMemoryDatabase(Database):
+    def __init__(self):
+        self.records = []
+    def save(self, data):
+        self.records.append(data)
+
+class UserService:
+    def __init__(self, db: Database):
+        self.db = db  # injected
+
+    def register(self, username):
+        self.db.save({"username": username})
+
+# production
+service = UserService(MySQLDatabase())
+service.register("alice")
+
+# tests -- no real database needed
+test_db = InMemoryDatabase()
+test_service = UserService(test_db)
+test_service.register("bob")
+assert test_db.records == [{"username": "bob"}]
+```
+
+`UserService` now depends on `Database`, and `MySQLDatabase`/`InMemoryDatabase` both depend on that same abstraction. This -- passing a dependency in rather than constructing it inline -- is called **dependency injection**, and it's the standard technique for satisfying DIP.
+
+## Recognizing violations when reading someone else's code
+
+Definitions are easy to recite and hard to apply. The transferable skill is spotting the smell in a diff or an unfamiliar file in under a minute:
+
+- **SRP smell**: a class whose name is "...Manager" or "...Util" and keeps growing; methods inside it that touch unrelated things (a database call sitting next to string formatting sitting next to business math); you have to reread the whole class to make a one-line change safely.
+- **OCP smell**: a long if/elif or switch chain keyed on a "type" field, especially if the same chain is duplicated in more than one place in the codebase -- every new case means hunting down every copy.
+- **LSP smell**: an overridden method that does nothing (`pass`), or raises `NotImplementedError`/an exception where the base class promised real behavior; an `isinstance()` check before calling a method on something typed as the base class -- that check exists because the author already knows substitution isn't safe.
+- **ISP smell**: an interface with many methods where every real implementer only uses two or three of them, or implementations littered with "not supported" exceptions.
+- **DIP smell**: a class that does `SomeConcreteThing()` inside its own constructor or methods instead of receiving it as an argument; tests that need a real database or network call because there's no substitutable seam.
+
+Most production code isn't textbook-clean, and that's fine. What matters when you're reviewing a PR or reading through a module before changing it is recognizing which of these smells you're looking at, and deciding whether the "quick fix" in front of you is about to make it worse.
+
+## Exercise
+
+Refactor this class. It violates at least two SOLID principles -- identify which ones before you touch the code.
+
+```python
+class OrderProcessor:
+    def process(self, order_type, items):
+        total = sum(item["price"] * item["qty"] for item in items)
+
+        if order_type == "online":
+            print(f"Charging card ${total:.2f}")
+            print("Emailing receipt")
+        elif order_type == "in_store":
+            print(f"Charging cash register ${total:.2f}")
+            print("Printing paper receipt")
+        elif order_type == "phone":
+            print(f"Charging card over phone ${total:.2f}")
+            print("Mailing receipt")
+        else:
+            raise ValueError("unknown order type")
+
+        import sqlite3
+        conn = sqlite3.connect("orders.db")
+        conn.execute("INSERT INTO orders (total) VALUES (?)", (total,))
+        conn.commit()
+        conn.close()
+```
+
+**Hint:** you need two separate fixes, not one. First, pull the persistence out -- have `OrderProcessor` receive something like an `OrderRepository` object in its constructor instead of opening a sqlite connection inline. Second, replace the if/elif chain with a small abstract base class (an `OrderHandler` with `charge()` and `send_receipt()` methods) and one concrete subclass per channel -- then adding a "curbside pickup" order type never means editing this file again.

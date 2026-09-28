@@ -1,0 +1,98 @@
+[
+  {
+    "id": "software-engineering/tier-2/solid-principles-and-oo-design/q1",
+    "type": "multiple_choice",
+    "prompt": "Which statement best defines the Single Responsibility Principle?",
+    "choices": [
+      "A class should have only one reason to change",
+      "A class should implement only one interface",
+      "A class should have only one public method",
+      "A class should be used by only one other class"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "software-engineering/tier-2/solid-principles-and-oo-design/q2",
+    "type": "multiple_choice",
+    "prompt": "A ShapeCalculator.get_area(shape) method contains an if/elif chain checking shape.type == \"circle\", \"square\", \"triangle\", etc. Every time a new shape is added, this method must be edited. Which principle is being violated?",
+    "choices": [
+      "Liskov Substitution Principle",
+      "Open/Closed Principle",
+      "Interface Segregation Principle",
+      "Single Responsibility Principle"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-2/solid-principles-and-oo-design/q3",
+    "type": "multiple_choice",
+    "prompt": "A Bird base class defines fly(). A Penguin subclass overrides fly() to raise NotSupportedError, since penguins can't fly. Code elsewhere calls fly() on every object typed as Bird and crashes when it hits a Penguin. Which principle does this violate?",
+    "choices": [
+      "Open/Closed Principle",
+      "Dependency Inversion Principle",
+      "Liskov Substitution Principle",
+      "Single Responsibility Principle"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "software-engineering/tier-2/solid-principles-and-oo-design/q4",
+    "type": "multiple_choice",
+    "prompt": "A PaymentGateway interface requires charge(), refund(), and reverseChargeback(). Your CashPayment class implements charge() but throws NotImplementedError for the other two, since cash transactions don't support automated refunds or chargebacks. What's the best fix?",
+    "choices": [
+      "Make CashPayment inherit from a different base class entirely",
+      "Split PaymentGateway into smaller interfaces (e.g. Chargeable, Refundable) so CashPayment only implements what it supports",
+      "Have CashPayment silently do nothing instead of raising an error",
+      "Add a boolean flag supportsRefunds that callers must check before calling refund()"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-2/solid-principles-and-oo-design/q5",
+    "type": "multiple_choice",
+    "prompt": "A ReportGenerator class directly instantiates PdfExporter inside its constructor (self.exporter = PdfExporter()), making it impossible to test the report logic without generating a real PDF file. Which principle addresses this, and what's the standard fix?",
+    "choices": [
+      "Interface Segregation Principle; split ReportGenerator into two smaller classes",
+      "Dependency Inversion Principle; have ReportGenerator depend on an exporter abstraction, and inject the concrete exporter from outside",
+      "Single Responsibility Principle; rename the class to something more specific",
+      "Open/Closed Principle; add an if/else to switch between exporters"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-2/solid-principles-and-oo-design/q6",
+    "type": "multiple_choice",
+    "prompt": "In the Rectangle/Square example from this lesson, why does making Square inherit from Rectangle (with width/height setters) violate LSP?",
+    "choices": [
+      "Square and Rectangle should never share a common ancestor in any design",
+      "Setting Square's width or height independently silently changes the other dimension, breaking code that assumes Rectangle's setters are independent",
+      "Python doesn't support inheritance between geometric shape classes",
+      "Square has fewer methods than Rectangle, so it can't be a valid subtype"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-2/solid-principles-and-oo-design/q7",
+    "type": "multiple_choice",
+    "prompt": "You're reviewing a PR and see a class named UtilityManager with 20 methods spanning PDF generation, cache invalidation, email sending, and database queries. Which principle is most clearly being violated?",
+    "choices": [
+      "Liskov Substitution Principle",
+      "Interface Segregation Principle",
+      "Single Responsibility Principle",
+      "Dependency Inversion Principle"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "software-engineering/tier-2/solid-principles-and-oo-design/q8",
+    "type": "multiple_choice",
+    "prompt": "What does the Dependency Inversion Principle actually require?",
+    "choices": [
+      "Low-level modules must never be instantiated directly anywhere in the codebase",
+      "High-level and low-level modules should both depend on abstractions, rather than the high-level module depending directly on the low-level one",
+      "Every class must have at least one abstract base class",
+      "Dependencies should always be resolved using a dependency injection framework"
+    ],
+    "correctIndex": 1
+  }
+]

@@ -1,0 +1,261 @@
+---
+trackId: software-engineering
+tier: 2
+title: "Test-Driven Development in Practice"
+order: 1
+estimatedHours: 8
+slug: test-driven-development-in-practice
+---
+
+## From knowing to doing
+
+Tier 1 covered what a unit test is, the Arrange-Act-Assert shape, and test doubles — we're assuming all of that here. This module is about turning that knowledge into a *habit*: Red-Green-Refactor as something you run on autopilot, coverage numbers you can actually interpret instead of chase, and edge cases you hunt for on purpose instead of stumbling into in production.
+
+## Red-Green-Refactor, one real cycle at a time
+
+The rule is mechanical and that's the point: **write a test that fails for the right reason, write the least code that makes it pass, then clean up with the test as your safety net.** No step gets skipped, and no step gets reordered.
+
+We'll build a `ShoppingCart` this way, one requirement at a time.
+
+### Cycle 1 — empty cart totals zero
+
+**Red.** Write the test before `ShoppingCart` exists:
+
+```python
+# test_cart.py
+from cart import ShoppingCart
+
+def test_empty_cart_total_is_zero():
+    cart = ShoppingCart()
+    assert cart.total() == 0
+```
+
+Run it:
+
+```
+$ pytest test_cart.py
+E   ModuleNotFoundError: No module named 'cart'
+```
+
+That's a genuine failure — not a typo, not a broken import path, but "this doesn't exist yet." That's what red is supposed to look like.
+
+**Green.** Write the *least* code that passes:
+
+```python
+# cart.py
+class ShoppingCart:
+    def total(self):
+        return 0
+```
+
+It looks fake, and it is — that's deliberate. TDD calls this "fake it": you resist writing logic the current test doesn't demand.
+
+### Cycle 2 — a single item counts
+
+**Red:**
+
+```python
+def test_single_item_total():
+    cart = ShoppingCart()
+    cart.add_item(price=10, quantity=1)
+    assert cart.total() == 10
+```
+
+```
+E   AttributeError: 'ShoppingCart' object has no attribute 'add_item'
+```
+
+**Green** — just enough to pass, still not the full solution:
+
+```python
+class ShoppingCart:
+    def __init__(self):
+        self.items = []
+
+    def add_item(self, price, quantity=1):
+        self.items.append(price)   # quantity ignored — no test demands it yet
+
+    def total(self):
+        return sum(self.items)
+```
+
+Both tests pass now. Notice `quantity` is accepted but silently ignored — nothing forces it to matter yet.
+
+### Cycle 3 — quantity has to multiply
+
+**Red**, and this time it exposes the shortcut from Cycle 2:
+
+```python
+def test_quantity_multiplies_price():
+    cart = ShoppingCart()
+    cart.add_item(price=10, quantity=3)
+    assert cart.total() == 30
+```
+
+```
+assert 10 == 30
+```
+
+The previous "simplest code" quietly dropped quantity, and this test catches it immediately. This is why you write the *next* test carefully — it should force the implementation to generalize.
+
+**Green:**
+
+```python
+    def add_item(self, price, quantity=1):
+        self.items.append((price, quantity))
+
+    def total(self):
+        return sum(price * qty for price, qty in self.items)
+```
+
+**Refactor.** All three tests are green, so this is the moment to clean up — duplicated `ShoppingCart()` setup becomes a fixture:
+
+```python
+import pytest
+from cart import ShoppingCart
+
+@pytest.fixture
+def cart():
+    return ShoppingCart()
+
+def test_empty_cart_total_is_zero(cart):
+    assert cart.total() == 0
+
+def test_quantity_multiplies_price(cart):
+    cart.add_item(price=10, quantity=3)
+    assert cart.total() == 30
+```
+
+Run the suite again. Still green. That's the whole point of refactoring under TDD — you're allowed to change the *shape* of code because the tests prove the *behavior* didn't move.
+
+### Cycle 4 — an invalid quantity should never be silently accepted
+
+**Red:**
+
+```python
+def test_negative_quantity_raises(cart):
+    with pytest.raises(ValueError):
+        cart.add_item(price=10, quantity=-1)
+```
+
+It fails because nothing checks quantity today — the item just gets appended. **Green:**
+
+```python
+    def add_item(self, price, quantity=1):
+        if quantity < 0:
+            raise ValueError("quantity cannot be negative")
+        self.items.append((price, quantity))
+```
+
+### Cycle 5 — a boundary, on purpose
+
+Business rule: shipping is free at $50 or more. Write the boundary test *first*, not as an afterthought:
+
+```python
+def test_shipping_free_at_exact_threshold(cart):
+    cart.add_item(price=50, quantity=1)
+    assert cart.shipping_cost() == 0
+
+def test_shipping_charged_just_under_threshold(cart):
+    cart.add_item(price=49.99, quantity=1)
+    assert cart.shipping_cost() == 5.99
+```
+
+If you implement this carelessly:
+
+```python
+    def shipping_cost(self):
+        return 0 if self.total() > 50 else 5.99   # bug: > instead of >=
+```
+
+`test_shipping_free_at_exact_threshold` fails at exactly $50 — a real off-by-one bug that a "does it roughly work" manual check would almost certainly miss. Fix it: `>= 50`. This is the entire argument for writing the boundary test deliberately, before the code — it's cheap insurance against the single most common category of logic bug.
+
+## What coverage actually measures — and what it hides
+
+A coverage tool answers exactly one question: *which lines (or branches) executed at least once while the suite ran.* It says nothing about whether anything was checked.
+
+```
+$ pytest --cov=cart --cov-report=term-missing
+Name      Stmts   Miss  Cover   Missing
+-----------------------------------------
+cart.py      16      0   100%
+-----------------------------------------
+TOTAL        16      0   100%
+```
+
+100%. Looks perfect. Now look at this function and its test, in complete isolation from the cart example:
+
+```python
+def apply_discount(price, is_member):
+    if is_member:
+        return price * 0.9
+    return price
+```
+
+```python
+def test_apply_discount_runs():
+    apply_discount(100, True)
+    apply_discount(100, False)
+```
+
+Run coverage on just this: 100% line coverage, 100% branch coverage — both the `if` and the `else` paths executed. And the test is worthless. There isn't a single `assert` in it. Change the implementation to `return price * 0.5` for members, or make it return `None`, or raise an exception that gets swallowed elsewhere — this test still passes, because it never looks at what came back.
+
+That's the trap: coverage tells you code *ran*, not that its output was *correct*. A suite can sit at 100% and still ship a broken feature, as long as every test exercises the code without verifying it. The fix isn't a tool — it's discipline: every test needs an assertion tied to the actual behavior being specified, and coverage is a tool for finding code nobody has exercised at all (dead branches, unreachable error paths), not a proxy for "well tested." Treat a coverage report as a todo list of what's *untested*, never as a scorecard of quality.
+
+If you want a real quality signal, mutation testing — deliberately breaking the implementation and checking whether your tests notice — is the honest version of this question. It's outside this module's scope, but keep the name in mind for when coverage numbers stop being reassuring.
+
+## Edge cases are a checklist, not a hope
+
+Treat boundary analysis as a deliberate pass over every function you write, not something you discover from a bug report. A practical checklist:
+
+- **Empty / zero** — empty list, empty string, zero quantity
+- **One** — the smallest non-empty case, often behaves differently from "many"
+- **Many** — the normal case, but also verify nothing degrades at scale
+- **The exact boundary** — `==` the threshold, not just above or below it
+- **Invalid / negative** — values the type system won't stop but the domain forbids
+- **None / null** — what happens when the caller passes nothing at all
+
+Apply it to a function that looks harmless:
+
+```python
+def average(numbers):
+    return sum(numbers) / len(numbers)
+```
+
+Run the checklist before writing more code. Empty list — `len([])` is `0`, so this raises `ZeroDivisionError`, an exception with a message that means nothing to a caller. Decide on purpose what should happen, then write the test first:
+
+```python
+def test_average_of_empty_list_raises_value_error():
+    with pytest.raises(ValueError):
+        average([])
+
+def test_average_of_single_number():
+    assert average([5]) == 5
+
+def test_average_of_multiple_numbers():
+    assert average([2, 4, 6]) == 4
+```
+
+Only now write the implementation:
+
+```python
+def average(numbers):
+    if not numbers:
+        raise ValueError("average() arg is an empty sequence")
+    return sum(numbers) / len(numbers)
+```
+
+`average(None)` still isn't covered — `not numbers` will raise a `TypeError` on `None` before you even get to `len`, which may or may not be the behavior you want. That's a real design decision, not a detail to skip: either write a test that pins down the `TypeError` as intended, or add an explicit `None` check and a test for it. The checklist's job is to force that decision to happen now, at the keyboard, instead of later, in an incident.
+
+## Exercise
+
+Build a `LateFeeCalculator` using strict Red-Green-Refactor. Rules:
+
+- `$0.25` per day late
+- Capped at `$10` total, no matter how late
+- `0` days late costs `$0`
+- A negative number of days late should raise `ValueError`
+
+Write the tests in this order, one at a time, watching each fail before you make it pass: zero days, one day, a day count that lands *exactly* on the cap boundary, a day count past the cap, then the negative-days error case.
+
+**Hint:** figure out exactly how many days lands precisely on the $10 cap before you write that test — if your capping logic is off by one, that specific boundary test is the one that will catch it. Don't write the capping `if` until you've seen that test fail.

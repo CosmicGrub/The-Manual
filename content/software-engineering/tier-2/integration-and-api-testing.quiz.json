@@ -1,0 +1,98 @@
+[
+  {
+    "id": "software-engineering/tier-2/integration-and-api-testing/q1",
+    "type": "multiple_choice",
+    "prompt": "What does an integration/API test of a Flask endpoint (via app.test_client()) exercise that a Tier-1-style unit test of the same logic does not?",
+    "choices": [
+      "Routing, request parsing, and response serialization together with the business logic, not just the logic in isolation",
+      "Nothing extra \u2014 they test exactly the same code paths",
+      "Only the database layer, never the view function",
+      "It replaces the need for any assertions on the response body"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "software-engineering/tier-2/integration-and-api-testing/q2",
+    "type": "multiple_choice",
+    "prompt": "A module client.py does `from external_api import fetch_data` and calls `fetch_data()` directly inside a function. Which patch target correctly mocks that call in a test?",
+    "choices": [
+      "patch(\"external_api.fetch_data\")",
+      "patch(\"client.fetch_data\")",
+      "patch(\"client.external_api.fetch_data\")",
+      "Either of the first two works identically"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-2/integration-and-api-testing/q3",
+    "type": "multiple_choice",
+    "prompt": "Why does the test database fixture call create_all() and drop_all() around every single test function, rather than once for the whole test file?",
+    "choices": [
+      "pytest requires create_all() to be called inside every test function or it raises an error",
+      "So each test starts from a known, empty database state and can't be affected by rows another test left behind",
+      "SQLite does not support running more than one test per file",
+      "It has no real effect on correctness, only on how long the suite takes to run"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-2/integration-and-api-testing/q4",
+    "type": "multiple_choice",
+    "prompt": "In the checkout_book endpoint, what status code should be returned when a client tries to check out a book that is already checked out (available is already False)?",
+    "choices": [
+      "200 OK",
+      "404 Not Found",
+      "409 Conflict",
+      "500 Internal Server Error"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "software-engineering/tier-2/integration-and-api-testing/q5",
+    "type": "multiple_choice",
+    "prompt": "A test suite passes when each test file is run alone, but fails intermittently when the full suite runs together in one process. What does this most strongly suggest?",
+    "choices": [
+      "The CI server has a hardware problem",
+      "Tests are not properly isolated \u2014 state from one test (e.g. a leftover database row) is leaking into another",
+      "Too many assertions were written in a single test function",
+      "The wrong HTTP verb was used on one of the routes"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-2/integration-and-api-testing/q6",
+    "type": "multiple_choice",
+    "prompt": "Why mock the third-party ISBN lookup service in the create_book tests instead of letting the test hit the real service over the network?",
+    "choices": [
+      "Because Flask's test client physically blocks all outbound network calls",
+      "So tests stay fast, deterministic, and unaffected by the third party being slow, down, or rate-limiting you",
+      "Because the requests library cannot be used inside test files",
+      "To avoid needing an internet connection to write any Python code at all"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-2/integration-and-api-testing/q7",
+    "type": "multiple_choice",
+    "prompt": "Which library is the closest Node.js/Express equivalent to using Flask's app.test_client() for full HTTP-level endpoint testing?",
+    "choices": [
+      "axios",
+      "supertest",
+      "lodash",
+      "nodemon"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-2/integration-and-api-testing/q8",
+    "type": "multiple_choice",
+    "prompt": "A team's integration tests run against an in-memory SQLite database and all pass, but the same feature breaks against the production Postgres database. What's the most likely explanation?",
+    "choices": [
+      "SQLite runs queries too slowly to catch real bugs",
+      "SQLite enforces column types and constraints more loosely than Postgres, letting a bug through that Postgres would reject",
+      "pytest cannot generate valid SQL for Postgres",
+      "Postgres does not support returning JSON from an API"
+    ],
+    "correctIndex": 1
+  }
+]

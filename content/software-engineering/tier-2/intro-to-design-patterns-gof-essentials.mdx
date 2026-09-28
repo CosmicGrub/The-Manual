@@ -1,0 +1,261 @@
+---
+trackId: software-engineering
+tier: 2
+title: "Intro to Design Patterns (GoF Essentials)"
+order: 3
+estimatedHours: 8
+slug: intro-to-design-patterns-gof-essentials
+---
+
+## Before you start
+
+Tier 1 covered classes, interfaces, and composition over inheritance — this module assumes you're comfortable with all three and uses them without re-explaining. Design patterns are named solutions to recurring design *problems*. They are not decoration you sprinkle on code to look advanced, and the last section of this module is specifically about not doing that.
+
+You'll build four patterns that solve real, recurring problems (Factory, Strategy, Observer, Decorator), then look hard at Singleton — a pattern you'll see constantly in the wild and should almost always avoid.
+
+## Factory: when object creation needs to be decoupled from object use
+
+**The problem.** You're building a notification system. It starts simple:
+
+```python
+def notify_user(kind, message, recipient):
+    if kind == "email":
+        print(f"Emailing {recipient}: {message}")
+    elif kind == "sms":
+        print(f"Texting {recipient}: {message}")
+    # every new channel means editing this function again,
+    # and every edit risks breaking the branches already here
+```
+
+Six months later there are six channels, each with its own setup logic, and this function is 200 lines long. Every team that adds a channel has to touch — and risks breaking — code that has nothing to do with their channel.
+
+**The fix.** Push construction behind a common interface and a registry, so adding a channel means adding a class, not editing a function:
+
+```python
+from abc import ABC, abstractmethod
+
+class Notifier(ABC):
+    @abstractmethod
+    def send(self, message: str, recipient: str) -> None: ...
+
+class EmailNotifier(Notifier):
+    def send(self, message, recipient):
+        print(f"Emailing {recipient}: {message}")
+
+class SMSNotifier(Notifier):
+    def send(self, message, recipient):
+        print(f"Texting {recipient}: {message}")
+
+class NotifierFactory:
+    _registry: dict[str, type[Notifier]] = {}
+
+    @classmethod
+    def register(cls, kind: str, notifier_cls: type[Notifier]) -> None:
+        cls._registry[kind] = notifier_cls
+
+    @classmethod
+    def create(cls, kind: str) -> Notifier:
+        if kind not in cls._registry:
+            raise ValueError(f"Unknown notifier kind: {kind}")
+        return cls._registry[kind]()
+
+NotifierFactory.register("email", EmailNotifier)
+NotifierFactory.register("sms", SMSNotifier)
+
+def notify_user(kind: str, message: str, recipient: str) -> None:
+    NotifierFactory.create(kind).send(message, recipient)
+```
+
+Adding push notifications now means writing `PushNotifier` and one `register()` call — `notify_user` never changes again. That's the payoff: creation logic is centralized, and calling code depends only on the `Notifier` interface, not on any concrete class.
+
+## Strategy: when the algorithm needs to vary independently of the caller
+
+**The problem.** A checkout system computes shipping cost with branches on shipment type, and marketing wants to A/B test a new pricing formula for express shipping without redeploying checkout:
+
+```python
+class ShippingStrategy(ABC):
+    @abstractmethod
+    def cost(self, weight_kg: float, distance_km: float) -> float: ...
+
+class StandardShipping(ShippingStrategy):
+    def cost(self, weight_kg, distance_km):
+        return 5.0 + 0.5 * weight_kg
+
+class ExpressShipping(ShippingStrategy):
+    def cost(self, weight_kg, distance_km):
+        return 12.0 + 0.8 * weight_kg + 0.05 * distance_km
+
+class FreightShipping(ShippingStrategy):
+    def cost(self, weight_kg, distance_km):
+        return max(40.0, 2.0 * weight_kg)
+
+class Checkout:
+    def __init__(self, strategy: ShippingStrategy):
+        self.strategy = strategy
+
+    def total_shipping(self, weight_kg: float, distance_km: float) -> float:
+        return self.strategy.cost(weight_kg, distance_km)
+
+checkout = Checkout(ExpressShipping())
+print(checkout.total_shipping(weight_kg=3.0, distance_km=120))
+```
+
+Swap `ExpressShipping` for a new `ExpressShippingV2` and nothing else in `Checkout` changes. Each strategy is independently unit-testable — you test `FreightShipping.cost()` in isolation, instead of testing one giant function where every branch risks interfering with every other branch through shared local variables.
+
+**Strategy vs. Factory, concretely:** Factory answers *which object do I construct*. Strategy answers *which algorithm runs, given an object I already have*. They often show up together — a factory picks the strategy, the strategy does the work — but they solve different axes of variation.
+
+## Observer: when multiple unrelated parts need to react to one change
+
+**The problem.** A stock ticker updates a price, and three unrelated pieces of the system need to react — a UI display, a logger, and an alerting system — without the ticker knowing any of them exist.
+
+```python
+class Observer(ABC):
+    @abstractmethod
+    def update(self, price: float) -> None: ...
+
+class PriceDisplay(Observer):
+    def update(self, price): print(f"[UI] price is now ${price:.2f}")
+
+class PriceLogger(Observer):
+    def update(self, price): print(f"[LOG] price changed to {price}")
+
+class PriceAlert(Observer):
+    def __init__(self, threshold: float):
+        self.threshold = threshold
+    def update(self, price):
+        if price > self.threshold:
+            print(f"[ALERT] crossed {self.threshold}: {price}")
+
+class StockTicker:
+    def __init__(self):
+        self._observers: list[Observer] = []
+
+    def subscribe(self, observer: Observer) -> None:
+        self._observers.append(observer)
+
+    def unsubscribe(self, observer: Observer) -> None:
+        self._observers.remove(observer)
+
+    def set_price(self, price: float) -> None:
+        for observer in self._observers:
+            observer.update(price)
+
+ticker = StockTicker()
+ticker.subscribe(PriceDisplay())
+ticker.subscribe(PriceLogger())
+ticker.subscribe(PriceAlert(threshold=150))
+ticker.set_price(155.20)
+```
+
+This is the shape underneath event listeners, pub/sub systems, and reactive frameworks. Two real-world gotchas worth knowing now: forgetting to `unsubscribe()` leaks memory (the subject holds a reference to every observer forever), and observers are notified synchronously and in registration order here — if one observer is slow or throws, it blocks or breaks the rest. Production event systems usually add queues or error isolation on top of this basic shape.
+
+## Decorator: when you need optional behavior in combinations, not a subclass explosion
+
+**The problem.** A `DataSource` sometimes needs caching, sometimes compression, sometimes both — and different deployments want different combinations. Subclassing every combination (`CachedCompressedDataSource`, `CompressedCachedDataSource`, ...) grows exponentially with each new feature.
+
+```python
+class DataSource(ABC):
+    @abstractmethod
+    def read(self) -> str: ...
+
+class FileDataSource(DataSource):
+    def __init__(self, path: str):
+        self.path = path
+    def read(self) -> str:
+        return f"raw contents of {self.path}"
+
+class DataSourceDecorator(DataSource):
+    def __init__(self, wrapped: DataSource):
+        self._wrapped = wrapped
+    def read(self) -> str:
+        return self._wrapped.read()
+
+class CachingDecorator(DataSourceDecorator):
+    def __init__(self, wrapped: DataSource):
+        super().__init__(wrapped)
+        self._cache: str | None = None
+    def read(self) -> str:
+        if self._cache is None:
+            print("cache miss, reading through")
+            self._cache = super().read()
+        else:
+            print("cache hit")
+        return self._cache
+
+class CompressionDecorator(DataSourceDecorator):
+    def read(self) -> str:
+        return f"compressed({super().read()})"
+
+source = CompressionDecorator(CachingDecorator(FileDataSource("orders.csv")))
+print(source.read())  # cache miss, reads through, then compresses
+print(source.read())  # cache hit, then compresses
+```
+
+Each decorator adds exactly one responsibility and implements the same interface as what it wraps, so they nest in any order and any combination at runtime. This is a different mechanism from Python's `@decorator` function syntax — that's sugar for wrapping a *function*; the GoF pattern wraps *objects* that share an interface — but the underlying idea (add behavior by wrapping, not by subclassing) is the same.
+
+## Singleton: the pattern to be wary of
+
+Singleton guarantees exactly one instance of a class exists process-wide, reachable from anywhere:
+
+```python
+class ConfigManager:
+    _instance = None
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            cls._instance.settings = {}
+        return cls._instance
+
+config = ConfigManager()
+config.settings["debug"] = True
+print(ConfigManager().settings)  # {'debug': True} — same instance
+```
+
+It looks convenient. In practice it causes three specific, recurring problems:
+
+1. **Global mutable state.** Any code, anywhere in the process, can read or mutate `ConfigManager()`'s state. When a bug report says "settings are wrong," you have no way to narrow down *where* they were changed — every caller is a suspect.
+2. **Hidden dependencies.** A class that calls `ConfigManager()` inside a method doesn't declare that dependency in its constructor. You can't tell what a class needs by reading its `__init__` signature; you have to read every method body.
+3. **Testing difficulty.** Tests in the same process share the one instance, so state leaks between tests unless every test manually resets it. And because nothing is injected, you can't swap in a fake config for a test — you're stuck monkey-patching a global.
+
+**The usual fix is dependency injection**, not a fancier Singleton: construct the shared object once, in your composition root (`main()`), and pass it explicitly to whatever needs it.
+
+```python
+class ReportGenerator:
+    def __init__(self, config: dict):
+        self.config = config  # dependency is visible and mockable in tests
+
+def main():
+    app_config = {"debug": True}
+    generator = ReportGenerator(app_config)
+```
+
+In Python specifically, a module is already a singleton — it's imported once and cached in `sys.modules` — so `settings = {}` at module level in `config.py` gives you "exactly one, shared everywhere" without a class, a `__new__` override, or any of Singleton's testing problems. Reach for that before reaching for the pattern.
+
+## Choosing a pattern from the problem, not the other way around
+
+The failure mode at this tier isn't *not knowing* patterns — it's forcing one you just learned onto code that didn't ask for it. A two-branch `if/else` doesn't need a Strategy hierarchy; a class with one field doesn't need a Factory. Patterns pay for themselves when the axis of variation is real *and* expected to grow or be tested independently — not on the first branch you see.
+
+Work from symptoms in the problem description, not from "which pattern do I remember":
+
+| If the problem says... | Reach for |
+|---|---|
+| "the exact type to create depends on runtime input or config, and new types keep getting added" | Factory |
+| "the same operation needs interchangeable algorithms/rules that should be swappable without touching the caller" | Strategy |
+| "several unrelated parts of the system need to react whenever X happens, and shouldn't know about each other" | Observer |
+| "I need optional behaviors layered on an object, in arbitrary combinations, without a subclass per combination" | Decorator |
+| "I think I need exactly one instance of something" | Probably nothing — construct it once in `main()` and pass it down |
+
+If none of the rows match — if a plain function, a dict lookup, or a five-line conditional handles it — that's the right answer. The pattern is a tool for a specific shape of problem, not a badge of seniority.
+
+## Exercise
+
+You're designing a logging system for a small service with these requirements:
+
+1. Today it logs to console and to a local file. Ops has confirmed a remote logging service (e.g., Datadog) is coming next quarter, and more destinations may follow.
+2. Some log statements should be filtered out based on severity before being written anywhere, and that filtering logic changes independently of where logs go.
+3. Ops wants any combination of "add a timestamp," "format as JSON," and "redact PII fields" applied to a log entry, configurable per environment (a dev box might want timestamps only; production wants all three).
+
+Pick **exactly two** of the four non-Singleton patterns from this lesson — not three, not one — and sketch the class outline for each (interface plus 2-3 concrete classes; you don't need every method body). For each pattern you pick, write one sentence justifying it against the decision table above.
+
+**Hint:** requirement 1 describes a family of interchangeable output destinations selected by config, with more destinations coming — match that against the table before you default to whatever pattern you find most interesting. Requirement 3 describes optional behaviors that stack in arbitrary combinations on a single entry — that phrase appears almost verbatim in one row of the table. Requirement 2 can be solved by either of your two chosen patterns or by something simpler; decide which, and be ready to defend why you didn't reach for a third pattern to handle it.

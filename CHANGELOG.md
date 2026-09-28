@@ -255,3 +255,14 @@ All notable changes to The Manual (curriculum + app) are logged here. This file 
 **Result:** `npm run build` passed clean on the first attempt — no new bugs, and the repo-wide slug check (added last commit specifically because velite's own check missed a real collision) confirmed 88 unique slugs.
 
 **Status:** Software Engineering Tier 1 complete (37h, 6 lessons). Software Engineering is now 2/6 tiers content-complete (Tiers 0-1, 48h); Tiers 2-5 remain.
+
+## [0.18.0] — 2026-09-28 — Software Engineering Tier 2: complete (Builder level)
+
+**Context:** Continuing the tier-by-tier pattern. This tier shifts the track from "follow the mechanics" (Tier 1) to "make design decisions independently" — TDD as a practiced habit rather than an introduced concept, SOLID/GoF applied to real refactors, and a full design-and-build project (schema through auth) rather than single-endpoint exercises.
+
+**Added**
+- `content/software-engineering/tier-2/*.mdx` (6 files) + matching quizzes: Test-Driven Development in Practice (five real Red-Green-Refactor cycles building a `ShoppingCart`, plus a concrete demonstration of 100%-coverage-but-worthless tests), SOLID Principles & OO Design (all five principles with before/after refactors), Intro to Design Patterns — GoF Essentials (Factory/Strategy/Observer/Decorator with real motivating problems, Singleton framed as a pattern to be wary of), Database Design & Normalization Project (real requirements to ER diagram to migrations), Multi-Resource REST API with Persistence (real bcrypt hashing, JWT auth end to end), Integration & API Testing.
+
+**Result:** `npm run build` passed clean on the first attempt. 94 unique slugs verified repo-wide.
+
+**Status:** Software Engineering Tier 2 complete (48h, 6 lessons). Software Engineering is now 3/6 tiers content-complete (Tiers 0-2, 96h); Tiers 3-5 remain.
