@@ -1,0 +1,251 @@
+---
+trackId: software-engineering
+tier: 4
+title: "Distributed Systems Foundations"
+order: 2
+estimatedHours: 12
+slug: distributed-systems-foundations
+---
+
+## Why a Single Node Isn't Enough
+
+Every distributed system exists because one machine can't hold all the data, serve all the traffic, or survive its own failure. The moment you split state across multiple nodes, you inherit a new class of problem that a single-process system never has: **the nodes have to agree with each other**, over a network that can delay, drop, or reorder messages, while any node can crash at any moment.
+
+This module is about the three things that make that hard in practice: getting nodes to agree (consensus), spreading data across them without losing consistency guarantees you actually need (replication and partitioning), and surviving the network doing something malicious-looking even though it's just being a network (partitions, split-brain, and the retry/idempotency discipline that keeps you safe).
+
+You've already built idempotent APIs in Tier 3. This module explains *why* that pattern exists at the systems level — it isn't a REST-API nicety, it's the client-side defense against a fundamental distributed-systems failure mode.
+
+## Consensus Intuition: Why Agreement Is Hard
+
+Imagine three nodes each holding a copy of `account_balance = 100`. A client sends a debit of `20` to whichever node it reaches. If only one node applies it, the replicas diverge and now "the balance" depends on which node you ask. Consensus is the mechanism that makes a *cluster* behave like it has one consistent value for each fact, even though it's made of independent machines.
+
+The naive fix — "just take a majority vote each time" — breaks down under two conditions:
+
+1. **You can't tell slow from dead.** A node that hasn't responded in 3 seconds might be crashed, or it might be behind a slow network link and about to reply. Any protocol that assumes it can reliably detect a dead node is wrong in an asynchronous network (this is the intuition behind the Fischer–Lynch–Paterson impossibility result: deterministic consensus with even one faulty process is impossible to guarantee in bounded time under pure asynchrony). Real systems sidestep this with **timeouts** — an explicit trade of correctness-in-theory for correctness-in-practice, tuned by how long you're willing to wait before assuming failure.
+
+2. **Old leaders don't know they're old.** If node A is elected leader, then gets network-partitioned from the rest of the cluster, A doesn't receive a memo saying "you're no longer leader." It will happily keep accepting writes from any client still able to reach it, believing it's in charge, while the rest of the cluster elects a new leader and moves on without it.
+
+Raft (and Paxos before it) solve this with two ideas that show up in almost every real consensus system:
+
+- **A monotonically increasing epoch/term number.** Every leader election bumps the term. Every message carries the term of whoever sent it. A node rejects any message from a lower term. This is how the cluster invalidates a stale leader — not by telling it to stop, but by ensuring nobody else will listen to it anymore.
+- **Quorum writes.** A write (or a leader election) is only considered committed once a *majority* of nodes acknowledge it. In a 5-node cluster, that's 3. This guarantees that any two quorums overlap by at least one node — so a new leader's quorum is guaranteed to include at least one node that saw the latest committed write, which is how the new leader learns the true state instead of reverting history.
+
+Here's the shape of Raft leader election, not the full RPC spec — enough to see why terms matter:
+
+```go
+type NodeState int
+
+const (
+    Follower NodeState = iota
+    Candidate
+    Leader
+)
+
+type Node struct {
+    state       NodeState
+    currentTerm int
+    votedFor    int // node ID, or -1
+    id          int
+}
+
+// Called when a follower's election timeout fires with no heartbeat from a leader.
+func (n *Node) startElection(peers []*Node) {
+    n.state = Candidate
+    n.currentTerm++
+    n.votedFor = n.id
+    votes := 1 // vote for self
+
+    for _, peer := range peers {
+        granted := peer.requestVote(n.currentTerm, n.id)
+        if granted {
+            votes++
+        }
+    }
+
+    majority := len(peers)/2 + 1
+    if votes >= majority {
+        n.state = Leader
+        // begin sending heartbeats; any node that later sees a
+        // higher term than n.currentTerm will step down immediately
+    } else {
+        n.state = Follower // lost the election, wait for next timeout
+    }
+}
+
+func (n *Node) requestVote(term, candidateID int) bool {
+    if term < n.currentTerm {
+        return false // reject stale candidates — this is the whole mechanism
+    }
+    if term > n.currentTerm {
+        n.currentTerm = term
+        n.votedFor = -1
+        n.state = Follower // a higher term always wins, no exceptions
+    }
+    if n.votedFor == -1 || n.votedFor == candidateID {
+        n.votedFor = candidateID
+        return true
+    }
+    return false
+}
+```
+
+Notice what's *not* here: no attempt to detect "is the old leader really dead." The system doesn't need to know that — it only needs a rule (higher term wins, majority required to act) that makes stale actors harmless even if they're still alive and still trying. That reframing — stop trying to detect failure perfectly, design the protocol so stale actors can't do damage — is the core intuition to carry out of this section. You will not be asked to implement full Paxos or Raft log replication in this track; that belongs to systems-implementation work. What you need is this mental model so you can reason correctly about etcd, Consul, Kafka's controller election, or a Postgres HA setup when you deploy one.
+
+## Replication: Leader-Follower and the Sync/Async Trade-off
+
+Once a cluster agrees on an order of operations, replication is how that state gets copies for durability and read scaling. The dominant pattern is **leader-follower** (a.k.a. primary-replica): all writes go to one leader, which streams a change log to followers.
+
+The trade-off you make explicitly is **synchronous vs. asynchronous replication**:
+
+```
+Synchronous:  client write -> leader -> wait for follower ACK -> respond to client
+Asynchronous: client write -> leader -> respond to client -> (later) stream to followers
+```
+
+- **Synchronous** replication guarantees zero data loss on leader failure (a follower already has the write before the client hears "success"), at the cost of write latency being bound by the slowest required follower, and reduced availability — if the follower is unreachable, do you block writes entirely, or fall back to async?
+- **Asynchronous** replication gives you low, stable write latency, but creates a **replication lag window**: if the leader dies after acknowledging a write to the client but before shipping it to any follower, that write is gone forever once a follower is promoted.
+
+Postgres, MySQL, and most managed databases let you configure this per-replica: e.g., Postgres `synchronous_standby_names` picks specific followers that must ACK before commit returns, while the rest replicate async. This is the practical version of the CAP/PACELC trade-off: even absent a partition, you're trading latency for consistency on every write.
+
+## Partitioning: Range vs. Hash Sharding
+
+Replication solves durability and read scale. It does nothing for write scale or total data volume — every replica still holds the *entire* dataset. **Partitioning (sharding)** splits the dataset itself across nodes, each owning a subset.
+
+**Range-based sharding** assigns contiguous key ranges to shards:
+
+```sql
+-- Shard assignment by primary key range
+-- Shard 0: user_id 0        .. 999_999
+-- Shard 1: user_id 1_000_000 .. 1_999_999
+-- Shard 2: user_id 2_000_000 .. 2_999_999
+```
+
+This makes range queries cheap (`WHERE user_id BETWEEN 500000 AND 500100` hits exactly one shard) and makes resharding conceptually simple (split a range in two). The failure mode is **hotspotting**: if your key is monotonically increasing — an auto-increment ID, a timestamp, an order number — every new write lands on the *last* shard. All your write traffic concentrates on one node while the others sit idle. This is a real, frequently-hit production bug pattern, not a theoretical one.
+
+**Hash-based sharding** runs the key through a hash function and assigns by the result, typically via **consistent hashing** so that adding/removing a shard only remaps `1/N` of the keys instead of rehashing everything:
+
+```python
+import bisect
+import hashlib
+
+class ConsistentHashRing:
+    def __init__(self, nodes, replicas=100):
+        self.replicas = replicas
+        self.ring = {}       # hash -> node
+        self.sorted_keys = []
+        for node in nodes:
+            self.add_node(node)
+
+    def _hash(self, key):
+        return int(hashlib.sha1(key.encode()).hexdigest(), 16)
+
+    def add_node(self, node):
+        for i in range(self.replicas):  # virtual nodes smooth the distribution
+            h = self._hash(f"{node}:{i}")
+            self.ring[h] = node
+            bisect.insort(self.sorted_keys, h)
+
+    def remove_node(self, node):
+        for i in range(self.replicas):
+            h = self._hash(f"{node}:{i}")
+            del self.ring[h]
+            self.sorted_keys.remove(h)
+
+    def get_node(self, key):
+        h = self._hash(key)
+        idx = bisect.bisect(self.sorted_keys, h) % len(self.sorted_keys)
+        return self.ring[self.sorted_keys[idx]]
+```
+
+Hash sharding distributes writes evenly and avoids the hotspot problem, but it destroys locality: a query for "all orders in the last hour" now has to fan out to every shard (**scatter-gather**), because rows that were adjacent in time are scattered randomly across nodes. Range queries that were a single-shard lookup under range sharding become a cluster-wide query under hash sharding.
+
+The real-world resolution most systems land on is a **composite shard key**: hash the *tenant* or *customer* ID to distribute load evenly across shards, but keep that tenant's data range-clustered within its shard so per-tenant queries stay local. Vitess, Citus, and DynamoDB's partition-key-plus-sort-key model are all variations on this theme. Choosing the shard key is the single highest-leverage decision in a sharded system — it's expensive to change later, because it usually means a live data migration across a running cluster.
+
+## Failure Modes: Partitions, Split-Brain, and Fencing
+
+A **network partition** is any situation where nodes that should be able to talk to each other can't — a switch fails, a data-center link saturates, a firewall rule changes. Critically: from inside the partition, a node cannot distinguish "the other side is dead" from "I just can't reach it." Both look identical: no response.
+
+**Split-brain** is the concrete failure this produces in a leader-follower system: the network partitions such that the leader is cut off from the majority of followers, but is *still alive* and still reachable by some clients. Two things can now happen simultaneously:
+- The old leader keeps accepting writes from the clients that can still reach it.
+- The followers on the majority side, no longer hearing heartbeats, elect a *new* leader and start accepting writes too.
+
+You now have two leaders, both accepting writes, both believing they're authoritative. When the partition heals, you have divergent, conflicting data with no principled way to merge it back.
+
+The defense is **fencing**, and quorum-based consensus (from the previous section) is what makes fencing enforceable rather than advisory:
+
+- **Term/epoch fencing**: every write is tagged with the writer's term. Shared storage (or downstream systems) rejects any write carrying a term lower than the highest it has already seen. The old leader's writes get silently rejected the moment the new leader's higher-term writes have been seen anywhere in the write path — it doesn't matter that the old leader thinks it's still in charge.
+- **STONITH** ("shoot the other node in the head"): the new leader, or an external orchestrator, forcibly kills or network-isolates the old leader before serving new writes, common in HA Postgres setups (Patroni, repmgr) using a fencing agent.
+- **Lease-based leadership**: the leader holds a time-bound lease from the consensus layer (e.g., etcd) and must renew it before it expires; if partitioned, the lease lapses and the leader is required by its own logic to stop accepting writes, even if it can still see clients.
+
+Fencing tokens matter even in systems that look like they don't have an explicit "leader" — e.g., a distributed lock service. If a client acquires a lock, then pauses (GC, network stall) long enough for the lock to expire and get reacquired by someone else, then wakes up and writes as if it still holds the lock, you have the exact same split-brain shape with two "owners." The fix is identical: attach a monotonically increasing fencing token to the lock, and have the protected resource reject any write carrying a token lower than the highest it's seen.
+
+## Retries and Idempotency: The Client-Side Defense
+
+Here's the failure that makes all of the above matter to you as an application engineer, not just infrastructure teams: a client sends a write, the server processes it successfully, but the *response* is lost — the network drops the ACK, the client times out first, a proxy in between resets the connection. The client cannot tell "my request never arrived" apart from "my request succeeded but the response didn't." Both look like a timeout.
+
+If the client retries — and it should, because giving up on a timeout is usually wrong — you get **at-least-once delivery**: the operation might now execute twice.
+
+```python
+import random
+import time
+
+def call_with_retry(fn, max_attempts=5, base_delay=0.1):
+    for attempt in range(max_attempts):
+        try:
+            return fn()
+        except TimeoutError:
+            if attempt == max_attempts - 1:
+                raise
+            # exponential backoff with full jitter — prevents retry storms
+            # where every client backs off in lockstep and re-hammers
+            # the recovering node at the same instant
+            delay = base_delay * (2 ** attempt)
+            time.sleep(random.uniform(0, delay))
+```
+
+This retry logic is *correct and necessary* for availability. It is also, by itself, dangerous for anything with a side effect — charge a card, decrement inventory, send a notification — because "retry the same request" can mean "do it again."
+
+This is exactly the idempotency-key pattern from Tier 3's API design module, and now you can see why it exists at the systems level rather than as a REST convention: the client generates a unique key up front and sends it with every attempt of the *same logical operation*, and the server treats "same key" as "same result, don't redo the side effect."
+
+```sql
+CREATE TABLE idempotency_keys (
+    key         TEXT PRIMARY KEY,
+    response    JSONB NOT NULL,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+```
+
+```python
+def charge_card(idempotency_key, amount, customer_id, db):
+    with db.transaction():
+        existing = db.execute(
+            "SELECT response FROM idempotency_keys WHERE key = %s",
+            [idempotency_key],
+        ).fetchone()
+        if existing:
+            return existing["response"]  # replay, no double charge
+
+        result = payment_processor.charge(customer_id, amount)
+
+        db.execute(
+            """INSERT INTO idempotency_keys (key, response)
+               VALUES (%s, %s)
+               ON CONFLICT (key) DO NOTHING""",
+            [idempotency_key, json.dumps(result)],
+        )
+        return result
+```
+
+The `PRIMARY KEY` / `ON CONFLICT DO NOTHING` is doing the same job as a Raft term number and a fencing token: it's a uniqueness constraint that makes a duplicate attempt harmless regardless of network timing. That's the pattern to internalize across this whole module — consensus terms, quorum writes, fencing tokens, and idempotency keys are the same idea applied at different layers: **make retries and duplicates safe by construction, instead of trying to prevent the network from ever misbehaving.** You cannot prevent partitions, dropped ACKs, or slow nodes. You can design every layer so that "this happened twice" and "this leader is stale" are harmless.
+
+## Exercise
+
+You're designing the trip-ledger service for a ride-hailing platform. Writes are `trip_id` (UUID, generated client-side), `driver_id`, `fare_cents`, `status`. Traffic: 40,000 writes/sec at peak, heavily skewed toward a handful of major cities. Reads are mostly "get all trips for driver X in the last 30 days" and occasionally "get trip by ID."
+
+Answer, with reasoning, not just a label:
+
+1. Would you shard by `trip_id`, `driver_id`, or a composite key? What breaks with each of the other two choices, given the read pattern above?
+2. The payment-charging step calls an external payment processor and writes the result to the ledger. A pod restart kills the request mid-flight after the processor charged the card but before the ledger write committed. What's your defense, concretely — what key, stored where, checked how?
+3. Your leader shard for a major city loses network connectivity to two of its three followers for 90 seconds, but is still reachable by drivers in that city. What do you need in place *before* this happens so you don't end up with two leaders both accepting fares for the same city when the partition heals?
+
+**Hint:** part 1 hinges on which field is in every query's `WHERE` clause; part 2 is a direct application of the idempotency-key table above with the trip's client-generated UUID as the key; part 3 requires you to have already decided, at design time, whether the old leader can be *forced* to stop accepting writes — a lease that expires is different from a promise the old leader might keep.

@@ -1,0 +1,379 @@
+---
+trackId: software-engineering
+tier: 4
+title: "Security-Aware Software Engineering"
+order: 4
+estimatedHours: 8
+slug: security-aware-software-engineering
+---
+
+## Scope: what this module is, and isn't
+
+This is the working security knowledge every backend/full-stack engineer needs to carry day to day — not exploit development, not red-teaming, not binary or network penetration testing. Real offensive depth (exploit chains, privilege escalation on live systems, red/blue team exercises) is the Cybersecurity & Ethical Hacking track's job. Here you're building the reflexes that stop the top causes of real-world breaches from ever shipping: recognizing a vulnerable pattern in a diff, threat-modeling a design before it's built, wiring up authentication correctly, and keeping secrets and dependencies out of attackers' hands.
+
+## OWASP Top 10, from the defensive-developer angle
+
+The OWASP Top 10 is a ranked list of the vulnerability *categories* behind most breaches, not individual bugs. Four of them account for the overwhelming majority of real incidents in typical web backends — go deep on those. The rest get a working definition and a fix pattern; go deeper on any of them as your stack demands.
+
+### A03: Injection
+
+The database (or shell, or LDAP server, or template engine) can't tell your code from an attacker's data unless you force a hard boundary between them.
+
+```javascript
+// VULNERABLE: string concatenation builds the query
+app.get('/users/search', async (req, res) => {
+  const q = req.query.name;
+  const result = await db.query(
+    `SELECT id, name, email FROM users WHERE name = '${q}'`
+  );
+  res.json(result.rows);
+});
+// req.query.name = "' OR '1'='1" dumps every user.
+// req.query.name = "'; DROP TABLE users; --" is worse.
+```
+
+```javascript
+// FIXED: parameterized query — the driver sends SQL and data on
+// separate channels, so the value can never become SQL syntax.
+app.get('/users/search', async (req, res) => {
+  const q = req.query.name;
+  const result = await db.query(
+    'SELECT id, name, email FROM users WHERE name = $1',
+    [q]
+  );
+  res.json(result.rows);
+});
+```
+
+Injection isn't only SQL. Shelling out to run a command with untrusted input is the same class of bug:
+
+```python
+# VULNERABLE: shell=True hands the whole string to /bin/sh
+import subprocess
+subprocess.run(f"convert {filename} output.png", shell=True)
+# filename = "a.jpg; rm -rf /" runs as a second command.
+
+# FIXED: argument list, no shell, no interpolation
+subprocess.run(["convert", filename, "output.png"], shell=False, check=True)
+```
+
+Rule of thumb: any time user input crosses into a different interpreter (SQL, shell, a template engine's raw-eval mode, an XML parser with entity expansion), it needs a parameterized API or strict allowlist validation — never string building.
+
+### A07: Identification and Authentication Failures
+
+```python
+# VULNERABLE: fast hash, no salt, no rate limiting, timing leak
+import hashlib
+
+def check_login(username, password):
+    user = db.get_user(username)
+    if not user:
+        return False
+    return hashlib.md5(password.encode()).hexdigest() == user.password_hash
+```
+
+Three separate bugs: MD5 is crackable at billions of guesses/second on a GPU; there's no per-user salt so identical passwords hash identically (rainbow tables); and an attacker can brute-force forever with no lockout or backoff.
+
+```python
+# FIXED: slow, salted KDF + explicit rate limiting
+import bcrypt
+from ratelimit import check_and_increment  # your rate-limit store (Redis, etc.)
+
+def register(username, password):
+    hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt(rounds=12))
+    db.create_user(username, hashed)
+
+def check_login(username, password, client_ip):
+    if not check_and_increment(f"login:{client_ip}", limit=5, window_s=60):
+        raise TooManyAttempts()
+    user = db.get_user(username)
+    if not user:
+        bcrypt.checkpw(b"decoy", bcrypt.gensalt())  # constant-time-ish: avoid early return leak
+        return False
+    return bcrypt.checkpw(password.encode(), user.password_hash)
+```
+
+Use `bcrypt` or `argon2id` — never a fast general-purpose hash (MD5, SHA-1, plain SHA-256) for passwords. Rate-limit by IP *and* by account. Layer MFA and short session lifetimes on top; this module assumes you already know sessions vs. JWTs from earlier tiers.
+
+### A01: Broken Access Control (IDOR)
+
+The single most common real-world API bug: authentication proves *who you are*, but nothing then checks whether you're *allowed to touch this specific record*.
+
+```javascript
+// VULNERABLE: any authenticated user can read/edit any invoice
+// by changing the ID in the URL — no ownership check.
+app.get('/api/invoices/:id', requireAuth, async (req, res) => {
+  const invoice = await db.query(
+    'SELECT * FROM invoices WHERE id = $1', [req.params.id]
+  );
+  res.json(invoice.rows[0]);
+});
+```
+
+```javascript
+// FIXED: scope the query to the authenticated user, not just the ID.
+app.get('/api/invoices/:id', requireAuth, async (req, res) => {
+  const invoice = await db.query(
+    'SELECT * FROM invoices WHERE id = $1 AND account_id = $2',
+    [req.params.id, req.user.accountId]
+  );
+  if (invoice.rows.length === 0) return res.status(404).end();
+  res.json(invoice.rows[0]);
+});
+```
+
+Apply the same discipline to *function-level* access control — an admin-only route (`DELETE /api/users/:id`) needs an explicit role check on the server, not a hidden button on the client:
+
+```javascript
+app.delete('/api/users/:id', requireAuth, (req, res, next) => {
+  if (req.user.role !== 'admin') return res.status(403).end();
+  next();
+}, deleteUserHandler);
+```
+
+### The rest of the Top 10, working definitions
+
+| Category | What it actually means | Fix pattern |
+|---|---|---|
+| A02 Cryptographic Failures | Sensitive data unencrypted in transit/at rest, or weak/legacy algorithms (DES, RC4, unsalted hashes) | TLS everywhere, AES-256-GCM at rest, no home-rolled crypto |
+| A04 Insecure Design | The threat wasn't considered before code was written | Threat model before building (next section) |
+| A05 Security Misconfiguration | Default creds, verbose stack traces in prod, open admin panels, permissive CORS (`*` with credentials) | Hardened defaults, `NODE_ENV=production`, config linting in CI |
+| A06 Vulnerable and Outdated Components | Shipping a library with a known CVE | Automated dependency scanning (below) |
+| A08 Software and Data Integrity Failures | Unsigned CI/CD pipelines, deserializing untrusted data, unpinned `curl \| sh` installs | Signed artifacts, lockfiles, `pickle`/`yaml.load` → safe alternatives |
+| A09 Security Logging and Monitoring Failures | Breach goes undetected for months because nothing logged the auth failures | Structured audit logs, alerting on anomalous auth/access patterns |
+| A10 Server-Side Request Forgery | Server fetches a URL the *user* controls, reaching internal services | Below |
+
+SSRF deserves one concrete example because it's easy to introduce accidentally (webhook validators, "fetch this image URL" features, PDF renderers):
+
+```python
+# VULNERABLE: fetches whatever URL the user supplies
+@app.post("/api/fetch-preview")
+def fetch_preview():
+    url = request.json["url"]
+    resp = requests.get(url, timeout=5)
+    return resp.content
+# url = "http://169.254.169.254/latest/meta-data/iam/security-credentials/"
+# reaches the cloud metadata service and leaks IAM credentials.
+```
+
+```python
+# FIXED: allowlist scheme + block private/link-local/metadata ranges
+import ipaddress, socket
+from urllib.parse import urlparse
+
+BLOCKED_NETS = [ipaddress.ip_network(n) for n in
+    ("127.0.0.0/8","10.0.0.0/8","172.16.0.0/12","192.168.0.0/16","169.254.0.0/16")]
+
+def is_safe_url(url):
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        return False
+    ip = ipaddress.ip_address(socket.gethostbyname(parsed.hostname))
+    return not any(ip in net for net in BLOCKED_NETS)
+
+@app.post("/api/fetch-preview")
+def fetch_preview():
+    url = request.json["url"]
+    if not is_safe_url(url):
+        abort(400)
+    resp = requests.get(url, timeout=5, allow_redirects=False)  # redirects need re-checking too
+    return resp.content
+```
+
+## Threat modeling: STRIDE on a real (small) system
+
+Threat modeling means walking through a design *before* writing code and asking "how could each piece be attacked?" STRIDE gives you six lenses: **S**poofing, **T**ampering, **R**epudiation, **I**nformation disclosure, **D**enial of service, **E**levation of privilege.
+
+System: an internal **time-off request service**.
+
+```
+[Browser SPA] --HTTPS--> [API server] --SQL--> [Postgres]
+                              |
+                              +--upload--> [Object storage (attachments)]
+                              +--notify--> [SMTP relay]
+```
+
+Walk each STRIDE category against the diagram's trust boundaries (browser↔API, API↔DB, API↔storage):
+
+| STRIDE | Concrete threat on this system | Mitigation |
+|---|---|---|
+| Spoofing | Attacker replays a stolen session token to impersonate another employee | Short-lived access tokens, refresh rotation, bind session to device fingerprint |
+| Tampering | Attachment upload uses a predictable key (`/uploads/{id}.pdf`) — attacker overwrites another employee's file | Random/UUID keys scoped by user, signed upload URLs |
+| Repudiation | Employee denies submitting a since-disputed time-off request | Append-only audit log (who/when/what), written server-side, not client-reported |
+| Information Disclosure | DB backup snapshot lands in an S3 bucket with default (public) ACL | Block public access at the bucket policy level, encrypt at rest, least-privilege IAM |
+| Denial of Service | Unauthenticated password-reset endpoint gets hammered, exhausting the SMTP relay's send quota | Per-IP and per-account rate limiting, CAPTCHA after N attempts |
+| Elevation of Privilege | The "approve request" endpoint checks that the caller is *logged in* but not that they're the requester's *manager* | Server-side RBAC check per action, never inferred from UI state |
+
+That's the whole exercise: enumerate trust boundaries, apply the six categories at each one, write down one concrete threat and one concrete mitigation per row. On a real system you'd do this for every new feature that crosses a trust boundary — do it at design-review time, not after a pentest finds the gap.
+
+## OAuth2 / OIDC: the authorization code flow, concretely
+
+OAuth2 is an **authorization** protocol — it grants an app access to a resource on your behalf. OIDC is a thin identity layer on top that adds **authentication** — a signed `id_token` proving who you are. Confusing the two is the most common OAuth mistake: an `access_token` says "this app can call the API as you"; an `id_token` says "this person really is who they claim to be." Don't use a bare access token as proof of identity.
+
+Here's the Authorization Code flow with PKCE (the flow you should use for any browser or mobile client — PKCE closes the code-interception attack that plain auth-code flow was vulnerable to):
+
+**1. App generates a PKCE pair and redirects to the IdP's authorization endpoint:**
+
+```javascript
+const crypto = require('crypto');
+const verifier = crypto.randomBytes(32).toString('base64url');
+const challenge = crypto.createHash('sha256').update(verifier).digest('base64url');
+// store `verifier` server-side (or in a secure session) keyed by `state`
+
+const authUrl = `https://idp.example.com/authorize?` +
+  `response_type=code&client_id=my-app&` +
+  `redirect_uri=https://myapp.com/callback&` +
+  `scope=openid%20profile%20email&` +
+  `state=${state}&code_challenge=${challenge}&code_challenge_method=S256`;
+```
+
+**2. User authenticates and consents at the IdP.** The app never sees the password.
+
+**3. IdP redirects back:** `GET https://myapp.com/callback?code=abc123&state=xyz`. The app checks `state` matches what it stored — this is what prevents CSRF against the callback.
+
+**4. App exchanges the code for tokens, server-side, over a direct back-channel request** (the code alone is useless without `verifier`, which never left the server):
+
+```http
+POST /token HTTP/1.1
+Host: idp.example.com
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=authorization_code&code=abc123&redirect_uri=https://myapp.com/callback
+&client_id=my-app&code_verifier=<the original verifier>
+```
+
+**5. IdP responds with tokens:**
+
+```json
+{
+  "access_token": "eyJhbGciOi...",
+  "id_token": "eyJhbGciOi...",
+  "refresh_token": "8xLOxBtZp8",
+  "expires_in": 3600,
+  "token_type": "Bearer"
+}
+```
+
+**6. App validates the `id_token`** — signature against the IdP's published JWKS, plus `iss`, `aud`, `exp`, and `nonce`. Skipping this step and just trusting the payload is the second most common OAuth mistake:
+
+```javascript
+const { jwtVerify, createRemoteJWKSet } = require('jose');
+const JWKS = createRemoteJWKSet(new URL('https://idp.example.com/.well-known/jwks.json'));
+
+const { payload } = await jwtVerify(idToken, JWKS, {
+  issuer: 'https://idp.example.com',
+  audience: 'my-app',
+});
+if (payload.nonce !== storedNonce) throw new Error('nonce mismatch');
+// payload.sub is now a verified, stable identity for this user
+```
+
+**7. App creates its own session** (e.g., an httpOnly, Secure, SameSite=Lax cookie referencing a server-side session) rather than passing the raw tokens back to the browser on every request. **8. Subsequent calls to the resource server** send `Authorization: Bearer <access_token>`; the resource server validates that token independently (signature + `aud` + `exp`) rather than trusting the app that forwarded it.
+
+## Secrets management and dependency vulnerability scanning
+
+### Secrets
+
+A secret committed to git is compromised the moment it's pushed — full history, forks, and cached CI logs all carry it, and rotating it after the fact doesn't undo the exposure window.
+
+Real workflow, in order:
+
+```bash
+# 1. Pre-commit: catch it before it ever leaves your machine
+pip install pre-commit
+# .pre-commit-config.yaml:
+#   - repo: https://github.com/gitleaks/gitleaks
+#     hooks: [{id: gitleaks}]
+pre-commit install
+
+# 2. CI: catch anything that slipped through, and scan full history
+gitleaks detect --source . --verbose --exit-code 1
+```
+
+At runtime, secrets shouldn't live as plaintext environment variables baked into an image or a `.env` file shipped with a deploy — they should be fetched from a secrets manager at boot, short-lived where possible:
+
+```python
+# AWS Secrets Manager: fetched at startup, never written to disk or image layer
+import boto3, json
+
+client = boto3.client("secretsmanager", region_name="us-east-1")
+secret = json.loads(
+    client.get_secret_value(SecretId="prod/db/credentials")["SecretString"]
+)
+DB_URL = f"postgresql://{secret['user']}:{secret['password']}@{secret['host']}/app"
+```
+
+The stronger pattern (Vault, or cloud-native equivalents) issues **dynamic, short-lived** database credentials per instance instead of one static password shared by every service:
+
+```hcl
+# Vault: a 1-hour-lived Postgres role, unique per requesting service
+resource "vault_database_secret_backend_role" "app" {
+  name    = "app-role"
+  backend = "database"
+  db_name = "prod-postgres"
+  creation_statements = [
+    "CREATE ROLE \"{{name}}\" WITH LOGIN PASSWORD '{{password}}' VALID UNTIL '{{expiration}}';",
+    "GRANT SELECT, INSERT, UPDATE ON app_tables TO \"{{name}}\";"
+  ]
+  default_ttl = 3600
+}
+```
+
+If a credential leaks, its blast radius is capped at an hour instead of "until someone notices."
+
+### Dependency vulnerability scanning
+
+Most real breaches in this category come from a known CVE in a dependency nobody updated, not a novel exploit. The workflow has three legs: scan on every PR, scan container images, and let a bot open the fix PRs automatically.
+
+```yaml
+# .github/workflows/security.yml
+name: security
+on: [pull_request]
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Dependency audit (JS)
+        run: npm audit --audit-level=high
+      - name: Dependency audit (Python)
+        run: pip install pip-audit && pip-audit
+      - name: Container + filesystem scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+```
+
+```yaml
+# .github/dependabot.yml — auto-opens PRs when a patched version exists
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule: { interval: "daily" }
+    open-pull-requests-limit: 10
+```
+
+Failing the build on HIGH/CRITICAL is deliberate — it forces triage instead of silent accumulation. When a finding is a false positive or genuinely unexploitable in your context, suppress it explicitly with a documented reason (Trivy and Snyk both support `.trivyignore` / policy files) rather than lowering the severity threshold globally. For a fuller picture of what's actually running in production, generate a Software Bill of Materials (`syft packages dir:. -o cyclonedx-json`) so you can answer "are we affected by CVE-X" in minutes, not days, the next time a library makes headlines.
+
+## Exercise
+
+Below is a stripped-down Flask endpoint with three separate bugs from this module (one from each of the injection, access-control, and secrets-handling categories). Threat-model it with STRIDE first — write down at least three rows — then fix at least two of the three bugs.
+
+```python
+import sqlite3, os
+
+DB_PASSWORD = "prod-secret-123"  # bug #1 lives near here
+
+@app.route("/api/documents/<doc_id>")
+def get_document(doc_id):
+    conn = sqlite3.connect("app.db")
+    # bug #2 lives in this query
+    row = conn.execute(f"SELECT * FROM documents WHERE id = {doc_id}").fetchone()
+    # bug #3: what's missing before returning `row`?
+    return jsonify(row)
+```
+
+Hint: one bug is a classic injection you can fix with the pattern from A03; one is the *exact* bug shape from the IDOR example — ask what check is missing between "the row exists" and "return it"; the third isn't in the function body at all — think about where `DB_PASSWORD` should actually come from and what tool would have caught it before this ever reached a PR.

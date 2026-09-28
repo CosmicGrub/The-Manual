@@ -1,0 +1,291 @@
+---
+trackId: software-engineering
+tier: 4
+title: "Database Internals & Performance"
+order: 3
+estimatedHours: 10
+slug: database-internals-and-performance
+---
+
+## Why this module exists
+
+You already know how to write a JOIN, add an index, and wrap a few statements in `BEGIN`/`COMMIT`. That was Tier 1-3 material. What you haven't had to do yet is defend a production database under load: read a query plan the way the planner reads it, know exactly which isolation level a specific bug requires (not "use SERIALIZABLE for everything," which will fall over at scale), and catch a query-count explosion before it ships. That's what this module is for. Everything here runs against PostgreSQL 15+ unless noted; MySQL/InnoDB gets called out where its behavior genuinely diverges (it does, for isolation levels especially).
+
+## Reading a real query plan
+
+Here's a table and a query that looks innocent and isn't:
+
+```sql
+CREATE TABLE orders (
+    id           bigserial PRIMARY KEY,
+    customer_id  bigint NOT NULL,
+    status       text NOT NULL,
+    total_cents  integer NOT NULL,
+    created_at   timestamptz NOT NULL DEFAULT now()
+);
+-- ~5,000,000 rows, only the primary key is indexed
+```
+
+```sql
+EXPLAIN (ANALYZE, BUFFERS)
+SELECT id, total_cents, created_at
+FROM orders
+WHERE customer_id = 48213
+  AND status = 'shipped'
+ORDER BY created_at DESC
+LIMIT 20;
+```
+
+```
+Limit  (cost=98432.10..98432.15 rows=20 width=24) (actual time=612.334..612.341 rows=20 loops=1)
+  ->  Sort  (cost=98432.10..98449.67 rows=7029 width=24) (actual time=612.332..612.335 rows=20 loops=1)
+        Sort Key: created_at DESC
+        Sort Method: top-N heapsort  Memory: 27kB
+        ->  Seq Scan on orders  (cost=0.00..98219.00 rows=7029 width=24) (actual time=0.021..604.812 rows=6841 loops=1)
+              Filter: ((customer_id = 48213) AND (status = 'shipped'))
+              Rows Removed by Filter: 4993159
+Planning Time: 0.312 ms
+Execution Time: 612.401 ms
+```
+
+Read it bottom-up, that's the actual order of execution:
+
+- `Seq Scan on orders` — the planner walked all 5M rows because nothing indexed `customer_id` or `status`. `Rows Removed by Filter: 4993159` is the tell: it threw away 99.86% of what it scanned. That's the whole 604ms.
+- Two numbers per node: `cost=X..Y` is the *planner's estimate* in arbitrary units (startup cost..total cost), `actual time=X..Y` is *wall-clock milliseconds*, measured because you asked for ANALYZE, which actually runs the query. `rows=` next to `cost` is the estimate; `rows=` next to `actual time` is what really came back. Here 7029 estimated vs 6841 actual — close enough to trust the planner's statistics.
+- `loops=1` means this node executed once. Under a Nested Loop, a child node might show `loops=4841` — meaning its `actual time` gets multiplied by 4841 to get its true contribution. This is the single most common thing people misread: they see a 0.03ms child node and miss that it ran ten thousand times.
+- `Sort Method: top-N heapsort` — cheap because `LIMIT 20` let it keep only the top 20 in memory instead of sorting all 6841 matching rows.
+
+Now fix it:
+
+```sql
+CREATE INDEX idx_orders_customer_status_created
+    ON orders (customer_id, status, created_at DESC);
+```
+
+```
+Limit  (cost=0.56..8.63 rows=20 width=24) (actual time=0.045..0.089 rows=20 loops=1)
+  ->  Index Scan using idx_orders_customer_status_created on orders
+      (cost=0.56..2839.20 rows=7029 width=24) (actual time=0.043..0.081 rows=20 loops=1)
+        Index Cond: ((customer_id = 48213) AND (status = 'shipped'))
+Planning Time: 0.198 ms
+Execution Time: 0.121 ms
+```
+
+612ms → 0.12ms. Same data, same query, one index. Note the index also satisfies the `ORDER BY created_at DESC` for free — the index is already sorted that way, so the `Sort` node disappeared entirely.
+
+The mismatch to watch for isn't "estimate slightly off," it's estimate off by an order of magnitude or more — `rows=20` estimated, `rows=340000` actual. That means stale statistics (`ANALYZE orders;` fixes it), or correlated columns the planner can't model on its own (fix with `CREATE STATISTICS orders_customer_status_stat (dependencies) ON customer_id, status FROM orders;` then `ANALYZE`). A bad row estimate is dangerous specifically because it changes the *join strategy* — the planner picks Nested Loop when it thinks rows will be small and Hash Join when it thinks they'll be large; get the estimate wrong and it picks the wrong strategy and a loops multiplier turns a small mistake into a catastrophic one.
+
+## Indexing strategy — and when it actively hurts
+
+Composite index column order follows the **ESR rule**: **E**quality columns first, **S**ort columns next, **R**ange columns last. `(customer_id, status, created_at DESC)` above is equality, equality, sort — exactly right. An index only serves a query as a *leftmost prefix*: this index serves `WHERE customer_id = ?`, `WHERE customer_id = ? AND status = ?`, and the full three-column query — but not `WHERE status = ?` alone.
+
+Indexes aren't free. Every `INSERT`, and every `UPDATE` that touches an indexed column, has to write to every index on that table, not just the heap. Benchmark it yourself:
+
+```sql
+-- three identical tables, differing only in index count
+CREATE TABLE events_0idx (id bigserial PRIMARY KEY, user_id bigint, event_type text, payload jsonb, created_at timestamptz);
+CREATE TABLE events_3idx (LIKE events_0idx INCLUDING ALL);
+CREATE INDEX ON events_3idx (user_id);
+CREATE INDEX ON events_3idx (event_type);
+CREATE INDEX ON events_3idx (created_at);
+CREATE TABLE events_6idx (LIKE events_3idx INCLUDING ALL);
+CREATE INDEX ON events_6idx (user_id, event_type);
+CREATE INDEX ON events_6idx ((payload->>'source'));
+CREATE INDEX ON events_6idx (created_at, user_id);
+```
+
+```bash
+\timing on
+INSERT INTO events_0idx (user_id, event_type, payload, created_at)
+SELECT g % 100000, 'click', '{"source":"web"}', now() FROM generate_series(1,200000) g;
+-- repeat against events_3idx, events_6idx
+```
+
+Representative numbers on a mid-size box:
+
+| Indexes | Insert time (200k rows) | Throughput |
+|---|---|---|
+| 0 (PK only) | 4.8s | ~41,600 rows/s |
+| 3 | 11.2s | ~17,850 rows/s |
+| 6 | 21.6s | ~9,250 rows/s |
+
+Roughly linear degradation, and this understates it in production: each extra index also competes for `shared_buffers` cache space, pushes your hot working set out to disk sooner, and adds work for autovacuum, which has to clean dead tuples out of *every* index, not just the heap. There's a second, sneakier cost: Postgres's HOT (Heap-Only Tuple) update optimization — which lets an `UPDATE` skip touching any index at all — only kicks in when the update doesn't change a single indexed column. Add an index on a frequently-updated column and you silently disable HOT for every row that touches it.
+
+**When an index actively hurts**, two cases: (1) a low-selectivity column, like a boolean `is_deleted` that's `false` 99% of the time — the planner will correctly ignore a plain index on it (a seq scan beats an index scan when you're going to touch most of the table anyway), but you still pay the full write cost forever, for a structure nothing ever reads. (2) A high-write, narrow-value-set column indexed "just in case." Fix case (1) with a **partial index** instead of a plain one:
+
+```sql
+-- instead of: CREATE INDEX ON orders (is_deleted);
+CREATE INDEX idx_orders_deleted ON orders (id) WHERE is_deleted = true;
+```
+
+Now the index only contains the 1% of rows that are actually deleted — tiny, cheap to maintain (99% of writes never touch it), and still fully useful for `WHERE is_deleted = true` queries. For read-heavy lookups where you want to avoid a heap fetch entirely, add covering columns:
+
+```sql
+CREATE INDEX idx_orders_customer_covering
+    ON orders (customer_id, status) INCLUDE (total_cents);
+```
+
+This turns a matching query into an `Index Only Scan` — Postgres never touches the table heap at all, as long as the visibility map says those pages are all-visible.
+
+## Transaction isolation levels
+
+The SQL standard defines four levels by which anomalies they permit. The three classic anomalies:
+
+- **Dirty read**: transaction B reads a row transaction A has modified but not yet committed.
+- **Non-repeatable read**: transaction A reads the same row twice in one transaction and gets different values because B committed an update in between.
+- **Phantom read**: transaction A re-runs the same *range* query and gets a *different set of rows* because B inserted or deleted one in between.
+
+**Read Uncommitted → dirty reads possible.** Postgres silently upgrades this to Read Committed — it never actually permits dirty reads, full stop. To see a real one, you need a database that implements it, like MySQL/InnoDB:
+
+```sql
+-- Session A (MySQL)
+SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+START TRANSACTION;
+UPDATE accounts SET balance = balance - 100 WHERE id = 1;   -- not committed yet
+
+-- Session B (MySQL), concurrently
+SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+START TRANSACTION;
+SELECT balance FROM accounts WHERE id = 1;  -- sees the -100 that hasn't happened yet
+
+-- Session A
+ROLLBACK;   -- the money never actually moved; B already acted on it
+```
+
+**Read Committed** (Postgres's default) prevents dirty reads but allows non-repeatable reads — each statement sees a fresh snapshot as of when *it* started, not when the transaction started:
+
+```sql
+-- Session A
+BEGIN;  -- default is READ COMMITTED
+SELECT balance FROM accounts WHERE id = 1;  -- 500
+
+-- Session B, concurrently
+UPDATE accounts SET balance = 300 WHERE id = 1;
+COMMIT;
+
+-- Session A, same transaction
+SELECT balance FROM accounts WHERE id = 1;  -- 300 — changed mid-transaction
+COMMIT;
+```
+
+**Repeatable Read** fixes that by taking one snapshot at `BEGIN` and using it for the whole transaction. Postgres implements this via true snapshot isolation, which — unlike the bare SQL standard — also blocks phantom reads, not just non-repeatable reads. What it does *not* block is write skew: two transactions each read overlapping data, each make a decision based on what they read, and each write to a *different* row, so no row-level lock ever catches the conflict. The canonical example is two doctors on call:
+
+```sql
+-- both doctors currently on call for the shift; rule: at least one must stay on call
+-- Session A                                    -- Session B
+BEGIN ISOLATION LEVEL REPEATABLE READ;           BEGIN ISOLATION LEVEL REPEATABLE READ;
+SELECT count(*) FROM doctors                     SELECT count(*) FROM doctors
+  WHERE on_call = true AND shift_id = 9;           WHERE on_call = true AND shift_id = 9;
+-- returns 2, so "safe" to go off call            -- returns 2, so "safe" to go off call
+UPDATE doctors SET on_call = false                UPDATE doctors SET on_call = false
+  WHERE id = 1;                                     WHERE id = 2;
+COMMIT;                                           COMMIT;
+-- both succeed. Zero doctors on call. The invariant is broken and neither
+-- transaction ever touched a row the other one wrote.
+```
+
+**Serializable** is the only level that catches this — Postgres detects the read/write dependency cycle between the two transactions and aborts one with a serialization failure:
+
+```sql
+BEGIN ISOLATION LEVEL SERIALIZABLE;
+-- same statements as above
+COMMIT;
+-- ERROR: could not serialize access due to read/write dependencies among transactions
+-- your application must catch this and retry the transaction
+```
+
+The trade-off is real: Serializable requires retry logic everywhere and has real throughput cost under contention. Rule of thumb — default to Read Committed, reach for Repeatable Read when you need one consistent snapshot for a multi-statement report or calculation, and reach for Serializable only for the specific invariant-across-multiple-rows transactions where write skew is actually possible (inventory holds, on-call staffing, double-booking), with retry-on-40001 built in.
+
+## Connection pooling and killing N+1
+
+A Postgres backend is a full OS process — several MB of RAM, and real cost to fork, authenticate, and warm its catalog cache. A web app opening a fresh connection per request will either exhaust `max_connections` (default 100) or waste most of its latency budget on connection setup. Put a pooler in front:
+
+```ini
+; pgbouncer.ini
+[databases]
+appdb = host=127.0.0.1 port=5432 dbname=appdb
+
+[pgbouncer]
+listen_port = 6432
+listen_addr = 0.0.0.0
+auth_type = scram-sha-256
+pool_mode = transaction
+max_client_conn = 2000
+default_pool_size = 25
+```
+
+`pool_mode` matters: **session** pooling gives each client its own backend for the whole session — safest, supports everything, doesn't help much with connection counts. **Transaction** pooling returns the backend to the pool after every transaction, letting 2000 app connections share 25 real ones — but it breaks anything that assumes session affinity: `SET search_path` persisting across transactions, session-level `pg_advisory_lock`, and driver-side prepared-statement caching (asyncpg does this automatically; turn it off under transaction-mode pgbouncer). **Statement** pooling is more aggressive still and breaks multi-statement transactions outright — rarely appropriate for application traffic.
+
+Pooling fixes connection *setup* cost. It does nothing for query *count* — that's a separate, more common bug. Here's a real N+1, Django ORM:
+
+```python
+class Author(models.Model):
+    name = models.CharField(max_length=100)
+
+class Book(models.Model):
+    title = models.CharField(max_length=200)
+    author = models.ForeignKey(Author, on_delete=models.CASCADE, related_name="books")
+```
+
+```python
+def book_list(request):
+    books = Book.objects.all()[:50]
+    return render(request, "books.html", {"books": books})
+```
+
+```html
+{% for book in books %}
+  <li>{{ book.title }} by {{ book.author.name }}</li>
+{% endfor %}
+```
+
+The generated SQL, straight from Django's debug log:
+
+```sql
+SELECT id, title, author_id FROM book LIMIT 50;      -- query 1
+SELECT id, name FROM author WHERE id = 4;             -- query 2
+SELECT id, name FROM author WHERE id = 91;             -- query 3
+-- ... one more SELECT per book ...
+SELECT id, name FROM author WHERE id = 12;             -- query 51
+```
+
+50 books, 51 queries. `book.author` is lazy — each access to `.author.name` fires a fresh, uncached query, because `.author` on each row is a separate object that has never seen `author_id=4` before. Fix with `select_related`, which does the JOIN in one query:
+
+```python
+books = Book.objects.select_related("author")[:50]
+```
+
+```sql
+SELECT book.id, book.title, book.author_id, author.id, author.name
+FROM book
+INNER JOIN author ON author.id = book.author_id
+LIMIT 50;
+```
+
+One query. `select_related` works for `ForeignKey`/`OneToOne` (SQL JOIN, one row each). For the reverse direction or many-to-many (`author.books.all()` in a loop), a JOIN would multiply rows, so use `prefetch_related` instead — it issues a second query with `WHERE author_id IN (...)` and stitches results together in Python, still two queries total instead of N+1.
+
+## Exercise
+
+You inherit this dashboard endpoint:
+
+```python
+class Project(models.Model):
+    team = models.ForeignKey(Team, on_delete=models.CASCADE)
+    name = models.CharField(max_length=100)
+    status = models.CharField(max_length=20)  # 'active' or 'archived', 95% archived
+
+class Task(models.Model):
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="tasks")
+    title = models.CharField(max_length=200)
+    is_done = models.BooleanField(default=False)
+
+def dashboard(request, team_id):
+    projects = Project.objects.filter(team_id=team_id, status="active")
+    data = [{"project": p.name, "open_tasks": p.tasks.filter(is_done=False).count()}
+            for p in projects]
+    return JsonResponse(data, safe=False)
+```
+
+`EXPLAIN ANALYZE` on the underlying `Project` filter shows a sequential scan with `Rows Removed by Filter` close to the full table. Do three things: (1) rewrite `dashboard()` to eliminate its N+1; (2) design the index(es) this needs, including whether a partial index is justified given the 95/5 status split; (3) this team also has a "move budget between two projects" transaction — name the isolation level required and the specific anomaly that justifies it.
+
+*Hint: for (1), look at `annotate()` with a conditional `Count`, or `Prefetch` with a filtered queryset and `to_attr`, to get it down to two queries total regardless of project count. For (3), it's the same shape of bug as the doctors-on-call example above — think about whether two concurrent transactions could each individually look valid and still break an invariant that spans both rows.*

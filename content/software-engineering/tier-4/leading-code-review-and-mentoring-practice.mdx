@@ -1,0 +1,210 @@
+---
+trackId: software-engineering
+tier: 4
+title: "Leading Code Review & Mentoring Practice"
+order: 6
+estimatedHours: 6
+slug: leading-code-review-and-mentoring-practice
+---
+
+## Before you start
+
+Tier 3 covered code review as a general discipline — how to structure a review, what to look for, how to give feedback without being a jerk. This module assumes you already do that well. What's new here is narrower and harder: reviewing someone who is *earlier in their career than you*, deciding when pairing is worth the calendar time it costs, and writing the kind of proposal document that gets a team to actually agree on something instead of arguing in a Slack thread for three days.
+
+## Calibrating review feedback to a junior engineer
+
+The mistake senior engineers make on a junior's PR isn't being too harsh or too soft — it's applying the *same review* they'd give a peer. A peer can absorb ten simultaneous critiques and triage them correctly. A junior engineer, especially on their first few PRs, cannot tell "this will break production" apart from "I'd have named this differently" unless you tell them explicitly. Left unlabeled, every comment reads as equally urgent, and a wall of fifteen unlabeled comments teaches "I am bad at this" instead of teaching the actual lesson.
+
+Two rules fix most of this:
+
+1. **Tag every comment with severity**, and mean it: `blocking`, `should-fix`, `nit`, `question`. A junior's PR should rarely have more than one or two `blocking` items — if it has more, you're either reviewing too late (should have paired earlier) or scope-creeping the PR.
+2. **Explain the *why*, every time.** A senior engineer can reverse-engineer your reasoning from `"N+1 query"`. A junior often can't yet, and if they can't, the comment doesn't transfer — they'll fix this instance and make the same mistake next week.
+
+Here's a real example. A junior submits this endpoint:
+
+```python
+@app.route("/api/orders/<user_id>")
+def get_orders(user_id):
+    orders = []
+    user = User.query.get(user_id)
+    for o in Order.query.filter_by(user_id=user_id).all():
+        items = OrderItem.query.filter_by(order_id=o.id).all()
+        orders.append({
+            "id": o.id,
+            "total": o.total,
+            "items": [i.name for i in items]
+        })
+    return jsonify(orders)
+```
+
+It works. It also has an auth hole, an N+1 query, an unused variable, and no pagination.
+
+**A bad review** — technically correct, zero calibration:
+
+> - N+1 query, fix it.
+> - No auth check?? Never ship this.
+> - `user` is unused.
+> - Needs pagination.
+> - Requesting changes.
+
+Every issue named is real. But nothing here distinguishes "you exposed every customer's order history to every logged-in user" from "you left a stray variable in." The junior fixes all four with equal (or misallocated) urgency, learns nothing transferable, and dreads their next PR.
+
+**A good review** — same issues, calibrated:
+
+> Nice work getting the join logic right and matching the existing route conventions — this reads cleanly.
+>
+> **blocking (security):** right now any logged-in user can pass *anyone's* `user_id` and read their order history — there's no check that `user_id` matches the caller. Every other data-scoped route in `api/orders.py` and `api/invoices.py` uses the `@login_required` + ownership-check pattern; can you follow that here? Happy to pair on it if the pattern isn't obvious from those files.
+>
+> **should-fix (performance):** the loop does one query per order to fetch its items — that's an N+1, and it'll show up in the slow-query log once a user has more than a handful of orders. SQLAlchemy's `joinedload(Order.items)` collapses it to one query. Worth fixing now since it's a one-line change once you see the pattern.
+>
+> **nit:** `user` is fetched but never used — safe to drop.
+>
+> **question, non-blocking:** no pagination yet. Do we expect users with hundreds of orders any time soon? If not, I'd rather ship this and file a follow-up ticket than block the PR on it.
+
+The fixed version:
+
+```python
+from flask_login import login_required, current_user
+
+@app.route("/api/orders/<int:user_id>")
+@login_required
+def get_orders(user_id):
+    if current_user.id != user_id and not current_user.is_admin:
+        abort(403)
+
+    orders = (
+        Order.query
+        .filter_by(user_id=user_id)
+        .options(joinedload(Order.items))
+        .limit(50)
+        .all()
+    )
+    return jsonify([
+        {"id": o.id, "total": o.total, "items": [i.name for i in o.items]}
+        for o in orders
+    ])
+```
+
+Notice what the good review *didn't* do: it didn't invent extra nits to demonstrate thoroughness, it didn't block on pagination, and it opened by naming something real that was done right. That's not softness — the security issue is still flagged as hard-blocking, in the strongest terms in the whole review. Calibration means being precise about severity, not being gentle about everything.
+
+## Pairing: driver, navigator, and knowing when to stop
+
+In driver/navigator pairing, the **driver** has the keyboard and writes the actual syntax — they operate at the level of "what does this line need to say." The **navigator** stays one level up: catches the bug the driver is about to write, thinks about the edge case three functions away, keeps half an eye on whether this is still the right design. Swap roles every 10–15 minutes, or use **ping-pong pairing** for TDD work: one person writes a failing test, the other writes the minimum code to pass it, then *they* write the next failing test. The role swap is forced by the rhythm, which stops one person from silently checking out.
+
+Pairing earns its cost when:
+
+- **Onboarding to unfamiliar territory.** A junior working through their first change to the billing service learns the tribal knowledge — "don't touch that table directly, always go through the reconciliation job" — in twenty minutes that would take a week of solo archaeology plus a production incident to learn otherwise.
+- **The change is high-stakes or hard to reverse.** Schema migrations, anything touching auth, a live incident fix. Two people catching the mistake before it ships is cheaper than one person catching it after.
+- **The design is genuinely ambiguous.** When the real cost is in async review round-trips — you write a doc, they comment two days later, you revise, repeat — two people arguing it out live in thirty minutes is faster than a week of `PR-review ping-pong`.
+
+Pairing wastes time when:
+
+- **The work is mechanical.** Renaming a field across forty files, applying a codemod, filling in boilerplate. Write a script or split the list instead of narrating it to a second person.
+- **One person needs a solo research spike.** Reading through an unfamiliar library's source, or exploring three possible designs before there's anything concrete to react to. Pairing here just makes the driver perform their thinking out loud instead of doing it; go off, come back with something to react to.
+- **The skill gap makes one person a passive spectator.** If the navigator can't follow what the driver is doing closely enough to catch mistakes or contribute ideas, it's not navigation, it's narration — do a walkthrough or a recorded session first, then pair on the next similar task once there's shared context to build on.
+
+A concrete pattern that works: timebox the session (45–60 minutes), swap driver every 15 minutes, and close with a two-minute retro — "what did we just learn that should become a wiki page, so the next person doesn't need to pair to get it." If nothing surfaces there, you probably didn't need to pair.
+
+## Writing an RFC that actually gets a decision made
+
+An RFC is not a design doc you write after deciding — it's the instrument you use *to* decide, on record, with named tradeoffs, so six months later nobody has to reverse-engineer why the team picked SQS over a Postgres-backed queue. A good RFC states the options you *didn't* pick and why, not just the one you did.
+
+Here's a complete worked example for a real, scoped team decision:
+
+```markdown
+# RFC-014: Move webhook delivery to an async queue with retries
+
+Status: Proposed
+Author: J. Alvarez
+Date: 2026-09-28
+
+## Context
+Webhooks are currently delivered synchronously inside the request that
+triggers them (e.g., `order.shipped` fires a POST to the customer's
+endpoint before we return 200 to our own client). p99 webhook delivery
+latency has crept to 4.2s over the last quarter as more customers add
+slow endpoints, and 3 of our last 5 on-call pages were caused by a single
+slow customer endpoint backing up our request workers.
+
+## Problem
+A single customer's slow or down webhook endpoint currently degrades
+latency and availability for *every* customer, because delivery happens
+inline on shared request workers.
+
+## Goals
+- Webhook delivery no longer blocks or is blocked by the triggering request.
+- Failed deliveries are retried automatically with backoff.
+- A single slow customer cannot degrade another customer's experience.
+
+## Non-goals
+- Exactly-once delivery guarantees (at-least-once is acceptable; customers
+  already dedupe on `event_id`, per the existing webhook docs).
+- Rebuilding the webhook UI/management endpoints.
+
+## Proposed design
+Publish an event to a `webhook_deliveries` table on the same Postgres
+instance (no new infra), polled by a dedicated worker pool:
+
+    INSERT INTO webhook_deliveries
+      (id, url, payload, attempt, next_attempt_at, status)
+    VALUES (gen_random_uuid(), $1, $2, 0, now(), 'pending');
+
+Worker loop (simplified):
+
+    def deliver_pending(batch_size=50):
+        rows = claim_batch(status='pending', limit=batch_size)
+        for row in rows:
+            try:
+                resp = http_post(row.url, row.payload, timeout=5)
+                mark_delivered(row.id) if resp.ok else raise DeliveryError
+            except (DeliveryError, Timeout):
+                backoff = min(2 ** row.attempt, 3600)
+                reschedule(row.id, attempt=row.attempt + 1,
+                           next_attempt_at=now() + backoff)
+                if row.attempt >= 8:
+                    move_to_dead_letter(row.id)
+
+## Alternatives considered
+- **Raise the inline timeout.** Rejected — treats the symptom, doesn't
+  isolate one customer's failures from another's.
+- **Kafka-backed queue.** Rejected for now — solves the same problem but
+  adds a new piece of infra to operate; revisit if delivery volume outgrows
+  what Postgres polling can handle (see Open Questions).
+- **Client-side retry only (no server queue).** Rejected — pushes reliability
+  work onto every customer's integration instead of owning it centrally.
+
+## Rollout plan
+1. Ship worker + table behind a feature flag, shadow-write only (no
+   behavior change) for one week; compare delivery latency/success in logs.
+2. Enable for 5% of tenants, monitor dead-letter rate and worker lag.
+3. Ramp to 100% over two weeks if dead-letter rate stays under 0.5%.
+
+## Risks
+- Postgres polling adds write load; mitigated by `next_attempt_at` index
+  and capped batch size. Revisit Kafka if p99 worker lag exceeds 30s.
+- Dead-lettered events need a runbook for manual replay — owned by on-call,
+  documented before phase 2.
+
+## Open questions
+- Do we need per-tenant rate limiting on delivery, or is global backoff enough?
+
+## Decision
+Pending review from @platform-team by 2026-10-05.
+```
+
+That's the whole shape: state the problem in numbers, name the goals *and* the non-goals (non-goals prevent scope creep in review), show enough of the design that a reviewer can find real flaws in it, and — the part people skip — name the alternatives you rejected and why. A reviewer who agrees with your conclusion but not your reasoning on the Kafka alternative will tell you now, in a comment thread, instead of relitigating it in production eight months later.
+
+## Exercise
+
+You're the reviewer on a junior teammate's first PR to a shared repo. It adds this function to a Node/Express service:
+
+```javascript
+app.get('/api/reports/:id', (req, res) => {
+  const report = db.query(`SELECT * FROM reports WHERE id = ${req.params.id}`);
+  res.json(report);
+});
+```
+
+Write your review as labeled comments (`blocking` / `should-fix` / `nit` / `question`), the way the worked example above did — including at least one thing you'd genuinely praise if this were a real first PR. Then write a 200-300 word RFC-style proposal (Context, Problem, Proposed design, Alternatives considered) for one real, scoped decision on a team you know — "should we add a read replica," "should we require RFCs for schema changes," anything concrete enough to have a real answer.
+
+Hint: there are at least two distinct classes of bug in that route handler, and they don't carry the same severity — decide which one is actually `blocking` before you write anything else.

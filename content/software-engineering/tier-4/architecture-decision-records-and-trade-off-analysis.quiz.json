@@ -1,0 +1,98 @@
+[
+  {
+    "id": "software-engineering/tier-4/architecture-decision-records-and-trade-off-analysis/q1",
+    "type": "multiple_choice",
+    "prompt": "Which three sections form the core of a real ADR, in the worked example above?",
+    "choices": [
+      "Context, Decision, Consequences",
+      "Summary, Requirements, Timeline",
+      "Problem, Solution, Owner",
+      "Background, Architecture Diagram, Sign-off"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "software-engineering/tier-4/architecture-decision-records-and-trade-off-analysis/q2",
+    "type": "multiple_choice",
+    "prompt": "In a modular monolith, module boundaries (e.g. 'domain code must not import infra code') are enforced by:",
+    "choices": [
+      "Network calls between processes, same as microservices",
+      "Tooling checked in CI, such as import-linter contracts or ArchUnit rules, against a single deployable",
+      "A shared team agreement documented in the README with no automated check",
+      "Separate Kubernetes namespaces per module"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-4/architecture-decision-records-and-trade-off-analysis/q3",
+    "type": "multiple_choice",
+    "prompt": "In the ADR-023 worked example, why was 'modular monolith' rejected as the solution for the payments extraction, even though it's usually cheaper than a full service split?",
+    "choices": [
+      "The payments team preferred a different programming language",
+      "Modular monoliths can't enforce import boundaries in Ruby",
+      "The auditor required network/process-level isolation for reduced PCI DSS scope; code-level separation in a shared process didn't qualify",
+      "The existing test suite was too slow to support a modular monolith"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "software-engineering/tier-4/architecture-decision-records-and-trade-off-analysis/q4",
+    "type": "multiple_choice",
+    "prompt": "A monolith splits into two services, each with its own database. An operation that used to be one ACID transaction (e.g. create order + capture payment) now needs:",
+    "choices": [
+      "Two-phase commit across both databases, configured at the driver level",
+      "Nothing extra \u2014 Postgres replication handles it automatically",
+      "A pattern like saga/outbox: local transactions plus async events, with explicit handling for partial-failure states",
+      "A single shared database connection pool between the two services"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "software-engineering/tier-4/architecture-decision-records-and-trade-off-analysis/q5",
+    "type": "multiple_choice",
+    "prompt": "A service has a 99.95% availability SLO measured over a 30-day rolling window (30 days = 43,200 minutes). What is the downtime error budget for that window?",
+    "choices": [
+      "4.32 minutes",
+      "21.6 minutes",
+      "43.2 minutes",
+      "216 minutes"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-4/architecture-decision-records-and-trade-off-analysis/q6",
+    "type": "multiple_choice",
+    "prompt": "Why does a well-written ADR's 'Consequences' section include negative consequences, not just the benefits of the chosen option?",
+    "choices": [
+      "It's a formatting convention with no functional purpose",
+      "It documents the actual trade-offs being accepted, which is what future readers and reviewers need to evaluate and defend the decision against",
+      "Regulatory frameworks require a fixed ratio of positive to negative statements",
+      "It's meant to talk the team out of the decision before it ships"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-4/architecture-decision-records-and-trade-off-analysis/q7",
+    "type": "multiple_choice",
+    "prompt": "A multi-window burn-rate alert setup pages a human on a 14.4x burn over 1 hour, but only files a ticket for a 3x burn over 6 hours. What is this distinguishing?",
+    "choices": [
+      "Fast, severe budget consumption that needs immediate action vs. a slower trend that can wait for planning, without paging for things that don't need a human awake right now",
+      "Requests from paying customers vs. requests from internal tools",
+      "Errors in the checkout service vs. errors in any other service",
+      "There's no real difference; the two alerts are redundant safety nets"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "software-engineering/tier-4/architecture-decision-records-and-trade-off-analysis/q8",
+    "type": "multiple_choice",
+    "prompt": "In the Ledger exercise scenario, which factor is the strongest technical justification for extracting `report_generation` into its own service, as opposed to just fixing it in place?",
+    "choices": [
+      "6 teams now commit to the monolith, which is an organizational friction problem",
+      "The test suite runs in 47 minutes, which is a build-tooling problem",
+      "The module has a genuinely different, spiky resource profile (8x CPU for 90 minutes/month) that forces the whole deployment unit to over-provision to cover it",
+      "PDF rendering code is harder to read than the rest of the codebase"
+    ],
+    "correctIndex": 2
+  }
+]

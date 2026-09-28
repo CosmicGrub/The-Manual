@@ -1,0 +1,229 @@
+---
+trackId: software-engineering
+tier: 4
+title: "Architecture Decision Records & Trade-off Analysis"
+order: 5
+estimatedHours: 6
+slug: architecture-decision-records-and-trade-off-analysis
+---
+
+## The document nobody reads until the postmortem
+
+An Architecture Decision Record (ADR) is a short, permanent document that captures one significant technical decision: the situation that forced it, what you chose, and what you gave up by choosing it. Teams that skip ADRs don't skip the decisions — they just lose the reasoning six months later, then re-litigate the same argument when a new engineer asks "why don't we just use microservices for this?"
+
+You've been on the receiving end of decisions by now. This module is about producing them, and defending them in a design review. Below is a complete, real ADR — not a fill-in-the-blank template — followed by the two bodies of judgment you need to write one honestly: monolith-vs-microservices trade-offs without the received wisdom, and non-functional requirements precise enough to argue about.
+
+## A complete ADR, worked end to end
+
+This is the actual shape a senior engineer submits for review. Every number is the kind of number you'd pull from your own metrics dashboard before writing this.
+
+```text
+ADR-023: Extract Payment Capture from the Commerce Monolith
+
+Status: Accepted — 2026-03-14
+Deciders: R. Ibarra (payments lead), S. Okonkwo (infra), L. Chen (staff eng, chair)
+
+Context
+-------
+`commerce` is a Ruby on Rails monolith, single Postgres database, deployed
+as one unit on ECS. Four teams (checkout, catalog, fulfillment, payments)
+commit to it. Payment authorization, capture, and refund logic lives in
+app/services/payments/ inside the same process and schema as everything
+else.
+
+Three problems, backed by data pulled from the last two quarters:
+
+1. PCI DSS scope. Because payment-handling code shares a process and a
+   database with unrelated code, our auditor has ruled the entire
+   monolith and its full Postgres instance in scope for PCI DSS. That is
+   ~340k lines of unrelated code and 60+ unrelated tables now subject to
+   quarterly audit controls, at a direct cost of ~$140k/year in audit
+   scope and engineering time on controls that have nothing to do with
+   payments.
+
+2. Deploy risk. Of the last 8 payment-related incidents, 3 were caused
+   by unrelated deploys: a catalog migration held a table lock that
+   backed up the checkout worker queue, and two bad deploys of
+   unrelated code triggered process restarts mid-capture, leaving
+   orders in an ambiguous "maybe charged" state.
+
+3. Release cadence. The monolith deploys ~15x/day gated by a 38-minute
+   full test suite. Payments wants to ship fraud-rule changes same-day;
+   currently a fraud fix waits behind unrelated catalog and fulfillment
+   changes in the same deploy train.
+
+Decision
+--------
+Extract authorize, capture, and refund into a standalone `payments`
+service with its own Postgres database. Checkout calls it synchronously
+over gRPC for authorize/capture (this is in the critical path and must
+stay low-latency). Refunds and provider webhooks (chargebacks, delayed
+capture confirmations) flow through Kafka as async events, since they
+are not latency-sensitive and benefit from at-least-once delivery with
+idempotent consumers.
+
+Order state and payment state are no longer in one transaction. We adopt
+the outbox pattern: the monolith writes an `order_created` row and an
+outbox event in the same local transaction, a relay publishes the event,
+`payments` consumes it and calls back with `payment_captured` or
+`payment_failed`. Checkout UI shows "processing" until the callback
+lands (median 380ms in load testing, p99 1.1s).
+
+Consequences
+------------
+Positive:
+- PCI DSS scope shrinks to one service, one database, ~9k lines. Audit
+  cost drops to an estimated $25k/year.
+- A bad deploy of catalog code can no longer corrupt payment capture —
+  the failure domains are now separated by a process boundary, not just
+  a namespace.
+- Payments ships independently; fraud-rule changes no longer wait on
+  unrelated code.
+
+Negative (accepted, not hidden):
+- Checkout gains a network hop. Load testing shows +15-40ms p50 latency
+  versus the in-process call. Our checkout SLO (below) has headroom for
+  this; we re-verified before accepting.
+- Order creation and payment capture are no longer atomic. We now carry
+  eventual consistency and must handle "order exists, payment unknown"
+  as a first-class state, including a reconciliation job that runs
+  every 5 minutes and pages on-call if unresolved after 15 minutes.
+- One more service to run on-call for: new dashboards, new runbook, new
+  paging path. Payments team absorbs this; estimated +3 hrs/week
+  on-call load.
+- Local dev now requires running two services (or a documented stub)
+  instead of one Rails process.
+
+Alternatives considered
+------------------------
+1. Modular monolith: keep payments in-process but isolate it behind a
+   module boundary and a separate schema. Rejected — our auditor was
+   explicit that shared-process, shared-infrastructure code does not
+   qualify for reduced PCI scope regardless of code organization; the
+   isolation has to be at the network/deployment level.
+2. Decompose the whole monolith into ~12 domain services now. Rejected
+   as premature — only payments has a compliance-driven, not merely
+   organizational, reason to be separate today. Splitting catalog or
+   fulfillment yet would add operational cost with no offsetting win.
+3. Replace capture logic entirely with a third-party orchestrator
+   (e.g., Stripe's hosted capture flow). Rejected — our fraud rules run
+   pre-capture against internal risk signals a third party can't see.
+```
+
+Notice what the Consequences section is doing: it is not a victory lap. A decision document that only lists upside is a pitch deck, not an ADR. The negative consequences here are the ones a reviewer will actually push back on in the design review, and writing them down first means you've already thought about the reconciliation job before someone asks "what happens when the callback never arrives?"
+
+## Monolith vs. microservices vs. modular monolith — what actually moves
+
+Skip the diagrams-of-boxes version of this argument. Here is what concretely gets harder and easier at each step, based on the axes that actually bite in production.
+
+| Axis | Monolith | Modular monolith | Microservices |
+|---|---|---|---|
+| Local dev startup | One process, `run` and go | One process, `run` and go | N processes, or you stub most of them |
+| Cross-domain transaction | Native ACID | Native ACID (same DB) | Saga/outbox, eventual consistency |
+| Deploy blast radius | Whole app, every deploy | Whole app, every deploy | One service; failures are contained |
+| Call latency, cross-module | In-process, ~microseconds | In-process, ~microseconds | Network hop, ~10-50ms typical |
+| Release cadence per team | Shared train, gated by full suite | Shared train, gated by full suite | Independent per service |
+| Debugging one request | One stack trace | One stack trace | Distributed trace across services required |
+| Enforcing boundaries | Convention only (erodes) | Enforced by tooling (see below) | Enforced by the network, hard to violate |
+| Schema ownership | One shared schema, easy coupling | Can be per-module schema, same instance | Physically separate databases |
+| Team scaling (org) | Contention rises past ~3-4 teams | Same contention on deploy train | Teams ship independently |
+| Ops surface | One thing to run | One thing to run | N things to run, N on-call rotations |
+
+The modular monolith is the option people skip past on the way from "monolith" to "microservices," and it's usually the right stop. It gets you enforced boundaries — the thing people actually want when they say "microservices" — without paying for the network hop, the distributed transaction, or the extra on-call rotation. You enforce it in CI, not by hoping people respect a folder structure. In Python, with `import-linter`:
+
+```ini
+[importlinter]
+root_package = commerce
+
+[importlinter:contract:1]
+name = Payments module may not be imported by catalog
+type = forbidden
+source_modules =
+    commerce.catalog
+forbidden_modules =
+    commerce.payments.internal
+
+[importlinter:contract:2]
+name = Layers: domain must not import infrastructure
+type = layers
+layers =
+    commerce.payments.api
+    commerce.payments.domain
+    commerce.payments.infra
+```
+
+That second contract is the one that matters most: it fails the build if `domain` code imports `infra` code, which is exactly the kind of boundary erosion that, two years in, makes people say "we should just split this into services" when what they actually mean is "nobody enforced the boundary we already drew."
+
+What actually gets harder in microservices, concretely, is not "more moving parts" as a vague complaint — it's specific engineering work you now own: idempotency keys on every cross-service write (because the network will retry), a saga or outbox for anything that used to be one transaction, distributed tracing wired into every service before your first cross-service incident (not after), and a contract-testing discipline (consumer-driven contracts, schema registries) so that service B doesn't silently break when service A ships a field rename. None of that is free, and none of it is optional once you split — it's the price, not a risk.
+
+What gets easier is equally concrete: a service with a genuinely different resource profile — CPU-bound reporting next to I/O-bound request handling, or a component that needs to scale to 50x the QPS of everything around it — can now scale independently instead of forcing the whole fleet to over-provision to match its peak. A team can deploy 40 times a day without coordinating with three other teams. A compliance boundary (like PCI scope above) can be drawn at the infrastructure level instead of argued about at code review.
+
+## Non-functional requirements: SLOs, and what "breach" actually costs
+
+A latency target that says "should be fast" is not a requirement — nobody can build against it and nobody can be paged by it. A real NFR is a number, a percentile, a measurement window, and a consequence.
+
+**A real SLO, worked:**
+
+> Checkout API (`POST /v1/checkout`): 99.9% of requests complete within 300ms, measured at p99, over a trailing 28-day rolling window, excluding declared maintenance windows.
+
+Turn that into an error budget. Over 28 days (40,320 minutes), a 99.9% availability target gives you:
+
+```
+budget_minutes = 40320 * (1 - 0.999) = 40.32 minutes
+```
+
+That's your entire allowance for slow or failed checkout requests over four weeks, across every cause: bad deploys, dependency outages, GC pauses, everything. Spend it on a botched deploy at 2pm and you have nothing left for the rest of the month — which is the entire point: it converts "reliability" from a vague virtue into a budget you can overspend and then have a concrete conversation about.
+
+Alert on budget burn rate, not on raw latency — a single burn-rate number tells you how fast you're consuming the month's budget right now. Google's SRE workbook pattern, as a Prometheus rule:
+
+```yaml
+groups:
+  - name: checkout-slo-burn
+    rules:
+      - alert: CheckoutSLOFastBurn
+        # 14.4x burn rate over 1h would exhaust a 30-day budget in ~2 days
+        expr: |
+          (
+            sum(rate(checkout_requests_total{status="slow_or_error"}[1h]))
+            /
+            sum(rate(checkout_requests_total[1h]))
+          ) > (14.4 * 0.001)
+        for: 2m
+        labels:
+          severity: page
+        annotations:
+          summary: "Checkout burning error budget 14x normal rate — page now"
+
+      - alert: CheckoutSLOSlowBurn
+        # 3x burn rate sustained over 6h — real but not an emergency
+        expr: |
+          (
+            sum(rate(checkout_requests_total{status="slow_or_error"}[6h]))
+            /
+            sum(rate(checkout_requests_total[6h]))
+          ) > (3 * 0.001)
+        for: 30m
+        labels:
+          severity: ticket
+        annotations:
+          summary: "Checkout burning error budget 3x normal rate — file ticket, review in planning"
+```
+
+Two windows, two responses, on purpose. A fast, severe burn (14.4x) means the month's budget disappears in about two days if nobody acts — that pages a human immediately. A slow burn (3x) means you're on track to miss the target by month's end but nothing is on fire right now — that's a ticket, not a page, because waking someone up for it teaches the org to ignore pages.
+
+**What happens when you miss it.** The SLO is worthless without a written error-budget policy that fires automatically when the budget hits zero, not one negotiated after the fact:
+
+- Feature launch freeze on the owning service until the budget recovers into positive territory — no new checkout-path features ship while checkout is over budget, full stop, no exceptions negotiated in the incident channel.
+- Mandatory postmortem for the incident(s) that consumed the majority of the budget, with at least one concrete follow-up action tracked to completion, not just "discussed."
+- The team's next planning cycle allocates capacity to reliability work first — the budget miss is now a backlog item with the same priority as a committed feature, not an aspiration.
+- If the same service breaches budget three windows running, the SLO itself gets re-reviewed: either the target was set wrong (too aggressive for what the business actually needs), or the architecture genuinely can't hit it and that's now its own ADR.
+
+That last point matters: an SLO you can never hit isn't rigor, it's fiction everyone quietly ignores — which is worse than not having one, because it burns credibility on every future target too.
+
+## Exercise
+
+`Ledger`, an internal billing modular monolith, has grown to 6 teams committing against it. The test suite is at 47 minutes and rising. One module, `report_generation`, is CPU-bound (PDF rendering, heavy aggregation queries) and its peak load is driven by a monthly billing run that needs 8x the compute of the rest of the app for about 90 minutes once a month; the rest of `Ledger` is I/O-bound and steady all month. Write ADR-031 deciding what to do with `report_generation`: leave it in the modular monolith, extract it to its own service, or something else. Include Context, Decision, and Consequences, with at least one negative consequence you're accepting.
+
+Hint: separate the two problems bundled in this scenario. Test-suite time and team-count friction are organizational/tooling problems (parallelize the suite, tighten `import-linter` contracts) — they are not, by themselves, a strong case for a network boundary. The resource-profile mismatch (CPU-bound, spiky, 8x peak) is the one with a real technical argument for extraction, because it's the one where a shared deployment unit forces you to over-provision the whole fleet to cover a 90-minute-a-month spike. Decide on that basis, and be honest in Consequences about what you're giving up (a transaction that currently ties billing records to generated reports atomically).
+
+## Quiz

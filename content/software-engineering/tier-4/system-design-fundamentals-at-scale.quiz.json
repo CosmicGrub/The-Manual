@@ -1,0 +1,98 @@
+[
+  {
+    "id": "software-engineering/tier-4/system-design-fundamentals-at-scale/q1",
+    "type": "multiple_choice",
+    "prompt": "A load balancer using the least-connections algorithm routes a new request to which backend?",
+    "choices": [
+      "The backend that responded fastest to the previous request",
+      "The next backend in a fixed rotating order",
+      "The backend with the fewest currently active connections",
+      "A backend chosen at random from the healthy pool"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "software-engineering/tier-4/system-design-fundamentals-at-scale/q2",
+    "type": "multiple_choice",
+    "prompt": "An application stores each user's shopping cart in a Python dict in the app server's process memory. After adding a second server behind a load balancer, users intermittently see an empty cart. What is the robust, scalable fix?",
+    "choices": [
+      "Configure sticky sessions so every user always hits the same server",
+      "Move cart state into a shared external store like Redis that any server can read and write",
+      "Increase the TTL on the in-memory dict",
+      "Switch the load balancer from least-connections to round-robin"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-4/system-design-fundamentals-at-scale/q3",
+    "type": "multiple_choice",
+    "prompt": "In the cache-aside (lazy loading) pattern, what happens on a cache miss?",
+    "choices": [
+      "The request is rejected until the cache is manually warmed",
+      "The application reads from the backing store and writes the result into the cache for next time",
+      "The cache automatically pulls the value from the database in the background",
+      "The write is buffered and applied to the cache only, never touching the database"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-4/system-design-fundamentals-at-scale/q4",
+    "type": "multiple_choice",
+    "prompt": "A product's price is cached with cache-aside and a 10-minute TTL. An internal admin tool updates the price directly in the database, bypassing the application's write path entirely. What happens next?",
+    "choices": [
+      "The cache immediately reflects the new price because the database write triggers cache invalidation automatically",
+      "Reads keep returning the old cached price until the TTL expires, because nothing told the cache the data changed",
+      "The next read fails with a cache-consistency error",
+      "The cache-aside pattern prevents this scenario by design"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-4/system-design-fundamentals-at-scale/q5",
+    "type": "multiple_choice",
+    "prompt": "How does the write-through caching pattern differ from cache-aside?",
+    "choices": [
+      "Write-through never expires cache entries, while cache-aside always uses a TTL",
+      "Write-through writes to the cache and the backing store synchronously on every write, so the cache doesn't go stale relative to writes made through that path",
+      "Write-through is read-only and cannot be used for data that changes",
+      "Write-through stores data only in the cache and never persists to a database"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-4/system-design-fundamentals-at-scale/q6",
+    "type": "multiple_choice",
+    "prompt": "During a network partition between two regions, a replicated shopping cart service in the partitioned-off region chooses to accept writes locally anyway rather than reject them. What is it trading away, and why might that be the right call for a cart specifically?",
+    "choices": [
+      "It trades away partition tolerance, which is acceptable because carts are read infrequently",
+      "It trades away consistency (the two regions may now hold diverging cart states that need reconciliation later), which is acceptable because a cart can be merged and an unavailable checkout is worse than a briefly divergent cart",
+      "It trades away availability, which is acceptable because users expect carts to be slow",
+      "It trades nothing away, since accepting writes on both sides has no downside for cart data"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-4/system-design-fundamentals-at-scale/q7",
+    "type": "multiple_choice",
+    "prompt": "DynamoDB's default read mode returns eventually consistent results, with an optional strongly consistent read available per request. What does 'eventually consistent' mean here?",
+    "choices": [
+      "Reads may return stale data for a bounded period after a write, but all replicas converge to the same value once writes stop",
+      "Reads will always fail until the write has propagated to every replica",
+      "Writes are queued and only applied to the database once a day",
+      "The read result depends on which AWS region issued the original write request, permanently"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "software-engineering/tier-4/system-design-fundamentals-at-scale/q8",
+    "type": "multiple_choice",
+    "prompt": "A message queue guarantees at-least-once delivery. A payment consumer calls charge_card() and then acks the message, but the process crashes after the charge succeeds and before the ack is sent, causing redelivery and a duplicate charge. What is the standard fix?",
+    "choices": [
+      "Switch to a queue that guarantees exactly-once delivery instead, which eliminates the need for any consumer-side changes",
+      "Make the consumer idempotent by recording a unique event/order ID after processing, and skipping (but still acking) any message whose ID was already processed",
+      "Ack the message before calling charge_card() so a crash can never cause redelivery",
+      "Increase the message's TTL so it is redelivered less frequently"
+    ],
+    "correctIndex": 1
+  }
+]

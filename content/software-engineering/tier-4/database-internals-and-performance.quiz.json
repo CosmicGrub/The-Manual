@@ -1,0 +1,98 @@
+[
+  {
+    "id": "software-engineering/tier-4/database-internals-and-performance/q1",
+    "type": "multiple_choice",
+    "prompt": "In EXPLAIN ANALYZE output, a plan node shows rows=20 in its cost estimate but actual time=... rows=340000 loops=1 once it actually runs. What does that order-of-magnitude gap most likely indicate?",
+    "choices": [
+      "The query is purely I/O bound and needs faster disks",
+      "Stale or insufficient table statistics are causing the planner to pick a bad plan",
+      "The table needs to be partitioned by date",
+      "The index on that table is corrupted and needs REINDEX"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-4/database-internals-and-performance/q2",
+    "type": "multiple_choice",
+    "prompt": "A composite B-tree index is defined as (customer_id, status, created_at DESC). Which query can use this index efficiently via a leftmost-prefix match?",
+    "choices": [
+      "WHERE status = 'shipped' ORDER BY created_at DESC",
+      "WHERE customer_id = 5",
+      "WHERE created_at > now() - interval '1 day'",
+      "WHERE status = 'shipped' AND created_at > now() - interval '7 days'"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-4/database-internals-and-performance/q3",
+    "type": "multiple_choice",
+    "prompt": "A table takes 50,000 inserts/minute. Adding a 7th index roughly doubled p99 insert latency, and no read query the application actually runs benefits from it. What's the right move?",
+    "choices": [
+      "Add INCLUDE columns to every existing index to make them covering",
+      "Drop the unused index",
+      "Switch the table's isolation level to READ UNCOMMITTED",
+      "Put PgBouncer in transaction pooling mode in front of the database"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-4/database-internals-and-performance/q4",
+    "type": "multiple_choice",
+    "prompt": "Which is the minimum standard SQL isolation level required to prevent a dirty read?",
+    "choices": [
+      "Read Uncommitted",
+      "Read Committed",
+      "Repeatable Read",
+      "Serializable"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-4/database-internals-and-performance/q5",
+    "type": "multiple_choice",
+    "prompt": "Within a single Postgres transaction, a SELECT is run twice against the same row with an identical WHERE clause. Between the two SELECTs, another session commits an UPDATE to that row. Which isolation level prevents the second SELECT from returning the changed value, while still being lighter-weight than full serializability?",
+    "choices": [
+      "Read Uncommitted",
+      "Read Committed",
+      "Repeatable Read",
+      "It cannot be prevented at any isolation level"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "software-engineering/tier-4/database-internals-and-performance/q6",
+    "type": "multiple_choice",
+    "prompt": "Two doctors are both on call. Each runs a transaction that checks 'is at least one other doctor still on call?', sees yes, and then takes themselves off call - concurrently, so neither sees the other's change, and both succeed, leaving zero doctors on call. Which mechanism reliably prevents this write-skew anomaly?",
+    "choices": [
+      "Read Committed isolation",
+      "Repeatable Read (snapshot isolation)",
+      "Serializable isolation",
+      "Adding a UNIQUE index on the on_call column"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "software-engineering/tier-4/database-internals-and-performance/q7",
+    "type": "multiple_choice",
+    "prompt": "In Django, looping over Book.objects.all() and accessing book.author.name inside the loop fires one extra query per book. What is the correct fix?",
+    "choices": [
+      "Book.objects.select_related(\"author\")",
+      "Book.objects.prefetch_related(\"books\")",
+      "Rewrite the loop using Book.objects.raw()",
+      "Add db_index=True to the title field"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "software-engineering/tier-4/database-internals-and-performance/q8",
+    "type": "multiple_choice",
+    "prompt": "PgBouncer is configured with pool_mode = transaction. Which of the following breaks under this configuration?",
+    "choices": [
+      "A single SELECT statement run by a client",
+      "A session-level advisory lock (pg_advisory_lock) that a client expects to hold across multiple separate transactions",
+      "A single multi-row INSERT statement",
+      "A transaction wrapped in an explicit BEGIN/COMMIT"
+    ],
+    "correctIndex": 1
+  }
+]

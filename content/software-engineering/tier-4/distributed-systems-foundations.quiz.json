@@ -1,0 +1,98 @@
+[
+  {
+    "id": "software-engineering/tier-4/distributed-systems-foundations/q1",
+    "type": "multiple_choice",
+    "prompt": "In an asynchronous network, why can't a consensus protocol simply detect that a leader node has 'died' and safely stop listening to it?",
+    "choices": [
+      "A node cannot reliably distinguish a crashed peer from one that is merely slow or network-partitioned, so protocols use timeouts plus fencing rules instead of true failure detection",
+      "Detecting crashed nodes is easy; the real difficulty is that CPUs run at different clock speeds",
+      "TCP already guarantees delivery, so this problem does not actually occur in practice",
+      "Consensus protocols do not need to worry about node failure at all, only about disk corruption"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "software-engineering/tier-4/distributed-systems-foundations/q2",
+    "type": "multiple_choice",
+    "prompt": "What is the primary purpose of a monotonically increasing term (Raft) or ballot/proposal number (Paxos)?",
+    "choices": [
+      "It lets nodes reject messages from a stale leader without needing to know whether that leader is actually still alive",
+      "It compresses the replication log so followers use less disk space",
+      "It encrypts messages between the leader and followers",
+      "It determines which node has the fastest network connection and should be leader"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "software-engineering/tier-4/distributed-systems-foundations/q3",
+    "type": "multiple_choice",
+    "prompt": "A table is sharded by range on an auto-incrementing `order_id`. Under sustained high write throughput, what problem is this design most likely to produce?",
+    "choices": [
+      "All new writes land on the single shard holding the highest ID range, creating a hotspot while other shards sit idle",
+      "Range queries become impossible and every read must scatter-gather across all shards",
+      "The shard key becomes non-unique, causing primary key collisions",
+      "Consistent hashing automatically rebalances the load, so there is no problem"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "software-engineering/tier-4/distributed-systems-foundations/q4",
+    "type": "multiple_choice",
+    "prompt": "A team switches a sharded table from range-based sharding to pure hash-based sharding on the primary key to fix write hotspotting. What new cost should they expect?",
+    "choices": [
+      "Range queries (e.g. 'all rows from the last hour') that used to hit one shard now typically require scatter-gather across most or all shards",
+      "Write throughput will decrease because hashing is slower than incrementing a counter",
+      "The dataset can no longer be replicated for durability",
+      "Consistent hashing makes it impossible to ever add a new shard"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "software-engineering/tier-4/distributed-systems-foundations/q5",
+    "type": "multiple_choice",
+    "prompt": "In leader-follower replication, what is the concrete trade-off between synchronous and asynchronous replication to followers?",
+    "choices": [
+      "Synchronous replication avoids data loss on leader failure but raises write latency to the slowest required follower; asynchronous replication keeps latency low but risks losing recently-acknowledged writes if the leader fails before shipping them",
+      "Synchronous replication is strictly better in every dimension and asynchronous replication has no valid use case",
+      "Asynchronous replication guarantees zero data loss because followers eventually catch up",
+      "The choice only affects read scaling, not durability or latency"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "software-engineering/tier-4/distributed-systems-foundations/q6",
+    "type": "multiple_choice",
+    "prompt": "A leader in a leader-follower cluster is network-partitioned away from a majority of followers but is still reachable by some clients. It keeps accepting writes while the majority side elects a new leader. What is this scenario called, and what is the standard defense?",
+    "choices": [
+      "Split-brain; the defense is fencing (e.g. term/epoch tagging or a lease that must be renewed) so the old leader's writes are rejected or it is forced to stop serving",
+      "Cascading failure; the defense is adding more read replicas",
+      "Thundering herd; the defense is exponential backoff on the client",
+      "Byzantine failure; the defense is majority voting on every read"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "software-engineering/tier-4/distributed-systems-foundations/q7",
+    "type": "multiple_choice",
+    "prompt": "A client sends a payment-charge request, the server successfully charges the card, but the network drops the response before the client sees it. The client's retry logic then resends the same request. Without any additional safeguard, what happens?",
+    "choices": [
+      "The card is likely charged a second time, because the server has no way to know this is a duplicate of an already-completed operation",
+      "Nothing, because TCP guarantees a request can never be processed twice",
+      "The retry is automatically rejected by the payment processor's rate limiter",
+      "The second request always fails with a network timeout, so no duplicate charge is possible"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "software-engineering/tier-4/distributed-systems-foundations/q8",
+    "type": "multiple_choice",
+    "prompt": "What underlying mechanism do a Raft term number, a fencing token on a distributed lock, and an idempotency key all have in common?",
+    "choices": [
+      "Each uses a value the receiving side can check for staleness or duplication, so a retried, duplicated, or stale-leader action is rejected or safely replayed instead of causing incorrect behavior",
+      "All three require a synchronous network round trip to every node before any operation is allowed",
+      "All three eliminate the need for a database transaction",
+      "All three are specific to HTTP APIs and do not apply to internal RPC or consensus protocols"
+    ],
+    "correctIndex": 0
+  }
+]

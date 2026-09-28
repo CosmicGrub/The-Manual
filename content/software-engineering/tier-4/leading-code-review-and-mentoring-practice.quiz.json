@@ -1,0 +1,98 @@
+[
+  {
+    "id": "software-engineering/tier-4/leading-code-review-and-mentoring-practice/q1",
+    "type": "multiple_choice",
+    "prompt": "A junior engineer's PR has one severe security bug and four minor style issues. What's the most calibrated way to communicate this in review?",
+    "choices": [
+      "Mark everything as blocking so nothing slips through",
+      "Tag the security issue as blocking with an explanation of the risk, and group the style issues as non-blocking nits",
+      "Only mention the security issue and silently fix the style issues yourself",
+      "Reject the PR without comments and ask them to find the issues themselves"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-4/leading-code-review-and-mentoring-practice/q2",
+    "type": "multiple_choice",
+    "prompt": "Why does explaining the 'why' behind a review comment matter more for a junior engineer than for a peer reviewer?",
+    "choices": [
+      "Juniors are less capable of following instructions",
+      "It makes the review take longer, which signals thoroughness",
+      "A peer can often infer the underlying principle from a terse comment; a junior often can't yet, so the lesson won't transfer to their next PR without it",
+      "It is required by most engineering style guides"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "software-engineering/tier-4/leading-code-review-and-mentoring-practice/q3",
+    "type": "multiple_choice",
+    "prompt": "In driver/navigator pairing, what is the navigator primarily responsible for?",
+    "choices": [
+      "Typing the actual code changes",
+      "Watching for bugs, edge cases, and whether the overall design still makes sense, one level above the immediate line being written",
+      "Writing the commit message at the end of the session",
+      "Running the test suite after each change"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-4/leading-code-review-and-mentoring-practice/q4",
+    "type": "multiple_choice",
+    "prompt": "A team wants to apply the same repetitive rename across 40 files with no logic changes. Is pairing a good fit for this task?",
+    "choices": [
+      "Yes, pairing catches mistakes on every kind of change",
+      "No \u2014 this is mechanical work better handled with a script or by splitting the file list, since a navigator adds little value narrating boilerplate",
+      "Yes, but only if the driver is junior",
+      "No, because pairing should only be used for onboarding"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-4/leading-code-review-and-mentoring-practice/q5",
+    "type": "multiple_choice",
+    "prompt": "In TDD ping-pong pairing, what forces the driver/navigator roles to swap?",
+    "choices": [
+      "A timer that goes off every hour",
+      "Each person alternates writing a failing test and then making it pass, so the role swaps every cycle",
+      "The manager assigns roles at the start of each day",
+      "Roles never swap in ping-pong pairing"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-4/leading-code-review-and-mentoring-practice/q6",
+    "type": "multiple_choice",
+    "prompt": "What is the purpose of the 'Alternatives considered' section in an RFC?",
+    "choices": [
+      "To pad the document so it looks more thorough",
+      "To document options that were rejected and why, so the reasoning is on record and doesn't get relitigated later",
+      "To list every technology the author has ever used",
+      "It's optional and rarely included in real RFCs"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-4/leading-code-review-and-mentoring-practice/q7",
+    "type": "multiple_choice",
+    "prompt": "In the worked webhook-delivery RFC, why was a phased rollout (shadow mode, then 5% of tenants, then ramp to 100%) proposed instead of enabling the new system for all tenants at once?",
+    "choices": [
+      "Phased rollouts are required by company policy in all cases",
+      "It lets the team observe real delivery latency and dead-letter rates on a small blast radius before committing all tenants to the new path",
+      "It's slower, which looks more careful to reviewers",
+      "Feature flags only support percentage-based rollouts, never full cutover"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-4/leading-code-review-and-mentoring-practice/q8",
+    "type": "multiple_choice",
+    "prompt": "A reviewer wants a junior's PR to also add pagination, even though the PR's actual scope is a single bugfix and pagination isn't urgent yet. What's the calibrated move?",
+    "choices": [
+      "Block the PR until pagination is added, since more thoroughness is always better",
+      "Raise it as a non-blocking question or suggestion, and consider filing a follow-up ticket instead of expanding the PR's scope",
+      "Say nothing, since junior PRs shouldn't receive scope suggestions",
+      "Add the pagination code yourself without commenting"
+    ],
+    "correctIndex": 1
+  }
+]

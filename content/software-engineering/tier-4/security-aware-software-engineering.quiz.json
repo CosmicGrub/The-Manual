@@ -1,0 +1,98 @@
+[
+  {
+    "id": "software-engineering/tier-4/security-aware-software-engineering/q1",
+    "type": "multiple_choice",
+    "prompt": "A route builds a SQL query with an f-string like `f\"SELECT * FROM orders WHERE id = {order_id}\"`. What is the correct fix?",
+    "choices": [
+      "Escape single quotes in order_id before interpolating",
+      "Use a parameterized query so the value is sent separately from the SQL",
+      "Validate that order_id is shorter than 50 characters",
+      "Wrap the query in a try/except and log any errors"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-4/security-aware-software-engineering/q2",
+    "type": "multiple_choice",
+    "prompt": "An API route does `SELECT * FROM invoices WHERE id = $1` using only the ID from the URL, with no check against the logged-in user. What vulnerability class is this?",
+    "choices": [
+      "Cross-Site Request Forgery",
+      "Insecure Direct Object Reference (Broken Access Control)",
+      "Server-Side Request Forgery",
+      "Cryptographic Failure"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-4/security-aware-software-engineering/q3",
+    "type": "multiple_choice",
+    "prompt": "In the STRIDE model, an attacker overwriting another user's uploaded file by guessing a predictable storage key is best classified as which threat?",
+    "choices": [
+      "Spoofing",
+      "Repudiation",
+      "Tampering",
+      "Denial of Service"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "software-engineering/tier-4/security-aware-software-engineering/q4",
+    "type": "multiple_choice",
+    "prompt": "What is the core difference between OAuth2 and OIDC?",
+    "choices": [
+      "OAuth2 is for mobile apps, OIDC is for web apps",
+      "OAuth2 grants authorization to access a resource; OIDC adds a verifiable identity token (id_token) on top for authentication",
+      "OIDC is the older, deprecated version of OAuth2",
+      "There is no real difference \u2014 the terms are interchangeable"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-4/security-aware-software-engineering/q5",
+    "type": "multiple_choice",
+    "prompt": "In the authorization code flow with PKCE, what does the code_verifier / code_challenge pair actually protect against?",
+    "choices": [
+      "Weak user passwords",
+      "An attacker who intercepts the authorization code from redirecting through a compromised network from exchanging it for tokens without the original verifier",
+      "SQL injection in the token endpoint",
+      "Expired access tokens being reused"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-4/security-aware-software-engineering/q6",
+    "type": "multiple_choice",
+    "prompt": "A client application receives an id_token from the IdP. Which of these must it verify before trusting the identity inside it?",
+    "choices": [
+      "Only that the token is present in the response",
+      "Only that the token is base64-decodable JSON",
+      "Its signature against the IdP's JWKS, plus issuer, audience, expiry, and nonce",
+      "Nothing \u2014 if the IdP sent it, it's already trustworthy"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "software-engineering/tier-4/security-aware-software-engineering/q7",
+    "type": "multiple_choice",
+    "prompt": "Which practice most reduces the blast radius if a database credential leaks?",
+    "choices": [
+      "Storing the credential in a .env file excluded from git via .gitignore",
+      "Using a long, complex static password rotated once a year",
+      "Issuing short-lived, dynamically generated credentials per service instance (e.g., via Vault) instead of one long-lived shared password",
+      "Base64-encoding the credential before storing it in an environment variable"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "software-engineering/tier-4/security-aware-software-engineering/q8",
+    "type": "multiple_choice",
+    "prompt": "A CI pipeline runs `npm audit --audit-level=high` and a Trivy filesystem scan on every pull request, failing the build on HIGH/CRITICAL findings. What is the primary purpose of this setup?",
+    "choices": [
+      "To replace manual code review entirely",
+      "To catch known CVEs in dependencies before they reach production, forcing explicit triage instead of silent accumulation",
+      "To measure code coverage of unit tests",
+      "To detect SQL injection vulnerabilities in application logic"
+    ],
+    "correctIndex": 1
+  }
+]

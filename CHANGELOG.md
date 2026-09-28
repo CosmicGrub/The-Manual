@@ -277,3 +277,14 @@ All notable changes to The Manual (curriculum + app) are logged here. This file 
 **Result:** `npm run build` passed clean on the first attempt. 101 unique slugs verified repo-wide.
 
 **Status:** Software Engineering Tier 3 complete (51h, 7 lessons). Software Engineering is now 4/6 tiers content-complete (Tiers 0-3, 147h); Tiers 4-5 remain.
+
+## [0.20.0] — 2026-09-28 — Software Engineering Tier 4: complete (Advanced/Specialist level)
+
+**Context:** Continuing the tier-by-tier pattern. This tier moves to architecture-level thinking, and includes a security module deliberately scoped to a working developer's defensive knowledge — deep offensive/defensive security stays owned by the Cybersecurity & Ethical Hacking track.
+
+**Added**
+- `content/software-engineering/tier-4/*.mdx` (6 files) + matching quizzes: System Design Fundamentals at Scale (load balancing, cache invalidation, CAP theorem via a concrete partition scenario, message queues), Distributed Systems Foundations (consensus intuition, sharding/replication, failure modes tied back to Tier 3's idempotency-key pattern), Database Internals & Performance (reading a real query plan, isolation levels via concrete bugs each level prevents, N+1 query fixes), Security-Aware Software Engineering (OWASP Top 10 with vulnerable-then-fixed code, OAuth2/OIDC flow concretely walked through — explicitly scoped away from Cybersecurity's offensive depth), Architecture Decision Records & Trade-off Analysis, Leading Code Review & Mentoring Practice.
+
+**Result:** `npm run build` passed clean on the first attempt. 107 unique slugs verified repo-wide.
+
+**Status:** Software Engineering Tier 4 complete (54h, 6 lessons). Software Engineering is now 5/6 tiers content-complete (Tiers 0-4, 201h); only Tier 5 (Expert/Innovator) remains.

@@ -1,0 +1,273 @@
+---
+trackId: software-engineering
+tier: 4
+title: "System Design Fundamentals at Scale"
+order: 1
+estimatedHours: 12
+slug: system-design-fundamentals-at-scale
+---
+
+## Why this module exists
+
+Everything you've built so far — REST APIs, relational schemas, clean architecture — assumed one process, one database, one machine, or close enough to it that the difference didn't matter. At scale, that assumption breaks first, and it breaks in predictable ways. This module covers the four failure modes you will hit before almost anything else: too many requests for one server, too many reads for one database, network partitions lying to you about what's true, and synchronous work that should never have been synchronous. These aren't separate topics — they're the same problem (a single machine can't do it all) wearing four different costumes.
+
+## Load balancing and horizontal scaling
+
+The naive fix for "one server isn't enough" is "add a second server." The naive fix immediately produces new bugs that don't exist with one server. Let's build up from the algorithm to the actual breakage.
+
+### Round-robin vs. least-connections
+
+Round-robin sends request 1 to server A, request 2 to server B, request 3 to server A, and so on. It's stateless and trivial to implement, and it's a bad idea the moment your requests have unequal cost. If server A is still churning through a 4-second report-generation request when round-robin hands it another one, while server B sits idle, you've just built an uneven cluster with an even algorithm.
+
+Least-connections tracks how many active (in-flight) connections each backend currently has and routes new requests to whichever backend has the fewest. It adapts to request duration automatically — a backend stuck on slow requests naturally stops receiving new ones until it catches up. This is why virtually every production load balancer defaults to some variant of least-connections (or a weighted version of it) rather than plain round-robin.
+
+Here's the difference expressed as an actual nginx upstream config:
+
+```nginx
+# Round-robin (default, no directive needed)
+upstream api_backend_rr {
+    server 10.0.1.10:8080;
+    server 10.0.1.11:8080;
+}
+
+# Least-connections
+upstream api_backend_lc {
+    least_conn;
+    server 10.0.1.10:8080;
+    server 10.0.1.11:8080;
+    server 10.0.1.12:8080 weight=2;  # can take 2x the load of the others
+}
+
+server {
+    listen 80;
+    location /api/ {
+        proxy_pass http://api_backend_lc;
+    }
+}
+```
+
+The `weight=2` matters in the real world: your fleet is rarely homogeneous. A newly-provisioned larger instance type should get proportionally more traffic, and weighted least-connections is how you express that without hand-tuning routing logic.
+
+### What actually breaks when you add server #2
+
+Adding a second server doesn't just double capacity — it deletes an assumption your code was silently relying on: **that the next request from this user hits the same process as the last one.**
+
+Two things break immediately:
+
+**1. In-memory session state.** If your app does `session['cart'] = items` and stores that in the Python process's memory (or a local dict, or an in-process cache), user A's cart lives only on server A. Load-balance their next request to server B and their cart is empty. This is the single most common "worked on localhost, broke in prod" bug in distributed systems.
+
+The tempting fix is **sticky sessions** (session affinity): configure the load balancer to always route a given client (by cookie or source IP) to the same backend.
+
+```nginx
+upstream api_backend_sticky {
+    ip_hash;   # same client IP always lands on the same server
+    server 10.0.1.10:8080;
+    server 10.0.1.11:8080;
+}
+```
+
+Sticky sessions are a band-aid, not a fix, and you should know exactly what they cost you:
+- **Uneven load** — if one backend happens to get a disproportionate number of heavy users hashed to it, you can't rebalance without breaking their sessions.
+- **Loss of state on deploy or crash** — take server A down for a deploy and every session pinned to it is gone, not rerouted-with-continuity.
+- **Autoscaling gets harder** — adding/removing servers reshuffles the hash ring and can strand active sessions.
+
+The real fix is **externalizing shared state**: move session data out of the process and into something every backend can reach — Redis, Memcached, or a database table keyed by session ID.
+
+```python
+# Bad: session lives in process memory, breaks across servers
+SESSIONS = {}  # dict in the app process
+
+def add_to_cart(session_id, item):
+    SESSIONS.setdefault(session_id, []).append(item)
+
+# Good: session lives in shared external state, any server can serve any request
+import redis
+r = redis.Redis(host="redis.internal", port=6379)
+
+def add_to_cart(session_id, item):
+    r.rpush(f"cart:{session_id}", item)
+    r.expire(f"cart:{session_id}", 3600)
+```
+
+**2. Shared state generally** — not just sessions. Rate limiters that count requests in a local counter, feature-flag caches that get warmed differently per instance, in-memory job queues, local file uploads written to instance disk — all of these are "worked with one server" patterns that silently corrupt or duplicate once you're behind a load balancer. The rule of thumb going forward: **if two requests for the same logical entity might land on different processes, that entity's state cannot live in process memory.**
+
+## Caching layers and cache invalidation
+
+Caching is how you avoid re-doing expensive work (a slow query, a remote API call, a heavy computation) for data that hasn't changed. Two patterns cover most real systems.
+
+### Cache-aside (lazy loading)
+
+The application owns the cache logic directly: check the cache, and on a miss, read from the source of truth and populate the cache for next time.
+
+```python
+def get_product(product_id):
+    cached = cache.get(f"product:{product_id}")
+    if cached is not None:
+        return json.loads(cached)
+
+    product = db.query("SELECT * FROM products WHERE id = %s", [product_id])
+    cache.set(f"product:{product_id}", json.dumps(product), ex=600)  # 10 min TTL
+    return product
+```
+
+Simple, and the cache only ever holds data that's actually been requested. The cost: the *first* request after a miss always pays full latency, and — this is the part that causes production incidents — **nothing here tells the cache when the underlying data changes.**
+
+### Write-through
+
+Writes go to the cache and the backing store together, synchronously, so the cache is never stale relative to a completed write:
+
+```python
+def update_product_price(product_id, new_price):
+    db.execute("UPDATE products SET price = %s WHERE id = %s", [new_price, product_id])
+    cache.set(f"product:{product_id}", json.dumps({"id": product_id, "price": new_price}), ex=600)
+```
+
+Write-through solves the staleness problem for the path that goes through it, at the cost of every write now paying cache-write latency too, and cache and store can still diverge if anything writes to the database *outside* this code path — a batch job, an admin console, a direct SQL migration.
+
+### The real invalidation problem
+
+Phil Karlton's line — "there are only two hard things in computer science: cache invalidation and naming things" — isn't a joke about caches being hard to configure. It's about a structural problem: **the cache and the source of truth are two copies of the same fact, and nothing guarantees they change together unless you explicitly make it so.**
+
+Concrete bug, the kind that actually ships: an e-commerce product page uses cache-aside with a 10-minute TTL, exactly like the `get_product` function above. A pricing team updates a product's price directly via an internal admin tool that writes straight to the database — bypassing the `update_product_price` function entirely, because nobody remembered the cache exists over there.
+
+```
+10:00:00 — user loads product page, cache miss, price=$49.99 cached with 10-min TTL
+10:02:00 — pricing admin updates DB directly: price is now $39.99 (a sale)
+10:02:01 — user reloads the page, cache HIT, still shows $49.99
+10:07:00 — user adds to cart and checks out at the price shown: $49.99
+10:07:01 — payment service re-reads price from DB (correctly, for the charge): $39.99
+```
+
+Now you have a customer-visible price mismatch between what was displayed and what was charged — a real, auditable, "why did we charge the wrong amount" incident. The bug isn't the TTL and it isn't cache-aside; the bug is that **there was a write path that didn't know the cache existed.** Fixes, in order of robustness:
+1. **Never write to the source of truth except through code that also invalidates/updates the cache** — no direct DB writes from tooling.
+2. **Explicit invalidation on write**: `cache.delete(f"product:{product_id}")` immediately after any update, regardless of whether you use cache-aside or write-through for reads.
+3. **Short TTLs as a backstop, not a strategy** — they bound the blast radius of a missed invalidation, they don't prevent it.
+
+For data with many independent writers (multiple services, admin tools, batch jobs), event-driven invalidation is the scalable answer: writers publish a "ProductUpdated" event, and a subscriber invalidates the relevant cache key — which is also your first bridge into the message queue section below.
+
+## CAP theorem and consistency models
+
+Skip the triangle diagram — it makes CAP sound like a static choice of two out of three properties you pick once and are done with. What actually matters is a runtime question: **when the network partitions, what does your system do right now, for this one request?**
+
+**The three terms, briefly, because you need them precisely:**
+- **Consistency (C)** — every read receives the most recent write, or an error. Not "eventually correct" — correct *now*.
+- **Availability (A)** — every request to a non-failed node gets a (non-error) response. Not necessarily the *correct* response — *a* response.
+- **Partition tolerance (P)** — the system keeps operating despite the network dropping or delaying messages between nodes.
+
+In distributed systems that span more than one machine, **P is not optional** — networks partition, full stop, whether you planned for it or not. So CAP is really: when a partition happens, do you choose C or A? Everything else is detail.
+
+### Concrete scenario: a shopping cart service replicated across two regions
+
+You run a cart service with a primary in `us-east` and a replica in `us-west`, both normally in sync, serving reads locally and forwarding writes to the primary. A network partition cuts the link between the regions. A user in `us-west`, mid-checkout, clicks "add to cart."
+
+**Choice 1: consistency over availability (CP).** The `us-west` node knows it can't confirm with the primary in `us-east` that this write is durable and ordered correctly, so it refuses the write and returns an error ("service unavailable, try again") rather than risk an inconsistent cart. The user sees a spinner-then-error. Annoying, but no cart is ever silently wrong.
+
+**Choice 2: availability over consistency (AP).** The `us-west` node accepts the write locally anyway — "eventually" the partition heals and it'll sync back to `us-east`. The user's "add to cart" succeeds immediately. But now: what if the user's cart was *also* modified in `us-east` during the partition (say, they had a second tab open, or a background price-recalculation job ran there)? You now have two divergent versions of the same cart, and when the partition heals, something has to reconcile them — last-write-wins (silently drops one edit), a merge function (union the item lists — reasonable for a cart!), or a vector clock that flags the conflict for the application to resolve. Amazon's own DynamoDB shopping cart, the system that motivated the original Dynamo paper, chose exactly this AP path with an application-level merge, because for a cart, "occasionally reconcile two people's edits" is a far better failure mode than "checkout doesn't work."
+
+That's CAP as an actual engineering decision: not "which corner of the triangle," but "which failure do I want when the network misbehaves, for *this specific* piece of data." A payments ledger almost always wants CP — an unavailable payment beats an inconsistent one. A shopping cart, a "like" counter, or a presence indicator almost always wants AP — a wrong count for a few seconds beats the feature going down.
+
+### Consistency models, applied
+
+"Consistency" isn't binary once you're past CAP's coarse C/A split:
+- **Strong consistency** — reads always reflect the latest committed write. Expensive across regions (requires coordination on every read or write).
+- **Eventual consistency** — reads may return stale data for a bounded (usually short) period, but all replicas converge if writes stop. This is DynamoDB's *default* read mode, and it's why DynamoDB also offers an explicit `ConsistentRead=True` option for callers who need strong consistency and are willing to pay the latency for it — the API literally makes you choose per-request.
+- **Read-your-writes** — a weaker, practical guarantee: *you* always see *your own* writes immediately, even if other users might briefly see stale data. Common pattern: route a user's reads to the same replica their write went to, or to the primary, for a short window after they write.
+- **Causal consistency** — if write B happened after observing write A, everyone must see A before B (but unrelated writes can be seen in any order). This is what prevents "reply to a comment appears before the comment itself" bugs in distributed systems.
+
+Pick the weakest model that your actual data can tolerate — every step toward strong consistency costs you latency and availability under partition.
+
+## Message queues and async processing
+
+Some work shouldn't happen inline with the request that triggers it. "Place order" shouldn't block on "send confirmation email" — if the email provider is slow, your checkout endpoint has no business being slow too. Message queues decouple *triggering* work from *doing* work.
+
+### A real producer/consumer example
+
+Order service publishes an event; independent consumers react to it at their own pace:
+
+```python
+# Producer: order-service, runs inline with the checkout request
+import pika, json
+
+def place_order(order):
+    db.execute("INSERT INTO orders (...) VALUES (...)", order)  # source of truth, committed first
+
+    connection = pika.BlockingConnection(pika.ConnectionParameters("rabbitmq.internal"))
+    channel = connection.channel()
+    channel.queue_declare(queue="order_placed", durable=True)
+    channel.basic_publish(
+        exchange="",
+        routing_key="order_placed",
+        body=json.dumps({"order_id": order["id"], "items": order["items"]}),
+        properties=pika.BasicProperties(delivery_mode=2),  # persist to disk
+    )
+    connection.close()
+    return {"status": "confirmed", "order_id": order["id"]}
+```
+
+```python
+# Consumer: inventory-service, runs independently, at its own pace
+def on_order_placed(ch, method, properties, body):
+    event = json.loads(body)
+    for item in event["items"]:
+        db.execute(
+            "UPDATE inventory SET stock = stock - %s WHERE sku = %s",
+            [item["qty"], item["sku"]],
+        )
+    ch.basic_ack(delivery_tag=method.delivery_tag)  # only ack after work succeeds
+
+channel.basic_consume(queue="order_placed", on_message_callback=on_order_placed)
+channel.start_consuming()
+```
+
+Checkout returns the instant the order is durably written and the event is published — not after inventory is decremented and an email is sent. A second consumer (`email-service`) subscribes to the same event independently; if it's down for five minutes, orders keep flowing and emails just queue up and send once it's back.
+
+### At-least-once vs. exactly-once, concretely
+
+Notice the consumer only `ack`s *after* the database update succeeds. If the process crashes between `db.execute` and `basic_ack`, RabbitMQ never received the ack, assumes the message wasn't processed, and redelivers it to another consumer. That's **at-least-once delivery**: the message is guaranteed to arrive one or more times, never zero. Every mainstream queue (RabbitMQ, SQS, Kafka with standard consumer offsets) gives you this, not more.
+
+"Exactly-once" delivery — the message arrives and is processed *precisely* once, no duplicates, ever — is not achievable in general in a distributed system where the network can drop acknowledgments (this follows from the same impossibility as the Two Generals' Problem: you can never be 100% sure the other side got your message). What real systems build instead is **effectively-once processing**: delivery stays at-least-once, but the *consumer* is made idempotent, so processing the same message twice produces the same end state as processing it once.
+
+Here's the bug this protects against, made concrete — a payment consumer *without* idempotency:
+
+```python
+def on_order_placed(ch, method, properties, body):
+    event = json.loads(body)
+    charge_card(event["customer_id"], event["amount"])  # calls the payment provider
+    ch.basic_ack(delivery_tag=method.delivery_tag)
+```
+
+If the process crashes *after* `charge_card` succeeds but *before* `basic_ack` reaches the broker, RabbitMQ redelivers the message, and the customer is charged twice. This is not a hypothetical — it's the most common real-world "queue bug" in payment systems.
+
+The fix is a dedupe/idempotency check keyed on a unique ID carried by the message:
+
+```python
+def on_order_placed(ch, method, properties, body):
+    event = json.loads(body)
+    idempotency_key = event["order_id"]  # stable, unique per logical operation
+
+    already_processed = db.query_one(
+        "SELECT 1 FROM processed_events WHERE event_id = %s", [idempotency_key]
+    )
+    if already_processed:
+        ch.basic_ack(delivery_tag=method.delivery_tag)  # skip, but still ack
+        return
+
+    with db.transaction():
+        charge_card(event["customer_id"], event["amount"])
+        db.execute("INSERT INTO processed_events (event_id) VALUES (%s)", [idempotency_key])
+
+    ch.basic_ack(delivery_tag=method.delivery_tag)
+```
+
+Now redelivery is harmless: the second delivery finds `order_id` already in `processed_events` and no-ops. This is the pattern behind every payment API's "idempotency key" header (Stripe, for example, requires one on charge requests for exactly this reason) — it's pushing the exactly-once *guarantee* out of the transport layer, which can't provide it, and into the application layer, which can.
+
+## Exercise
+
+You're adding a "trending posts" feature to a social app running behind two load-balanced app servers. Trending scores are recomputed by counting likes over the last hour, and a background worker recalculates the top-20 list every 60 seconds and needs to notify all app servers to refresh their view.
+
+Design and write (pseudocode or real code, your choice) the following, and be explicit about the trade-offs you're making:
+1. Where does the "top 20" list live so both app servers see the same data without a race condition?
+2. A like event currently increments a counter with `counter += 1` in the app server's local memory. Why is this wrong the moment you have two servers, and what do you replace it with?
+3. If the network between your app servers and your cache briefly partitions, should reads of the trending list fail, or serve a possibly-stale list? Justify it the way this module justified the shopping cart decision — in terms of what's actually being traded away.
+
+**Hint:** you don't need a new concept for this — it's cache-aside plus externalized shared state plus a CAP decision, applied to a read-heavy, staleness-tolerant feature. Think about what "correct" even means for a trending list before you decide how hard to fight for it.
