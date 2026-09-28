@@ -1,0 +1,426 @@
+---
+trackId: cs-foundations
+tier: 3
+title: Second Language for Contrast
+order: 7
+estimatedHours: 12
+---
+
+Every module before this one has used exactly one language, and that was deliberate — with all your attention going to algorithms and data structures instead of syntax-hopping, Modules 1 through 6 could go deep instead of wide. This module breaks that on purpose, for exactly one module, because the fastest way to actually understand a tool is to briefly stop using it. Go is your primary language here — it's the simplest on-ramp of the three languages a working engineer is most likely to reach for next — but at every concept that matters (types, compilation, error handling, concurrency) you'll also get a direct comparison to Java and Rust, so if you end up choosing either of those instead of Go, you still walk away with the real comparative understanding this module exists to build. None of this replaces Python as your main language. The point isn't fluency in Go; it's finally having a second, structurally different set of defaults sitting next to Python's in your head, so you can tell which of Python's behaviors are fundamental to programming in general and which ones are just Python.
+
+## What you'll leave this lesson knowing
+
+- The precise difference between Python's interpreted-bytecode execution model, Java's compile-to-bytecode-then-JIT hybrid model, and Go/Rust's ahead-of-time native-compilation model — demonstrated with your own working code, not just described
+- How to write, compile, and run real Go programs covering static typing, structural interfaces, the `(value, error)` return idiom, and a real goroutines-and-channels concurrent program — including deliberately causing and then fixing a genuine data race
+- At each of those four concepts (types, compilation, error handling, concurrency), concretely how Java and Rust differ from Go and from each other — enough that a learner who picked either of those languages instead still has real footing
+- Why Go's composition-via-embedding is not inheritance, demonstrated with a working example, and why that's a deliberate paradigm break from Python's (and Java's) class hierarchies
+- That porting a known algorithm (merge sort) from Python to Go preserves its Big-O complexity exactly while changing its constant-factor performance — because complexity is a property of the algorithm, not the language
+
+## Do this
+
+1. **Install Go, then feel the difference between "run" and "build" with your own hands.** If you don't already have it, install Go from [go.dev/dl](https://go.dev/dl/) (or `brew install go` / `sudo apt install golang-go` / the Windows installer) and confirm with `go version` — this lesson assumes Go 1.22 or newer. Write the obligatory first program:
+
+   ```go
+   // hello.go
+   package main
+
+   import "fmt"
+
+   func main() {
+   	fmt.Println("hello from a compiled binary")
+   }
+   ```
+
+   Run it two different ways and pay attention to what each one actually does:
+
+   ```bash
+   go run hello.go        # compiles to a temp binary, runs it, deletes it
+   go build hello.go       # compiles to a real file named "hello" (or hello.exe) and stops
+   ./hello                 # runs that file directly — no "go" involved at all
+   ```
+
+   That `./hello` step is the whole point: it's a standalone, statically-linked native executable. You could copy it to any other machine with the same OS and CPU architecture and it would run — no Go installation, no interpreter, no runtime required on the target machine. Now write the equivalent one-liner in Python (`print("hello from an interpreted script")`) and run `python3 hello.py`. There is no equivalent "build" step you could point at to get a standalone file — every single run re-invokes the Python interpreter, which parses and compiles your source to bytecode internally and then executes that bytecode on CPython's virtual machine, entirely at run time. Time both with `time ./hello` and `time python3 hello.py` a few times — your absolute numbers depend on your machine, but expect the compiled binary to start meaningfully faster, because it has zero interpreter start-up and zero import machinery to run before line one even executes. For a one-line program that gap is trivia; for a CLI tool invoked thousands of times a day, or a Python program that imports fifty packages before doing any real work, it's the actual reason compiled languages dominate infrastructure tooling.
+
+   Pin down the three-way split this creates, because "compiled vs. interpreted" is really three different models, not two:
+   - **Python**: source is compiled to bytecode internally, but that bytecode is interpreted by a VM (CPython) every single run, with no ahead-of-time step exposed to you and no static type checking before execution.
+   - **Java**: source is compiled ahead-of-time by `javac` into portable bytecode (`.class` files), which the JVM then interprets and, after a piece of code runs "hot" enough, just-in-time (JIT) compiles down to native machine code. It's genuinely a third, hybrid category — compiled once to an intermediate form, then compiled again, later, at run time.
+   - **Go and Rust**: source is compiled ahead-of-time, once, straight down to a native machine-code binary for a specific OS/architecture. No VM, no bytecode, no JIT — by the time you run it, all compilation work is already done. The one place Go and Rust diverge from each other: Go ships a small garbage collector that runs as background goroutines inside your binary, while Rust has no runtime garbage collector at all — memory is freed at compile-time-determined points via its ownership rules, which is a systems-track topic in its own right but worth knowing exists.
+
+2. **Get Go's compiler to reject a real bug before the program ever runs — then watch the same bug slip past Python until the exact line executes.** Write this:
+
+   ```go
+   package main
+
+   import "fmt"
+
+   func addTax(price float64, rate float64) float64 {
+   	return price + (price * rate)
+   }
+
+   func main() {
+   	total := addTax(19.99, "0.08") // deliberate bug: string instead of float64
+   	fmt.Println(total)
+   }
+   ```
+
+   Run `go build` on it. You'll get this, and the program never executes at all:
+
+   ```
+   ./typecheck.go:10:25: cannot use "0.08" (untyped string constant) as float64 value in argument to addTax
+   ```
+
+   Fix it (`addTax(19.99, 0.08)`) and it runs fine, printing `21.589199999999998`. Now write the Python equivalent:
+
+   ```python
+   def add_tax(price, rate):
+       return price + (price * rate)
+
+   total = add_tax(19.99, "0.08")
+   print(total)
+   ```
+
+   This one *runs* — Python never inspects `add_tax`'s body until control actually reaches it — and only then does it fail, with `TypeError: can't multiply sequence by non-int of type 'float'`. That's the entire practical difference in one pair of experiments: Go's compiler statically checks every code path in your program whether or not that path ever executes, so this exact class of bug cannot ship. Python only checks the lines that actually run, which means the identical bug sitting inside a rarely-hit `if` branch or error handler can sit undetected in production for months.
+
+   Notice the `:=` in the Go version — that's short variable declaration with type inference; Go still knows `total` is a `float64`, it just didn't make you write `var total float64 = ...`. **Java callout:** Java has required explicit types on every declaration since 1996 (`double total = addTax(...)`); `var` for local type inference only arrived in Java 10 (2018), and even then the type is still fixed and checked at compile time exactly like Go's. **Rust callout:** Rust infers types just as freely as Go (`let total = add_tax(19.99, 0.08);`) and is at least as strict about rejecting a wrong type at compile time — but Rust goes considerably further, using that same compile-time analysis to enforce memory-ownership rules that neither Go nor Java attempt at all. You'll feel a taste of what that buys you in step 6.
+
+3. **Implement structural interfaces, and notice they're just compile-time-checked duck typing.** Define an interface and two unrelated types that both happen to satisfy it:
+
+   ```go
+   package main
+
+   import (
+   	"fmt"
+   	"math"
+   )
+
+   type Shape interface {
+   	Area() float64
+   }
+
+   type Rectangle struct {
+   	Width, Height float64
+   }
+
+   func (r Rectangle) Area() float64 {
+   	return r.Width * r.Height
+   }
+
+   type Circle struct {
+   	Radius float64
+   }
+
+   func (c Circle) Area() float64 {
+   	return math.Pi * c.Radius * c.Radius
+   }
+
+   func printArea(s Shape) {
+   	fmt.Printf("%.2f\n", s.Area())
+   }
+
+   func main() {
+   	printArea(Rectangle{Width: 3, Height: 4})
+   	printArea(Circle{Radius: 2})
+   }
+   ```
+
+   Run it: `12.00` then `12.57`. Now look for the word `Shape` anywhere near the `Rectangle` or `Circle` declarations. It isn't there. Go decided both types satisfy the `Shape` interface purely because each has a method with the exact signature `Area() float64` — this is called **structural typing**, and it's the exact same idea as Python's duck typing ("if it walks like a duck and quacks like a duck..."), except Go checks it at compile time instead of waiting to find out at the call site. Add a third type with no `Area` method and try passing it to `printArea` yourself, to see the compiler reject it before you ever run the program.
+
+   **Java callout:** Java requires an explicit, nominal declaration — `class Rectangle implements Shape` — the relationship has to be spelled out by name wherever the type is defined, and the compiler enforces that declaration exists; two classes with an identical `area()` method but no shared `implements Shape` are, as far as Java's type system is concerned, completely unrelated. **Rust callout:** Rust's traits work the same nominal way as Java's interfaces — you write `impl Shape for Circle` explicitly — but Rust adds a wrinkle Go doesn't have: a function can take `impl Shape` (compiled separately per concrete type, zero runtime cost, decided at compile time) or `Box<dyn Shape>` (one shared compiled function, decided by a runtime vtable lookup) as two genuinely different, explicitly chosen strategies. Go's interfaces always work more like the second option — a runtime interface value carrying type information — with no equivalent to Rust's zero-cost `impl Trait` parameters.
+
+4. **Write Go's `(value, error)` idiom for real, propagate an error through two function calls, then compare it directly to Python's exceptions.** Here's the pattern:
+
+   ```go
+   package main
+
+   import (
+   	"errors"
+   	"fmt"
+   )
+
+   func divide(a, b float64) (float64, error) {
+   	if b == 0 {
+   		return 0, errors.New("division by zero")
+   	}
+   	return a / b, nil
+   }
+
+   func computeAverage(total float64, count int) (float64, error) {
+   	result, err := divide(total, float64(count))
+   	if err != nil {
+   		return 0, fmt.Errorf("computeAverage failed: %w", err)
+   	}
+   	return result, nil
+   }
+
+   func main() {
+   	avg, err := computeAverage(100, 0)
+   	if err != nil {
+   		fmt.Println("error:", err)
+   		return
+   	}
+   	fmt.Println("average:", avg)
+   }
+   ```
+
+   Run it: `error: computeAverage failed: division by zero`. The `%w` verb in `fmt.Errorf` "wraps" the original error rather than discarding it, so a caller further up could still recover the original with `errors.Unwrap` or test against it with `errors.Is` — worth knowing exists, not something you need to master today. Now write the Python equivalent:
+
+   ```python
+   def divide(a, b):
+       if b == 0:
+           raise ZeroDivisionError("division by zero")
+       return a / b
+
+   def compute_average(total, count):
+       return divide(total, count)  # no error-handling code needed here at all
+
+   try:
+       avg = compute_average(100, 0)
+   except ZeroDivisionError as e:
+       print("error:", e)
+   ```
+
+   Same output, `error: division by zero` — but notice `compute_average` never mentions error handling anywhere; the exception unwinds the call stack automatically until something catches it. In Go, you had to explicitly check `err != nil` and explicitly forward it at *every single call site* between where it occurs and where it's handled. That's real, tangible boilerplate — and it's also Go's entire design philosophy in one example: nothing about control flow happens invisibly. A function's signature that returns `(float64, error)` is telling you, in the type itself, that it can fail, with no separate mechanism (an exception type, a `throws` clause) required to know that.
+
+   **Java callout:** Java sits on both sides of this line at once. *Checked* exceptions (`IOException` and friends) are declared right in the method signature (`void readFile() throws IOException`), and the compiler forces every caller to either catch them or re-declare them — much closer to Go's "the signature tells you" philosophy, just enforced through a different mechanism. *Unchecked* exceptions (`RuntimeException` and its subclasses, like `NullPointerException`) behave exactly like Python's — they propagate silently through any number of stack frames with zero signature-level warning. **Rust callout:** Rust's `Result<T, E>` enum is Go's "errors are values" philosophy taken further, with syntax to remove the boilerplate: `divide` would return `Result<f64, String>`, and `computeAverage` could write `let result = divide(total, count as f64)?;` — that single `?` does exactly what Go's four-line `if err != nil { return ... }` does, propagating the error up automatically. It's the interesting middle case: syntactically compact like Python's automatic propagation, but built on explicit typed values like Go's, not on stack unwinding.
+
+5. **Build a real concurrent Go program: a worker pool using goroutines and channels.** This is Go's headline feature, and the Go proverb behind it is worth knowing by name: *"Do not communicate by sharing memory; instead, share memory by communicating."* Channels are the "communicating" — a typed pipe that goroutines send values through instead of touching the same variable directly. Build a pool of workers that checks primality of a fixed list of numbers, including two numbers chosen for a reason — 7919 is exactly the 1,000th prime number and 104,729 is exactly the 10,000th:
+
+   ```go
+   package main
+
+   import (
+   	"fmt"
+   	"sync"
+   )
+
+   func isPrime(n int) bool {
+   	if n < 2 {
+   		return false
+   	}
+   	for i := 2; i*i <= n; i++ {
+   		if n%i == 0 {
+   			return false
+   		}
+   	}
+   	return true
+   }
+
+   type result struct {
+   	n     int
+   	prime bool
+   }
+
+   func worker(id int, jobs <-chan int, results chan<- result, wg *sync.WaitGroup) {
+   	defer wg.Done()
+   	for n := range jobs {
+   		results <- result{n: n, prime: isPrime(n)}
+   	}
+   }
+
+   func main() {
+   	numbers := []int{2, 17, 18, 97, 100, 7919, 8000, 104729}
+   	jobs := make(chan int, len(numbers))
+   	results := make(chan result, len(numbers))
+   	var wg sync.WaitGroup
+
+   	for w := 1; w <= 4; w++ {
+   		wg.Add(1)
+   		go worker(w, jobs, results, &wg)
+   	}
+   	for _, n := range numbers {
+   		jobs <- n
+   	}
+   	close(jobs)
+
+   	go func() {
+   		wg.Wait()
+   		close(results)
+   	}()
+
+   	found := map[int]bool{}
+   	for r := range results {
+   		found[r.n] = r.prime
+   	}
+   	for _, n := range numbers {
+   		fmt.Printf("%d prime=%v\n", n, found[n])
+   	}
+   }
+   ```
+
+   Run it — deterministically, every time, you should get:
+
+   ```
+   2 prime=true
+   17 prime=true
+   18 prime=false
+   97 prime=true
+   100 prime=false
+   7919 prime=true
+   8000 prime=false
+   104729 prime=true
+   ```
+
+   Four workers pull from `jobs`, compute independently and genuinely in parallel (on a multi-core machine), and send results back over `results`. A separate goroutine waits for all workers to finish and then closes `results`, so the `for r := range results` loop in `main` knows when to stop. Only `main` ever writes to the `found` map — that's what makes this safe: every goroutine only ever touches its own local variables and the channels, never a variable another goroutine can also reach. **Contrast with Python:** launching four `threading.Thread` workers on this exact CPU-bound loop would *not* run them in parallel — CPython's Global Interpreter Lock (GIL) allows only one thread to execute Python bytecode at a time, so CPU-bound work needs `multiprocessing` (separate processes, no GIL, real parallelism, higher overhead) instead of threads. Go's goroutines have no such restriction and are cheap enough to launch by the thousand.
+
+6. **Now deliberately break it — cause a real data race on shared memory, watch Go's race detector catch it, then fix it.** Replace the channel-based pattern with a naive shared counter, which is the classic beginner mistake this pattern is designed to make you feel:
+
+   ```go
+   package main
+
+   import (
+   	"fmt"
+   	"sync"
+   )
+
+   func main() {
+   	numbers := []int{2, 17, 18, 97, 100, 7919, 8000, 104729}
+   	primeCount := 0
+   	var wg sync.WaitGroup
+
+   	for _, n := range numbers {
+   		wg.Add(1)
+   		go func(n int) {
+   			defer wg.Done()
+   			if isPrime(n) {
+   				primeCount++ // unsynchronized read-modify-write on shared memory
+   			}
+   		}(n)
+   	}
+   	wg.Wait()
+   	fmt.Println("primes found:", primeCount)
+   }
+   ```
+
+   (`n` is passed in as a parameter rather than closed over directly — a version-independent habit worth keeping, since prior to Go 1.22 [2024] every goroutine launched from a loop shared the *same* loop variable and often saw its final value by the time it actually ran.) Run `go run race.go` a handful of times with plain `go run` — on a small, fast loop like this you may well see the correct answer, `primes found: 5`, every single time, because a data race is *undefined behavior*, not a guaranteed wrong answer; it can and often does go unnoticed for a long time. That's precisely why you don't rely on your own observation to catch one. Now run `go run -race race.go`. Regardless of whether the printed count was ever wrong, you'll get a `WARNING: DATA RACE` report naming the exact line, both goroutines involved, and where each was created — a genuine race, confirmed independently of what value happened to come out. Fix it with a mutex, the direct analog of Java's `synchronized`:
+
+   ```go
+   var mu sync.Mutex
+   // ...
+   go func(n int) {
+   	defer wg.Done()
+   	if isPrime(n) {
+   		mu.Lock()
+   		primeCount++
+   		mu.Unlock()
+   	}
+   }(n)
+   ```
+
+   Run `go run -race` on the fixed version a few times — clean, no warning, `primes found: 5` every time.
+
+   **Java callout:** `java.lang.Thread` and `ExecutorService` give you real OS-backed threads (traditionally heavier-weight to create than a goroutine, though modern Java's virtual threads, stable since Java 21, close much of that gap). Java's shared-memory concurrency is guarded the same way you just fixed Go's — explicit `synchronized` blocks or `java.util.concurrent` locks — and an unsynchronized shared counter in Java is exactly as broken as the one you just built, with no compiler warning either. **Rust callout:** this is the sharpest contrast in the whole module. Rust's compiler tracks, via its ownership and borrow-checking rules (the `Send` and `Sync` traits specifically), whether a type can safely cross or be shared across thread boundaries. The exact bug you just wrote — a plain `int` captured and mutated by multiple threads with no synchronization — is rejected by `rustc` at compile time; it will not build at all until you wrap the shared state in something like `Arc<Mutex<i32>>`. Go and Java both let you write the bug and then hope a tool like `-race` (or a synchronized-code-review habit) catches it. Rust makes the unsynchronized version simply not compile — "fearless concurrency" is Rust's own name for exactly this guarantee.
+
+7. **Feel Go's biggest paradigm break from Python: composition instead of inheritance.** Go has no `class` keyword, no `extends`, no `super`, at all — full stop, by deliberate design. Structs plus methods plus *embedding* is the only tool you get:
+
+   ```go
+   package main
+
+   import "fmt"
+
+   type Animal struct {
+   	Name string
+   }
+
+   func (a Animal) Describe() string {
+   	return fmt.Sprintf("%s is an animal", a.Name)
+   }
+
+   type Dog struct {
+   	Animal // embedded, not inherited
+   	Breed  string
+   }
+
+   func main() {
+   	d := Dog{Animal: Animal{Name: "Rex"}, Breed: "Labrador"}
+   	fmt.Println(d.Describe())    // "Rex is an animal" — promoted method
+   	fmt.Println(d.Name, d.Breed) // "Rex Labrador" — promoted field
+   }
+   ```
+
+   `Dog` gets `Describe()` and `Name` "for free" through *field and method promotion* — the compiler mechanically forwards them from the embedded `Animal` value. Now write the Python version and check one extra thing:
+
+   ```python
+   class Animal:
+       def __init__(self, name):
+           self.name = name
+       def describe(self):
+           return f"{self.name} is an animal"
+
+   class Dog(Animal):
+       def __init__(self, name, breed):
+           super().__init__(name)
+           self.breed = breed
+
+   d = Dog("Rex", "Labrador")
+   print(d.describe())          # "Rex is an animal"
+   print(isinstance(d, Animal)) # True
+   ```
+
+   `isinstance(d, Animal)` prints `True` in Python — `Dog` is genuinely a *subtype* of `Animal` in the type system, participates in polymorphism through that hierarchy, and could override `describe` and call `super().describe()`. Go's `Dog` has no equivalent relationship to `Animal` at all: it's not a subtype, there's no `is-a` the compiler recognizes, and a Go function declared to take an `Animal` parameter *cannot* be called with a `Dog` value — the promotion is purely a naming convenience, not a type relationship. This is on purpose: Go's designers consider deep inheritance hierarchies more often a liability than an asset, and composition (embedding structs, satisfying interfaces) is the only mechanism they give you instead.
+
+   **Java callout:** Java goes further than Python in the other direction — single inheritance of classes via `extends`, a separate `implements` for interfaces, `abstract class`, and every object implicitly inheriting from `Object`. **Rust callout:** Rust, like Go, has zero inheritance between structs — no `extends` equivalent exists at all. Rust's traits resemble Go's interfaces (and can even provide default method bodies, going a bit further than Go), but composition of structs still happens only through explicit fields, never a type hierarchy. Rust and Go actually agree with each other on this design choice; Java (and to a lesser extent Python) is the odd one out among these four languages.
+
+8. **Port an algorithm you already know cold — merge sort — from Python to Go, and verify it against the exact same input.** You built this from scratch back in Tier 2's Sorting & Searching module. Reimplement it in Go without looking at your old code first if you can manage it:
+
+   ```go
+   package main
+
+   import "fmt"
+
+   func mergeSort(arr []int) []int {
+   	if len(arr) <= 1 {
+   		return arr
+   	}
+   	mid := len(arr) / 2
+   	left := mergeSort(arr[:mid])
+   	right := mergeSort(arr[mid:])
+   	return merge(left, right)
+   }
+
+   func merge(left, right []int) []int {
+   	result := make([]int, 0, len(left)+len(right))
+   	i, j := 0, 0
+   	for i < len(left) && j < len(right) {
+   		if left[i] <= right[j] {
+   			result = append(result, left[i])
+   			i++
+   		} else {
+   			result = append(result, right[j])
+   			j++
+   		}
+   	}
+   	result = append(result, left[i:]...)
+   	result = append(result, right[j:]...)
+   	return result
+   }
+
+   func main() {
+   	nums := []int{38, 27, 43, 3, 9, 82, 10}
+   	fmt.Println(mergeSort(nums)) // [3 9 10 27 38 43 82]
+   }
+   ```
+
+   Run your old Python merge sort on the exact same list, `[38, 27, 43, 3, 9, 82, 10]` — you should get `[3, 9, 10, 27, 38, 43, 82]`, the identical sequence of values. That match is the point: Big-O complexity (O(n log n) here, in both languages, unchanged) is a property of the *algorithm*, not the language it's written in. What genuinely differs between the two versions is constant-factor wall-clock performance — Go's version, once compiled, runs as native machine code operating on statically-typed, tightly-packed `int` slices with no per-operation type checks; Python's interprets bytecode and does a type check on effectively every operation. If you want to see this directly, generate a random list of 50,000 integers, time both versions with `time.perf_counter()` in Python and `time.Now()`/`time.Since()` in Go, and compare — the ratio, not the absolute numbers, is the thing worth noticing.
+
+9. **Split your Go program across multiple files inside a real module, and use that as your excuse to read one real piece of the Go standard library's actual source.** This connects directly back to Module 5 (multi-file architecture) and Module 6 (reading real codebases) — same skills, new language. Create a real module:
+
+   ```bash
+   mkdir shapes-cli && cd shapes-cli
+   go mod init example.com/shapes-cli
+   ```
+
+   Split the `Shape`/`Rectangle`/`Circle` code from step 3 into its own file, `shapes.go`, and keep only `main()` and `printArea` in `main.go` — both files declare `package main`, and `go run .` (not `go run main.go`) compiles and links every file in the package together. Notice Go's visibility rule while you do it: `Rectangle`, `Circle`, and `Area` are capitalized, which means they're *exported* — visible from other packages that import this one. Lowercase names are package-private, and unlike Python's `_leading_underscore` convention (which is purely social — nothing stops another module from importing and using a "private" name), Go's compiler actually enforces this: you cannot import a lowercase identifier from another package, full stop.
+
+   Now use `go doc` to read real, production Go source for a function you've been implicitly relying on all lesson — string handling underlies `fmt.Sprintf` and friends. Run:
+
+   ```bash
+   go doc -src strings.Split
+   ```
+
+   You'll see the actual doc comment plus the real one-line implementation, which delegates to an unexported helper, `genSplit`. `go doc` won't show you an unexported function directly, which is your cue to fall back on Module 6's actual navigation skills instead of a shortcut: find your Go installation's source root with `go env GOROOT`, then `grep -n "func genSplit" "$(go env GOROOT)/src/strings/strings.go"` (or open the file in your IDE and jump to it) to read the real splitting logic one level deeper. This is the exact same "trace execution by reading real source, using grep and go-to-definition" skill Module 6 built — rehearsed here on a codebase that's already sitting on your own disk, in a language you're one lesson into.
+
+## Check on learning
+
+- Explain, without notes, the three-way split between Python's interpreted execution, Java's compile-to-bytecode-then-JIT hybrid, and Go/Rust's ahead-of-time native compilation — and where Go and Rust further diverge from each other (garbage collection vs. none at run time).
+- Walk back through your step 6 data-race exercise: what specifically made `primeCount++` a data race, why plain `go run` might never show you a wrong number even though the bug is real, why `go run -race` flags it anyway, and why the same shared-counter design wouldn't compile at all in Rust.
+- In one paragraph, explain why `Dog` embedding `Animal` in Go is not the same relationship as `Dog(Animal)` in Python — specifically, what `isinstance(d, Animal)` returning `True` buys you in Python that Go's embedding does not, and what happens if you try to pass a Go `Dog` value to a function whose parameter type is `Animal`.

@@ -1,0 +1,52 @@
+[
+  {
+    "id": "cs-foundations/tier-3/math-primer-ii-linear-algebra-calculus/q1",
+    "type": "multiple_choice",
+    "prompt": "Why does matrix multiplication order matter (A @ B is generally not equal to B @ A)?",
+    "choices": [
+      "Because matrix multiplication is only mathematically defined for square matrices",
+      "Because composing two linear transformations in a different order can produce a genuinely different combined transformation",
+      "Because computers round floating-point numbers differently depending on which matrix is listed first",
+      "It doesn't actually matter -- A @ B always equals B @ A for any two matrices that can be multiplied"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cs-foundations/tier-3/math-primer-ii-linear-algebra-calculus/q2",
+    "type": "multiple_choice",
+    "prompt": "For a convex function f, if f'(x*) = 0, why is x* guaranteed to be a GLOBAL minimum rather than possibly just a local one?",
+    "choices": [
+      "Because convex functions are defined as having exactly one critical point",
+      "Because the tangent-line inequality f(y) >= f(x*) + f'(x*)(y - x*) becomes f(y) >= f(x*) for every y once f'(x*) = 0, which is exactly the definition of a global minimum",
+      "Because gradient descent is mathematically guaranteed to converge regardless of a function's shape",
+      "Because a computer's floating-point arithmetic can only represent global minima, not local ones"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cs-foundations/tier-3/math-primer-ii-linear-algebra-calculus/q3",
+    "type": "short_answer",
+    "prompt": "What is the name for the loss of numerical precision that happens when you subtract two nearly-equal floating-point numbers, such as in the naive quadratic formula applied to a=1, b=-(1e5+1e-5), c=1?",
+    "acceptedAnswers": [
+      "catastrophic cancellation",
+      "catastrophic cancelation"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-3/math-primer-ii-linear-algebra-calculus/q4",
+    "type": "short_answer",
+    "prompt": "In this lesson's gradient descent example on f(x) = (x-3)^2 starting at x=0, using a learning rate of exactly 1.0 (so |1 - 2*lr| = 1), what does x do over successive steps -- converge to 3, oscillate forever, or diverge to infinity?",
+    "acceptedAnswers": [
+      "oscillate",
+      "oscillates",
+      "oscillate forever",
+      "oscillates forever",
+      "it oscillates"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-3/math-primer-ii-linear-algebra-calculus/q5",
+    "type": "explain_back",
+    "prompt": "Explain in your own words why a convex loss function guarantees gradient descent converges to the single global minimum, while a non-convex loss function (like the double-well function h(x) = x^4/4 - x^3/3 - 3x^2 from this lesson) can trap gradient descent in a local minimum depending on where it starts. Connect this to why real neural network training uses techniques like random weight initialization, momentum, or learning-rate schedules."
+  }
+]

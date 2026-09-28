@@ -1,0 +1,52 @@
+[
+  {
+    "id": "cs-foundations/tier-3/reading-real-codebases/q1",
+    "type": "multiple_choice",
+    "prompt": "In the `requests` library, what does `Session.__init__` actually do when it mounts its default HTTPAdapter, and what does that imply about retry behavior?",
+    "choices": [
+      "It mounts `HTTPAdapter()` with no arguments, so `max_retries` falls back to `DEFAULT_RETRIES = 0` \u2014 a plain request will not retry on a dropped connection",
+      "It mounts `HTTPAdapter(max_retries=3)`, giving every session automatic retries by default",
+      "It delegates retry configuration entirely to urllib3's global defaults, which retry indefinitely",
+      "It raises an exception if `max_retries` is not explicitly specified by the caller"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "cs-foundations/tier-3/reading-real-codebases/q2",
+    "type": "multiple_choice",
+    "prompt": "You run `git blame` on a security-relevant line and find a commit message that just says \"reworked as discussed.\" What is the correct next step to actually recover the design intent?",
+    "choices": [
+      "Trust the code as-is, since the commit message confirms a decision was made",
+      "Rewrite the logic yourself from scratch, since the original reasoning is unrecoverable",
+      "Find the merge commit that brought the change in (it usually carries a PR number), then read the actual linked PR and/or issue discussion on the host (e.g. GitHub)",
+      "Ignore the commit and look only at the current code, since history doesn't matter once code is merged"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "cs-foundations/tier-3/reading-real-codebases/q3",
+    "type": "short_answer",
+    "prompt": "In the real `requests` commit that replaced chardet with charset_normalizer (PR #5797), what specific licensing property of chardet was the motivating problem?",
+    "acceptedAnswers": [
+      "LGPL",
+      "it was LGPL licensed",
+      "LGPL license",
+      "LGPL-licensed"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-3/reading-real-codebases/q4",
+    "type": "short_answer",
+    "prompt": "In requests' source layout, which single file is the boundary where requests' own code ends and it hands off to urllib3 for the actual socket/connection work (the file containing HTTPAdapter.send)?",
+    "acceptedAnswers": [
+      "adapters.py",
+      "adapters",
+      "src/requests/adapters.py"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-3/reading-real-codebases/q5",
+    "type": "explain_back",
+    "prompt": "Explain, in your own words, the full execution path from a user calling requests.get(url) down to the point where requests hands off to urllib3 \u2014 name the files and functions involved in order. Then explain the difference between a commit whose message is a complete design-intent document on its own (like the chardet/charset_normalizer switch) and one where you have to go find the linked PR or issue to get the real story (like should_strip_auth) \u2014 and how you tell, in practice, which kind you're looking at."
+  }
+]

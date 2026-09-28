@@ -1,0 +1,52 @@
+[
+  {
+    "id": "cs-foundations/tier-3/divide-and-conquer-recursion-mastery/q1",
+    "type": "multiple_choice",
+    "prompt": "Which Master Theorem case applies to T(n) = 4T(n/2) + \u0398(n), and what is the resulting bound?",
+    "choices": [
+      "Case 1 \u2014 \u0398(n^2)",
+      "Case 2 \u2014 \u0398(n^2 log n)",
+      "Case 3 \u2014 \u0398(n)",
+      "The Master Theorem does not apply to this recurrence"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "cs-foundations/tier-3/divide-and-conquer-recursion-mastery/q2",
+    "type": "short_answer",
+    "prompt": "Merge sort's recursion tree for an array of size 16 has how many total levels, counting both the root level (size 16) and the leaf level (size 1)?",
+    "acceptedAnswers": [
+      "5",
+      "five"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-3/divide-and-conquer-recursion-mastery/q3",
+    "type": "multiple_choice",
+    "prompt": "In quickselect, if the pivot is always chosen as the first element of the current subarray (never randomized), which input triggers the \u0398(n^2) worst case?",
+    "choices": [
+      "A randomly shuffled array",
+      "An already-sorted (or reverse-sorted) array",
+      "An array with an odd number of elements",
+      "An array containing only unique values"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cs-foundations/tier-3/divide-and-conquer-recursion-mastery/q4",
+    "type": "multiple_choice",
+    "prompt": "Why doesn't the Master Theorem apply to naive recursive Fibonacci's recurrence T(n) = T(n-1) + T(n-2) + O(1)?",
+    "choices": [
+      "It has two recursive calls, and the theorem only allows a single recursive call per level",
+      "The subproblems shrink by a constant amount (n-1, n-2), not a constant factor (n/b), which the theorem requires",
+      "The theorem only applies to sorting and searching algorithms",
+      "O(1) combine work is too small for the theorem to produce a valid bound"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cs-foundations/tier-3/divide-and-conquer-recursion-mastery/q5",
+    "type": "explain_back",
+    "prompt": "Explain, in your own words, why generating all subsets of an n-item list produces a recursion tree with roughly 2^n total calls when each call branches into 'include this item' and 'exclude this item.' Then contrast that branching-tree shape with merge sort's balanced-halving recursion tree: both have two children per node, so what's the real structural difference that makes one exponential and the other \u0398(n log n)?"
+  }
+]

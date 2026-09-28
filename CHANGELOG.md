@@ -83,3 +83,10 @@ All notable changes to The Manual (curriculum + app) are logged here. This file 
 - `content/cs-foundations/tier-2/*.mdx` (8 files) + matching `*.quiz.json` (8 files, 5 questions each): Big-O & Complexity Analysis, Core Data Structures II, Sorting & Searching, Discrete Math II (Induction, Recursion & Combinatorics), Graph Theory Fundamentals, Object-Oriented Thinking (the canonical OOP-concepts lesson other tracks point to), Testing & Debugging Discipline, and Small Independent Projects (written as 3 minimal-hand-holding project briefs rather than a guided walkthrough, matching this tier's "Builder" framing). Assumes Tiers 0-1 are done; scaffolding is deliberately lighter per the tier's own goal statement.
 
 **Status:** CS Foundations Tiers 0-2 are now fully content-complete — 174 hours of real material across 22 lessons.
+
+## [0.5.0] — 2026-09-28 — CS Foundations Tier 3: complete real lesson content
+
+**Added**
+- `content/cs-foundations/tier-3/*.mdx` (8 files) + matching `*.quiz.json` (8 files, 5 questions each): Divide & Conquer + Recursion Mastery, Dynamic Programming, Greedy Algorithms & Graph Algorithms II, Complexity Classes (P, NP, and Why It Matters), Multi-File Project Architecture, Reading Real Codebases, Second Language for Contrast (Go primary, with Java/Rust comparison callouts), and Math Primer II — the complete linear-algebra/calculus/convex-optimization/numerical-stability foundation that AI/ML's Tier 1 assumes as a hard prerequisite. Two of the eight lesson files were written directly to disk by their own agents mid-run (they read `content/README.md` and matched its convention independently) before the batch's structured output was assembled over them with equivalent final content — noted here since it briefly meant Tier 3 files rode along in the Tier 2 commit.
+
+**Status:** CS Foundations Tiers 0-3 are now fully content-complete — 258 hours of real material across 30 lessons. Tiers 4-5 remain as syllabus only (`docs/curriculum/cs-foundations.md`).

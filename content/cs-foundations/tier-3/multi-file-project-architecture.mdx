@@ -1,0 +1,391 @@
+---
+trackId: cs-foundations
+tier: 3
+title: Multi-File Project Architecture
+order: 5
+estimatedHours: 10
+---
+
+Every project you've built in this curriculum so far has lived in one file, or close to it — and that's been the right call, because the point was learning the algorithm, not managing a codebase around it. That stops being the right call the moment a program has more than one reason to change. A script that parses command-line flags, runs Dijkstra, and prints the result is three separate responsibilities wearing one trenchcoat: touch the output formatting and you risk breaking the algorithm underneath it, want to unit-test the algorithm and you first have to fight past `argparse` and `stdout` to reach it, want a second strategy (an unweighted BFS instead of weighted Dijkstra, say) and you're editing the same file that also owns your CLI's flags. This module is about the actual decisions that keep a real, multi-file project sane: how you split files by responsibility, how you manage a project's dependencies so it installs identically on your machine and someone else's, and which of the classic design patterns — Strategy, Factory — genuinely earn their keep in Python, versus which ones get cargo-culted in from Java for no real reason. You'll build all of it firsthand: a real, installable, tested, CLI-driven route-planner package, reusing the Dijkstra implementation you already built and hand-verified in Module 3 — which also happens to be close to the exact shape your Tier 3 checkpoint project needs.
+
+## What you'll leave this lesson knowing
+
+- How to lay out a real Python project on the modern `src/` layout, with a `pyproject.toml` that makes it installable with `pip install -e .` — and precisely which bug that layout prevents
+- How to split a program by separation of concerns into a pure algorithmic core, a thin CLI/I-O layer, and a test suite — so each one changes, breaks, and gets tested independently of the other two
+- Real dependency management: creating an isolated `venv`, and what a Poetry lockfile records that a loose `requirements.txt` doesn't, and why that difference is the whole reason "works on my machine" fails on someone else's
+- When the Strategy and Factory patterns actually reduce coupling in Python — implemented as plain callables and a dict, not a Java-style class hierarchy — and a concrete case where reaching for them is pure overengineering
+- A working, tested, installable, CLI-driven route-planner package on your own machine, structured the way your checkpoint project needs to be
+
+## Do this
+
+1. **Feel the pain before you fix it — write (or read) the flat, single-file version first.** Here's the shape almost everyone ships after finishing Module 3: one file, everything in it.
+
+   ```python
+   # route_finder.py -- one file, everything.
+   import argparse
+   import heapq
+
+
+   def main():
+       parser = argparse.ArgumentParser()
+       parser.add_argument("--source", required=True)
+       parser.add_argument("--target", required=True)
+       args = parser.parse_args()
+
+       graph = {
+           "A": {"B": 4, "C": 2},
+           "B": {"A": 4, "C": 1, "D": 5},
+           "C": {"A": 2, "B": 1, "D": 8, "E": 10},
+           "D": {"B": 5, "C": 8, "E": 2, "F": 6},
+           "E": {"C": 10, "D": 2, "F": 3},
+           "F": {"D": 6, "E": 3},
+       }
+
+       dist = {node: float("inf") for node in graph}
+       dist[args.source] = 0
+       prev = {node: None for node in graph}
+       visited = set()
+       heap = [(0, args.source)]
+       while heap:
+           d, u = heapq.heappop(heap)
+           if u in visited:
+               continue
+           visited.add(u)
+           for v, w in graph[u].items():
+               nd = d + w
+               if nd < dist[v]:
+                   dist[v] = nd
+                   prev[v] = u
+                   heapq.heappush(heap, (nd, v))
+
+       path, node = [], args.target
+       while node is not None:
+           path.append(node)
+           node = prev[node]
+       path.reverse()
+
+       print(f"{' -> '.join(path)} (cost {dist[args.target]})")
+
+
+   if __name__ == "__main__":
+       main()
+   ```
+
+   Before reading further, write down at least three concrete problems with this file — not vague "it's messy," actual mechanisms. Some you should find: you cannot call the pathfinding logic from a test, a notebook, or a future web endpoint without dragging `argparse` and `parser.parse_args()` along with it; adding a second strategy (BFS) means editing the exact function that also owns your CLI flags and print formatting, so a typo in one risks breaking the other; the graph is hardcoded inside `main`, so testing against a different graph means monkeypatching a local variable inside a function body. Every fix in this lesson is a direct answer to one of these.
+
+2. **Design the package layout before writing a line of the real version — and understand exactly why it's shaped this way.** You're building a small package called `routeplanner`, on the modern `src/` layout:
+
+   ```text
+   routeplanner/
+   ├── pyproject.toml
+   ├── README.md
+   ├── src/
+   │   └── routeplanner/
+   │       ├── __init__.py
+   │       ├── core.py
+   │       ├── strategies.py
+   │       └── cli.py
+   └── tests/
+       ├── test_core.py
+       └── test_strategies.py
+   ```
+
+   Each file has exactly one reason to change: `core.py` holds pure pathfinding algorithms — no `argparse`, no `print`, no file I/O, ever. `strategies.py` holds the Strategy/Factory machinery that picks which algorithm runs. `cli.py` is a thin shell: parse arguments, call into `core.py` via `strategies.py`, format output — nothing else. `__init__.py` curates the package's public surface. `tests/` lives outside `src/`, because tests should exercise the package the way an actual consumer imports it, not reach into internal file paths.
+
+   Now the part people skip: **why `src/` at all**, instead of putting `routeplanner/` straight at the repo root next to `pyproject.toml`? If the package sat at the root, running `pytest` or `python` from the repo root puts that root on `sys.path`, and Python finds your local, uninstalled `routeplanner/` directory before it ever looks in `site-packages` — so your tests silently pass against raw source even when the *packaged* version is broken (a missing file, bad package data, a path that only works by accident from the repo root). Nest the package under `src/`, and that accident becomes structurally impossible: `src/` is never automatically importable, so the only way to `import routeplanner` at all is to genuinely install it. This is exactly the reasoning the Python Packaging Authority gives for the layout — worth reading their "`src` layout vs. flat layout" page on `packaging.python.org` once, in full; it's short and it's the actual current standard, not a stylistic preference.
+
+3. **Set up the environment for real, and write the `pyproject.toml` that ties it together.** Create and activate an isolated virtual environment so this project's dependencies never leak into or out of anything else on your machine:
+
+   ```bash
+   python -m venv .venv
+   source .venv/bin/activate      # Windows: .venv\Scripts\activate
+   ```
+
+   Then write `pyproject.toml` at the repo root:
+
+   ```toml
+   [build-system]
+   requires = ["setuptools>=61.0"]
+   build-backend = "setuptools.build_meta"
+
+   [project]
+   name = "routeplanner"
+   version = "0.1.0"
+   description = "A tiny multi-strategy shortest-path CLI"
+   requires-python = ">=3.9"
+   dependencies = []
+
+   [project.scripts]
+   routeplanner = "routeplanner.cli:main"
+
+   [tool.setuptools.packages.find]
+   where = ["src"]
+   ```
+
+   `[tool.setuptools.packages.find] where = ["src"]` is the line that tells setuptools where your actual code lives, given the layout from step 2. `[project.scripts]` declares a real console command — after installing, typing `routeplanner` at your shell will run `routeplanner.cli:main`. Now install it:
+
+   ```bash
+   pip install -e .
+   ```
+
+   The `-e` (editable) flag means edits to files under `src/routeplanner/` take effect immediately, with no reinstall — but imports still go through the genuine installed-package path from step 2, not an accidental repo-root shortcut. Confirm it worked: `python -c "import routeplanner; print(routeplanner.__file__)"` should print a path ending in `.venv/.../site-packages/__editable__.routeplanner.../` or similar, not your raw `src/` directory — that's the install actually doing its job.
+
+4. **Write `core.py` — the pure algorithmic layer, with zero I/O.** This is `dijkstra_shortest_path`, the same logic you built and hand-verified in Module 3, reshaped to return `(path, cost)` as a single tuple instead of two separate dicts. Alongside it, add a second, genuinely different strategy: an unweighted breadth-first search that finds the path with the *fewest hops*, ignoring edge weight entirely. Try writing `bfs_shortest_path` yourself first — it's a standard BFS with parent-pointer reconstruction, the same shape as the one you built in Tier 1 — before checking the reference below:
+
+   ```python
+   # src/routeplanner/core.py
+   """Pure pathfinding algorithms. No argparse, no print, no file I/O."""
+   import heapq
+   from collections import deque
+
+
+   def dijkstra_shortest_path(graph, source, target):
+       """Weighted shortest path via Dijkstra. Returns (path, cost)."""
+       dist = {node: float("inf") for node in graph}
+       dist[source] = 0
+       prev = {node: None for node in graph}
+       visited = set()
+       heap = [(0, source)]
+       while heap:
+           d, u = heapq.heappop(heap)
+           if u in visited:
+               continue
+           visited.add(u)
+           if u == target:
+               break
+           for v, w in graph[u].items():
+               nd = d + w
+               if nd < dist[v]:
+                   dist[v] = nd
+                   prev[v] = u
+                   heapq.heappush(heap, (nd, v))
+
+       if dist[target] == float("inf"):
+           return None, float("inf")
+
+       path, node = [], target
+       while node is not None:
+           path.append(node)
+           node = prev[node]
+       return list(reversed(path)), dist[target]
+
+
+   def bfs_shortest_path(graph, source, target):
+       """Unweighted shortest path (fewest hops) via BFS. Returns (path, hops)."""
+       if source == target:
+           return [source], 0
+
+       visited = {source}
+       prev = {source: None}
+       queue = deque([source])
+       while queue:
+           u = queue.popleft()
+           for v in graph[u]:
+               if v not in visited:
+                   visited.add(v)
+                   prev[v] = u
+                   if v == target:
+                       queue.clear()
+                       break
+                   queue.append(v)
+
+       if target not in prev:
+           return None, float("inf")
+
+       path, node = [], target
+       while node is not None:
+           path.append(node)
+           node = prev[node]
+       path = list(reversed(path))
+       return path, len(path) - 1
+   ```
+
+   Notice what's absent: no `print`, no `sys.argv`, no hardcoded graph. Every input arrives as a parameter and every output leaves as a return value — that single discipline is what makes the rest of this module possible.
+
+5. **Implement the Strategy pattern — as plain callables, the idiomatic Python way.** The Strategy pattern's whole idea is: encapsulate interchangeable algorithms behind one common interface, so calling code doesn't care which one runs. In Java, that means a `PathStrategy` interface and a separate concrete class per algorithm (you'll meet that shape directly in Module 7). In Python, functions are already first-class objects, so the "interface" is simply: *any callable with the signature* `(graph, source, target) -> (path, cost)`. Both functions from step 4 already satisfy it — there is no extra class to write:
+
+   ```python
+   # src/routeplanner/strategies.py
+   """Strategy pattern (interchangeable algorithms) + Factory pattern (picking
+   one by name) -- both in idiomatic Python form: callables and a dict."""
+   from .core import bfs_shortest_path, dijkstra_shortest_path
+
+   _STRATEGIES = {
+       "dijkstra": dijkstra_shortest_path,
+       "bfs": bfs_shortest_path,
+   }
+   ```
+
+6. **Add the Factory function, and test both patterns directly — no CLI required.** The Factory pattern's job is picking *which* concrete implementation to construct or return, based on some input, so the rest of the codebase never has to know the concrete implementations exist:
+
+   ```python
+   # src/routeplanner/strategies.py (continued)
+   def get_strategy(name):
+       """Factory: map a strategy name to the callable that implements it."""
+       try:
+           return _STRATEGIES[name]
+       except KeyError:
+           valid = ", ".join(sorted(_STRATEGIES))
+           raise ValueError(f"unknown strategy {name!r}; choose from: {valid}") from None
+   ```
+
+   Because `core.py` and `strategies.py` have no I/O, testing them needs no mocking, no fixtures, no `argv` simulation — just call them:
+
+   ```python
+   # tests/test_core.py
+   from routeplanner.core import bfs_shortest_path, dijkstra_shortest_path
+
+   GRAPH = {
+       "A": {"B": 4, "C": 2}, "B": {"A": 4, "C": 1, "D": 5},
+       "C": {"A": 2, "B": 1, "D": 8, "E": 10}, "D": {"B": 5, "C": 8, "E": 2, "F": 6},
+       "E": {"C": 10, "D": 2, "F": 3}, "F": {"D": 6, "E": 3},
+   }
+
+   def test_dijkstra_matches_module_3_hand_traced_result():
+       path, cost = dijkstra_shortest_path(GRAPH, "A", "F")
+       assert path == ["A", "C", "B", "D", "E", "F"]
+       assert cost == 13
+
+   def test_bfs_counts_hops_not_weight():
+       path, hops = bfs_shortest_path(GRAPH, "A", "F")
+       assert hops == 3          # A-B-D-F or A-C-E-F: 3 edges either way
+       assert hops == len(path) - 1
+
+   def test_no_path_returns_none():
+       graph = {"A": {}, "B": {}}
+       assert dijkstra_shortest_path(graph, "A", "B") == (None, float("inf"))
+       assert bfs_shortest_path(graph, "A", "B") == (None, float("inf"))
+   ```
+
+   ```python
+   # tests/test_strategies.py
+   import pytest
+   from routeplanner.core import bfs_shortest_path, dijkstra_shortest_path
+   from routeplanner.strategies import get_strategy
+
+   def test_get_strategy_returns_the_right_callable():
+       assert get_strategy("dijkstra") is dijkstra_shortest_path
+       assert get_strategy("bfs") is bfs_shortest_path
+
+   def test_get_strategy_rejects_unknown_name():
+       with pytest.raises(ValueError, match="unknown strategy"):
+           get_strategy("astar")
+   ```
+
+   Run `pytest -q` from the repo root. All five should pass in a few milliseconds — that speed is the direct payoff of step 4's "no I/O" discipline: nothing here touches disk, a network, or a terminal, so there's nothing slow to wait on.
+
+7. **Wire it into `cli.py` — the thin layer, and nothing but the thin layer.** This file's only jobs are: parse arguments, ask the factory for a strategy, call it, print the result.
+
+   ```python
+   # src/routeplanner/cli.py
+   import argparse
+   from .strategies import get_strategy
+
+   GRAPH = {
+       "A": {"B": 4, "C": 2}, "B": {"A": 4, "C": 1, "D": 5},
+       "C": {"A": 2, "B": 1, "D": 8, "E": 10}, "D": {"B": 5, "C": 8, "E": 2, "F": 6},
+       "E": {"C": 10, "D": 2, "F": 3}, "F": {"D": 6, "E": 3},
+   }
+
+   def build_parser():
+       parser = argparse.ArgumentParser(prog="routeplanner")
+       parser.add_argument("--source", required=True)
+       parser.add_argument("--target", required=True)
+       parser.add_argument("--strategy", default="dijkstra", choices=["dijkstra", "bfs"])
+       return parser
+
+   def main(argv=None):
+       args = build_parser().parse_args(argv)
+       strategy = get_strategy(args.strategy)
+       path, cost = strategy(GRAPH, args.source, args.target)
+       if path is None:
+           print(f"no path from {args.source} to {args.target}")
+           return 1
+       print(f"{args.strategy}: {' -> '.join(path)} (cost {cost})")
+       return 0
+
+   if __name__ == "__main__":
+       raise SystemExit(main())
+   ```
+
+   Re-run `pip install -e .` (needed once, so the new `routeplanner` console command from step 3's `[project.scripts]` gets created), then run it for real:
+
+   ```bash
+   $ routeplanner --source A --target F --strategy dijkstra
+   dijkstra: A -> C -> B -> D -> E -> F (cost 13)
+   $ routeplanner --source A --target F --strategy bfs
+   bfs: A -> B -> D -> F (cost 3)
+   $ routeplanner --source A --target F --strategy astar
+   usage: routeplanner [-h] --source SOURCE --target TARGET [--strategy {dijkstra,bfs}]
+   routeplanner: error: argument --strategy: invalid choice: 'astar' (choose from 'dijkstra', 'bfs')
+   ```
+
+   Notice `argparse`'s `choices=` already rejects a bad strategy name before `get_strategy` ever runs — so through the CLI, `get_strategy`'s own `ValueError` looks redundant. It isn't: `get_strategy` will also get called from your test suite (step 6), from a notebook, or from a future web endpoint, none of which go through this `argparse` parser — and every one of those callers deserves the same clear error, not a `KeyError` with no explanation. Validate at every boundary that can be reached independently, not just the one you happened to build first.
+
+8. **Manage dependencies for real: `venv` + `pip` versus Poetry, and understand exactly what a lockfile buys you.** Step 3 already gave you the `pip`-native path — `venv` plus `pip install -e .`. That's genuinely fine for a project with zero third-party dependencies, like this one. The moment you add real dependencies, `pip freeze > requirements.txt` has a gap: it records whatever happens to be installed *right now*, with no cryptographic hashes and no guarantee it matches what `pyproject.toml` actually declares — it's a snapshot, not a contract, and it's easy to let it silently drift out of sync. Poetry closes that gap. Try it in a scratch directory:
+
+   ```bash
+   poetry init --name routeplanner --python "^3.9" --no-interaction
+   poetry add rich
+   ```
+
+   The second command resolves `rich`'s full dependency tree, installs it, and writes `poetry.lock`:
+
+   ```text
+   Using version ^15.0.0 for rich
+   Resolving dependencies...
+   Package operations: 4 installs, 0 updates, 0 removals
+     - Installing mdurl (0.1.2)
+     - Installing markdown-it-py (3.0.0)
+     - Installing pygments (2.21.0)
+     - Installing rich (15.0.0)
+   Writing lock file
+   ```
+
+   Open `poetry.lock` and you'll find, for every one of those four packages, an exact pinned version plus a `files = [...]` block of cryptographic hashes for every distributable file:
+
+   ```text
+   [[package]]
+   name = "rich"
+   version = "15.0.0"
+   ...
+   files = [
+       {file = "rich-15.0.0-py3-none-any.whl", hash = "sha256:..."},
+       ...
+   ]
+   ```
+
+   That's the actual guarantee: `poetry install` on any machine, any time, reproduces the exact same bytes for every direct *and transitive* dependency — not "probably the same version," but hash-verified identical. `requirements.txt` from `pip freeze` gives you neither the transitive-dependency guarantee nor the hash check by default (you can get closer with `pip-tools`' `pip-compile --generate-hashes`, which is the pip-native answer to the same problem — worth knowing it exists, even if you don't reach for it here). For a project this small, either path works; for anything you'll hand to someone else, or run in CI, or come back to in six months, prefer whichever one your team already uses, but know exactly what problem the lockfile is solving before you pick.
+
+9. **Now see design patterns misapplied, on purpose, so you recognize the smell.** Here's a `ResultFormatter` "Factory" for a program that has exactly one output format and no plans for a second:
+
+   ```python
+   class ResultFormatter:
+       def format(self, path, cost):
+           raise NotImplementedError
+
+   class PlainTextResultFormatter(ResultFormatter):
+       def format(self, path, cost):
+           return f"{' -> '.join(path)} (cost {cost})"
+
+   class ResultFormatterFactory:
+       @staticmethod
+       def create(format_type):
+           if format_type == "plain":
+               return PlainTextResultFormatter()
+           raise ValueError(f"unknown format: {format_type}")
+
+   # ...three classes and 15 lines, to do what one f-string already did:
+   formatter = ResultFormatterFactory.create("plain")
+   print(formatter.format(path, cost))
+   ```
+
+   Compare that to step 6's `get_strategy`: five lines, one dict, and it exists because there are genuinely *two* interchangeable, tested implementations (`dijkstra` and `bfs`) that real calling code needs to choose between at runtime. The `ResultFormatterFactory` has exactly one implementation and no evidence a second is coming — it's an abstraction built for a flexibility nobody asked for, purely because "Factory" is a pattern with a name. The rule of thumb: reach for Strategy or Factory once you already have two or more real, concrete implementations — or a third one you're already committed to shipping — never speculatively "in case we need it later." An abstraction with one implementation is just indirection with extra steps.
+
+10. **Check your instincts against a real, widely-used repo: `psf/requests`.** Browse `github.com/psf/requests` (or clone it) and look specifically at `src/requests/` — yes, `requests` uses exactly the `src/`-layout pattern from step 2, and its `pyproject.toml` has the identical `[tool.setuptools.packages.find] where = ["src"]` line you wrote in step 3. That's not a coincidence; it's the ecosystem having converged on the same answer to the same problem you just solved by hand. Inside `src/requests/`, you'll find about twenty files, each doing one job: `models.py` (`Request`, `Response`, `PreparedRequest`), `sessions.py` (`Session`), `adapters.py` (transport), `auth.py`, `cookies.py`, `exceptions.py`, `hooks.py`, `status_codes.py`, `utils.py`, `certs.py`, `compat.py` — no file is "the big one that does everything," which is precisely the discipline step 2 asked you to apply at 5% of the scale. Then open `src/requests/__init__.py` and read its imports: it pulls `delete, get, head, options, patch, post, put, request` from `api.py`, `Session` and `session` from `sessions.py`, `PreparedRequest`/`Request`/`Response` from `models.py`, error classes from `exceptions.py`, and `codes` from `status_codes.py` — curating one clean public surface out of a dozen internal files, exactly the job your own `routeplanner/__init__.py` does for `core.py` and `strategies.py`. Write two or three sentences identifying which of `requests`'s internal modules plays the same role your `core.py` plays (pure logic, no CLI) versus which plays the role your `cli.py` plays — `requests` has no CLI at all, so ask instead: which module would a `requests`-based CLI tool call into, and which modules would it never need to touch directly? You'll go much deeper into navigating a codebase like this one in Module 6; this is the warm-up, done through the lens of the architecture you just built with your own hands.
+
+## Check on learning
+
+- Explain, without notes, why `core.py` must never import `argparse` and `cli.py` must never contain pathfinding logic — tie your answer directly to what step 6's tests could *not* have done in one second flat if that boundary didn't hold.
+- State the rule of thumb from step 9 for when a Strategy/Factory pair earns its place versus when it's overengineering, and apply it to a hypothetical: your `routeplanner` currently has two strategies; would you add a `get_output_formatter()` factory the day someone asks for a JSON output option, or wait? Justify it either way.
+- Explain to someone who's never heard of the `src/` layout exactly what bug it prevents, using the specific mechanism (what ends up on `sys.path`, and when) — not just "it's best practice."

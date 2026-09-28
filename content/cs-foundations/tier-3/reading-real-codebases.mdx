@@ -1,0 +1,115 @@
+---
+trackId: cs-foundations
+tier: 3
+title: Reading Real Codebases
+order: 6
+estimatedHours: 8
+---
+
+Every algorithm you've built in this tier so far started from a blank file that was entirely yours. Almost no code you touch as a working programmer will be like that again. The default state of professional and open-source work is: a codebase that already exists, was written by people you've never met, encodes decisions nobody bothered to write down, and is too large to read start to finish. The skill this module builds — going from "I have no idea how this works" to "I can point at the exact five lines that matter" in under an hour, on a codebase you've never seen — is not optional flavor before the checkpoint project. It *is* the checkpoint project, or at least the part of it that decides whether you can find a real bug to fix at all. It's also, increasingly, the skill that lets you check an AI assistant's confident claim about "where the bug is" against what the code actually does, instead of taking its word for it.
+
+You're going to do all of this against a real, running codebase: [psf/requests](https://github.com/psf/requests), the HTTP library almost every Python program that talks to the internet depends on. It's a good training repo for exactly this exercise — mid-sized (about 19 source files, under 6,500 lines total), old enough to have real design history, popular enough that its GitHub issues and PRs are full of genuine engineering discussion, and small enough that you can hold the whole architecture in your head by the end of this lesson.
+
+## What you'll leave this lesson knowing
+
+- How to orient yourself in an unfamiliar mid-size repo in minutes using its package layout and public API surface, before reading a single function body
+- How to use `grep`/`ripgrep` and a code-navigation tool (ctags or your IDE's go-to-definition) to answer "where is this defined" and "everywhere this is used" without guessing
+- How to trace a real, multi-file execution path by hand and confirm it with a live debugger, so you can state with confidence "when you call X, here is the exact sequence of functions that runs"
+- How to use `git log`, `git blame`, and a linked PR/issue together to recover *why* a piece of code looks the way it does — including recognizing when the commit message alone doesn't tell you enough, and going to find the rest
+- Enough comfort navigating a stranger's codebase that finding a real, well-scoped issue to fix for your checkpoint PR feels like a search process you know how to run, not a hope
+
+## Do this
+
+All of this uses one real target repo. Clone it now, full history (you'll need it later — don't use `--depth 1`):
+
+```bash
+git clone https://github.com/psf/requests.git
+cd requests
+git log --oneline | wc -l   # tens of thousands of commits — real project history
+find src/requests -name "*.py" | wc -l   # 19 files
+find src/requests -name "*.py" | xargs wc -l | tail -1   # ~6,400 lines total
+```
+
+1. **Orient top-down before you read a single function.** Do not start by opening a random file and reading line by line — that's the single most common way people burn an afternoon on a codebase and come away with nothing. Instead, in order: read the README, then look at `pyproject.toml`/`setup.cfg` for what the package actually declares (name, dependencies, entry points), then look at the public API surface: `src/requests/__init__.py`. That file's job is to tell you exactly what an outside user is allowed to import and call — everything else in the package is implementation detail in service of that surface. Open it and find the lines importing from `.api`, `.models`, `.sessions`, `.status_codes`. From those imports alone — before reading any of those modules — write down, in your own words, a one-sentence guess at each file's job:
+
+   - `api.py` — ?
+   - `models.py` — ?
+   - `sessions.py` — ?
+   - `status_codes.py` — ?
+
+   Then skim the top-of-file docstrings in each (most well-maintained Python packages put a one-paragraph purpose statement right under `"""` at the top). Check your guesses. You should find `api.py` is the thin `requests.get()`/`requests.post()` convenience layer, `models.py` owns `Request`/`Response`/`PreparedRequest` data structures, `sessions.py` owns the stateful `Session` class (cookies, connection reuse, config), and `status_codes.py` is just a lookup table. Notice that this is Module 5's separation of concerns, in the wild, in a library you've probably already used without ever opening its source.
+
+2. **Use grep to answer a real, load-bearing question about behavior you can't get from documentation alone.** A specific, well-known gotcha in `requests`: by default, it does **not** retry a failed connection. Confirm this yourself, purely by grepping, without reading any blog posts about it:
+
+   ```bash
+   grep -rn "DEFAULT_RETRIES" src/requests/
+   ```
+
+   You should land on `src/requests/adapters.py`, a line defining `DEFAULT_RETRIES = 0`, and a constructor parameter `max_retries: int | Retry = DEFAULT_RETRIES` a little further down in `HTTPAdapter.__init__`. Now grep for where that adapter actually gets attached to a session with no arguments:
+
+   ```bash
+   grep -n "HTTPAdapter()" src/requests/sessions.py
+   ```
+
+   You should find two lines in `Session.__init__` — `self.mount("https://", HTTPAdapter())` and the `http://` equivalent — both calling `HTTPAdapter()` with zero arguments, which means `max_retries` falls back to `DEFAULT_RETRIES = 0`. Chain these two facts together into one sentence you could say out loud in a code review: *"A plain `requests.get(url)` will not retry on a dropped connection, because `Session.__init__` mounts its default `HTTPAdapter` with no `max_retries` argument, which defaults to 0."* That's the actual skill here — grep doesn't just find text, it lets you *chain* two separate facts across two files into one confirmed behavioral claim, which is exactly what "I read the docs and it seemed like X" can't give you.
+
+3. **Set up symbol navigation (ctags or your IDE) and use it to move faster than grep alone.** Grep is text search — it doesn't know a Python `def` from a comment mentioning the same word. A tags-based or IDE-based "go to definition" does. Pick whichever you'll actually use:
+
+   - **Terminal/vim path:** install Universal Ctags (`brew install universal-ctags` on macOS, `sudo apt install universal-ctags` on Debian/Ubuntu), then from the repo root run `ctags -R src/`. This builds a `tags` index file. In vim, put your cursor on a symbol like `HTTPAdapter` and hit `Ctrl-]` to jump straight to its definition, `Ctrl-t` to jump back.
+   - **IDE path:** in VS Code (with the Python/Pylance extension) or PyCharm, this needs no setup — right-click any symbol and choose "Go to Definition" (or `F12` / `Cmd-click` in VS Code, `Ctrl-B` in PyCharm), and "Find All References" for the reverse direction.
+
+   Either way, do this concretely: start on the `get()` function in `src/requests/api.py`, and jump to definition on every call inside it until you can't go any further into first-party code. You should pass through `sessions.py`'s `Session.request()`, land on `session.send()`, and eventually reach `HTTPAdapter.send()` in `adapters.py` — the boundary where `requests` hands off to the vendored `urllib3` for the actual socket work. Write down the file and function name at each hop. You'll check this list against step 4.
+
+4. **Trace one real execution path by hand, then confirm it live with a debugger.** Before checking against a reference, do the static trace yourself using nothing but the navigation from steps 2–3: starting from a user calling `requests.get("https://example.com")`, list every function call, in order, across every file, until you hit `urllib3`. Now compare against what's actually there (these are real, current line numbers in the repo — if they've drifted by a commit or two, `grep -n "def request\|def send"` in each file to relocate them):
+
+   - `src/requests/api.py`, `get()` — calls `requests(...)`, which does `with sessions.Session() as session: return session.request(method="GET", url=url, **kwargs)`
+   - `src/requests/sessions.py`, `Session.request()` (~line 557) — builds a `Request`, calls `self.prepare_request(req)` to get a `PreparedRequest`, then calls `self.send(prep, **send_kwargs)`
+   - `src/requests/sessions.py`, `Session.send()` (~line 752) — calls `self.get_adapter(url=request.url)` to pick the right transport, then `adapter.send(request, **kwargs)`
+   - `src/requests/adapters.py`, `HTTPAdapter.send()` (~line 634) — this is where `requests` ends and `urllib3` (connection pooling, actual sockets, TLS) begins
+
+   Now confirm it dynamically instead of just statically. Drop a real breakpoint and watch the actual call stack:
+
+   ```python
+   import pdb, requests
+   pdb.set_trace()
+   requests.get("https://httpbin.org/get")
+   ```
+
+   At the `(Pdb)` prompt, use `step` (`s`) repeatedly to walk *into* each call rather than over it, and `where` (`w`) at any point to print the live call stack. (No network in your environment? Use `python -m trace --trace your_script.py` instead, or just add a `print(__name__, __qualname__ if hasattr(...))`-style marker at the top of `Session.request`, `Session.send`, and `HTTPAdapter.send` and watch them fire in order.) Confirm the live stack matches your static trace exactly, in the same order. This is the actual point of the exercise: static reading tells you what's *possible*; a live trace tells you what *actually ran* — and for anything involving conditionals, decorators, or dynamic dispatch, those two can silently diverge. Get in the habit of checking both.
+
+5. **Use `git blame` to find out why a specific line exists — and notice when the commit message alone isn't enough.** Look at `SessionRedirectMixin.should_strip_auth` in `sessions.py` — the method deciding whether to drop the `Authorization` header when a request gets redirected to a different host (a real security-relevant piece of logic: leaking an auth header to a redirect target would be a genuine vulnerability). Blame the block around the HTTP→HTTPS special case:
+
+   ```bash
+   git blame -L 155,165 -- src/requests/sessions.py
+   ```
+
+   You'll land on a commit by Bruce Merry from August 2018, message: `"Rework authorization stripping logic as discussed"`. Read that commit's full message with `git show <hash>`. Notice the problem: *"as discussed"* — discussed **where**? The commit message alone doesn't say. This is the realistic case, not the exception: a lot of real commit messages assume you have context you don't have yet. The fix is to find the merge commit that brought this change in, which usually carries a PR number:
+
+   ```bash
+   git log --oneline --all --children | grep <the blamed commit's short hash>
+   ```
+
+   That leads you to a "Merge pull request #4718 from bmerry/fix-4716" commit — a PR number *and* an issue number, both real, both on GitHub right now. Open `https://github.com/psf/requests/pull/4718` (and the issue it references, `#4716`) in a browser and read the actual discussion. Write two or three sentences on what the *real* motivating concern was, in your own words, and why "just read the commit message" would have left you with an incomplete — or wrong — understanding of the design decision.
+
+6. **Now find a commit that tells you everything on its own, and compare the two experiences.** Not every commit needs external archaeology — some are written to be self-contained. Find this one:
+
+   ```bash
+   git log --oneline --all | grep -i "normalizer"
+   ```
+
+   You should find a commit titled `"Switch LGPL'd chardet for MIT licensed charset_normalizer (#5797)"`, tagged as part of `v2.26.0` (July 2021). Read its full message with `git show <hash>`. It lays out a real, complete engineering trade-off: `chardet` (encoding detection) was LGPL-licensed, which creates legal ambiguity for anyone bundling `requests` into a single binary; `charset_normalizer` does the same job under the more permissive MIT license; and rather than a hard cutover, the author kept `chardet` as an opt-in "escape hatch" (`requests[lgpl]`) in case the replacement's detection quality turned out worse in practice. Confirm the code reflects exactly that plan by reading `src/requests/compat.py` around `_resolve_char_detection` — it tries `chardet` first, falls back to `charset_normalizer`, exactly as the commit message describes. Now write down, explicitly, the difference between this exercise and step 5's: here, the commit message alone was a complete design-intent document; there, it was a pointer to a conversation that happened somewhere else. Both are normal. Knowing which one you're looking at — and going to GitHub for the second kind instead of guessing — is the actual skill.
+
+7. **Synthesize everything into a real investigation memo, on a live, currently-open issue.** Go to `https://github.com/psf/requests/issues` (or, if you already know which repo you'll target for your checkpoint PR, use that one instead — this step is meant to be reusable) and find one open issue that isn't already claimed or in progress, ideally something concrete: a specific reported bug, not a feature request needing design discussion. Using only the techniques from steps 1–4 (repo orientation, grep, symbol navigation, execution tracing) — not by asking anyone, and without necessarily writing a fix yet — produce a short written memo:
+
+   - Which file(s) and function(s) does this issue's behavior actually live in? Cite exact file paths and function names.
+   - Trace the execution path that leads to the reported behavior, the way you did in step 4.
+   - State one concrete, falsifiable hypothesis for what's wrong or what change would address it.
+   - Note anything from the commit history (step 5/6 style) that explains *why* the current code is shaped the way it is — sometimes what looks like a bug is a deliberate trade-off, and finding that out *before* you propose "fixing" it will save you an embarrassing PR comment.
+
+   This memo is not throwaway practice — it's the literal first artifact your Tier 3 checkpoint project needs before you can open a real pull request.
+
+## Check on learning
+
+- From memory, without looking anything up, write out the full call chain from `requests.get(url)` down to the `HTTPAdapter.send()` boundary — file names and function names, in order — then re-verify it with grep. Where, if anywhere, did your memory diverge from the actual code?
+- Explain why `git blame` on `should_strip_auth` did *not*, by itself, tell you the real motivating concern behind the redirect-auth-stripping logic — and what two additional pieces of information (beyond the blamed commit's own message) you needed to find it.
+- In your own words, explain the actual engineering trade-off behind the `chardet` → `charset_normalizer` switch (PR #5797) as if explaining it to someone who has never heard of software licensing, and explain why the author kept `chardet` as an optional fallback rather than deleting support for it outright.

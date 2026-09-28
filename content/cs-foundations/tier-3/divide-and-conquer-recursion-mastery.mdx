@@ -1,0 +1,216 @@
+---
+trackId: cs-foundations
+tier: 3
+title: Divide & Conquer + Recursion Mastery
+order: 1
+estimatedHours: 10
+---
+
+Every algorithm you've analyzed so far in this track, you analyzed after the fact — you wrote the code, then figured out its Big-O. Divide and conquer flips that: you're going to learn to read a recurrence relation the way you'd read a spec, predict the running time *before* you've finished the implementation, and use that prediction to catch a bad design early. Merge sort and quickselect are the two workhorses here, but the real skill is the recursion tree — once you can draw one in your head, the Master Theorem stops being a memorized formula and starts being something you could re-derive from scratch if you forgot it.
+
+## What you'll leave this lesson knowing
+
+- How to classify a recurrence `T(n) = aT(n/b) + f(n)` into one of the Master Theorem's three cases, and how to get the same answer independently by drawing the recursion tree and summing the work level by level
+- A correct, from-scratch merge sort implementation, and exactly why its recurrence lands in Case 2 (Θ(n log n))
+- A from-scratch quickselect implementation that finds the k-th smallest element in expected O(n) time — including why its worst case is Θ(n²) and how randomizing the pivot defends against it
+- The difference between a "balanced halving" recursion tree (merge sort) and a "branching choice" recursion tree (generating all subsets of a set), and why the second one is exponential no matter how you implement it
+- Why not every recursive algorithm is a divide-and-conquer algorithm — naive recursive Fibonacci looks recursive but doesn't fit the Master Theorem's shape at all, which is exactly the gap Dynamic Programming (next module) exists to close
+
+## Do this
+
+1. **Derive merge sort's running time from the recursion tree, by hand, before you touch the Master Theorem formula.** Merge sort's recurrence is `T(n) = 2T(n/2) + Θ(n)`: split the array in half, recursively sort each half, then merge the two sorted halves in linear time. Draw the tree for `n = 8` by tracking the sizes of the subarrays at each level:
+
+   ```
+   level 0:  [8]                                    merge cost this level: 8
+   level 1:  [4]        [4]                         merge cost this level: 4 + 4 = 8
+   level 2:  [2]  [2]  [2]  [2]                      merge cost this level: 2+2+2+2 = 8
+   level 3:  [1][1][1][1][1][1][1][1]                base case, no merge needed
+   ```
+
+   Notice two things: every level's subarrays sum back to `n = 8` (they're just the original array cut up differently), so every level costs Θ(n) to merge — and the number of levels is `log2(n) + 1` (you halve the size until you hit 1). Multiply: (number of levels doing merge work) × (cost per level) = `log2(n) × n` = Θ(n log n). You just derived merge sort's running time without quoting a single theorem.
+
+2. **Now learn the Master Theorem and see that it's the same argument, generalized.** For a recurrence of the shape `T(n) = a·T(n/b) + f(n)` (a subproblems, each of size n/b, plus f(n) work to combine them), compare `f(n)` to `n^(log_b a)` — that exponent is "how much work the leaves alone would cost if there were no combine step at all":
+
+   - **Case 1 — the leaves dominate:** if `f(n) = O(n^(log_b a - ε))` for some ε > 0, the combine work is dwarfed by the sheer number of leaves, so `T(n) = Θ(n^(log_b a))`.
+   - **Case 2 — every level costs the same:** if `f(n) = Θ(n^(log_b a))`, every level of the tree contributes roughly equal work, so you multiply by the number of levels: `T(n) = Θ(n^(log_b a) · log n)`. Merge sort is exactly this case, with `a=2, b=2, log_2(2)=1`, so `T(n) = Θ(n log n)`.
+   - **Case 3 — the root dominates:** if `f(n) = Ω(n^(log_b a + ε))` (and a mild regularity condition holds), the combine step at the top level is already bigger than everything below it, so `T(n) = Θ(f(n))`.
+
+   Now classify these six recurrences yourself, on paper, before reading the answer key below. For each, name the case and the resulting Θ bound:
+
+   ```
+   (a) T(n) = T(n/2)  + O(1)      -- binary search
+   (b) T(n) = 2T(n/2) + O(n)      -- merge sort
+   (c) T(n) = 3T(n/2) + O(n)      -- Karatsuba integer multiplication
+   (d) T(n) = 7T(n/2) + O(n^2)    -- Strassen matrix multiplication
+   (e) T(n) = 2T(n/2) + O(n^2)    -- a (deliberately bad) divide-and-conquer design
+   (f) T(n) = 4T(n/2) + O(n^2)    -- borderline case, check it carefully
+   ```
+
+   Answer key: (a) a=1,b=2, n^(log_2 1)=n^0=1, f(n)=O(1)=Θ(1) → **Case 2** → Θ(log n). (b) a=2,b=2 → n^1=n, f(n)=Θ(n) → **Case 2** → Θ(n log n). (c) a=3,b=2 → n^(log_2 3) ≈ n^1.585, f(n)=O(n) is polynomially smaller → **Case 1** → Θ(n^1.585). (d) a=7,b=2 → n^(log_2 7) ≈ n^2.807, f(n)=O(n^2) is polynomially smaller → **Case 1** → Θ(n^2.807) — this is *why* Strassen beats the naive O(n^3) matrix multiply. (e) a=2,b=2 → n^1=n, f(n)=Θ(n^2) dominates → **Case 3** → Θ(n^2). (f) a=4,b=2 → n^(log_2 4)=n^2, f(n)=Θ(n^2) matches exactly → **Case 2** → Θ(n^2 log n), not Θ(n^2) — this is the one people get wrong by assuming "matching exponent means Case 1."
+
+3. **Implement merge sort from scratch — no `sorted()`, no `.sort()`.** Write both the recursive splitter and the merge helper:
+
+   ```python
+   def merge_sort(arr):
+       if len(arr) <= 1:
+           return arr[:]
+       mid = len(arr) // 2
+       left = merge_sort(arr[:mid])
+       right = merge_sort(arr[mid:])
+       return merge(left, right)
+
+   def merge(left, right):
+       result = []
+       i = j = 0
+       while i < len(left) and j < len(right):
+           if left[i] <= right[j]:
+               result.append(left[i])
+               i += 1
+           else:
+               result.append(right[j])
+               j += 1
+       result.extend(left[i:])
+       result.extend(right[j:])
+       return result
+   ```
+
+   Verify against these exact cases, including the edge cases that trip people up (empty list, single element, all-duplicates):
+
+   ```python
+   print(merge_sort([5, 2, 9, 1, 5, 6]))   # [1, 2, 5, 5, 6, 9]
+   print(merge_sort([]))                   # []
+   print(merge_sort([42]))                 # [42]
+   print(merge_sort([3, 3, 3]))            # [3, 3, 3]
+   print(merge_sort([9, 8, 7, 6, 5]))      # [5, 6, 7, 8, 9]
+   ```
+
+   Then write a quick property test: generate 100 random lists with `random.sample(range(1000), k=random.randint(0, 50))`, and assert `merge_sort(lst) == sorted(lst)` for every one. This is the same "test against a trusted oracle" pattern from Tier 2's testing module, applied to an algorithm instead of a hand-picked example.
+
+4. **Before you look anything up: implement quickselect yourself.** The spec: `kth_smallest(arr, k)` returns the k-th smallest element of `arr` (0-indexed, so `k=0` is the minimum), matching `sorted(arr)[k]`, but *without fully sorting the array*. The trick — Tony Hoare's — is that quicksort's partition step already tells you exactly where the pivot would land in the final sorted order; if that landing spot is `k`, you're done, and otherwise you recurse into only the *one* side that contains index `k`, throwing the other side away entirely. Spend real time on this — sketch the partition logic on paper, get it wrong at least once, before checking the reference below. A reference implementation, once you've genuinely tried:
+
+   ```python
+   import random
+
+   def kth_smallest(arr, k):
+       arr = arr[:]  # don't mutate the caller's list
+
+       def partition(lo, hi):
+           pivot_idx = random.randint(lo, hi)
+           arr[pivot_idx], arr[hi] = arr[hi], arr[pivot_idx]
+           pivot = arr[hi]
+           i = lo
+           for j in range(lo, hi):
+               if arr[j] < pivot:
+                   arr[i], arr[j] = arr[j], arr[i]
+                   i += 1
+           arr[i], arr[hi] = arr[hi], arr[i]
+           return i
+
+       lo, hi = 0, len(arr) - 1
+       while True:
+           if lo == hi:
+               return arr[lo]
+           p = partition(lo, hi)
+           if p == k:
+               return arr[p]
+           elif p < k:
+               lo = p + 1
+           else:
+               hi = p - 1
+   ```
+
+   Verify it against `sorted()` for every index:
+
+   ```python
+   data = [7, 10, 4, 3, 20, 15]
+   print(sorted(data))                     # [3, 4, 7, 10, 15, 20]
+   for k in range(len(data)):
+       assert kth_smallest(data, k) == sorted(data)[k]
+   print("all k verified")
+   print(kth_smallest(data, 0))   # 3
+   print(kth_smallest(data, 2))   # 7
+   ```
+
+5. **Prove to yourself, empirically, why the pivot has to be randomized.** Quickselect's *average* recurrence is `T(n) = T(n/2) + O(n)` (a lucky pivot roughly halves the search space each time), which by the Master Theorem's Case 1 gives Θ(n). But if you pick the pivot deterministically — always the first element of the current subarray — an already-sorted (or reverse-sorted) input makes every partition maximally lopsided: `T(n) = T(n-1) + O(n)`, which sums to Θ(n²). Write a second version, `kth_smallest_bad_pivot`, identical except it always uses `arr[lo]` as the pivot instead of a random index, then time both on a large sorted array:
+
+   ```python
+   import time
+
+   n = 3000
+   sorted_input = list(range(n))
+   shuffled_input = sorted_input[:]
+   random.shuffle(shuffled_input)
+
+   start = time.perf_counter()
+   kth_smallest_bad_pivot(sorted_input, n // 2)
+   print("bad pivot, sorted input:", time.perf_counter() - start)
+
+   start = time.perf_counter()
+   kth_smallest_bad_pivot(shuffled_input, n // 2)
+   print("bad pivot, shuffled input:", time.perf_counter() - start)
+
+   start = time.perf_counter()
+   kth_smallest(sorted_input, n // 2)
+   print("randomized pivot, sorted input:", time.perf_counter() - start)
+   ```
+
+   On one run of this, the deterministic pivot on sorted input took roughly 100x longer than either the same code on shuffled input or the randomized version on sorted input (a fraction of a second either way, but the ratio is the point, not the absolute numbers — your machine will differ). That gap *is* Θ(n²) vs Θ(n) made visible. This is the same lesson as quicksort's worst case from Tier 2 — a correct algorithm with a bad tiebreaker rule can be adversarially defeated by input shape alone.
+
+6. **Now build a recursion tree that branches instead of halves.** Merge sort's tree is "balanced halving" — two children, each half the size. A different, equally common shape is "branching choice": at each element, you recursively explore both including it and excluding it. Write `all_subsets`, instrumented to count every recursive call:
+
+   ```python
+   def all_subsets(items):
+       calls = [0]
+
+       def helper(i, current):
+           calls[0] += 1
+           if i == len(items):
+               return [current]
+           exclude = helper(i + 1, current)
+           include = helper(i + 1, current + [items[i]])
+           return exclude + include
+
+       result = helper(0, [])
+       return result, calls[0]
+   ```
+
+   Run it on a few sizes and watch the call count:
+
+   ```python
+   for n_items in [2, 4, 8, 12]:
+       subsets, calls = all_subsets(list(range(n_items)))
+       print(f"n={n_items}: {len(subsets)} subsets, {calls} recursive calls")
+   # n=2: 4 subsets, 7 calls
+   # n=4: 16 subsets, 31 calls
+   # n=8: 256 subsets, 511 calls
+   # n=12: 4096 subsets, 8191 calls
+   ```
+
+   Each call spawns exactly two more (until the base case), so the tree has `2^0 + 2^1 + ... + 2^n = 2^(n+1) - 1` total nodes — not `n^(log_b a)` for any fixed `a` and `b`, because here the number of subproblems (`a=2`) is fixed but they don't get smaller by a constant *factor*; they shrink by exactly 1 in the remaining-items count. This is Θ(2ⁿ), not Θ(n log n), and no amount of clever partitioning fixes that — the number of subsets genuinely *is* 2ⁿ. Keep this example in your back pocket: "does the tree branch a constant number of times per level, or does the number of nodes explode with n?" is the single fastest gut-check for spotting an exponential algorithm before you've written a single line of complexity math.
+
+7. **Meet a recursion that the Master Theorem flatly does not apply to.** Naive recursive Fibonacci looks exactly as recursive as anything above:
+
+   ```python
+   def fib(n, calls):
+       calls[0] += 1
+       if n <= 1:
+           return n
+       return fib(n - 1, calls) + fib(n - 2, calls)
+
+   for n in [5, 10, 20, 30]:
+       calls = [0]
+       result = fib(n, calls)
+       print(f"fib({n}) = {result}, calls = {calls[0]}")
+   # fib(5)  = 5,      calls = 15
+   # fib(10) = 55,     calls = 177
+   # fib(20) = 6765,   calls = 21891
+   # fib(30) = 832040, calls = 2692537
+   ```
+
+   Its recurrence is `T(n) = T(n-1) + T(n-2) + O(1)` — two recursive calls, like merge sort's two, but the subproblem sizes are `n-1` and `n-2`, not `n/2`. The Master Theorem requires subproblems to shrink by a constant *factor* (`n/b`); Fibonacci's shrink by a constant *amount*. That's not a technicality — it's the entire reason the call count above explodes almost as fast as `fib(n)` itself (the true bound is Θ(φⁿ), φ ≈ 1.618, the golden ratio) even though the *answer* only has `n` distinct subproblems. Every one of those ~2.7 million calls for `fib(30)` is redundant work recomputing the same handful of values over and over. Sit with that gap — between "n distinct subproblems" and "2.7 million calls" — because closing it is the entire subject of the next module.
+
+## Check on learning
+
+- Without looking back at the answer key, re-derive Case (f) from step 2 (`T(n) = 4T(n/2) + O(n²)`) using the recursion tree method directly — draw the levels, compute the work per level, and show why it comes out to Θ(n² log n) rather than Θ(n²).
+- Explain out loud why `all_subsets`'s recursion tree has `2^(n+1) - 1` nodes while merge sort's has only `2n - 1`, even though both trees have exactly two children per internal node. What's the actual structural difference?
+- A friend says "Fibonacci is recursive, so it must be O(log n) or O(n log n) like the other divide-and-conquer algorithms in this lesson." Explain precisely where that reasoning breaks, using both the recursion-tree shape and the measured call counts from step 7.

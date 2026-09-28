@@ -1,0 +1,48 @@
+[
+  {
+    "id": "cs-foundations/tier-3/second-language-for-contrast/q1",
+    "type": "multiple_choice",
+    "prompt": "You write `total := addTax(19.99, \"0.08\")` where `addTax` is declared as `func addTax(price float64, rate float64) float64`. Why does Go refuse to even produce a binary, while the equivalent Python bug (passing a string where a number is expected) only raises TypeError once that specific line executes?",
+    "choices": [
+      "Go doesn't allow string literals anywhere in source code",
+      "Go performs static type checking across the whole program at compile time, so any call with a mismatched type is an error whether or not that code path ever runs; Python checks types dynamically, only when a line actually executes",
+      "Python's + operator doesn't support floats",
+      "Go secretly executes the program once during compilation to catch bugs before producing the binary"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cs-foundations/tier-3/second-language-for-contrast/q2",
+    "type": "multiple_choice",
+    "prompt": "Which statement best describes how a standard Java program actually executes?",
+    "choices": [
+      "Source code is interpreted line-by-line with no compilation step at all, the same as CPython running a .py file",
+      "Source is compiled ahead-of-time all the way down to native machine code, with no virtual machine involved, the same as Go and Rust",
+      "Source is compiled ahead-of-time to portable bytecode, which the JVM then interprets and/or just-in-time (JIT) compiles to native code at runtime",
+      "Java has no compilation step; the JVM only interprets raw source text directly"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "cs-foundations/tier-3/second-language-for-contrast/q3",
+    "type": "short_answer",
+    "prompt": "In Go's idiomatic error handling, what is the name of the built-in type used as the second return value to signal failure, as in `func divide(a, b float64) (float64, ____)`?",
+    "acceptedAnswers": [
+      "error"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-3/second-language-for-contrast/q4",
+    "type": "short_answer",
+    "prompt": "What flag do you add to `go run` (as in `go run -race yourfile.go`) to detect an unsynchronized concurrent read/write on shared memory, like the one on the unprotected primeCount counter?",
+    "acceptedAnswers": [
+      "-race",
+      "race"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-3/second-language-for-contrast/q5",
+    "type": "explain_back",
+    "prompt": "Explain, in your own words, why a Go Dog struct that embeds an Animal struct is not the same relationship as a Python class Dog(Animal). Cover what 'is-a' means in Python's type system (what isinstance(d, Animal) returning True buys you), why Go has no equivalent relationship for embedded structs, and specifically what happens if you try to pass a Dog value to a Go function whose parameter type is Animal."
+  }
+]

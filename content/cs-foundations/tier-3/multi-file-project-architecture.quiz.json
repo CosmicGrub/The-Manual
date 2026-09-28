@@ -1,0 +1,50 @@
+[
+  {
+    "id": "cs-foundations/tier-3/multi-file-project-architecture/q1",
+    "type": "multiple_choice",
+    "prompt": "A pathfinding function has argparse-parsing code written directly inside it, so it reads command-line flags itself instead of taking plain parameters. What's the main architectural problem this causes?",
+    "choices": [
+      "Python does not allow argparse to be used inside a function body",
+      "You can no longer unit-test the pathfinding logic without simulating command-line arguments, and you can't reuse it from a test, notebook, or future API without dragging argparse along",
+      "It causes a circular import between the CLI module and the algorithm module",
+      "It makes the function run measurably slower at runtime"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cs-foundations/tier-3/multi-file-project-architecture/q2",
+    "type": "multiple_choice",
+    "prompt": "Why do modern Python projects -- including the real `requests` library -- put their package under a `src/` directory instead of directly at the repository root?",
+    "choices": [
+      "It is a hard requirement enforced by PyPI before a package can be uploaded",
+      "It prevents pytest or Python from silently importing the uninstalled local directory instead of the actually-installed package, which can mask real packaging bugs",
+      "It makes `import` statements resolve faster at runtime",
+      "It is required before `pip install -e .` will work at all"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cs-foundations/tier-3/multi-file-project-architecture/q3",
+    "type": "short_answer",
+    "prompt": "What file does Poetry generate and automatically maintain that records the exact resolved version and cryptographic hash of every dependency, direct and transitive, so an install reproduces identically on another machine?",
+    "acceptedAnswers": [
+      "poetry.lock",
+      "poetry lock file",
+      "the poetry lock file"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-3/multi-file-project-architecture/q4",
+    "type": "short_answer",
+    "prompt": "In the routeplanner package built in this lesson, what is the name of the Factory function in strategies.py that takes a strategy name string like 'dijkstra' or 'bfs' and returns the matching callable?",
+    "acceptedAnswers": [
+      "get_strategy",
+      "get_strategy()"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-3/multi-file-project-architecture/q5",
+    "type": "explain_back",
+    "prompt": "Explain, in your own words, when introducing a Strategy/Factory pair genuinely pays for itself in a real project versus when it's overengineering. Use routeplanner's get_strategy (two real, tested implementations) as the case where it pays off, and describe what the single-implementation 'ResultFormatterFactory' counter-example from this lesson illustrates about premature abstraction."
+  }
+]

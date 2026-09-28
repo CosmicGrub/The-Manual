@@ -1,0 +1,372 @@
+---
+trackId: cs-foundations
+tier: 3
+title: Math Primer II: Linear Algebra & Calculus Basics for ML-Readiness
+order: 8
+estimatedHours: 14
+---
+
+Every model you'll build starting in AI/ML's Tier 1 — linear regression, logistic regression, a neural network's forward pass — is, underneath the framework code, doing exactly three things over and over: multiplying vectors and matrices together, computing how a loss function changes as you nudge its parameters, and nudging those parameters a little in the direction that shrinks it. That's the whole trick. A "layer" is a matrix multiply. "Training" is gradient descent. This module builds all three of those primitives from scratch, by hand, so that when they reappear wrapped in `torch.nn.Linear` or `model.fit()`, you recognize old friends instead of taking someone's word for how they work.
+
+This is also, deliberately, the last stop before this math gets load-bearing. AI/ML's Tier 1 assumes everything in this lesson is already solid — including the convex-optimization argument for *why* gradient descent works, not just that it does, and the numerical-stability instincts for why "mathematically identical" code can behave differently once it runs on real hardware. It will not re-derive either one. So treat every worked problem below as something you actually compute and check, not something you skim past. `numpy` shows up here for the first time in this curriculum — it's your calculator and your reference implementation, never a replacement for doing the arithmetic yourself first. (`pip install numpy` if you don't have it yet.)
+
+## What you'll leave this lesson knowing
+
+- How to implement vector and matrix operations (add, scale, dot product, matrix-vector and matrix-matrix multiplication) from scratch, understand what each one means geometrically, and verify your from-scratch code against `numpy`
+- Why matrix multiplication is not commutative, demonstrated concretely, and why that matters once you're composing transformations (or, later, neural network layers)
+- How to compute a derivative and a multivariable gradient two independent ways — symbolically and via numerical finite differences — and why the gradient points in the direction of steepest ascent
+- A rigorous, hand-verifiable argument for why gradient descent provably converges to the global minimum on a convex function, plus a concrete demonstration of it getting trapped on a non-convex one
+- How floating-point rounding works, why two mathematically equivalent formulas can produce meaningfully different numerical answers, and how to rewrite an unstable formula into a stable one
+
+## Do this
+
+1. **Build vectors from scratch, then verify the geometry by hand.** A vector is just a list of numbers, but the operations on it carry geometric meaning that's easy to lose once you're calling `np.dot` without thinking. Implement addition, scalar multiplication, dot product, and norm (length) using nothing but plain Python:
+
+   ```python
+   import math
+
+   def add(a, b):
+       return [ai + bi for ai, bi in zip(a, b)]
+
+   def scale(a, k):
+       return [k * ai for ai in a]
+
+   def dot(a, b):
+       return sum(ai * bi for ai, bi in zip(a, b))
+
+   def norm(a):
+       return math.sqrt(dot(a, a))
+   ```
+
+   The dot product has a second identity worth internalizing: `dot(a, b) = |a| |b| cos(theta)`, where `theta` is the angle between the two vectors. That means you can recover the angle between any two vectors purely from their components:
+
+   ```python
+   a = [3, 4]
+   b = [1, 2]
+   print(dot(a, b))       # 11
+   print(norm(a))         # 5.0
+   print(norm(b))         # 2.23606797749979
+
+   cos_theta = dot(a, b) / (norm(a) * norm(b))
+   print(cos_theta)                          # 0.9838699100999074
+   print(math.degrees(math.acos(cos_theta))) # 10.304846468766044
+   ```
+
+   Before running the next two, predict them by hand: what should `dot([1, 0], [0, 1])` be for two vectors pointing in perpendicular directions? What should the cosine of the angle between `[2, 2]` and `[4, 4]` be, given that one is just the other scaled by 2 (same direction)? Check your predictions:
+
+   ```python
+   print(dot([1, 0], [0, 1]))   # 0 -- perpendicular vectors have zero dot product
+   c, d = [2, 2], [4, 4]
+   print(dot(c, d) / (norm(c) * norm(d)))   # 0.9999999999999998 -- ~1, same direction
+   ```
+
+   A dot product of exactly 0 means "no overlap in direction" (orthogonal); a cosine near 1 means "pointing the same way." Hold onto that — cosine similarity computed this exact way is the literal mechanism behind embedding search in every modern retrieval and recommendation system you'll touch later.
+
+2. **Use the dot product for something concretely predictive: projection, and a linear model's prediction.** The projection of vector `a` onto vector `b` — "how much of `a` points in `b`'s direction" — is `(dot(a, b) / dot(b, b)) * b`. Sanity check it against something you can verify by eye: projecting `[3, 4]` onto the x-axis (`[1, 0]`) should just strip out the y-component and leave `[3, 0]`:
+
+   ```python
+   def project(a, onto):
+       scalar = dot(a, onto) / dot(onto, onto)
+       return scale(onto, scalar)
+
+   print(project([3, 4], [1, 0]))   # [3.0, 0.0]
+   ```
+
+   Now the part that actually matters going forward: a linear model's prediction — the thing linear regression, logistic regression, and every fully-connected neural network layer computes — is *literally a dot product plus a bias term*: `prediction = dot(weights, features) + bias`. Take a toy house-price model with weights `[150, 10000]` (dollars per square foot, dollars per bedroom) and bias `20000` (base price), applied to a 1500 sq ft, 3-bedroom house:
+
+   ```python
+   w = [150, 10000]
+   x = [1500, 3]
+   bias = 20000
+   prediction = dot(w, x) + bias
+   print(prediction)   # 275000
+   ```
+
+   That's the entire computation inside a single linear-regression prediction, or inside one neuron of a neural network before the activation function. Everything you'll build in AI/ML's Tier 1 is this operation, batched across many examples and many weights at once — which is exactly why the next two steps are matrices.
+
+3. **Implement matrix-vector multiplication from scratch, and read a matrix as "a transformation," not just a grid of numbers.** A matrix times a vector is just `dot()` applied row by row:
+
+   ```python
+   def matvec(M, v):
+       return [dot(row, v) for row in M]
+   ```
+
+   Two matrices worth knowing on sight: a 90-degree rotation, and a non-uniform scale.
+
+   ```python
+   R = [[0, -1],
+        [1,  0]]   # rotate 90 degrees counterclockwise
+
+   S = [[2, 0],
+        [0, 3]]    # stretch x by 2, y by 3
+
+   print(matvec(R, [1, 0]))   # [0, 1]  -- "east" becomes "north"
+   print(matvec(R, [0, 1]))   # [-1, 0] -- "north" becomes "west"
+   print(matvec(S, [1, 1]))   # [2, 3]
+   ```
+
+   Predict `matvec(R, [1, 1])` yourself before running it — rotate the point `(1, 1)` (pointing northeast) by 90 degrees counterclockwise and figure out where it lands — then check:
+
+   ```python
+   print(matvec(R, [1, 1]))   # [-1, 1] -- northeast rotates to northwest
+   ```
+
+   A matrix isn't a spreadsheet. It's a function from vectors to vectors, and every matrix you'll meet later (a weight matrix in a neural network layer, a covariance matrix, a rotation in a graphics pipeline) is doing exactly this: taking an input vector and producing an output vector by a fixed linear rule.
+
+4. **Implement matrix-matrix multiplication from scratch, and prove to yourself that order matters.** Matrix multiplication is dot products all the way down: entry `(i, j)` of `A @ B` is the dot product of row `i` of `A` with column `j` of `B`.
+
+   ```python
+   def matmul(A, B):
+       n, m, p = len(A), len(B), len(B[0])
+       result = [[0] * p for _ in range(n)]
+       for i in range(n):
+           for j in range(p):
+               result[i][j] = sum(A[i][k] * B[k][j] for k in range(m))
+       return result
+   ```
+
+   Sanity check against a textbook pair before trusting it on anything else:
+
+   ```python
+   A = [[1, 2], [3, 4]]
+   B = [[5, 6], [7, 8]]
+   print(matmul(A, B))   # [[19, 22], [43, 50]]
+   ```
+
+   That triple-nested loop is O(n^3) for two n×n matrices — three nested loops, each running n times. (Faster algorithms like Strassen's exist and get closer to O(n^2.8), but you don't need to implement one; just know the naive bound.) Now compose the rotation and scale matrices from step 3 in both orders and compare:
+
+   ```python
+   RS = matmul(R, S)
+   SR = matmul(S, R)
+   print(RS)   # [[0, -3], [2, 0]]
+   print(SR)   # [[0, -2], [3, 0]]
+   ```
+
+   They're different matrices. "Rotate, then scale" is not the same transformation as "scale, then rotate" — picture stretching a circle into an ellipse and *then* spinning it, versus spinning the circle *then* stretching it along the (now-fixed) x and y axes; the results point in genuinely different directions. Matrix multiplication is associative but not commutative, and this is exactly why the order of layers in a neural network changes what the network computes, and why `A @ B` and `B @ A` in real code are two different, non-interchangeable operations. Verify all four of the outputs above against `numpy` before moving on — `import numpy as np; np.array(A) @ np.array(B)` should match every result you just hand-derived.
+
+5. **Get a numeric handle on the derivative, and use it to check your algebra.** The derivative of `f` at `x` is the instantaneous rate of change — the slope of the line tangent to `f`'s graph at that exact point. You almost certainly know the power rule already (`f(x) = x^2` → `f'(x) = 2x`), but the *numerical* way to estimate a derivative, without knowing any calculus rules at all, is to just measure the slope over a tiny interval — the central-difference formula:
+
+   ```python
+   def numerical_derivative(f, x, h=1e-5):
+       return (f(x + h) - f(x - h)) / (2 * h)
+
+   def f(x):
+       return x ** 2
+
+   print(numerical_derivative(f, 3))   # 6.000000000039306
+   # true value: f'(3) = 2*3 = 6 -- matches to 10 decimal places
+   ```
+
+   Compare central difference against the cruder forward-difference formula (`(f(x+h) - f(x)) / h`) at a coarse step size to see *why* central difference is the better default — its error shrinks as `h^2`, forward difference's error only shrinks as `h`:
+
+   ```python
+   def forward_diff(f, x, h):
+       return (f(x + h) - f(x)) / h
+
+   print(forward_diff(f, 3, 0.1))   # 6.100000000000012  -- off by 0.1
+   print(numerical_derivative(f, 3, 0.1))   # try it -- much closer to 6 at the same h
+   ```
+
+   Now check it against a function whose derivative you compute by hand first: `f2(x) = x^3 - 2x` has `f2'(x) = 3x^2 - 2`, so `f2'(2) = 3(4) - 2 = 10`. Confirm:
+
+   ```python
+   def f2(x):
+       return x**3 - 2*x
+
+   print(numerical_derivative(f2, 2))   # 10.000000000198739
+   ```
+
+   This "check the symbolic answer numerically" habit is not a toy exercise — it's the literal technique (called gradient checking) used to debug real backpropagation implementations, because a numeric derivative doesn't care whether your calculus or your code has a bug in it.
+
+6. **Extend this to multiple variables: the gradient.** For a function of several variables, the partial derivative with respect to one variable treats every other variable as a constant, and the **gradient** is just the vector of all the partial derivatives — it points in the direction of steepest *ascent* at that point (its negative points toward steepest descent, which is the entire idea behind step 7). Take `g(x, y) = x^2 + y^2` (a bowl centered at the origin). By hand: `∂g/∂x = 2x`, `∂g/∂y = 2y`, so the gradient at `(3, 4)` is `[6, 8]`. Confirm it numerically, applying the same central-difference trick one coordinate at a time:
+
+   ```python
+   def g(v):
+       x, y = v
+       return x**2 + y**2
+
+   def numerical_gradient(f, v, h=1e-5):
+       grad = []
+       for i in range(len(v)):
+           v_plus = list(v); v_plus[i] += h
+           v_minus = list(v); v_minus[i] -= h
+           grad.append((f(v_plus) - f(v_minus)) / (2 * h))
+       return grad
+
+   print(numerical_gradient(g, [3, 4]))   # [6.000000000128124, 7.999999999874773]
+   ```
+
+   Matches `[6, 8]` to nine decimal places. Keep `numerical_gradient` around — it's your bug-checking tool for the rest of this lesson and for every gradient you'll ever hand-derive later.
+
+7. **Implement gradient descent from scratch on a convex function, and derive its exact convergence condition instead of just trusting a default learning rate.** Take `f(x) = (x - 3)^2`, with true minimum at `x = 3` and `f'(x) = 2(x - 3)`. Gradient descent's update rule is always the same shape: move a small step in the direction *opposite* the gradient, `x_new = x - lr * f'(x)`.
+
+   ```python
+   def f(x):
+       return (x - 3) ** 2
+
+   def fprime(x):
+       return 2 * (x - 3)
+
+   def gradient_descent(x0, lr, steps):
+       x = x0
+       trajectory = [x]
+       for _ in range(steps):
+           x = x - lr * fprime(x)
+           trajectory.append(x)
+       return trajectory
+
+   print(gradient_descent(0, 0.1, 10))
+   # [0, 0.6, 1.08, 1.464, 1.7712, 2.01696, 2.21357, 2.37085, 2.49668, 2.59735, 2.67788]
+   ```
+
+   Before checking, derive *why* it converges: substitute `f'(x) = 2(x-3)` into the update rule and you get `x_new = x - lr*2*(x - 3) = (1 - 2*lr)*x + 6*lr`, an affine recurrence. Writing the error as `e_t = x_t - 3`, this simplifies to `e_t = (1 - 2*lr)^t * e_0` — the error shrinks geometrically by a factor of `|1 - 2*lr|` every single step, *if and only if* `|1 - 2*lr| < 1`, i.e. `0 < lr < 1`. With `lr = 0.1`, that factor is `0.8`, so after 10 steps you should be at `3 - 3*(0.8)^10 = 2.6778774528` — check it against the trajectory above: it matches exactly.
+
+   Now break it on purpose, to feel the boundary of that condition:
+
+   ```python
+   print(gradient_descent(0, 1.0, 6))
+   # [0, 6.0, 0.0, 6.0, 0.0, 6.0, 0.0]  -- lr=1.0 gives factor |1-2|=1: oscillates forever, never converges
+
+   print(gradient_descent(0, 1.5, 6))
+   # [0, 9.0, -9.0, 27.0, -45.0, 99.0, -189.0]  -- lr=1.5 gives factor |1-3|=2: diverges, doubling in magnitude every step
+   ```
+
+   This is not a toy result — it is, in miniature, the exact proof of gradient descent's convergence rate on any convex quadratic, and the reason an over-large learning rate makes a real neural network's loss explode to `NaN` in the first few training steps rather than "just converge slowly." Numerical divergence and a bad optimization choice are the same failure, seen from two angles.
+
+8. **Define convexity precisely, prove the "critical point = global minimum" claim in two lines, then watch it fail on a function that isn't convex.** A function `f` is convex if the line segment between any two points on its graph never dips below the graph — formally, `f(t*x + (1-t)*y) <= t*f(x) + (1-t)*f(y)` for all `x, y` and `t` in `[0, 1]`. For a differentiable function, an equivalent (and more useful) condition is that the tangent line at any point is a *global* lower bound on the entire function: `f(y) >= f(x) + f'(x)*(y - x)` for all `x, y`. Here is the whole proof that a critical point of a convex function is a global minimum, not just a local one: if `f'(x*) = 0`, the inequality above becomes `f(y) >= f(x*) + 0` — that is, `f(y) >= f(x*)` for *every* `y`. That's exactly the definition of `x*` being a global minimum. Nothing about local neighborhoods, no case analysis — the tangent-line inequality does all the work, and it's *why* the quadratic in step 7 was guaranteed to have gradient descent land on its one true minimum no matter the (valid) learning rate or starting point.
+
+   Now try a function where that guarantee doesn't hold. `h(x) = x^4/4 - x^3/3 - 3x^2` has `h'(x) = x^3 - x^2 - 6x = x(x+2)(x-3)`, giving three critical points: `x = -2, 0, 3`. Working out `h''(x) = 3x^2 - 2x - 6` at each one shows `x = -2` and `x = 3` are local minima (`h''(-2) = 10 > 0`, `h''(3) = 15 > 0`) while `x = 0` is a local *maximum* (`h''(0) = -6 < 0`) sitting between them. Evaluate `h` at the two minima: `h(-2) = -16/3 ≈ -5.33`, `h(3) = -15.75`. They're not equal — `x = 3` is the true global minimum, and `x = -2` is only a local one. Run gradient descent from a point on each side of the local maximum at `x = 0` and watch it land in two different places:
+
+   ```python
+   def h(x):
+       return x**4 / 4 - x**3 / 3 - 3 * x**2
+
+   def hprime(x):
+       return x**3 - x**2 - 6 * x
+
+   def gd_1d(x0, lr, steps):
+       x = x0
+       for _ in range(steps):
+           x = x - lr * hprime(x)
+       return x
+
+   print(gd_1d(-0.5, 0.01, 2000))   # -1.999999999999999  -- stuck at the LOCAL minimum, -2
+   print(gd_1d(0.5, 0.01, 2000))    # 2.9999999999999987  -- finds the GLOBAL minimum, 3
+   ```
+
+   Same algorithm, same learning rate, same number of steps — the only thing that changed is which side of `x = 0` you started on, and it landed on two minima nearly 10.4 points apart in loss value. This is not a bug in gradient descent; it's mathematically unavoidable once `f` is non-convex, because the tangent-line argument from the last paragraph simply doesn't hold anymore. It is also exactly why training a real (almost never convex) neural network relies on things like random weight initialization, momentum, and learning-rate schedules rather than a single guaranteed-correct run — those techniques exist precisely to cope with the failure mode you just reproduced by hand.
+
+9. **See floating-point rounding error with your own eyes, and know why it happens.** Run this:
+
+   ```python
+   print(0.1 + 0.2)          # 0.30000000000000004
+   print(0.1 + 0.2 == 0.3)   # False
+
+   import sys
+   print(sys.float_info.epsilon)   # 2.220446049250313e-16
+   ```
+
+   `0.1` cannot be represented exactly in binary floating point, for the same structural reason `1/3` cannot be written exactly in decimal: it's a repeating fraction in that base. The computer stores the *nearest representable double* instead, off by a tiny amount, and that tiny amount is bounded by machine epsilon (`~2.22 * 10^-16` for a 64-bit double — roughly the smallest relative gap between one representable number and the next). Individually these errors are irrelevant. The problem is that they don't always cancel out, and different but mathematically equivalent sequences of operations round differently — which is the entire subject of the next step.
+
+10. **Break a "mathematically equivalent" formula on purpose, three different ways, and fix each one.** First, the classic: the quadratic formula, applied to `a*x^2 + b*x + c = 0`, has two mathematically equivalent forms for each root, and they are *not* equally safe to compute. Construct a quadratic whose exact roots you already know — `x^2 - (10^5 + 10^-5)x + 1 = 0` has roots exactly `100000` and `0.00001`, by design (their sum is `10^5 + 10^-5` and their product is `1`):
+
+   ```python
+   import math
+
+   a, b, c = 1.0, -(1e5 + 1e-5), 1.0
+   disc = b**2 - 4*a*c
+   sqrt_disc = math.sqrt(disc)
+
+   root_big = (-b + sqrt_disc) / (2*a)
+   root_small_naive = (-b - sqrt_disc) / (2*a)
+   print(root_big)          # 100000.0            -- exactly right
+   print(root_small_naive)  # 1.0000003385357559e-05  -- should be 1e-05
+   ```
+
+   `root_big` is fine because it adds two large same-signed numbers. `root_small_naive` subtracts two nearly-equal large numbers (`100000.00001` and `99999.99999`) to produce a result three orders of magnitude smaller than either — this is **catastrophic cancellation**: most of the significant digits in the two large operands cancel out, so the tiny rounding error each one carried (in the 11th–16th digit) survives and now dominates the much smaller answer. The relative error here is about `3.4 * 10^-7` — you've lost roughly 7 of your 16 available digits of precision, just from the order you did the arithmetic in. The fix uses a *different, still mathematically exact* identity — Vieta's formula, `root_small * root_big = c/a` — to compute the small root from the accurate big one instead of by subtraction:
+
+   ```python
+   root_small_stable = c / (a * root_big)
+   print(root_small_stable)   # 1e-05  -- exact
+   ```
+
+   Second, order of summation. Add a million tiny numbers into one big accumulator, the naive way, and compare against `numpy`'s pairwise summation and Python's exact `math.fsum`:
+
+   ```python
+   total = 1e8
+   for _ in range(10**6):
+       total += 1e-8
+   print(total)                          # 100000000.01490116  -- should be 100000000.01
+
+   import numpy as np, math
+   arr = np.array([1e8] + [1e-8] * 10**6)
+   print(np.sum(arr))                    # 100000000.01000005  -- much closer
+   print(math.fsum(arr.tolist()))        # 100000000.01         -- exact
+   ```
+
+   The naive running total is off by about `0.0049` — half the size of the entire `0.01` you were trying to add — because each `1e-8` addition to a `~1e8` accumulator gets rounded away individually before it can accumulate with the others. `numpy`'s pairwise summation and `math.fsum`'s compensated summation both use smarter *orders of operation* on the exact same numbers to avoid this.
+
+   Third, a real one straight out of every neural network's output layer: `softmax(x) = exp(x) / sum(exp(x))`, computed two mathematically identical ways:
+
+   ```python
+   def softmax_naive(x):
+       ex = np.exp(x)
+       return ex / np.sum(ex)
+
+   def softmax_stable(x):
+       x = x - np.max(x)      # subtract the max first -- shifts every exponent down, changes NOTHING mathematically
+       ex = np.exp(x)
+       return ex / np.sum(ex)
+
+   x = np.array([1000.0, 1001.0, 1002.0])
+   print(softmax_naive(x))    # [nan nan nan]  -- exp(1000) overflows a double and blows up
+   print(softmax_stable(x))   # [0.09003057 0.24472847 0.66524096]
+   ```
+
+   Subtracting the max before exponentiating doesn't change the mathematical answer at all (it cancels out of the ratio exactly), but it keeps every exponent at or below zero, which keeps `exp()` from overflowing. Every real softmax implementation you'll ever import does this; now you know exactly why, instead of treating it as a magic incantation.
+
+11. **Tie all of it together: fit a line with gradient descent, using nothing but the tools you built above.** Given data that lies exactly on `y = 2x + 1`:
+
+    ```python
+    import numpy as np
+
+    x = np.array([1., 2., 3., 4., 5.])
+    y = np.array([3., 5., 7., 9., 11.])
+
+    def mse(w, b):
+        pred = w * x + b
+        return np.mean((pred - y) ** 2)
+
+    def grad(w, b):
+        pred = w * x + b
+        err = pred - y
+        dw = 2 * np.mean(err * x)   # partial derivative of MSE w.r.t. w
+        db = 2 * np.mean(err)       # partial derivative of MSE w.r.t. b
+        return dw, db
+
+    w, b = 0.0, 0.0
+    lr = 0.01
+    for _ in range(2000):
+        dw, db = grad(w, b)
+        w -= lr * dw
+        b -= lr * db
+
+    print(w, b)          # 2.0001312429307236 0.9995261713769317
+    print(mse(w, b))     # 4.0865396639700454e-08 -- essentially zero
+    ```
+
+    Check it against `numpy`'s closed-form least-squares solver, which uses linear algebra directly rather than iterating:
+
+    ```python
+    A = np.vstack([x, np.ones_like(x)]).T
+    solution, *_ = np.linalg.lstsq(A, y, rcond=None)
+    print(solution)   # [2. 1.]
+    ```
+
+    Both routes land on `w ≈ 2`, `b ≈ 1` — the exact line the data was generated from. This one function is doing everything from this entire lesson at once: `w * x` is a dot product (step 1–2), the loss surface `mse(w, b)` is a convex bowl in `(w, b)`-space so gradient descent is guaranteed to find its one true minimum (step 8), `dw` and `db` are the two partial derivatives of that surface (step 6), and the update loop is exactly the convergence process you derived and proved by hand in step 7. This is, in miniature, what every training loop you'll write from AI/ML's Tier 1 onward actually does.
+
+## Check on learning
+
+- State, from memory and without looking back, the two-line proof that a critical point of a convex function is a global minimum — then explain precisely which step of that argument breaks down for the non-convex `h(x)` from step 8.
+- Without using the word "rounding," explain why the naive quadratic formula and the Vieta's-formula version can return different answers for the exact same mathematical roots, and why the gap gets worse the larger `b` is relative to the roots.
+- From memory, write out the partial derivative of the linear-regression MSE loss with respect to `w` from step 11, and explain in plain language what each piece of that formula represents and why subtracting `lr * dw` from `w` makes the loss go down.

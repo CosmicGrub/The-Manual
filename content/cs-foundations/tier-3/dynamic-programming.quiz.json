@@ -1,0 +1,49 @@
+[
+  {
+    "id": "cs-foundations/tier-3/dynamic-programming/q1",
+    "type": "multiple_choice",
+    "prompt": "What is the core difference between memoization and tabulation?",
+    "choices": [
+      "Memoization is top-down (recursion plus a cache of results already computed); tabulation is bottom-up (an iteratively-filled table, no recursion)",
+      "Memoization only works on integer inputs, while tabulation works on any data type",
+      "Tabulation is a way to convert a DP solution into a greedy one",
+      "Memoization requires you to already know the final answer before you start"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "cs-foundations/tier-3/dynamic-programming/q2",
+    "type": "multiple_choice",
+    "prompt": "The naive recursive Fibonacci function runs in exponential time because its recursion tree has O(2^n) calls. After memoizing it by caching on `n`, what is its time complexity, and why?",
+    "choices": [
+      "O(n^2), because memoization still explores both recursive branches of every call before checking the cache",
+      "O(n), because there are only n+1 unique subproblems (fib(0) through fib(n)), and each is computed exactly once",
+      "O(2^n) still, because memoization only reduces memory use, not the number of computations",
+      "O(log n), because caching turns the recursion into an implicit binary search over n"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cs-foundations/tier-3/dynamic-programming/q3",
+    "type": "short_answer",
+    "prompt": "Using the standard edit-distance recurrence (insertion, deletion, and substitution each cost 1), what is the edit distance between \"kitten\" and \"sitting\"?",
+    "acceptedAnswers": [
+      "3",
+      "three"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-3/dynamic-programming/q4",
+    "type": "short_answer",
+    "prompt": "What is the LENGTH of the longest common subsequence of \"ABCBDAB\" and \"BDCABA\"?",
+    "acceptedAnswers": [
+      "4",
+      "four"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-3/dynamic-programming/q5",
+    "type": "explain_back",
+    "prompt": "In your own words, explain the two properties a problem must have to be solved with dynamic programming (optimal substructure and overlapping subproblems). Then pick either 0/1 Knapsack or Coin Change and walk through, step by step, how you would go from the plain English problem statement to the actual recurrence: what state you track, what choice you make at each step, and what the base case is."
+  }
+]
