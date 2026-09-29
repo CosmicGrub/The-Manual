@@ -375,3 +375,14 @@ All notable changes to The Manual (curriculum + app) are logged here. This file 
 **What this does and doesn't confirm:** this validates real layout/overflow/touch-target behavior under an accurate emulation of both devices' screens, using the actual production build and real content. It does **not** confirm PWA install behavior, offline service-worker caching, or touch/gesture feel on the real hardware — those need the physical devices themselves, which requires a session running on a computer that can actually reach them (e.g., Claude Code Remote Control from the user's own PC), not this cloud sandbox.
 
 **Status:** Tagged `v0.27.0` — the first release. `app/package.json` version synced to `0.27.0`. `npm run build` passed clean.
+
+## [0.28.0] — 2026-09-29 — Hardware & Computer Systems Tier 0: the fifth track begins
+
+**Context:** Continuing the tier-by-tier pattern with the fifth track. Tier 0 is deliberately light on two things by design — assembly (Tier 1's job) and networking (Tier 3's job) — and this tier's electricity module carries genuine safety weight for an unsupervised self-taught learner, so it was written with explicit, non-negotiable low-voltage-DC-only boundaries rather than generic caution.
+
+**Added**
+- `content/hardware-systems/tier-0/*.mdx` (4 files) + matching quizzes: Number Systems & Boolean Basics (real worked base-conversion and two's-complement examples, including verifying -42's encoding by adding it to +42 and watching the carry bit discard to zero), What's Actually Inside a Computer, Electricity Fundamentals & Lab Safety (explicit, concrete boundaries: never work on mains/AC wiring, never open a PSU, never open a CRT — with the actual physical reasons why each is dangerous, not generic warnings), Setting Up Your Toolkit.
+
+**Result:** `npm run build` passed clean on the first attempt. 151 unique slugs verified repo-wide.
+
+**Status:** Hardware & Computer Systems Tier 0 started (22h, 4 lessons) — the fifth track in The Manual to get real lesson content. Tiers 1-5 remain.

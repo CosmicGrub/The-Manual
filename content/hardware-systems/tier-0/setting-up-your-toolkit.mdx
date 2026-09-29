@@ -1,0 +1,107 @@
+---
+trackId: hardware-systems
+tier: 0
+title: "Setting Up Your Toolkit"
+order: 4
+estimatedHours: 3
+slug: setting-up-your-toolkit
+---
+
+## Installing Logisim Evolution
+
+Logisim Evolution is a free, open-source digital logic simulator. You'll use it throughout this track to build circuits out of gates instead of just reading about them. It runs on Java, so the install steps differ slightly by platform, but the shape is the same everywhere: get a Java runtime, get the Logisim Evolution file, run it.
+
+**Windows**
+1. Go to the Logisim Evolution releases page on GitHub (`logisim-evolution/logisim-evolution`).
+2. Download the `.exe` installer if one is listed for the current release, and run it — no separate Java install needed, it's bundled.
+3. If only a `.jar` file is available, install a Java Runtime Environment first (Eclipse Temurin JRE 17 or newer is a safe default), then either double-click the `.jar` or run `java -jar logisim-evolution.jar` from Command Prompt in the folder where you saved it.
+
+**macOS**
+1. If you have Homebrew, run `brew install logisim-evolution` in Terminal.
+2. Otherwise download the `.jar` from the releases page. Install Java first if you don't have it: `brew install openjdk`. Then run `java -jar logisim-evolution.jar` from Terminal.
+3. If macOS blocks the app as "unidentified developer," go to System Settings > Privacy & Security and allow it there — don't disable Gatekeeper system-wide for this.
+
+**Linux**
+1. Most distributions: install a JRE first if you don't have one, e.g. `sudo apt install default-jre` on Debian/Ubuntu.
+2. Download the `.deb`, `.rpm`, or plain `.jar` from the releases page, matching your package manager, or just run the jar directly: `java -jar logisim-evolution.jar`.
+
+**Verify it worked**: open the app, drag a NOT gate onto the canvas from the Gates panel, wire an input pin and output pin to it, then click the input pin to toggle it. If the output LED flips state, the install is good. If nothing opens, the most common cause is a missing or too-old Java — check with `java -version` in a terminal; you want 11 or higher.
+
+## Building a Hex/Binary Calculator Habit
+
+The habit that separates people who understand binary from people who just push buttons on a calculator: **do the conversion in your head or on paper first, then use a calculator only to check yourself.** Calculator-first means you never build the mental model. Mental-math-first with verification means every conversion either confirms what you already believe or catches a real misunderstanding — both are useful, and a calculator alone gives you neither.
+
+**Worked example 1 — hex to binary and decimal, by hand.**
+
+Convert `0x4F`:
+- Split into nibbles: `4` and `F`.
+- `4` = `0100` in binary. `F` = `1111` in binary.
+- Combined: `0100 1111`, i.e. `01001111`.
+- Decimal: `4 × 16 + 15 × 1 = 64 + 15 = 79`.
+
+Now verify. Open a calculator in programmer/hex mode (Windows Calculator's Programmer view, macOS Calculator's Programmer view, or type `hex(0x4F)` / `bin(0x4F)` in a Python shell) and enter `4F`. It should show binary `01001111` and decimal `79`. If it matches, you've confirmed your mental model. If it doesn't, you now know exactly which step to re-examine instead of just copying the right answer and moving on.
+
+**Worked example 2 — binary addition, by hand.**
+
+Add `10110 + 01101`:
+```
+   10110
+ + 01101
+ -------
+```
+Work right to left with carries: `0+1=1`, `1+0=1`, `1+1=10` (write `0`, carry `1`), `0+1+1(carry)=10` (write `0`, carry `1`), `1+0+1(carry)=10` (write `0`, carry `1`), then the final carry becomes a new leading bit: `100011`.
+
+Verify: `10110` = 22, `01101` = 13. `22 + 13 = 35`. Convert 35 to binary with a calculator: `100011`. Matches.
+
+**The habit, concretely**: every time this course (or a real debugging session later) hands you a hex or binary number, cover the calculator, do the conversion on paper, write your answer down, *then* check it. Do this for at least 15-20 conversions before you let yourself skip the manual step — it's a fast habit to build and a slow one to rebuild once you've skipped it too many times.
+
+## Asking an AI Assistant vs. Outsourcing Your Thinking
+
+An AI assistant is a legitimate tool here, but there's a real difference between using it to sharpen your understanding and using it to avoid building understanding at all.
+
+**Outsourcing (avoid this):**
+> "What's 0x3E in binary and decimal?"
+
+This just does the exercise for you. You get an answer with zero retained understanding, and you haven't practiced the skill you're trying to build.
+
+**Asking (do this instead):**
+> "I converted 0x3E to binary by hand and got 111110, but a calculator shows 00111110. Are these the same value? If so, why does Logisim (and hardware in general) sometimes pad with leading zeros instead of showing the shortest form?"
+
+Notice the difference: the second version shows your actual work, names a specific confusion, and asks a question whose answer teaches you something you'll reuse (fixed bit-widths matter in hardware — a byte is always 8 bits, whether or not the leading bits are zero). The first version has no work in it at all, so there's nothing to correct and nothing to learn.
+
+A useful test before you send a question to an AI assistant: **could a good answer only make sense to me if I've already done some of the thinking myself?** If yes, ask it. If the question could be answered by a stranger with zero context on what you're stuck on, you're probably about to skip a step you needed.
+
+## Basic Git for a Lab Notebook
+
+You don't need branches, pull requests, or any collaboration workflow to get real value from git here. You need exactly one habit: **one commit per lab session.**
+
+**One-time setup:**
+```
+mkdir hardware-lab-notebook
+cd hardware-lab-notebook
+git init
+```
+
+**Every session, at the end (not mid-session, and not only when something "works"):**
+```
+git add .
+git commit -m "Session 4 - half adder in Logisim, sum bit correct, carry bit wrong for 1+1"
+```
+
+**What actually goes in the commit:**
+- The Logisim `.circ` file you were working on, saved as-is.
+- A short `notes.md` entry: the date, what you attempted, what happened, and one open question. Three or four sentences is enough.
+- Optionally, a screenshot of the circuit or its truth table if it clarifies something text can't.
+
+The point of committing an unfinished or broken circuit is not decoration — it's that the record of *where you got stuck* is often more useful later than the record of what finally worked. A commit history where every entry is a working, perfect circuit means you're editing your own history and losing the debugging trail. Commit the mess.
+
+## Exercise
+
+Do all four pieces in one sitting:
+
+1. Install Logisim Evolution and confirm it runs (the NOT-gate test above).
+2. Build a 2-input AND gate circuit with two input pins and one output pin, and manually work out its truth table before testing it in the simulator.
+3. By hand, convert `0x9A` to binary and to decimal. Verify with a calculator.
+4. Set up a `hardware-lab-notebook` git repo (if you haven't already), write a `notes.md` entry describing what you built and your conversion work, and make one commit with a specific, descriptive message.
+
+**Hint**: in Logisim Evolution, gates live in the "Gates" library in the left-hand panel, and input/output pins live in the "Wiring" library. Drag a pin, an AND gate, and another pin onto the canvas, then draw wires between them by clicking and dragging from one terminal to another.

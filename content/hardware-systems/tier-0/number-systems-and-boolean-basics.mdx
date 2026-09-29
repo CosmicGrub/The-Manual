@@ -1,0 +1,112 @@
+---
+trackId: hardware-systems
+tier: 0
+title: "Number Systems & Boolean Basics"
+order: 1
+estimatedHours: 8
+slug: number-systems-and-boolean-basics
+---
+
+Every number, letter, and true/false value inside a real computer is ultimately a fixed-width pattern of bits — there is no other storage format underneath. This lesson gives you by-hand fluency moving between the four number systems you'll see everywhere (binary, octal, decimal, hex), shows you exactly how a byte represents a *negative* number, shows you how a string of text becomes a string of bytes, and builds out the four logic operations — AND, OR, NOT, XOR — that every digital circuit and every bitwise operator in every programming language reduces to. Every example below uses real numbers you can check by hand or on a calculator's "Programmer" mode.
+
+## Decimal, Binary, Octal, and Hex Are One Number, Four Labels
+
+A number system is just a choice of *base*: how many digits it uses before rolling over to a new place value. Decimal (base 10) uses digits 0-9, each position worth a power of 10 (…, 100s, 10s, 1s). Binary (base 2) uses only 0 and 1, each position worth a power of 2. Octal (base 8) uses 0-7, powers of 8. Hexadecimal (base 16) uses 0-9 then A-F for the values 10-15, powers of 16.
+
+Take the decimal number **173** and convert it to all three. For binary, find which powers of 2 sum to 173: 128 + 32 + 8 + 4 + 1 = 173. Mark a 1 at those positions and 0 everywhere else, from the 128s place down to the 1s place:
+
+```
+128 64 32 16 8 4 2 1
+  1  0  1  0 1 1 0 1
+```
+
+That's **10101101** in binary — 8 digits, a byte's worth of bits. Check it: 128+32+8+4+1 = 173. Correct.
+
+For octal, repeatedly divide by 8 and read the remainders bottom to top: 173 ÷ 8 = 21 remainder **5**; 21 ÷ 8 = 2 remainder **5**; 2 ÷ 8 = 0 remainder **2**. Reading remainders last-computed to first: **255** in octal. (Yes — octal 255 and decimal 255 are different quantities. Octal 255 equals decimal 173. This is exactly why you always tag a number with its base: a subscript like 255₈, or a prefix like `0o255`.)
+
+For hex, the same trick with base 16: 173 ÷ 16 = 10 remainder **13**; 10 ÷ 16 = 0 remainder **10**. In hex, 13 is written `D` and 10 is written `A`. Remainders last-to-first: **AD**, written `0xAD` in code.
+
+So: **173 (decimal) = 10101101 (binary) = 255 (octal) = AD (hex)** — four labels, one quantity.
+
+Going hex↔binary is faster once you know the trick: since 16 = 2⁴, every hex digit is exactly 4 bits, so you convert by grouping, no division needed. Take `0x2F`: `2` = `0010`, `F` = `1111`, so `0x2F` = **00101111** in binary. Read that as decimal (32+8+4+2+1 = 47) and you get **47**. Same number, checked three ways: `0x2F` = `00101111` = `47`. (Octal works identically with groups of 3 bits, since 8 = 2³.)
+
+## Two's Complement: How a Byte Holds a Negative Number
+
+A byte with no sign convention just counts 0 to 255. To represent negatives, computers use **two's complement**, not a "minus sign bit" (that older scheme, sign-magnitude, produces two representations of zero and breaks ordinary addition — two's complement has neither problem). The rule: to negate a number, invert every bit, then add 1.
+
+Worked example — encode **-42** as an 8-bit signed integer. Start with +42 in binary: 32+8+2 = 42, so `00101010`. Invert every bit: `11010101`. Add 1: **`11010110`**. That's -42.
+
+Verify it two ways. First, read `11010110` directly as two's complement: the leftmost bit is the sign bit, worth -128 instead of +128, and the rest are ordinary place values: -128 + 64 + 16 + 4 + 2 = -42. Second, and more convincingly, add the encodings of +42 and -42 using plain binary addition and see what falls out:
+
+```
+  00101010   (+42)
++ 11010110   (-42)
+-----------
+ 100000000
+```
+
+Adding those two 8-bit numbers produces a 9-bit result, `100000000`. An 8-bit register only holds 8 bits, so that leading 9th bit — the carry out — is simply discarded by the hardware. What's left is `00000000`: zero. A positive number plus its two's complement negation, added with completely ordinary addition and one discarded carry bit, equals zero. That's the entire reason two's complement won: the CPU needs no special negative-number circuitry, just the same adder it already has for everything else.
+
+## Bits, Nibbles, Bytes, and Words: The Actual Units
+
+A **bit** is a single binary digit, 0 or 1 — the rightmost digit of `10101101` above is one bit. A **nibble** is 4 bits, exactly one hex digit, because 2⁴ = 16, the number of hex digits (0-F). Split `10101101` into nibbles — `1010` and `1101` — and you get `A` and `D`, which is exactly why that byte is written `0xAD` in hex: hex is shorthand for reading bits four at a time. A **byte** is 8 bits (2 nibbles): 0 to 255 unsigned, or -128 to 127 signed via two's complement, and it's exactly enough room to hold one ASCII character. A **word** is whatever width a given CPU's registers and native arithmetic use — 16 bits on old x86 chips, 32 bits through the 32-bit era, 64 bits on essentially every modern laptop and phone CPU today (x86-64, ARM64). A 64-bit word is 8 bytes and can represent 2⁶⁴ distinct unsigned values — over 18 quintillion — the same width as a general-purpose register like x86-64's `RAX`.
+
+## ASCII and Unicode: Text Is Just Numbers
+
+A text character is stored as a number, by agreement. **ASCII** assigns every English letter, digit, and punctuation mark a number from 0 to 127 (7 bits' worth), fitting comfortably in one byte with a spare bit. Encode the string **"Hi!"** by looking each character up:
+
+| Char | Decimal | Hex | Binary |
+|---|---|---|---|
+| H | 72 | 0x48 | 01001000 |
+| i | 105 | 0x69 | 01101001 |
+| ! | 33 | 0x21 | 00100001 |
+
+"Hi!" on disk or over a wire is nothing but the three bytes `72, 105, 33` — three numbers, no more mysterious than the number 173 above.
+
+ASCII's 128 codes run out fast: no accented letters (é, ñ), no non-Latin scripts (中文, العربية, Кириллица), no emoji. **Unicode** solves the coverage problem by assigning every character in every script its own unique number, called a code point — over 149,000 of them today. **UTF-8** is the most common way to pack those code points into bytes, and it stays byte-for-byte compatible with ASCII: any byte value from 0-127 means exactly the same character in both. Characters above that range spend more than one byte — é (code point 233) takes two UTF-8 bytes (`0xC3 0xA9`), not one, because UTF-8 reserves the high bit of every byte to signal "this is part of a multi-byte character." That's the whole reason Unicode/UTF-8 exists: ASCII was never designed to hold the world's text, only English's.
+
+## AND, OR, NOT, XOR: The Four Gates Everything Else Is Built From
+
+Every digital circuit, and every bitwise operator (`&`, `|`, `~`, `^`) in every programming language, reduces to these four truth tables. Build them out completely — every row, no shortcuts.
+
+**AND** (true only if both inputs are true):
+
+| A | B | A AND B |
+|---|---|---|
+| 0 | 0 | 0 |
+| 0 | 1 | 0 |
+| 1 | 0 | 0 |
+| 1 | 1 | 1 |
+
+**OR** (true if at least one input is true):
+
+| A | B | A OR B |
+|---|---|---|
+| 0 | 0 | 0 |
+| 0 | 1 | 1 |
+| 1 | 0 | 1 |
+| 1 | 1 | 1 |
+
+**NOT** (flips a single input):
+
+| A | NOT A |
+|---|---|
+| 0 | 1 |
+| 1 | 0 |
+
+**XOR** ("exclusive or" — true only if the inputs differ):
+
+| A | B | A XOR B |
+|---|---|---|
+| 0 | 0 | 0 |
+| 0 | 1 | 1 |
+| 1 | 0 | 1 |
+| 1 | 1 | 0 |
+
+XOR is the one people find least intuitive: `1 XOR 1 = 0`, not 1 — two trues cancel out instead of confirming each other, which is exactly the property that makes XOR useful for detecting *change* (parity bits, simple checksums, "did exactly one of these flip") rather than agreement. You can chain gates together: `(1 OR 0) AND (NOT 1)` evaluates the same way a circuit's gates feed into each other in sequence — `1 OR 0 = 1`, `NOT 1 = 0`, then `1 AND 0 = 0`.
+
+## Exercise: Encode Yourself
+
+Take the first three letters of your own first name. For each letter, look up its decimal ASCII code, then write that code in binary and in hex, the way "Hi!" was done above. Then pick the ASCII code of just one of those letters and compute its two's complement negative as an 8-bit signed binary number — invert the bits, add 1 — and verify your answer by adding it back to the original positive encoding, confirming the result is `00000000` once the 9th-bit carry is discarded, exactly the way -42 was verified above.
+
+Hint: every ASCII letter is under 128, so its positive value always fits safely in 7 of the 8 available bits, leaving room for the sign bit its two's complement negative needs. Do the arithmetic the same three steps at a time shown above — invert, add 1, verify by addition — and don't skip writing out all 8 bits at each step; that's where the arithmetic mistakes hide.

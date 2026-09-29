@@ -1,0 +1,129 @@
+---
+trackId: hardware-systems
+tier: 0
+title: "Electricity Fundamentals & Lab Safety"
+order: 3
+estimatedHours: 6
+slug: electricity-fundamentals-and-lab-safety
+---
+
+## Voltage, Current, and Resistance: A Concrete Model
+
+Picture a water tank connected to a pipe. The height of the water in the tank creates pressure pushing water through the pipe. The pipe has some width — a narrow pipe resists flow more than a wide one. And water actually moves through the pipe at some rate, measured in liters per second.
+
+Electricity works the same way:
+
+- **Voltage (V)**, measured in **volts**, is the electrical "pressure" pushing charge through a circuit. It's a difference between two points — you always measure voltage *across* something (between two probe points), the way you'd measure a pressure difference between the top and bottom of a tank.
+- **Current (I)**, measured in **amperes (A)**, is the actual rate of charge flow — how much charge passes a point per second. You measure current *through* something, the way you'd measure flow rate through a section of pipe.
+- **Resistance (R)**, measured in **ohms (Ω)**, is how much a component opposes that flow — a narrow pipe, in electrical terms.
+
+Concrete numbers you'll actually encounter: a fresh AA battery is about 1.5V. A 9V battery is, unsurprisingly, 9V. USB power — the kind coming out of a laptop port or a USB power bank — is 5V. When your phone fast-charges, it might be pulling 2A to 3A at that 5V (or at a higher negotiated voltage like 9V for faster charging). None of these numbers are abstract; they're printed on the batteries and specified in USB standards.
+
+## Ohm's Law, Worked With Real Numbers
+
+Ohm's law ties the three together:
+
+**V = I × R**
+
+You can rearrange it to solve for any one of the three if you know the other two: I = V / R, or R = V / I. Here are three worked problems, each solving for a different unknown.
+
+**Problem 1 — solve for current.** You connect a 5V battery directly across a 220Ω resistor (a common, off-the-shelf value). What current flows?
+
+I = V / R = 5 / 220 = 0.0227 A = **22.7 mA**
+
+**Problem 2 — solve for resistance.** You want to power a red LED from a 5V source. The LED itself drops about 2V across it when lit (this is called its forward voltage — it's a property of the LED, not something you calculate from Ohm's law). You want to limit the current through it to 20 mA (0.02 A), which is a safe, typical operating current for a small indicator LED. The resistor has to absorb the leftover voltage: 5V − 2V = 3V. So:
+
+R = V / I = 3 / 0.02 = **150 Ω**
+
+That's why you almost never wire an LED straight to a battery — without a resistor, the LED's own resistance is low enough that current would spike far past what it's rated for and burn it out in seconds.
+
+**Problem 3 — solve for voltage.** A 100Ω resistor is carrying 0.05A (50 mA). What voltage is dropped across it?
+
+V = I × R = 0.05 × 100 = **5V**
+
+Get comfortable rearranging that one triangle. Every circuit calculation in this course, and most of what you'll do in Tier 1 hardware work, reduces to picking two of these three values and solving for the third.
+
+## Breadboards: What's Actually Connected to What
+
+A solderless breadboard looks like a grid of holes, but the internal wiring is not a grid — it's a specific, fixed pattern, and misunderstanding it is the single most common reason a beginner's circuit "doesn't work."
+
+On a standard half-size or full-size breadboard:
+
+- The **main body** is split down the middle by a center gutter/notch. On each side of that gutter, holes are grouped into rows of 5, labeled a–e (or f–j on the other side). **All 5 holes in one row-group are electrically one single node** — internally connected by a metal strip under the plastic. Insert two component legs into the same row-group and they're connected, full stop, no wire needed.
+- Rows across the gutter are **not** connected to each other — the gutter breaks the strip. That's specifically so you can straddle an IC chip across it without shorting its two rows of pins together.
+- Along the top and bottom edges run **power rails** — usually two long strips marked with a red line (+) and a blue or black line (−). Each rail is one continuous node running the length of that section of board (on full-size boards, the rails are sometimes split in the middle too — always check with a multimeter continuity test rather than assuming).
+
+**Concrete example: wiring an LED + resistor circuit.** Say you have a USB power bank (5V), a red LED (2V forward voltage), and a 150Ω resistor (from Problem 2 above).
+
+1. Plug a jumper wire from the power bank's 5V output into the breadboard's + rail.
+2. Plug another jumper from the power bank's ground into the − rail.
+3. Insert the resistor with one leg in the + rail and the other leg in, say, row 10, hole a.
+4. Insert the LED's longer leg (the anode, positive side) into row 10, hole c — same row-group as the resistor's other leg, so they're now connected.
+5. Insert the LED's shorter leg (cathode) into a hole in row 12, then jumper from row 12 to the − rail.
+
+Current now flows: + rail → resistor → LED → − rail, with the resistor limiting current to a safe ~20 mA. Notice the resistor and LED share a row-group specifically so they connect to each other without an extra wire — that's the whole trick to reading a breadboard layout.
+
+## Using a Multimeter: Continuity, Voltage, Resistance
+
+A multimeter is your primary tool for finding out what a circuit is actually doing, rather than guessing. Here's the concrete procedure for each of its three most-used modes.
+
+**Measuring DC voltage:**
+1. Turn the dial to the DCV section (sometimes just "V" with a straight line, not the wavy AC symbol). If your meter has manual ranges, pick one above what you expect — a 20V range comfortably covers a 5V or 9V circuit.
+2. Plug the black probe into the COM jack, red probe into the VΩ jack.
+3. Touch the red probe to the more-positive point in the circuit and the black probe to the more-negative point (or ground). The circuit must be powered on for this to read anything.
+4. Read the display. Measuring a fresh 9V battery should show something close to 9, often 9.3–9.6V unloaded.
+
+**Measuring resistance:**
+1. **Power off the circuit and remove the resistor from it, or at least disconnect it from other components** — measuring resistance on a live or connected circuit gives a wrong reading, because the meter pushes its own small test current through and anything else connected skews the result.
+2. Turn the dial to Ω.
+3. Touch a probe to each end of the resistor (polarity doesn't matter for resistance).
+4. Read the value and compare it to the component's marked or expected value — this is how you confirm a "220Ω" resistor is actually 220Ω before you trust it in a circuit.
+
+**Measuring continuity:**
+1. Turn the dial to the continuity setting — usually marked with a diode symbol or a sound-wave icon, and often shares a dial position with the Ω setting.
+2. With the circuit unpowered, touch a probe to each end of a wire, switch, fuse, or connection you want to check.
+3. A beep (and a near-zero reading) means the path is electrically connected. Silence means it's open — a broken wire, a blown fuse, or a switch in the off position.
+
+Continuity mode is what you'll use constantly to sanity-check breadboard wiring before you ever apply power: touch one probe to a component leg and the other to where you *think* it connects, and confirm the beep.
+
+## Low-Voltage DC Only: The Boundaries That Keep You Safe
+
+This is the one section in this module where "close enough" is not acceptable. Read it as a set of hard rules, not general guidance.
+
+**Why low voltage is safe.** Human skin, when dry and unbroken, has a resistance typically in the range of 1,000 to 100,000+ ohms. By Ohm's law, at 5V, even at the low end of that range: I = 5 / 1,000 = 0.005A = 5 mA — far below the level where you'd feel more than a faint tingle, if anything at all. The current that's actually dangerous to a human body starts around 10 mA (causes involuntary muscle contraction — the "can't let go" threshold) and becomes potentially lethal above roughly 100 mA if it crosses the chest. Low-voltage DC sources in this course simply cannot push that much current through intact skin, because skin resistance combined with the low voltage caps the current far below the danger threshold.
+
+**What is safe to work with in this tier, bare-handed:**
+- AA/AAA batteries (1.5V), 9V batteries
+- USB power — a wall USB charger, laptop USB port, or USB power bank (5V, occasionally negotiated up to 9–20V on fast-charge lines, still DC and still low relative to mains)
+- Small hobby battery packs (typically 3.7V–12V)
+
+All of these are things you can touch, short briefly, and experiment with, and the worst outcome is a dead battery or a burnt-out component — not injury.
+
+**What you must never do in this tier, no exceptions:**
+- **Never work on mains/AC wiring** — wall outlets, extension cords, lamp cords, anything plugged into household power (120V in North America, 230V in much of the rest of the world). That voltage, through the body, is well past the lethal current threshold, and AC has its own additional hazards this course does not cover. Mains electrical work is a separate discipline (in many places, legally restricted to licensed electricians) and is entirely out of scope here.
+- **Never open a power supply unit (PSU)**, including a computer's ATX power supply or a wall-wart you've cracked open out of curiosity. PSUs contain large capacitors that store a dangerous charge and can remain lethal for a long time *even after the PSU has been unplugged*.
+- **Never open a CRT monitor or CRT television**, including ones you assume are "dead" or have been unplugged for years. The flyback transformer and the tube itself can hold tens of thousands of volts, and the picture tube can retain a lethal charge indefinitely without ever being touched or drained.
+
+Treat these three boundaries as non-negotiable, not as things to reconsider once you feel more confident. Confidence is not the same as training, and this course does not provide the training required to safely go past them.
+
+## Simulate First: Falstad and Tinkercad Circuits
+
+Before wiring anything for real, build it in a simulator. This catches wiring mistakes, wrong resistor values, and reversed polarity with zero risk and zero wasted components.
+
+**Falstad's circuit simulator** (falstad.com/circuit) runs entirely in your browser, needs no account or install, and shows current as animated moving dots along the wires — thicker/faster dot flow means more current, which builds real intuition. A quick walkthrough:
+1. Open falstad.com/circuit. A default demo circuit loads immediately.
+2. Use the **Draw** menu (or right-click) to clear it and place a battery (voltage source), a resistor, and an LED, wiring them in a loop by dragging from terminal to terminal.
+3. Double-click the battery to set its voltage to 5V; double-click the resistor to set it to 150Ω (matching Problem 2 above).
+4. The simulation runs live — watch the dot flow, and double-click any wire to pop up a live voltage/current readout for that exact point, which you can check against your hand-calculated 20 mA.
+
+**Tinkercad Circuits** (tinkercad.com, free account required) is more useful once you're about to build the equivalent real breadboard layout, because it shows a **breadboard view and a schematic view side by side**, and you drag real-looking components — a real breadboard graphic, a real LED, a real resistor — into actual holes, exactly like the physical version. It also lets you drop in a virtual multimeter and clip its probes onto the simulated circuit, which is good practice for the real probing technique before you do it on a physical breadboard. Build the same 5V/150Ω/LED circuit there, confirm the breadboard wiring matches what you worked out in the section above, and only then treat it as validated.
+
+## Exercise
+
+You have a 9V battery and a red LED with a forward voltage of 2V. You want to run it at 15 mA (0.015A) for safe, moderate brightness.
+
+1. Calculate the resistor value needed.
+2. Build the circuit in Falstad or Tinkercad Circuits first and confirm the simulated current matches your calculation.
+3. Only after the simulation confirms it, identify (on paper or verbally) exactly how you'd lay it out on a real breadboard: which rail, which row-group pairs which legs.
+
+**Hint:** the resistor only has to absorb the *leftover* voltage — the battery's total voltage minus the LED's forward voltage — not the full 9V. And once you calculate the exact ohm value, round up to the next standard resistor value available to you, never down, so the current stays at or below your target rather than above it.

@@ -1,0 +1,104 @@
+---
+trackId: hardware-systems
+tier: 0
+title: "What's Actually Inside a Computer"
+order: 2
+estimatedHours: 5
+slug: whats-actually-inside-a-computer
+---
+
+## The Six Parts, and What Breaks Without Each One
+
+Every computer — a $200 Chromebook or a $3,000 workstation — is built from the same six pieces. Marketing wants a new machine to feel like magic. It isn't. It's six specific jobs, assigned to six specific pieces of hardware, and each one is a single point of failure. Pull any one out and something specific and predictable stops working.
+
+### CPU — the calculator
+
+The CPU (central processing unit) is a clock-driven electronic calculator. A "3.5 GHz" CPU completes 3.5 billion clock ticks per second, and each tick can advance one small piece of an instruction (add these two numbers, compare these two values, move this byte). It does nothing else — it doesn't remember anything long-term, it doesn't store files, it just executes instructions as fast as its clock allows.
+
+**Remove the CPU:** the PSU powers on, fans spin, lights come on — but most modern motherboards refuse to even complete their power-on self-test (POST) without a CPU present. Nothing computes.
+
+### RAM — the workbench
+
+RAM (random-access memory) is fast, temporary space where the CPU keeps the program code and data it's actively working on. It's "volatile": the instant power cuts, everything in it is gone. That's the actual reason an unsaved document disappears in a crash while the file already on your SSD is untouched — the unsaved changes only ever existed in RAM.
+
+**Remove the RAM:** the board won't complete POST. You'll typically hear a beep-code pattern (the exact pattern depends on the BIOS vendor, but "no memory detected" codes are standard) and get no video at all, because there's nowhere to even load a bootloader into.
+
+### Storage — the filing cabinet
+
+An SSD or hard drive holds data permanently — "non-volatile," meaning it survives power loss. This is the fundamental split from RAM: RAM is fast and temporary, storage is slower and permanent.
+
+**Remove the storage drive:** the CPU, RAM, and motherboard are all fine. The machine boots to BIOS/UEFI normally. You just land on "No bootable device found," because there's nothing wrong with the hardware — there's simply no operating system anywhere to load.
+
+### Motherboard — the wiring
+
+The motherboard isn't a compute component at all. It's the physical wiring: traces and buses that connect the CPU to RAM, PCIe lanes that connect the GPU and NVMe storage, and power-delivery circuitry that routes the PSU's output to every socket.
+
+**A dead motherboard:** nothing powers on — no fans, no lights, no beeps — because there is no path left for power or signals to travel through at all.
+
+### GPU — the renderer
+
+The GPU converts data into an actual video signal your monitor can display, and (for a discrete GPU) does the parallel math for rendering graphics fast.
+
+**Remove the GPU from a system with no integrated graphics:** the machine still boots completely and runs — you could remotely log into it — but there is zero video output. Not blurry, not low-res: nothing.
+
+### PSU — the power converter
+
+Wall power is AC: 120V in the US, 230V in the UK/EU. Every chip inside your case runs on low-voltage DC. The PSU's entire job is converting that AC to steady DC "rails," mainly +12V (drives motors — fans, spinning drives), +5V, and +3.3V (logic-level power for chips).
+
+**Remove or fail the PSU:** absolutely nothing powers on, not even the front power LED, because every other component is downstream of it.
+
+## Von Neumann vs. Harvard: The Actual Structural Difference
+
+This isn't about naming two old computer scientists — it's about one wiring decision that still shapes every chip you own.
+
+**Von Neumann architecture:** one shared memory, one shared bus, carrying *both* instructions and data. Picture a single CPU wired to a single block of RAM by one road. Program instructions ("add these two registers") and the data those instructions operate on (the actual numbers) travel down that same road, and only one thing can cross it per moment. This is why it's called the "von Neumann bottleneck." Every desktop, laptop, and phone CPU (x86, ARM) works this way: instruction at RAM address 0x1000 and the data it needs at RAM address 0x5000 live in the same physical memory, reachable by the same bus.
+
+**Harvard architecture:** two physically separate memories, two physically separate buses. Picture the ATmega328 chip inside a classic Arduino Uno. Your compiled program lives in flash memory, read over an instruction bus. Variables your program changes while running live in a separate SRAM chip, read and written over a completely separate data bus. Because the two roads are physically distinct, the chip can fetch the next instruction from flash *and* read or write a variable in SRAM in the same clock cycle — no shared road to contend over.
+
+You don't need to write a line of assembly to understand this (that's a later tier's job). You just need to see the actual wiring difference: one shared road versus two separate roads.
+
+## Safe Disassembly and ESD: Concrete Steps, Not Vague Warnings
+
+"Be careful of static" is useless advice on its own. Here's what to actually do, every time you open a case:
+
+1. **Unplug the PSU cable from the wall outlet** — not just the rocker switch on the back of the PSU. As long as the cord is in the wall, some motherboards keep 5V standby power live (it's what lets the power button and wake-on-LAN work), so "switched off" is not the same as "no power present."
+2. **Press and hold the case power button for about 5 seconds** after unplugging. This drains residual charge sitting in capacitors on the motherboard before you touch anything.
+3. **Work on a hard floor, not carpet.** Static buildup on carpet, especially in dry/winter air, is dramatic and real.
+4. **Ground yourself before every touch:** touch bare, unpainted metal on the case chassis (or clip an anti-static wrist strap to that same bare metal) right before you touch any component — and again if you get up and come back.
+5. **Handle cards and sticks by their edges only.** Never touch the gold/metal contact pins on a RAM stick or expansion card — skin oil and static there can corrode contacts or damage a chip.
+6. **Photograph cable routing before disconnecting anything**, so you can put it back exactly as it was.
+7. **Store removed parts in anti-static bags**, not loose on a couch or carpet.
+8. **Never open the PSU's casing — ever, even unplugged.** Capacitors inside a PSU can hold a charge above 300 volts for minutes to hours after disconnection. That is far outside the low-voltage territory this course covers, and it is a documented cause of serious injury for hobbyists who assumed "unplugged" meant "safe." If a PSU is dead, replace the entire sealed unit. Do not crack it open.
+9. **The same rule applies to any old CRT monitor you might ever encounter:** never open the casing. A CRT's flyback transformer capacitor can hold over 15,000 volts long after it's been unplugged. Treat any CRT, and any PSU, as a sealed unit you never open.
+
+## Reading a Spec Sheet Without Being Fooled
+
+Here are two realistic laptop listings, bullet for bullet:
+
+| Spec line | Laptop A | Laptop B |
+|---|---|---|
+| CPU | Core i7, up to 4.8 GHz | Core i5, up to 4.4 GHz |
+| RAM | 16GB | 16GB |
+| Storage | 512GB SSD | 512GB SSD |
+| Graphics | Intel Iris Xe | Intel UHD |
+| Adapter | 65W | 45W |
+
+Walking through each line:
+
+**"Up to 4.8 GHz"** is a turbo-boost ceiling, typically sustainable for only a second or two before thermal limits pull it back down. For a 20-minute video export or a long compile — a sustained workload — the *base* clock (often 1.6–2.1 GHz on chips like these) tells you far more. Any number with "up to" in front of it is a hint to look for the number it's hiding.
+
+**"16GB"** on both laptops looks identical, but it hides two real questions: is it soldered (fixed forever) or in slots (upgradeable), and is it dual-channel or single-channel? Two 8GB sticks in dual-channel DDR4-3200 give roughly 51.2 GB/s of memory bandwidth; one 16GB stick in single-channel gives roughly half that, around 25.6 GB/s — a 2x real-world difference the spec sheet doesn't mention at all.
+
+**"512GB SSD"** on both looks identical too, but "SSD" alone doesn't say SATA or NVMe. A SATA SSD tops out around 550 MB/s sequential read. An NVMe Gen4 SSD reaches roughly 7,000 MB/s. That's 7000 ÷ 550 ≈ 12.7 — nearly 13 times faster — hidden behind one identical-looking line.
+
+**"Intel Iris Xe" vs "Intel UHD"** are both integrated graphics, meaning neither has dedicated video memory — both borrow from the same system RAM you already counted above. But Iris Xe has roughly 2–3x more execution units than UHD, so real performance differs a lot despite neither listing a "VRAM" figure. If you ever see "up to 8GB shared graphics memory," that's not extra memory — it's a ceiling carved out of the RAM you already have.
+
+**"65W" vs "45W" adapter** is one of the only numbers here that *isn't* marketing noise. It's a direct measure of sustained power the laptop is built to draw, which correlates with how long it can push the CPU/GPU before throttling. A 45W-adapter laptop physically cannot sustain the same workload as a 65W one, regardless of what either CPU's model number claims.
+
+**The pattern:** trust base clock over boost clock, trust interface/generation (NVMe vs SATA) over raw storage GB, trust channel configuration over raw RAM GB, and treat adapter wattage as a real physical constraint, not marketing.
+
+## Try It Yourself
+
+Find a real, current spec sheet for a laptop or prebuilt desktop on any retailer's site. Pick five numbers from it. For each one, write a single sentence: is this number meaningful on its own, or does it need a second number next to it before it tells you anything real? Use the same reasoning as above — turbo vs. base clock, RAM channels, storage interface and generation, shared vs. dedicated graphics memory, adapter wattage.
+
+*Hint:* start by circling every number preceded by the words "up to." That phrase is almost always your first sign that the number shown is a ceiling, not what you'll actually get under sustained use — and your job is to go find the number underneath it.

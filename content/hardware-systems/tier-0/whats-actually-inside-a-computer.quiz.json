@@ -1,0 +1,98 @@
+[
+  {
+    "id": "hardware-systems/tier-0/whats-actually-inside-a-computer/q1",
+    "type": "multiple_choice",
+    "prompt": "You remove the GPU from a desktop PC that has no integrated graphics, then power it on. Fans spin and the motherboard completes its POST beep sequence. What appears on the monitor?",
+    "choices": [
+      "Nothing \u2014 no video signal at all",
+      "A very low-resolution, choppy image",
+      "The BIOS/UEFI screen only, with no further boot",
+      "A black screen showing a printed 'no GPU detected' error"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-0/whats-actually-inside-a-computer/q2",
+    "type": "multiple_choice",
+    "prompt": "What is the motherboard's core job in a computer?",
+    "choices": [
+      "It provides the physical wiring (buses, traces, power delivery) that lets the CPU, RAM, storage, GPU, and PSU communicate",
+      "It stores the operating system permanently even when the PC is off",
+      "It performs the actual mathematical and logical calculations",
+      "It converts AC wall power into the DC voltages the other parts need"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-0/whats-actually-inside-a-computer/q3",
+    "type": "multiple_choice",
+    "prompt": "A SATA SSD is rated at roughly 550 MB/s sequential read. An NVMe Gen4 SSD is rated at roughly 7,000 MB/s. Approximately how many times faster is the NVMe drive?",
+    "choices": [
+      "About 2x",
+      "About 5x",
+      "About 13x",
+      "About 30x"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "hardware-systems/tier-0/whats-actually-inside-a-computer/q4",
+    "type": "multiple_choice",
+    "prompt": "A laptop's spec sheet advertises its CPU as 'up to 4.8 GHz.' For a sustained 20-minute video export, which number tells you more about real, sustained performance?",
+    "choices": [
+      "The base clock speed, not the 'up to' turbo number",
+      "The 'up to' turbo number, since it's the fastest speed the chip can reach",
+      "The number of USB ports on the laptop",
+      "The screen's advertised resolution"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-0/whats-actually-inside-a-computer/q5",
+    "type": "multiple_choice",
+    "prompt": "What is the defining structural difference between a von Neumann architecture and a Harvard architecture?",
+    "choices": [
+      "Von Neumann uses one shared memory and bus for both instructions and data; Harvard uses physically separate memories and buses for each",
+      "Von Neumann is only used in phones; Harvard is only used in desktops",
+      "Von Neumann machines have no RAM at all; Harvard machines have no storage at all",
+      "Von Neumann is faster than Harvard at every possible task"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-0/whats-actually-inside-a-computer/q6",
+    "type": "multiple_choice",
+    "prompt": "A typical desktop or laptop CPU (x86 or ARM) fetches its instructions and reads its program data from the same physical RAM over the same shared bus. This is an example of which architecture?",
+    "choices": [
+      "Von Neumann",
+      "Harvard",
+      "Neither \u2014 this pattern is unique to smartphones",
+      "Both at once, with no meaningful distinction"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-0/whats-actually-inside-a-computer/q7",
+    "type": "multiple_choice",
+    "prompt": "Before opening a desktop case to reseat a component, which sequence is the correct, safe one?",
+    "choices": [
+      "Unplug the PSU cable from the wall, hold the case power button briefly to drain residual charge, then ground yourself on bare case metal before touching anything inside",
+      "Leave the PSU plugged in and switched on so you can test the part immediately",
+      "Work on a thick carpeted floor to cushion any dropped screws",
+      "Touch a RAM stick's gold contact pins directly to confirm it's seated properly"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-0/whats-actually-inside-a-computer/q8",
+    "type": "multiple_choice",
+    "prompt": "You suspect your PC's power supply (PSU) has failed. What is the correct next step?",
+    "choices": [
+      "Replace the entire sealed PSU unit \u2014 never open its casing, even unplugged, since its capacitors can hold a dangerous charge for minutes to hours",
+      "Open the PSU casing and test its capacitors yourself with a multimeter",
+      "Open the PSU casing but only touch the plastic parts inside",
+      "Leave the PSU plugged into the wall while opening it so you can watch the fan spin"
+    ],
+    "correctIndex": 0
+  }
+]
