@@ -1,0 +1,98 @@
+[
+  {
+    "id": "hardware-systems/tier-2/how-a-computer-boots/q1",
+    "type": "multiple_choice",
+    "prompt": "In a legacy BIOS boot, what is the exact byte value at offset 510 of a valid boot sector, and at offset 511?",
+    "choices": [
+      "0xAA at offset 510, 0x55 at offset 511",
+      "0x55 at offset 510, 0xAA at offset 511",
+      "0x55 at both offsets 510 and 511",
+      "0x00 at offset 510, 0xFF at offset 511"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "hardware-systems/tier-2/how-a-computer-boots/q2",
+    "type": "multiple_choice",
+    "prompt": "In the boot sector source shown in this lesson, the code and message together total exactly 61 bytes before the `times` line. How many padding bytes does `times 510 - ($ - $$) db 0` emit, and why is the target 510 rather than 512?",
+    "choices": [
+      "451 bytes, because 512 minus 61 equals 451",
+      "449 bytes, because the last 2 of the 512 total bytes are reserved for the 0xAA55 signature",
+      "510 bytes, because $$ always evaluates to zero",
+      "61 bytes, matching the code size exactly"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "hardware-systems/tier-2/how-a-computer-boots/q3",
+    "type": "multiple_choice",
+    "prompt": "Why does a POST failure typically get reported as a PC-speaker beep code instead of an on-screen error message?",
+    "choices": [
+      "Beep codes are faster to transmit over the motherboard's control bus than text",
+      "Video output is one of the subsystems POST is still testing, and might itself be the failed component, whereas the PC speaker driven by the PIT has no such dependency",
+      "On-screen text requires a bootloader to already be loaded, which hasn't happened yet at POST time",
+      "Beep codes were an early UEFI feature that BIOS later adopted for consistency"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "hardware-systems/tier-2/how-a-computer-boots/q4",
+    "type": "multiple_choice",
+    "prompt": "Under legacy BIOS boot, once BIOS finds a valid boot signature and jumps to 0x7C00, which of the following is true?",
+    "choices": [
+      "BIOS continues supervising the boot process, loading the kernel itself once the bootloader signals it's ready",
+      "BIOS's job on that boot is finished; reading a partition table, loading further sectors, and switching CPU modes are entirely the bootloader's responsibility",
+      "BIOS switches the CPU into protected mode automatically before jumping, so the bootloader never runs in real mode",
+      "BIOS re-checks the 0xAA55 signature after every additional sector the bootloader loads"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "hardware-systems/tier-2/how-a-computer-boots/q5",
+    "type": "multiple_choice",
+    "prompt": "A real-mode boot sector is loaded with segment DS = 0x0000. Using segment:offset addressing (physical = segment \u00d7 16 + offset), what physical address does DS:0x0010 resolve to if, instead, DS were set to 0x07C0?",
+    "choices": [
+      "0x7C00",
+      "0x7C10",
+      "0x07C0",
+      "0x7D00"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "hardware-systems/tier-2/how-a-computer-boots/q6",
+    "type": "multiple_choice",
+    "prompt": "Why can't an x86-64 CPU jump directly from 16-bit real mode into 64-bit long mode in a single step?",
+    "choices": [
+      "Long mode requires paging to already be active, and setting up that paging (via CR4.PAE, CR3, and the GDT-based segment mechanism) depends on machinery that only exists once protected mode has been entered first",
+      "Intel and AMD deliberately disabled the direct transition in microcode to force compatibility testing",
+      "Real mode code cannot execute the `rdmsr`/`wrmsr` instructions needed to read the EFER register under any circumstances",
+      "Long mode does not use segment registers at all, so there is nothing for real mode's segments to transition into"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-2/how-a-computer-boots/q7",
+    "type": "multiple_choice",
+    "prompt": "Setting bit 0 of which control register is what actually enables protected mode on x86?",
+    "choices": [
+      "CR2",
+      "CR3",
+      "CR0",
+      "CR4"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "hardware-systems/tier-2/how-a-computer-boots/q8",
+    "type": "multiple_choice",
+    "prompt": "What concretely distinguishes booting via UEFI from booting via legacy BIOS, in terms of CPU state handed to the bootloader?",
+    "choices": [
+      "UEFI requires the bootloader to still perform the real-mode-to-long-mode transition itself, exactly like legacy BIOS",
+      "On x86-64, UEFI hands off to the bootloader with the CPU already in long mode with paging enabled, while legacy BIOS hands off a CPU still in 16-bit real mode",
+      "UEFI does not use a CPU reset vector, so POST never runs under UEFI",
+      "Legacy BIOS boots directly into long mode, while UEFI boots into real mode for compatibility with older PE binaries"
+    ],
+    "correctIndex": 1
+  }
+]

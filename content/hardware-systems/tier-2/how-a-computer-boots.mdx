@@ -1,0 +1,130 @@
+---
+trackId: hardware-systems
+tier: 2
+title: "How a Computer Boots"
+order: 4
+estimatedHours: 12
+slug: how-a-computer-boots
+---
+
+## Where This Fits: One Cold Start, Four Handoffs
+
+Tier 1 gave you the fetch-decode-execute loop and the program counter that drives it (Computer Architecture Fundamentals I; Sequential Logic & the Fetch-Decode-Execute Cycle). That loop needs something in memory to fetch *first*. Booting is the answer to "what puts the first instructions in place, and how does the CPU find them the instant power turns on?" The chain is always the same four handoffs: **power-on reset → firmware (BIOS or UEFI) → POST → bootloader → OS kernel**, each one trusting the previous one just enough to hand off control and then getting out of the way permanently. This module is about the first three handoffs and the boundary where the fourth begins — the actual bytes of a working bootloader.
+
+## BIOS vs. UEFI vs. the Bootloader: The Actual Division of Labor
+
+People say "BIOS boots the computer" loosely enough that the phrase is almost useless. Here's the precise split, for legacy BIOS first.
+
+**What BIOS does, and only this:** runs POST (next section), initializes the CPU into 16-bit real mode with a minimal, working set of interrupt services (video via `int 0x10`, disk via `int 0x13`, keyboard via `int 0x16`), walks its configured boot-device order, and for each candidate device reads that device's **first 512-byte sector** into RAM at physical address `0x7C00`. It then checks two specific bytes — offsets 510 and 511 of that sector — for the values `0x55` and `0xAA`. If they match, BIOS performs a single far jump to `0x0000:0x7C00` and its job on this boot **is completely finished**. It does not know what a filesystem is, does not know what a kernel is, and does not care what happens next. Everything from that jump onward — reading a partition table, loading more sectors, switching CPU modes, finding and loading a kernel image — is the bootloader's problem, written by whoever wrote the 510 bytes of code that just got control. A classic MBR only has 446 bytes of actual code space (64 bytes are reserved for a 4-entry partition table, 2 for the signature), which is why real bootloaders are two-stage: those 446 bytes do nothing but load a much larger "stage 2" from elsewhere on disk.
+
+**UEFI does dramatically more before handing off.** It initializes hardware already in 32-bit or 64-bit mode — no real-mode requirement at all — and on x86-64 the UEFI specification requires the CPU already be in **long mode with paging enabled** by the time your code runs. UEFI understands GPT partition tables and can read a FAT32-formatted **EFI System Partition** directly, as a real filesystem, no raw-sector scanning required. It locates a specific file — `\EFI\BOOT\BOOTX64.EFI` by default, or a vendor-registered path like `\EFI\Microsoft\Boot\bootmgfw.efi` — parses it as a **PE (Portable Executable)** binary, the same format Windows `.exe` files use, and calls its entry point directly. There is no 512-byte limit, no `0xAA55` signature requirement anywhere in this path, and UEFI hands your bootloader a real API surface (Boot Services: memory map, graphics output, block I/O, and more) instead of a handful of real-mode interrupts.
+
+The one sentence worth keeping: **under legacy BIOS, your bootloader inherits a crippled 16-bit CPU and has to upgrade it itself; under UEFI, the firmware already did that upgrade before your code ever runs.** That difference is exactly why this module's hand-written example targets legacy BIOS boot — it's the path where you actually get to perform, and see, the mode transition yourself.
+
+## POST: What's Actually Being Checked, and Why It Beeps
+
+Tier 0 showed you the *symptom* — pull the RAM and you get a beep pattern with no video. Here's the actual mechanism. POST (Power-On Self-Test) runs immediately after reset, before any bootloader exists, and checks, roughly in this order: a CPU self-test (basic instruction and flag sanity), the base 64 KB of RAM (nothing later can work without working memory), the interrupt controller (PIC) and programmable interval timer (PIT), the DMA controller, and then it scans memory from `0xC0000` upward in 2 KB steps looking for **expansion ROMs** — add-in card firmware, most commonly the video card's. Each expansion ROM header starts with the exact same two bytes BIOS looks for in a boot sector, `0x55, 0xAA`, followed by a size byte and a checksum; if the header and checksum validate, POST runs that ROM's own init code (this is how your video card's own firmware initializes the display *before* BIOS can print anything to it). Only after that does POST test the keyboard controller and begin the boot-device scan described above.
+
+Here's why failures beep instead of printing: **video is one of the things POST is testing, and it might be the thing that's broken.** You cannot build error reporting on top of hardware you haven't yet confirmed works. The one output device POST can rely on unconditionally is the PC speaker, wired directly to a channel of the PIT — no driver, no memory-mapped framebuffer, no expansion ROM required, just a timer toggling a tone. Beep codes are simply how deeply into POST you got before something failed, encoded as tone count/pattern instead of text. A real (AMI legacy) beep-code table:
+
+| Beeps | Meaning |
+|---|---|
+| 1 | DRAM refresh failure |
+| 3 | Base 64 KB RAM failure |
+| 5 | CPU failure |
+| 6 | Keyboard controller / Gate A20 failure |
+| 8 | Display memory read/write failure |
+| 9 | ROM checksum failure |
+
+Beep code 6 is worth flagging now — it comes back in the next section.
+
+## Why a 64-Bit CPU Wakes Up Pretending It's 1978
+
+Power on any x86-64 chip built this year and its CPU core begins execution in **16-bit real mode**, fetching its very first instruction from physical address `0xFFFFFFF0` — the reset vector, mapped to firmware ROM, which immediately far-jumps down into low memory to run normally. This isn't a bug or an oversight: it's a hard backward-compatibility guarantee. Code written for the original 8086 in 1978, if placed correctly and started this way, still runs unmodified on a modern chip. Every mode upgrade from here is opt-in, performed explicitly by software, never automatic.
+
+Real mode's restrictions are the entire reason an upgrade is mandatory, not optional:
+
+- **Addressing tops out at 1 MB.** A real-mode address is `segment:offset`, computed as `segment × 16 + offset`. The largest expressible address, `0xFFFF:0xFFFF`, is `0xFFFF0 + 0xFFFF = 0x10FFEF` — technically *past* 1 MB by about 64 KB, a quirk of the original 8086's 20-bit address bus (lines A0–A19) that some early software exploited on purpose. When the 80286 added a 21st address line (A20), IBM had to add a hardware gate that keeps that line *disabled by default*, routed through a spare pin on the keyboard controller, purely so old software relying on that wraparound wouldn't break. Enabling it — the "A20 line," via keyboard-controller port `0x64`/`0x60` or the faster port `0x92` — is a real, required early boot step before you can safely address memory above 1 MB, and a stuck-disabled A20 gate is exactly AMI beep code 6 from the table above.
+- **No memory protection.** Any instruction can read or write any address, including the interrupt vector table and the BIOS's own data area.
+- **No paging.** There is no concept of a virtual address at all — every address is a physical one.
+
+None of that supports a modern OS, which needs gigabytes of address space, per-process isolation, and virtual memory. So software has to climb, in order, through two more modes.
+
+**Protected mode** (80286/80386-era) is entered by first building a **GDT** (Global Descriptor Table) in memory and loading its address with `lgdt`, *then* setting bit 0 — the PE (Protection Enable) bit — of control register `CR0`:
+
+```nasm
+mov eax, cr0
+or  eax, 1          ; set PE, bit 0
+mov cr0, eax        ; the instant this executes, segment registers become selectors
+```
+
+That instruction pair alone isn't sufficient to run correctly — the GDT has to already be loaded, and a far jump has to immediately follow to flush the CPU's prefetch queue and load `CS` with a valid 32-bit code selector — but the concept is exactly this one bit: the moment `CR0.PE` flips to 1, every segment register stops meaning "×16 and add" and starts meaning "index into a descriptor table," and the CPU can now address a full 4 GB with 32-bit registers and enforce real memory protection via privilege rings. It's still fundamentally 32-bit, though, and paging in protected mode is optional.
+
+**Long mode** (AMD64 — AMD's design, not Intel's) is a further, mandatory second climb; there is no direct real-mode-to-long-mode jump. Long mode *requires* paging, unlike protected mode where paging is optional, so page tables must already exist in memory before you can enter it. The sequence: enable PAE (Physical Address Extension) via bit 5 of `CR4`; point `CR3` at your page-table base; set the LME (Long Mode Enable) bit — bit 8 — of the `EFER` register, which isn't a normal register at all but a **model-specific register** (MSR number `0xC0000080`) reached only through `rdmsr`/`wrmsr`; then set `CR0.PG` (bit 31) to actually turn paging on, which is the exact instruction that activates long mode; and finally a far jump into a GDT code segment marked 64-bit to start fetching 64-bit instructions. Every one of those steps depends on protected mode's descriptor-table machinery already existing — which is precisely why the architecture mandates the detour through protected mode rather than allowing a direct jump.
+
+## A Real Boot Sector, Line by Line
+
+This assembles with NASM, boots under QEMU, and does the one thing every from-scratch bootloader has to prove first: put something on the screen while the CPU is still in real mode.
+
+```nasm
+BITS 16
+ORG 0x7C00
+
+start:
+    xor ax, ax
+    mov ds, ax
+    mov es, ax
+    mov ss, ax
+    mov sp, 0x7C00
+
+    mov si, message
+
+.print_char:
+    lodsb
+    or al, al
+    jz .halt
+    mov ah, 0x0E
+    mov bh, 0x00
+    mov bl, 0x07
+    int 0x10
+    jmp .print_char
+
+.halt:
+    cli
+    hlt
+    jmp .halt
+
+message db 'Hello from the boot sector!', 0
+
+times 510 - ($ - $$) db 0
+dw 0xAA55
+```
+
+Line by line:
+
+- `BITS 16` tells NASM to emit 16-bit instruction encodings — correct, because BIOS hands you a CPU still in real mode.
+- `ORG 0x7C00` doesn't emit any bytes; it tells the assembler "every label from here on should be computed as if this code will sit at `0x7C00`," matching where BIOS actually loads it. Without this, `mov si, message` would compute the wrong address.
+- `xor ax, ax` / `mov ds, ax` / `mov es, ax` / `mov ss, ax`: BIOS makes no promise about what segment registers hold on entry, so the first job is zeroing them explicitly. `ax` is zeroed via XOR (cheaper than `mov ax, 0`) and then copied into each segment register — you can't `mov` an immediate straight into a segment register on x86, only from a general-purpose register.
+- `mov sp, 0x7C00` puts the stack immediately *below* the loaded code, growing downward, away from it — standard practice for a boot sector with nothing else in low memory yet to collide with.
+- `mov si, message` loads `SI` with `message`'s address (correctly computed thanks to `ORG`).
+- The `.print_char` loop: `lodsb` loads the byte at `DS:SI` into `AL` and auto-increments `SI` — this is exactly the string-copy-instruction ancestor `rsi`'s name refers to, from the assembly module's register table. `or al, al` sets the zero flag without changing `AL`, purely to test "is this the null terminator?" `jz .halt` exits the loop on that null byte.
+- `mov ah, 0x0E` / `int 0x10`: BIOS's video interrupt, function `0x0E` — "teletype output." It prints whatever's in `AL` at the current cursor position and advances the cursor, handling carriage return/linefeed automatically. `bh`/`bl` select the display page and foreground color respectively (mostly ignored in standard text mode, but convention sets them).
+- `.halt`: `cli` disables interrupts, `hlt` stops the CPU until the next one arrives anyway, and the loop back to `hlt` guards against a stray interrupt waking it — a boot sector with nowhere else to go should stop cleanly, not fall through into whatever garbage bytes follow.
+- `message db '...', 0`: the string, followed by an explicit null terminator the print loop checks for.
+- `times 510 - ($ - $$) db 0`: `$` is the current assembly position, `$$` is the start of the section (`0x7C00`), so `$ - $$` is "how many bytes have been emitted so far." This pads with zero bytes until exactly 510 bytes have been written — assembling this exact file, that's 61 bytes of real code and string, so NASM emits 449 padding bytes.
+- `dw 0xAA55`: the final two bytes. NASM is little-endian, so this writes `0x55` at offset 510 and `0xAA` at offset 511 — the boot signature BIOS checks for, the same one you met on expansion ROMs in the POST section. **It's required because BIOS has no other way to distinguish "this disk has real, intentional boot code on it" from "this disk is blank, unformatted, or holds something else entirely."** Without those exact two bytes in those exact two positions, BIOS treats the device as non-bootable and moves on to the next one in its boot order — your code, correct or not, never runs.
+
+## Assembling and Running It Under QEMU
+
+```bash
+nasm -f bin boot.asm -o boot.bin
+qemu-system-x86_64 -drive format=raw,file=boot.bin
+```
+
+`nasm -f bin` produces a flat binary — raw bytes, no ELF or PE wrapper, exactly the 512 bytes BIOS expects to find on a boot device. `qemu-system-x86_64 -drive format=raw,file=boot.bin` boots QEMU's virtual machine treating that file as a raw disk image; QEMU's own firmware (SeaBIOS by default) reads sector one, finds your `0x55 0xAA`, and jumps to it exactly like real hardware would. You should see a QEMU window open and, after its own firmware banner clears, `Hello from the boot sector!` printed in the top-left corner, then nothing — the CPU is sitting in `hlt`, exactly as designed. (`-fda boot.bin` works identically, presenting it as a floppy image instead of a hard disk; either convention is fine for a single boot sector this small.)
+
+## Exercise: Print a Boot-Time-Derived Value
+
+Extend `boot.asm` so that, after the greeting, it also prints the amount of conventional memory BIOS detected — a value that genuinely differs machine to machine, which is the point (this is exactly what this tier's checkpoint project asks your bootloader to do, alongside your name). BIOS interrupt `0x12` takes no input and returns the number of contiguous kilobytes of base memory in `AX` — call it, then print that number as decimal digits on screen instead of raw binary.
+
+*Hint:* `int 0x10` only knows how to print one ASCII character at a time via `AL`, and `AX` after `int 0x12` is a binary number, not text — you have to convert it yourself. The classic technique is repeated division by 10: zero `dx`, divide `dx:ax` by 10 with `div bx` (`bx` holding 10), and the remainder lands in `dx` — since it's always under 10, `dl` alone is the digit (add `'0'`, i.e. `0x30`, to turn it into its ASCII character). Repeat on the new quotient in `ax` until it reaches zero. Digits come out in reverse order this way (ones place first), so you'll need to either push each digit onto the stack as you compute it and pop them back off to print in the right order, or build the string backward into a small buffer first. Don't reuse `si`/`message`'s print loop unchanged — it expects a null-terminated string already sitting in memory, and your digits won't be in one until you've assembled them yourself.

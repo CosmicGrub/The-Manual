@@ -1,0 +1,149 @@
+---
+trackId: hardware-systems
+tier: 2
+title: "Microcontrollers & Basic Electronics I"
+order: 2
+estimatedHours: 20
+slug: microcontrollers-and-basic-electronics-i
+---
+
+This module is where the track stops being diagrams and becomes solder, breadboards, and volts you can put a meter on. You already derived Ohm's law and built adders and flip-flops out of logic gates in Tier 0 and Tier 1; you also already know the fetch-decode-execute cycle and why an ALU reads two registers and writes one back. None of that gets re-taught here. What changes is that the "memory-mapped" and "register" language from Tier 1 stops being an abstraction over a simulated CPU and becomes real pins on a real chip you can burn out with a wrong resistor value.
+
+We'll use the ATmega328P (the chip on an Arduino Uno) as the primary worked example because its datasheet is short enough to read in full and its architecture is simple enough that "register" still means exactly one byte at a fixed address. Where it matters, I'll flag the ESP32 difference, because ESP32 (3.3V logic, on-chip peripherals like LEDC for PWM) is different enough in specific numbers that mixing the two up will cost you a fried LED or a silently-wrong PWM frequency.
+
+## 1. GPIO: a pin is a bit in a register
+
+`digitalWrite()` and `digitalRead()` are library calls that, underneath, flip or read one bit of a memory-mapped register. On the Uno's ATmega328P, Arduino pin 13 is physically pin PB5 (bit 5 of Port B). The Arduino core's `digitalWrite(13, HIGH)` does the equivalent of:
+
+```cpp
+DDRB  |= (1 << DDB5);   // configure PB5 as output
+PORTB |= (1 << PORTB5); // drive PB5 high
+```
+
+`DDRB` (Data Direction Register B) decides input vs. output per bit; `PORTB` sets the output level (or enables the internal pull-up when the pin is configured as input); `PINB` is the register you read to get the current input level. This is the same fetch-decode-execute machine from Tier 1 doing a load or store to a fixed memory address -- there's no OS, no driver stack, just a byte with hardware wired to its bits.
+
+The Arduino sketch-level version:
+
+```arduino
+const int LED_PIN = 13;
+const int BUTTON_PIN = 2;
+
+void setup() {
+  pinMode(LED_PIN, OUTPUT);
+  pinMode(BUTTON_PIN, INPUT_PULLUP);
+}
+
+void loop() {
+  int pressed = (digitalRead(BUTTON_PIN) == LOW); // pull-up means LOW = pressed
+  digitalWrite(LED_PIN, pressed ? HIGH : LOW);
+}
+```
+
+Two things worth noticing already: `digitalRead` returns exactly one of two values (`HIGH`/`LOW`, i.e. 1/0) -- GPIO in digital mode has no concept of "a little bit on." And `INPUT_PULLUP` is doing real electrical work (next section explains why it has to).
+
+## 2. PWM: faking an analog voltage with a fast switch
+
+`analogWrite(pin, value)` does not produce an analog voltage. It produces a square wave at a fixed frequency where `value` (0-255 on AVR) sets what fraction of each period the pin is HIGH -- the duty cycle. `analogWrite(9, 64)` gives you a 64/255 ~ 25% duty cycle: HIGH for a quarter of each period, LOW for the rest. An LED, an RC filter, a motor's inductance, or your eye's persistence of vision all average that switching into something that behaves like 25% of the supply voltage. On a 5V pin, that averages to about 1.25V -- not because the pin ever outputs 1.25V, but because 1.25V is the time-averaged value of a 5V square wave with 25% duty.
+
+```arduino
+void loop() {
+  for (int duty = 0; duty <= 255; duty++) {
+    analogWrite(9, duty);   // 0 = always off, 255 = always on
+    delay(10);
+  }
+}
+```
+
+Frequency matters and it's not something you get to choose freely on plain AVR `analogWrite`. The Uno's PWM-capable pins are driven by three hardware timers: pins 5 and 6 by Timer0 (also used by `millis()`), giving ~980 Hz; pins 9, 10, 11, and 3 by Timer1/Timer2, giving ~490 Hz. That's fast enough that an LED won't visibly flicker and a small motor won't buzz audibly, but it's a fixed hardware fact, not a software knob, unless you reprogram the timer registers directly.
+
+ESP32 has no `analogWrite` in the strict AVR sense -- PWM comes from a dedicated peripheral called LEDC, and you explicitly trade frequency against resolution because both come from dividing the same 80 MHz APB clock:
+
+```cpp
+ledcAttach(LED_PIN, 5000, 13);   // 5 kHz carrier, 13-bit duty resolution
+ledcWrite(LED_PIN, 4096);        // ~50% duty (4096 / 8192)
+```
+
+The ceiling on frequency for a given resolution is `80,000,000 / 2^resolution`. At 13-bit resolution that ceiling is 80,000,000 / 8192 ~ 9.77 kHz -- ask for a higher frequency at that resolution and the peripheral can't hit it. Drop to 8-bit resolution (256 steps, same as AVR) and the ceiling jumps to 80,000,000 / 256 ~ 312 kHz. This is a real hardware tradeoff you will hit the first time you try to drive an ultrasonic transducer or a high-frequency motor driver at fine duty-cycle resolution.
+
+## 3. Reading a datasheet for real numbers
+
+"Read the datasheet" is useless advice until you've done it once with a specific question in hand. Here's the ATmega328P datasheet's DC Characteristics table (Electrical Characteristics section), condensed to the rows that matter for driving GPIO:
+
+| Symbol | Parameter | Condition | Min | Max |
+|---|---|---|---|---|
+| VOL | Output Low Voltage | IOL = 20 mA, VCC = 5V | -- | 0.9 V |
+| VOH | Output High Voltage | IOH = -20 mA, VCC = 5V | 4.2 V | -- |
+| IIL/IIH | Input Leakage Current | -- | -- | 1 uA |
+| RPU | I/O Pin Pull-up Resistor | -- | 20 kOhm | 50 kOhm |
+
+And in Absolute Maximum Ratings: **DC Current per I/O Pin: 40.0 mA**.
+
+Two practical facts drop straight out of this table. First, the "20 kOhm to 50 kOhm" pull-up is why `INPUT_PULLUP` works at all but isn't precise -- it's an internal resistor with a wide tolerance band, fine for a digital HIGH/LOW read, useless if you needed a specific pull-up value for analog work. Second, the VOL/VOH numbers are only guaranteed *at* the tested current (20 mA) -- push a pin past the 40 mA absolute maximum and you're outside every guarantee in the datasheet, including "this pin still works tomorrow."
+
+Now a timing spec, from the ADC Characteristics section: a single ADC conversion takes 13 ADC clock cycles (after the pipeline is primed; the very first conversion after enabling the ADC costs 25 cycles), and the datasheet recommends an ADC clock between 50 kHz and 200 kHz for full 10-bit resolution. The Arduino core sets the ADC prescaler to 128, so on a 16 MHz Uno the ADC clock is 16 MHz / 128 = 125 kHz -- inside that recommended range. Conversion time is then 13 cycles / 125,000 Hz ~ 104 us. That number is not folklore -- it's the reason a loop that calls `analogRead()` on six sensors in sequence has a hard floor of about 624 us per pass no matter how you optimize the surrounding code, and it's why polling a fast-changing analog signal at more than a few kHz on an Uno requires touching the ADC prescaler registers directly instead of calling `analogRead()`.
+
+## 4. Ohm's law, applied for real this time
+
+You already have V = IR from Tier 0. Apply it to size a current-limiting resistor for a specific LED.
+
+**Case 1 -- red LED, 5V Arduino pin.** A typical red LED has a forward voltage Vf ~ 2.0V and a rated max forward current of about 20 mA, but LEDs are visibly bright well under their max rating, so target 15 mA for a safety margin and longer life. The resistor drops the leftover voltage:
+
+```
+R = (Vsupply - Vf) / I = (5.0V - 2.0V) / 0.015A = 200 Ohm
+```
+
+200 Ohm isn't a standard resistor value. Standard E12 values near it are 180 Ohm and 220 Ohm. You always round *up*, never down: 220 Ohm gives I = (5.0 - 2.0) / 220 ~ 13.6 mA (safely under target); 180 Ohm would give ~ 16.7 mA (over target, and if your Vf estimate was optimistic, could push past the LED's real rating). Use 220 Ohm.
+
+**Case 2 -- blue or white LED, 3.3V ESP32 pin.** Blue and white LEDs have a much higher Vf, typically 3.0-3.3V, because of the semiconductor bandgap needed to emit that wavelength. Run the same formula against a 3.3V supply and a typical Vf of 3.2V at 10 mA:
+
+```
+R = (3.3V - 3.2V) / 0.010A = 10 Ohm
+```
+
+Ten ohms is barely more than the LED's own internal resistance and the wire resistance of your breadboard jumpers -- any small variation in the actual Vf (datasheets give Vf as a range, e.g. 2.9-3.4V, not a fixed number) can send the current wildly off target, including into the "LED burns out" range. This is a real, common mistake: high-Vf LEDs are simply a poor match for 3.3V logic-level supplies with the LED wired straight off a GPIO pin. The fix used in practice is to drive it from the board's 5V rail (Uno) or a boosted supply, with the resistor sized against that higher voltage, while switching the LED from the 3.3V-logic pin through a transistor rather than trying to source the current directly from the GPIO pin.
+
+## 5. Breadboarding: LED, button, and a sensor
+
+**LED + resistor.** Insert the LED so its two legs land in two different breadboard rows (never the same row -- that would short the LED's own leads together through the row's internal bus). Long leg (anode) toward one row, short leg (cathode, next to the flat edge on the LED body) toward the other. Put the 220 Ohm resistor between the cathode's row and the ground rail. Run a jumper from the Arduino's PWM-capable output pin to the anode's row. Current path: pin -> LED (anode to cathode) -> resistor -> ground rail -> Arduino GND. The resistor's job, per the calculation above, is purely to limit current -- an LED is a diode with almost no resistance of its own once forward-biased, so without something limiting current, Ohm's law says the current is bounded only by the power supply's own capacity, which for a GPIO pin is well past the 40 mA absolute max and will destroy the LED, the pin, or both.
+
+**Pushbutton with pull-up.** A tactile pushbutton has two independent pairs of legs internally bridged when pressed. Place it straddling the breadboard's center gap. Wire one leg to a digital input pin, and the diagonally-opposite leg to ground. That's the entire circuit if you use `pinMode(pin, INPUT_PULLUP)` -- the chip's internal 20-50 kOhm resistor (from the datasheet table above) ties the pin to VCC whenever the button is open, so the pin reads HIGH; pressing the button connects it directly to GND, overpowering the weak pull-up and pulling the pin LOW. If you don't enable the pull-up and don't wire an external resistor, the pin floats when the button is open -- it has no defined connection to either rail, so it picks up capacitive noise from your hand, nearby wires, and mains hum, and `digitalRead()` returns essentially random values. That's the entire reason the resistor (internal or external) exists: it guarantees a defined logic level when the switch isn't actively pulling the line the other way. An external pull-down does the mirror-image job: resistor (commonly 10 kOhm) from the pin to GND, button from the pin to VCC, so idle reads LOW and pressed reads HIGH.
+
+**A simple sensor: LDR voltage divider.** A photoresistor (LDR) doesn't output a voltage by itself -- it's a resistor whose value changes with light (roughly 1 kOhm in bright light up to 1 MOhm in darkness for a common CdS cell). To turn that into something `analogRead()` can measure, build a voltage divider: LDR from 5V down to an analog pin, then a fixed resistor (10 kOhm is a reasonable middle value) from that same pin down to GND. The analog pin sees `Vout = 5V * Rfixed / (Rfixed + Rldr)`: bright light (low Rldr) pulls Vout up toward 5V, darkness (high Rldr) pulls it down toward 0V. Ten-bit `analogRead()` maps that 0-5V range to 0-1023 (ESP32's ADC is 12-bit, 0-4095, over a 0-3.3V range by default -- a different scale learners routinely get wrong when porting code between boards).
+
+## 6. Embedded C/C++: same language, different rules
+
+Desktop C++ assumes an OS underneath, a heap you can allocate gigabytes from, and a scheduler that reclaims memory after your process dies. None of that exists on an AVR or, in the tight inner loop, even on an ESP32. Four constraints follow directly:
+
+**No heap churn in the hot loop.** `malloc`/`new`/the Arduino `String` class's implicit concatenation-driven reallocation all use a heap of a few kilobytes with no operating system behind it to compact or reclaim. Do that inside `loop()` and fragmentation accumulates until an allocation silently fails -- with no crash dialog, just a device that hangs after running fine for three days. Fix: pre-allocate fixed-size buffers (`char buf[32]`) once in `setup()`, use `snprintf` instead of `String` concatenation.
+
+**Direct, address-based hardware access.** You already saw `DDRB`/`PORTB` above -- those aren't functions, they're `volatile` variables mapped to fixed memory addresses that also happen to be wired to physical pins. `digitalWrite()` costs roughly 50 clock cycles (it validates the pin number and does a table lookup, since it has to work for any pin at runtime); the direct register write above is one or two clock cycles because the address is fixed at compile time. In a loop that has to toggle a pin as fast as possible (bit-banging a protocol, generating a precise timing pulse), that difference is the entire reason your signal is on time or a microsecond late.
+
+**`volatile` is not optional on shared state.** Anything written by an interrupt service routine (ISR) and read by `loop()` must be declared `volatile`, or the compiler is free to assume it never changes and cache it in a register -- which means your main loop can spin forever reading a stale value while the ISR is actively updating the real memory location.
+
+```cpp
+volatile bool buttonEvent = false;
+
+void handleInterrupt() {      // ISR: keep this short, no delay(), no Serial.print()
+  buttonEvent = true;
+}
+
+void setup() {
+  pinMode(2, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(2), handleInterrupt, FALLING);
+}
+
+void loop() {
+  if (buttonEvent) {
+    buttonEvent = false;
+    // handle it here, outside the ISR
+  }
+}
+```
+
+**Fixed-width types and no float in tight loops on 8-bit AVR.** `int` on AVR is 16 bits, not the 32 you'd assume from desktop habits -- use `<stdint.h>` types (`uint8_t`, `int16_t`, `uint32_t`) so the width is explicit regardless of platform. The ATmega328P has no floating-point unit, so every `float` operation is emulated in software at a real, measurable cost (a `float` multiply can run 10-20x slower than an integer one); in code that has to run inside a fixed time budget -- a PWM update, an ISR, a sensor-polling loop -- prefer integer or fixed-point math and reserve `float` for one-shot calculations outside the hot path.
+
+## Exercise
+
+Build a light-following LED: an LDR voltage divider (5V-LDR-A0-10kOhm-GND, as above) feeding `analogRead(A0)`, and an LED through a correctly-sized resistor on a PWM pin, so the LED gets *brighter* as the room gets *darker* (inverse relationship). Requirements: (1) show your Ohm's law calculation for the LED resistor, given the LED's actual Vf from its datasheet or packaging and your supply voltage; (2) write the sketch using `map()` to convert the 0-1023 ADC reading into a 0-255 PWM duty cycle, inverted; (3) if the LED flickers when light levels are borderline, add a fix.
+
+Hint: `map()` takes `(value, fromLow, fromHigh, toLow, toHigh)` -- for an inverse relationship you don't need a subtraction trick, you can just swap which ends of the output range correspond to which ends of the input range. For flicker, a simple running average of the last several `analogRead()` values (a small fixed-size array, no heap allocation) smooths out noise far better than reading and acting on every single sample.

@@ -397,3 +397,14 @@ All notable changes to The Manual (curriculum + app) are logged here. This file 
 **Result:** `npm run build` passed clean on the first attempt. 156 unique slugs verified repo-wide.
 
 **Status:** Hardware & Computer Systems Tier 1 complete (76h, 5 lessons). Hardware & Computer Systems is now 2/6 tiers content-complete (Tiers 0-1, 98h); Tiers 2-5 remain.
+
+## [0.30.0] — 2026-09-29 — Hardware & Computer Systems Tier 2: complete (Builder level, a finished computer)
+
+**Context:** Continuing the tier-by-tier pattern. This tier's checkpoint is a finished simple computer, and the content matches that ambition — a full cycle-by-cycle CPU trace and hand-assembled machine code, not diagrams-only description.
+
+**Added**
+- `content/hardware-systems/tier-2/*.mdx` (5 files) + matching quizzes: Finishing the Hack Computer (NAND2Tetris Project 5's CPU wired from Tier 1's ALU/registers with a full worked instruction trace — fetch through write-back for `D=D+M` with real register values — and Project 6's two-pass assembler with real hand-assembled Hack machine code), Microcontrollers & Basic Electronics I, Memory Hierarchy & Cache Behavior Empirically, How a Computer Boots (a real NASM boot sector with the 0xAA55 signature explained, run under QEMU), Buses & I/O Fundamentals.
+
+**Result:** `npm run build` passed clean on the first attempt. 161 unique slugs verified repo-wide.
+
+**Status:** Hardware & Computer Systems Tier 2 complete (65h, 5 lessons). Hardware & Computer Systems is now 3/6 tiers content-complete (Tiers 0-2, 163h); Tiers 3-5 remain.

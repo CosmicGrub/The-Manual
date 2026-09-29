@@ -1,0 +1,98 @@
+[
+  {
+    "id": "hardware-systems/tier-2/buses-and-io-fundamentals/q1",
+    "type": "multiple_choice",
+    "prompt": "An NVMe SSD on PCIe 4.0 x4 vastly outperforms a SATA III SSD. Concretely, which two factors combine to cause this?",
+    "choices": [
+      "Wider/faster PCIe lanes (multiple ~2 GB/s lanes vs. SATA's single ~0.55 GB/s link) plus NVMe's massively deeper, more parallel command queues vs. AHCI's single 32-deep queue",
+      "NVMe SSDs simply use faster NAND flash chips than SATA SSDs",
+      "PCIe eliminates the need for a command protocol entirely, removing all overhead",
+      "SATA is limited only by cable length, not by its electrical line rate"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-2/buses-and-io-fundamentals/q2",
+    "type": "multiple_choice",
+    "prompt": "Using ~1969 MB/s of usable throughput per direction per PCIe Gen4 lane, what is the approximate max theoretical throughput of a PCIe 4.0 x4 link (as used by a typical M.2 NVMe SSD) in one direction?",
+    "choices": [
+      "~2 GB/s",
+      "~4 GB/s",
+      "~7.9 GB/s",
+      "~16 GB/s"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "hardware-systems/tier-2/buses-and-io-fundamentals/q3",
+    "type": "multiple_choice",
+    "prompt": "Which bus uses only two signal wires (plus ground) for the whole bus, and identifies each slave device by an in-band address rather than a dedicated select line?",
+    "choices": [
+      "SPI",
+      "I2C",
+      "UART",
+      "PCIe"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "hardware-systems/tier-2/buses-and-io-fundamentals/q4",
+    "type": "multiple_choice",
+    "prompt": "Which bus has no addressing scheme at all, instead requiring a separate physical Chip Select line to be driven low for each individual slave device the master wants to talk to?",
+    "choices": [
+      "I2C",
+      "UART",
+      "SPI",
+      "USB"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "hardware-systems/tier-2/buses-and-io-fundamentals/q5",
+    "type": "multiple_choice",
+    "prompt": "Which bus has no shared clock line whatsoever, requiring both ends to be pre-configured to the same baud rate to communicate correctly?",
+    "choices": [
+      "UART",
+      "I2C",
+      "SPI",
+      "PCIe"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-2/buses-and-io-fundamentals/q6",
+    "type": "multiple_choice",
+    "prompt": "A UART link runs at 115200 baud, with 10 bits per frame (1 start + 8 data + 1 stop). Approximately how much time elapses between the start of consecutive bytes?",
+    "choices": [
+      "~8.7 ns",
+      "~86.8 microseconds",
+      "~868 microseconds",
+      "~8.68 milliseconds"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "hardware-systems/tier-2/buses-and-io-fundamentals/q7",
+    "type": "multiple_choice",
+    "prompt": "You need to sample a sensor at 1 MHz (one sample every 1 microsecond), and taking an interrupt on this MCU costs roughly 1-2 microseconds of overhead per event. What is the best design choice and why?",
+    "choices": [
+      "Use one interrupt per sample, since interrupts always minimize CPU usage regardless of event rate",
+      "Use a tight polling loop or DMA instead of per-sample interrupts, because the interrupt overhead per event is comparable to or larger than the time between events",
+      "Use I2C instead of interrupts, since I2C has no overhead at any speed",
+      "It makes no difference; polling and interrupts have identical overhead at any event rate"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "hardware-systems/tier-2/buses-and-io-fundamentals/q8",
+    "type": "multiple_choice",
+    "prompt": "What most fundamentally distinguishes USB from PCIe as a bus architecture?",
+    "choices": [
+      "USB uses copper wires while PCIe uses only fiber optic connections",
+      "USB is a host-polled, shared, hub-based bus where the host mediates all transfers, while PCIe gives each device dedicated point-to-point lanes for direct memory access",
+      "USB can only connect one device per host controller, while PCIe supports many",
+      "PCIe requires a driver on the host while USB devices never need drivers"
+    ],
+    "correctIndex": 1
+  }
+]

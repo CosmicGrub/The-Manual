@@ -1,0 +1,98 @@
+[
+  {
+    "id": "hardware-systems/tier-2/memory-hierarchy-and-cache-behavior-empirically/q1",
+    "type": "multiple_choice",
+    "prompt": "In a typical modern x86 desktop CPU, which cache level is shared across all cores on the same chip?",
+    "choices": [
+      "L1",
+      "L2",
+      "L3",
+      "None \u2014 all cache levels are private per core"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "hardware-systems/tier-2/memory-hierarchy-and-cache-behavior-empirically/q2",
+    "type": "multiple_choice",
+    "prompt": "Using typical latencies (L1 ~1 ns, DRAM ~90 ns), roughly how much slower is a DRAM access than an L1 hit?",
+    "choices": [
+      "About 2x",
+      "About 10x",
+      "About 30x",
+      "About 80-100x"
+    ],
+    "correctIndex": 3
+  },
+  {
+    "id": "hardware-systems/tier-2/memory-hierarchy-and-cache-behavior-empirically/q3",
+    "type": "multiple_choice",
+    "prompt": "What physically stores a single bit in a DRAM cell, as opposed to an SRAM cell?",
+    "choices": [
+      "A cross-coupled pair of inverters (6 transistors)",
+      "A single capacitor plus one access transistor",
+      "A flip-flop built from NAND gates",
+      "A resistive memory element (memristor)"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "hardware-systems/tier-2/memory-hierarchy-and-cache-behavior-empirically/q4",
+    "type": "multiple_choice",
+    "prompt": "Why does DRAM need periodic refresh but SRAM does not?",
+    "choices": [
+      "DRAM runs at a lower voltage, which corrupts data over time",
+      "DRAM's capacitor-based bit cells leak charge and must be rewritten every ~64 ms or the stored value decays",
+      "SRAM has built-in error correction that DRAM lacks",
+      "DRAM cells physically wear out after each read"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "hardware-systems/tier-2/memory-hierarchy-and-cache-behavior-empirically/q5",
+    "type": "multiple_choice",
+    "prompt": "A cache-latency benchmark uses pointer chasing (each load's address depends on the value just loaded) instead of a simple sequential array scan. Why?",
+    "choices": [
+      "Pointer chasing is easier to code",
+      "Sequential access lets the hardware prefetcher fetch ahead and hide real miss latency, so measured times would reflect bandwidth rather than true per-access latency",
+      "Pointer chasing uses less memory",
+      "Sequential access always causes TLB misses"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "hardware-systems/tier-2/memory-hierarchy-and-cache-behavior-empirically/q6",
+    "type": "multiple_choice",
+    "prompt": "In the pointer-chase benchmark's staircase output, the average ns/access jumps sharply once the working set outgrows the L2 size. What does that jump correspond to?",
+    "choices": [
+      "The working set now mostly resides in L3 instead of L2",
+      "The CPU has switched from paging to segmentation",
+      "The benchmark has hit a compiler optimization boundary",
+      "The jump is an artifact with no relation to cache size"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-2/memory-hierarchy-and-cache-behavior-empirically/q7",
+    "type": "multiple_choice",
+    "prompt": "A 2D array `float m[4096][4096]` is stored in row-major order in C. Which traversal has better spatial locality?",
+    "choices": [
+      "Column (j) in the outer loop, row (i) in the inner loop",
+      "Row (i) in the outer loop, column (j) in the inner loop, so consecutive inner-loop accesses are adjacent in memory",
+      "Locality is identical either way since it's the same data",
+      "Neither \u2014 C stores 2D arrays non-contiguously"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "hardware-systems/tier-2/memory-hierarchy-and-cache-behavior-empirically/q8",
+    "type": "multiple_choice",
+    "prompt": "DDR4-3200 has a CAS latency (CL) of 16 clock cycles, measured at the DRAM's 1600 MHz base clock. What is CL in nanoseconds?",
+    "choices": [
+      "5 ns",
+      "10 ns",
+      "16 ns",
+      "20 ns"
+    ],
+    "correctIndex": 1
+  }
+]

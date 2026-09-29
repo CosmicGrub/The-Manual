@@ -1,0 +1,98 @@
+[
+  {
+    "id": "hardware-systems/tier-2/finishing-the-hack-computer/q1",
+    "type": "multiple_choice",
+    "prompt": "What determines whether a 16-bit Hack instruction word is interpreted as an A-instruction or a C-instruction?",
+    "choices": [
+      "The value of bit 15 (0 = A-instruction, 1 = C-instruction)",
+      "Whether the value fits in 15 bits",
+      "The three jump bits at the end of the word",
+      "Whether the destination field is all zeros"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-2/finishing-the-hack-computer/q2",
+    "type": "multiple_choice",
+    "prompt": "In the Hack CPU, setting a C-instruction's a-bit (bit 12) to 1 changes what?",
+    "choices": [
+      "Which register, A or D, receives the ALU's output",
+      "The ALU's y-input source, switching it from the A register to RAM[A] (M)",
+      "Whether the instruction is treated as a jump",
+      "Whether the writeM output pin is asserted"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "hardware-systems/tier-2/finishing-the-hack-computer/q3",
+    "type": "multiple_choice",
+    "prompt": "Given D=3, A=5, and RAM[5]=17, what value does the instruction D=D+M store into D after the next clock edge?",
+    "choices": [
+      "14",
+      "17",
+      "20",
+      "22"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "hardware-systems/tier-2/finishing-the-hack-computer/q4",
+    "type": "multiple_choice",
+    "prompt": "What is the correct 16-bit encoding of the Hack instruction M=D+1?",
+    "choices": [
+      "1110011111001000",
+      "1110001100001000",
+      "1111011111001000",
+      "1110011111010000"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-2/finishing-the-hack-computer/q5",
+    "type": "multiple_choice",
+    "prompt": "Why does the Hack assembler need two passes over the source file instead of one?",
+    "choices": [
+      "To reduce total compile time on large programs",
+      "Because RAM must be zero-initialized before ROM is written",
+      "Because a label can be referenced as a forward jump target before its (LABEL) line has been scanned, so its address isn't known until the whole file has been read once",
+      "Because the ALU control bits require recomputation on every line"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "hardware-systems/tier-2/finishing-the-hack-computer/q6",
+    "type": "multiple_choice",
+    "prompt": "In the Hack assembler, what RAM address does the first user-defined variable symbol get assigned, assuming no other variables have been assigned yet?",
+    "choices": [
+      "0",
+      "4",
+      "16",
+      "32768"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "hardware-systems/tier-2/finishing-the-hack-computer/q7",
+    "type": "multiple_choice",
+    "prompt": "Using the TinyISA-8 encoding ooo aaaaa (3-bit opcode, 5-bit address), what hex byte encodes STORE targeting memory address 6?",
+    "choices": [
+      "0x04",
+      "0x26",
+      "0x45",
+      "0xE0"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "hardware-systems/tier-2/finishing-the-hack-computer/q8",
+    "type": "multiple_choice",
+    "prompt": "In the Hack CPU datapath, what does the PC do on a C-instruction whose jump bits are 000 (no jump specified)?",
+    "choices": [
+      "It resets to 0",
+      "It holds its current value until an A-instruction arrives",
+      "It increments by 1, exactly as it would after any non-jumping instruction",
+      "It loads the current value of the A register"
+    ],
+    "correctIndex": 2
+  }
+]

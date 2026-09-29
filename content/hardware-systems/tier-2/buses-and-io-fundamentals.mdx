@@ -1,0 +1,135 @@
+---
+trackId: hardware-systems
+tier: 2
+title: "Buses & I/O Fundamentals"
+order: 5
+estimatedHours: 8
+slug: buses-and-io-fundamentals
+---
+
+## Where this fits
+
+You already know what a bus *is* in the electrical sense — Tier 0 covered Ohm's law and basic digital signaling, and Tier 1 covered the fetch-decode-execute cycle and the CPU-memory relationship. This module is about the buses that move bytes between the CPU and everything that isn't the CPU or RAM: storage, peripherals, and the sensors/actuators you'll be wiring to a microcontroller in the next few modules. Nothing here is re-teaching electricity — it's applying it.
+
+## Storage and expansion buses: SATA, NVMe, PCIe, USB
+
+These four names get thrown around interchangeably in spec sheets, but they solve different problems.
+
+**PCIe (PCI Express)** is the actual physical/electrical transport. It's a set of point-to-point serial differential pairs called *lanes*. Each lane is full-duplex — one differential pair transmits, another receives, simultaneously, no turnaround delay. Lanes are bonded into links: x1, x4, x8, x16. Per-lane raw bit rate by generation:
+
+| Gen | Line rate | Encoding | Usable per lane (per direction) |
+|---|---|---|---|
+| Gen3 | 8 GT/s | 128b/130b | ~984 MB/s |
+| Gen4 | 16 GT/s | 128b/130b | ~1969 MB/s |
+| Gen5 | 32 GT/s | 128b/130b | ~3938 MB/s |
+
+A PCIe 4.0 x4 link (what a typical M.2 NVMe SSD uses) gives you roughly 4 x 1969 MB/s ≈ 7.9 GB/s in each direction, simultaneously, dedicated to that one device. Nobody else is on that wire.
+
+**SATA** is a completely different, older transport, designed in the early 2000s for spinning hard drives. SATA III tops out at 6 Gb/s line rate, and after 8b/10b encoding overhead that's about 600 MB/s raw, ~550 MB/s realistic. That's the hard ceiling — a SATA SSD cannot exceed it no matter how fast its flash is. On top of the SATA transport sits **AHCI**, the command protocol, which has exactly **one command queue, 32 commands deep**. That queue depth was fine for a mechanical drive that could only physically service one seek at a time. It's a severe bottleneck for flash, which is inherently parallel (many NAND dies, many channels).
+
+**NVMe** is a command protocol purpose-built for flash over PCIe. Instead of AHCI's one queue of 32, NVMe supports **up to 65,536 queues, each up to 65,536 commands deep**, and those queues live in system RAM so the drive's controller can pull commands via DMA without round-tripping through a narrow legacy register interface. So the actual speedup an NVMe SSD gets over a SATA SSD is the product of two independent effects, and it's worth separating them:
+
+1. **Transport bandwidth**: PCIe4 x4 (~7.9 GB/s) vs SATA III (~0.55 GB/s) — about 14x on raw pipe width alone.
+2. **Protocol parallelism**: NVMe's massively deep, massively parallel queues let the drive service many outstanding requests concurrently, which is what actually lets a modern SSD saturate that pipe. AHCI's single shallow queue can't feed the flash fast enough even if you put it behind a faster wire.
+
+Concretely: a Samsung 870 EVO (SATA III) is rated ~560 MB/s sequential read. A Samsung 990 Pro (NVMe, PCIe4 x4) is rated ~7,450 MB/s sequential read — about 13x, matching the transport math almost exactly, with the queue depth difference showing up hardest in random 4K IOPS (SATA SSDs top out around 90K IOPS; NVMe drives routinely hit 1M+ IOPS at low queue depths and far more at high queue depths).
+
+**USB** solves a different problem entirely: universal, hot-pluggable, self-describing peripheral connectivity, not maximum throughput to a fixed internal device. USB is architecturally a **polled, host-centric shared bus** — the host controller decides who talks and when; a device can never speak unless the host asks it to (even USB 3.x's improved async notification is still host-scheduled). It's also a tiered-star topology: hubs share the host's bandwidth among all downstream devices. PCIe, by contrast, gives each device its own dedicated lanes and lets it DMA directly into system RAM. That's why you plug a GPU or an NVMe SSD into PCIe slots, not USB — USB adds host-mediation overhead and shared bandwidth that a dedicated point-to-point link doesn't have. (USB4 actually cheats by tunneling PCIe and DisplayPort traffic underneath the USB protocol layer, which is an admission that USB alone isn't the right tool for that job.)
+
+## Chip-level buses: I2C, SPI, UART
+
+These are the buses you'll actually be soldering and wiring in the embedded module coming up. Concrete comparison:
+
+| | I2C | SPI | UART |
+|---|---|---|---|
+| Wires | 2 (SDA, SCL) + GND | 4+ (MOSI, MISO, SCLK, one CS per slave) | 2 (TX, RX) + GND |
+| Clock | Shared, master-driven | Shared, master-driven | **None** — asynchronous |
+| Addressing | 7-bit (or 10-bit) address in-band | None — CS line picks the device | None — point-to-point only |
+| Typical speed | 100 kHz / 400 kHz / 1 MHz / 3.4 MHz | MHz to tens of MHz | Fixed baud rates: 9600–921600 |
+| Topology | True multi-drop bus, many devices, 2 wires total | Star — one CS wire per device | Strictly 1-to-1 |
+| Typical use | Sensors, EEPROMs, RTCs — low speed, many devices, pins are scarce | SD cards, displays, flash chips, ADCs — need throughput | Debug console, GPS, Bluetooth/serial modules |
+
+**I2C** trades speed for pin count: you can hang a dozen sensors off the same two wires because each has a unique address. The lines are open-drain, which means they need pull-up resistors — and here's where Tier 0's Ohm's law comes back directly. For a 3.3 V bus in Standard mode, the I2C spec caps output-low voltage at 0.4 V and minimum sink current capability at 3 mA, so the *minimum* pull-up value is:
+
+```
+R_min = (V_DD - V_OL) / I_OL = (3.3V - 0.4V) / 3mA ≈ 967 ohms
+```
+
+In practice you pick something well above that minimum (rise-time limits set the upper bound) — 4.7 kΩ is the textbook default for a short bus at 100–400 kHz.
+
+**SPI** has no addressing at all — the master asserts one device's Chip Select line low, clocks data in and out full-duplex on MOSI/MISO simultaneously, then deselects it. No arbitration, no address overhead, which is why it can run much faster than I2C, at the cost of one extra GPIO pin per device.
+
+**UART** has no shared clock — both ends just have to agree on a baud rate ahead of time and sample at the agreed rate. It's strictly point-to-point (no bus, no addressing), which is exactly why it's the right choice for "one microcontroller talking to one PC" or "one microcontroller talking to one GPS module."
+
+```c
+// I2C read of a temperature register (Arduino Wire library)
+Wire.beginTransmission(0x48);   // 7-bit device address
+Wire.write(0x00);               // register pointer
+Wire.endTransmission(false);    // repeated start, no stop
+Wire.requestFrom(0x48, 2);
+int16_t raw = (Wire.read() << 8) | Wire.read();
+
+// SPI read from an SD card / flash chip
+digitalWrite(CS_PIN, LOW);
+SPI.transfer(0x03);             // READ command
+SPI.transfer(addrHi); SPI.transfer(addrMid); SPI.transfer(addrLo);
+byte data = SPI.transfer(0x00); // clock out dummy byte to clock in data
+digitalWrite(CS_PIN, HIGH);
+
+// UART, no addressing needed — it's the only device on the wire
+Serial.begin(115200);
+Serial.println("boot ok");
+```
+
+## Interrupts vs. polling
+
+Same task, two implementations: react to a sensor going active.
+
+**Polling** — the CPU repeatedly asks "is it ready yet?":
+
+```c
+const int SENSOR_PIN = A0;
+void loop() {
+  int light = analogRead(SENSOR_PIN);   // ~100us ADC conversion on AVR
+  if (light < 500) digitalWrite(LED_BUILTIN, HIGH);
+  else digitalWrite(LED_BUILTIN, LOW);
+  // nothing else can run here — this loop owns the CPU completely
+}
+```
+
+**Interrupt-driven** — the hardware tells the CPU when to care, by forcing a jump into a handler (this is the fetch-decode-execute cycle from Tier 1 getting hijacked: instead of fetching the next sequential instruction, the CPU pushes state and fetches from the interrupt vector table):
+
+```c
+volatile bool buttonPressed = false;
+void handleButton() { buttonPressed = true; }  // keep ISRs tiny
+
+void setup() {
+  pinMode(2, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(2), handleButton, FALLING);
+}
+void loop() {
+  if (buttonPressed) {
+    buttonPressed = false;
+    digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
+  }
+  // CPU is free the rest of the time — could sleep_mode() here
+}
+```
+
+The real trade-off, with numbers:
+
+- **CPU usage.** The polling loop burns 100% of the core's time on that one check, forever, whether or not the event has happened. On an ATmega328P (Arduino Uno) that means the chip stays in active mode (on the order of 12–15 mA at 16 MHz/5V per the datasheet) continuously. The interrupt version lets the CPU drop into `SLEEP_MODE_PWR_DOWN` between events, where the same chip draws on the order of a few hundred nanoamps to low microamps — four to five orders of magnitude less. For a battery-powered sensor node waiting on a button press that happens every few minutes, this difference is the whole product's battery life.
+- **Latency.** Polling's response time is bounded by how often you check — if your loop body takes 1 ms to run other work before circling back, worst-case latency to notice the event is ~1 ms. An interrupt fires within a handful of clock cycles of the electrical edge (an AVR's minimum interrupt latency is 4 clock cycles to vector, plus context-save overhead — roughly 1–2 µs total at 16 MHz), regardless of what the main loop is doing.
+- **When polling actually wins.** If events arrive faster than the fixed per-event overhead of taking an interrupt (vector jump + register push/pop + return), interrupts stop paying for themselves. A UART receiving at 115200 baud delivers a byte every 10 bits / 115200 ≈ 86.8 µs — comfortably slower than a ~1–2 µs interrupt entry, so an RX interrupt is a clear win over polling the UART's ready flag. But a 1 MHz ADC sample stream delivers a sample every 1 µs — right in the same ballpark as interrupt overhead — and at that rate a tight polling loop (or better, DMA that never touches the CPU per-sample at all) beats interrupts, because you'd otherwise spend nearly as much time entering and leaving the ISR as doing useful work.
+
+## Exercise
+
+A microcontroller needs to capture every byte from a GPS module running UART at 9600 baud, with a debug console also active on a second UART at 115200 baud. You're deciding between polling both UARTs' "receive ready" flags in the main loop versus using RX interrupts on both.
+
+1. Compute the inter-byte arrival time for the 9600-baud link (10 bits per frame: 1 start + 8 data + 1 stop).
+2. If your polling loop, doing nothing else, can execute one full pass (checking both flags and branching) in 6 CPU cycles at 16 MHz, how many "wasted" polling passes occur during one inter-byte gap on the slower link if nothing else is going on?
+3. Now suppose the main loop also has to do 2 ms of sensor-fusion math per iteration. Explain concretely why polling now risks *dropping* bytes on the faster (115200) link, while an interrupt-based design does not.
+
+*Hint:* the 115200 link's inter-byte gap is about 86.8 µs — compare that directly to the 2 ms of blocking work per loop iteration, not to the CPU's raw clock speed.
+
+## Check your understanding

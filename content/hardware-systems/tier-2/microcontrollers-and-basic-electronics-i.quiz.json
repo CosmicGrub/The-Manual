@@ -1,0 +1,98 @@
+[
+  {
+    "id": "hardware-systems/tier-2/microcontrollers-and-basic-electronics-i/q1",
+    "type": "multiple_choice",
+    "prompt": "What does the duty cycle of a PWM signal actually control?",
+    "choices": [
+      "The switching frequency of the output pin",
+      "The fraction of each period the output is HIGH, which sets the time-averaged voltage/power delivered",
+      "The peak voltage the pin can output",
+      "The number of pins that can be driven simultaneously"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "hardware-systems/tier-2/microcontrollers-and-basic-electronics-i/q2",
+    "type": "multiple_choice",
+    "prompt": "You are sizing a current-limiting resistor for a red LED with Vf = 2.0V, driven from a 5V Arduino pin, targeting exactly 15 mA. Using R = (Vsupply - Vf) / I, what resistance does the calculation give (before rounding to a standard value)?",
+    "choices": [
+      "150 Ohm",
+      "200 Ohm",
+      "250 Ohm",
+      "300 Ohm"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "hardware-systems/tier-2/microcontrollers-and-basic-electronics-i/q3",
+    "type": "multiple_choice",
+    "prompt": "The ATmega328P datasheet specifies 13 ADC clock cycles per conversion, and the Arduino core sets the ADC prescaler so the ADC clock runs at 125 kHz on a 16 MHz Uno. Approximately how long does a single analogRead() conversion take?",
+    "choices": [
+      "About 13 us",
+      "About 104 us",
+      "About 1.04 ms",
+      "About 10.4 us"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "hardware-systems/tier-2/microcontrollers-and-basic-electronics-i/q4",
+    "type": "multiple_choice",
+    "prompt": "Why does a pushbutton wired to a digital input pin need a pull-up or pull-down resistor (internal or external)?",
+    "choices": [
+      "To limit the current flowing through the button contacts",
+      "To guarantee a defined logic level when the button is open, instead of letting the pin float and pick up noise",
+      "To let the pin read an analog voltage instead of a digital one",
+      "To extend the mechanical lifespan of the button"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "hardware-systems/tier-2/microcontrollers-and-basic-electronics-i/q5",
+    "type": "multiple_choice",
+    "prompt": "Why is repeatedly calling malloc/new (or building up Strings with concatenation) inside a microcontroller's main loop risky in a way it typically isn't on a desktop OS?",
+    "choices": [
+      "Embedded compilers silently disable malloc, so the calls do nothing",
+      "It is slower than floating-point math, which is the real bottleneck",
+      "The heap is only a few kilobytes with no OS to compact or reclaim it, so repeated alloc/free fragments it until an allocation eventually fails unpredictably",
+      "malloc always returns NULL immediately on a microcontroller"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "hardware-systems/tier-2/microcontrollers-and-basic-electronics-i/q6",
+    "type": "multiple_choice",
+    "prompt": "On an ATmega328P, Arduino pin 13 is PB5 and has already been configured as an output (DDRB bit 5 set). Which line of direct register manipulation drives pin 13 HIGH?",
+    "choices": [
+      "DDRB |= (1 << 5);",
+      "PORTB |= (1 << 5);",
+      "PINB |= (1 << 5);",
+      "PORTB &= ~(1 << 5);"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "hardware-systems/tier-2/microcontrollers-and-basic-electronics-i/q7",
+    "type": "multiple_choice",
+    "prompt": "An ESP32's LEDC PWM peripheral derives its output from an 80 MHz clock, with max frequency = 80,000,000 / 2^resolution. At 13-bit duty resolution, what is the maximum achievable PWM frequency?",
+    "choices": [
+      "About 76 Hz",
+      "About 9.8 kHz",
+      "About 625 kHz",
+      "About 80 kHz"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "hardware-systems/tier-2/microcontrollers-and-basic-electronics-i/q8",
+    "type": "multiple_choice",
+    "prompt": "According to the ATmega328P's Absolute Maximum Ratings, what is the DC current limit for a single I/O pin?",
+    "choices": [
+      "20 mA",
+      "40 mA",
+      "100 mA",
+      "200 mA"
+    ],
+    "correctIndex": 1
+  }
+]

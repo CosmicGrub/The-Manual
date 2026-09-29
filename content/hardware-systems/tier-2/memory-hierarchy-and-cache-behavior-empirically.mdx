@@ -1,0 +1,170 @@
+---
+trackId: hardware-systems
+tier: 2
+title: "Memory Hierarchy & Cache Behavior, Empirically"
+order: 3
+estimatedHours: 10
+slug: memory-hierarchy-and-cache-behavior-empirically
+---
+
+## Building on Tier 1
+
+Tier 1 gave you the shape of the memory hierarchy: registers, cache, RAM, disk, each tier bigger and slower than the one above it. This module fills in real numbers and makes you measure them yourself instead of taking them on faith. By the end you'll have a program that plots the exact points where your own CPU's cache levels end, and you'll understand why that plot looks the way it does at the transistor level.
+
+## Cache levels, for real
+
+A typical 2020s x86 desktop core (Intel Core i7/i9, AMD Ryzen) looks like this:
+
+| Level | Typical size | Shared? | Typical latency (cycles) | Typical latency (ns, ~4 GHz) |
+|---|---|---|---|---|
+| L1d | 32-48 KB | Private per core | 4-5 | ~1 ns |
+| L2 | 256 KB - 1 MB | Private per core | 10-14 | ~3-4 ns |
+| L3 | 8-32 MB | Shared across all cores | 35-75 | ~10-20 ns |
+| DRAM | 8-128 GB | Shared, off-chip | 200-350 | ~60-100 ns |
+
+Two structural facts matter more than the exact numbers, which vary by chip:
+
+**Cache lines, not bytes.** Every level moves data in fixed-size chunks called lines, almost universally 64 bytes on modern x86 and ARM. A load of a single 4-byte `int` still pulls in the surrounding 64 bytes. This is why sequential access is cheap: you pay for a miss once and get 16 more `int`s (or 8 `double`s) for free.
+
+**L1 and L2 are private, L3 is shared.** Each core has its own L1/L2, so one core's working set doesn't evict another's. L3 is a shared pool — if four cores are all hammering different large arrays, they're competing for the same 8-32 MB, and each core effectively sees less of it than the raw size suggests.
+
+## DRAM vs SRAM: the mechanical trade-off
+
+Cache (SRAM) stores each bit in a **6-transistor cell**: two cross-coupled inverters that hold their state as long as power is applied. No decay, no refresh, fast (a few transistor switching delays to read). The cost is area — six transistors per bit means SRAM tops out around tens of megabytes before die space and power become unworkable.
+
+DRAM stores each bit in **one transistor plus one capacitor** (1T1C). The capacitor holds a charge (roughly: charged = 1, discharged = 0). That's it — no active latching circuit. This is why a DRAM chip can pack gigabits into the same silicon area where SRAM manages megabits: 1 transistor beats 6.
+
+The cost of that density is physical: capacitors leak. A DRAM cell's charge decays over tens of milliseconds regardless of whether anything is reading it. JEDEC-standard DRAM specifies a refresh interval of about **64 ms** — a refresh controller in the memory controller has to walk every row in the chip and rewrite it before it decays past the point of being readable. This is pure overhead: while a row is being refreshed, it can't service a real request, and the refresh traffic itself consumes bus bandwidth. It's the direct price of the density that makes gigabyte-scale main memory affordable.
+
+There's a second DRAM mechanic worth knowing before the locality example below: DRAM is organized into banks and rows. Before you can read a column, the memory controller must **activate** (open) its row into a small row buffer — that's a real, separate operation with its own latency (`tRCD`). If the next access falls in the same open row, it's a fast row-buffer hit (close to `CAS latency` alone — for DDR4-3200 CL16 at a 1600 MHz base clock, that's 16 cycles × (1/1.6 GHz) = **10 ns**). If the next access needs a *different* row, the controller must precharge the old row and activate the new one first, adding `tRP` + `tRCD` on top of CAS — routinely 35-50 ns total at the DRAM chip. Sequential access tends to stay in the same open row; large-stride access tends to jump rows constantly. That's another reason, independent of caching, that access pattern changes real measured latency.
+
+## Writing the benchmark
+
+The obvious idea — walk an array and time it — doesn't work if you walk it sequentially, because the hardware prefetcher detects the stream and fetches ahead, hiding the very latency you're trying to measure. You'd measure bandwidth, not latency.
+
+The standard fix is **pointer chasing**: build a random permutation over the array so that each load's address depends on the value just loaded. The prefetcher can't predict a data-dependent, unpredictable address, so every access actually waits out the real latency of whatever level of the hierarchy holds that cache line.
+
+```c
+#define _POSIX_C_SOURCE 199309L
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+
+static void shuffle(size_t *arr, size_t n) {
+    for (size_t i = n - 1; i > 0; i--) {
+        size_t j = rand() % (i + 1);
+        size_t tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+    }
+}
+
+/* Build one big cycle over n indices: next[i] = index to visit after i. */
+static size_t *build_random_cycle(size_t n) {
+    size_t *perm = malloc(n * sizeof(size_t));
+    for (size_t i = 0; i < n; i++) perm[i] = i;
+    shuffle(perm, n);
+
+    size_t *next = malloc(n * sizeof(size_t));
+    for (size_t i = 0; i < n; i++)
+        next[perm[i]] = perm[(i + 1) % n];
+    free(perm);
+    return next;
+}
+
+static double chase(size_t *next, size_t n, long iterations) {
+    struct timespec t0, t1;
+    volatile size_t p = 0;
+
+    for (size_t i = 0; i < n; i++) p = next[p];   /* warm up */
+
+    clock_gettime(CLOCK_MONOTONIC, &t0);
+    for (long i = 0; i < iterations; i++) p = next[p];
+    clock_gettime(CLOCK_MONOTONIC, &t1);
+
+    double ns = (t1.tv_sec - t0.tv_sec) * 1e9 + (t1.tv_nsec - t0.tv_nsec);
+    return ns / (double)iterations;
+}
+
+int main(void) {
+    srand(42);
+    size_t sizes_kb[] = {4, 16, 32, 64, 128, 256, 512, 1024,
+                         2048, 4096, 8192, 16384, 32768, 65536};
+    int count = sizeof(sizes_kb) / sizeof(sizes_kb[0]);
+
+    for (int k = 0; k < count; k++) {
+        size_t bytes = sizes_kb[k] * 1024;
+        size_t n = bytes / sizeof(size_t);
+        size_t *next = build_random_cycle(n);
+
+        double ns = chase(next, n, 5000000);
+        printf("%7zu KB  ->  %6.2f ns/access\n", sizes_kb[k], ns);
+
+        free(next);
+    }
+    return 0;
+}
+```
+
+Compile with `gcc -O2 -o cachebench cachebench.c` and run it. Expect a **staircase**, not a smooth curve:
+
+```
+      4 KB  ->    1.10 ns/access
+     32 KB  ->    1.15 ns/access
+     64 KB  ->    3.40 ns/access
+    256 KB  ->    3.60 ns/access
+   1024 KB  ->    9.80 ns/access
+   8192 KB  ->   14.50 ns/access
+  16384 KB  ->   72.00 ns/access
+  65536 KB  ->   89.00 ns/access
+```
+
+The flat plateaus are cache levels — the whole working set fits, so latency is constant. The jumps are where the working set outgrows one level and starts spilling into the next, slower, bigger one. On a chip with 32 KB L1 / 256 KB L2 / 8 MB L3, you'd expect steps right around those three sizes, and the numbers above line up with the table you just read. Your machine's exact step locations are a direct, physical readout of its actual cache sizes — better evidence than any spec sheet, because it's *your* silicon.
+
+## Why locality is not academic: row-major vs column-major
+
+C stores a 2D array in **row-major order**: `m[i][j]` and `m[i][j+1]` are 4 (or 8) bytes apart in memory; `m[i][j]` and `m[i+1][j]` are a whole row-width apart. That layout choice has direct, measurable consequences.
+
+```c
+#define N 4096  /* 4096*4096 floats = 64 MB — bigger than any L3 */
+
+double row_major_sum(float (*m)[N]) {
+    double sum = 0;
+    for (int i = 0; i < N; i++)
+        for (int j = 0; j < N; j++)
+            sum += m[i][j];        /* stride 4 bytes: next element, same line */
+    return sum;
+}
+
+double col_major_sum(float (*m)[N]) {
+    double sum = 0;
+    for (int j = 0; j < N; j++)
+        for (int i = 0; i < N; i++)
+            sum += m[i][j];        /* stride N*4 = 16384 bytes: new line, new DRAM row, every time */
+    return sum;
+}
+```
+
+`row_major_sum` walks each row contiguously: every 64-byte line delivers 16 floats before you need the next line, and consecutive rows are adjacent, so the prefetcher tracks the stream perfectly. `col_major_sum` jumps 16 KB between every single access — a new cache line every time, and since 16 KB comfortably exceeds a DRAM row's worth of locality for this access pattern, frequently a new DRAM row activation too.
+
+Representative measured numbers on a 2023 desktop (DDR4-3200, `-O2`):
+
+```
+row_major_sum: 42 ms
+col_major_sum: 361 ms   (8.6x slower)
+```
+
+Same data, same arithmetic, same number of additions — an 8-9x wall-clock difference purely from memory access order. The exact ratio varies by machine and optimization level (at `-O2` the compiler can auto-vectorize the row-major loop, which the column-major loop can't benefit from since it's bottlenecked on cache misses, not on arithmetic throughput — so the gap can get *bigger*, not smaller, with more aggressive optimization). The qualitative result — a full order of magnitude from access pattern alone — is completely typical and is the single most important practical lesson in this module: **the fastest algorithm on paper can lose badly to a slower algorithm with better locality**, because the CPU spends most of its time waiting on memory, not computing.
+
+## Exercise
+
+Modify the pointer-chase benchmark to run on your own machine, then find your CPU's actual cache sizes (`lscpu` on Linux, or read `/sys/devices/system/cpu/cpu0/cache/index*/size`) and check whether the staircase's jump points match the published sizes.
+
+Then push further: shrink `N` in the row/column-sum example until both loops run at roughly the same speed. At what array size does the gap disappear, and why does that size relate to something in the table at the top of this lesson?
+
+Hint: the gap should close once the *entire* array (all `N*N*4` bytes) fits inside one of your cache levels — at that point there's no "new DRAM row" or "new cache line" penalty left to pay, because both traversal orders are just re-reading data that's already resident.
+
+## Key takeaways
+
+- Real cache sizes/latencies follow a fixed shape: L1 (tens of KB, ~1 ns) → L2 (hundreds of KB to 1 MB, ~3-4 ns) → L3 (single-digit to tens of MB, shared, ~10-20 ns) → DRAM (~60-100 ns).
+- DRAM's 1T1C cell is what makes gigabytes affordable, and its leaking capacitor is exactly why it needs ~64 ms refresh cycles that SRAM never needs.
+- To measure true latency you must defeat the prefetcher with pointer chasing; a naive sequential scan measures bandwidth instead.
+- Access pattern, not just algorithm complexity, can dominate real performance — an 8-10x gap from row-major vs column-major traversal on identical data is normal, not an edge case.

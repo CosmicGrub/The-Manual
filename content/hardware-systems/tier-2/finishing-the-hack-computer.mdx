@@ -1,0 +1,234 @@
+---
+trackId: hardware-systems
+tier: 2
+title: "Finishing the Hack Computer"
+order: 1
+estimatedHours: 15
+slug: finishing-the-hack-computer
+---
+
+## Where We Pick This Up
+
+Tier 1 gave you three components you now get to treat as finished black boxes: the ALU (a purely combinational function of two 16-bit inputs and six control bits, from Project 2), the D flip-flop and the registers/counter built from it (Project 3's clocked storage), and the fetch-decode-execute framing for what a computer actually does each cycle. Project 5 wires those three things into a working CPU. Project 6 writes the program that turns human-readable assembly into the bit patterns that CPU consumes. This module does both, by hand, with real numbers, and then asks you to generalize the assembler design to an instruction set you invent yourself.
+
+## Project 5: Wiring the Hack CPU
+
+### The instruction format
+
+Every Hack instruction is 16 bits. Bit 15 is the only thing the CPU needs to know before it can decode the rest:
+
+```text
+0vvvvvvvvvvvvvvv    A-instruction: load the 15-bit value v into the A register
+111accccccdddjjj    C-instruction: compute something, optionally store it, optionally jump
+```
+
+A-instructions are simple: `@21` becomes `0000000000010101`. The interesting bits are in the C-instruction:
+
+- `a` (bit 12) picks the ALU's second operand: 0 = the A register, 1 = RAM[A] (written `M` in Hack assembly)
+- `c1..c6` (bits 11-6) are the ALU control bits (zx, nx, zy, ny, f, no from Project 2) — the assembler looks these up from a fixed table, it doesn't compute them
+- `d1 d2 d3` (bits 5-3) are the destination bits: load A, load D, write M
+- `j1 j2 j3` (bits 2-0) are the jump bits, tested against the ALU's zr/ng outputs
+
+### The datapath, control signal by control signal
+
+The CPU chip is four pieces of Tier-1 hardware wired together with a handful of multiplexers — and the wiring *is* the instruction decoder:
+
+- **A register load.** A loads on every A-instruction, and on a C-instruction only when d1=1. Its input is either the raw instruction bits (A-instruction) or the ALU's output (C-instruction with d1=1) — a 2-way mux selects between them, controlled by bit 15.
+- **ALU y-input mux.** Selects between the A register's output and `inM` (RAM[A]) based on bit 12 (`a`). This is the only place the a-bit matters.
+- **D register load.** Loads only on a C-instruction with d2=1. Its input is always the ALU output.
+- **writeM output pin.** `writeM = bit15 AND d3`. This tells RAM whether to actually commit the ALU's output at address A this cycle.
+- **addressM output pin.** Just the A register's current value, wired straight out — this is how the CPU tells RAM/Screen/Keyboard which word it wants.
+- **PC.** Loads the A register's value when it's a C-instruction *and* the jump condition holds; otherwise it increments. Jump condition: compare the ALU's zr and ng outputs against j1 (jump if negative), j2 (jump if zero), j3 (jump if positive) — e.g. `JGT` is j3 alone, "jump if not zero and not negative."
+
+Nothing here is new logic — it's Project 2's ALU, Project 3's registers and counter, and a mux tree that reads instruction bits as control signals. That's the whole trick of stored-program control: the instruction word *is* the wiring diagram, selected by muxes instead of drawn in copper.
+
+### A full worked trace
+
+Take one instruction executing on a machine currently in this state: `PC=10`, `A=5`, `D=3`, `RAM[5]=17`, and `ROM[10]` holds the instruction `D=D+M`.
+
+Encoding `D=D+M`: comp is `D+M`, which needs a=1 and c1..c6 = `000010` (the same 6 comp bits as `D+A` — only the a-bit changes which physical register feeds the ALU). dest is `D` = `010`. jump is none = `000`.
+
+```text
+  1   1  1   000010  010  000
+bit15 a  ---6 comp bits--  dest jump
+```
+
+Full word: `1111000010010000`.
+
+Cycle by cycle:
+
+1. **Fetch.** `ROM[PC]` = `ROM[10]` = `1111000010010000` appears on the CPU's instruction input. This is combinational — the ROM's output is simply always the word at the current PC address, no clock edge required.
+2. **Decode.** Bit 15 = 1 → C-instruction. a-bit (bit 12) = 1 → the ALU's y-input mux selects `inM` instead of `A`.
+3. **Execute.** ALU inputs: x = D = 3, y = inM = RAM[A] = RAM[5] = 17. Control bits `000010` configure the ALU to compute x+y = 20. zr=0 (output isn't zero), ng=0 (output isn't negative).
+4. **Write-back.** dest bits `010` mean "load D only." At the next clock edge, D <- 20. A and M are untouched (d1=0, d3=0, so writeM=0 too).
+5. **Next PC.** jump bits `000` — the jump condition isn't even checked. PC <- 11.
+
+After this clock edge: `D=20`, `A=5` (unchanged), `RAM[5]=17` (unchanged), `PC=11`. Steps 1-4 all happen inside a single clock cycle because the CPU, apart from its registers, is pure combinational logic — this is a single-cycle, non-pipelined machine. There's no separate "decode cycle" the way there is in a multi-cycle design; decode and execute are just different regions of the same combinational circuit settling simultaneously.
+
+## Project 6: The Two-Pass Hack Assembler
+
+An assembler's job is mechanical translation: mnemonic in, bit pattern out. The only hard part is symbols, and that's exactly why the design is two passes.
+
+### Why two passes
+
+A label used *before* its `(LABEL)` line appears — a forward reference — breaks a single linear pass: if you tried to encode `@LOOP` before you'd scanned `(LOOP)`, you wouldn't yet know which ROM address to put in the instruction. So:
+
+- **Pass 1 (symbols only):** walk the file top to bottom, tracking a ROM address counter that starts at 0 and increments once per real instruction (A- or C-). When you hit a `(LABEL)` pseudo-instruction, record `LABEL -> current ROM address` in the symbol table and do *not* increment the counter — labels don't occupy an instruction slot, they name the slot right after them.
+- **Pass 2 (encode):** walk the file again. For each A-instruction `@xxx`: if `xxx` is numeric, use it directly; if it's already in the symbol table (a label, or a predefined symbol), use its value; otherwise it's a new variable — assign the next free RAM address starting at 16 (0-15 are reserved for `R0`-`R15`), add it to the table, and use that. For each C-instruction, split on `=` and `;`, and look up `dest`, `comp`, and `jump` in three small fixed tables.
+
+Predefined symbols loaded before pass 1 even starts: `SP=0, LCL=1, ARG=2, THIS=3, THAT=4, R0..R15=0..15, SCREEN=16384, KBD=24576`.
+
+### Hand-assembling real Hack code
+
+The classic "2 + 3" program, one instruction per line:
+
+```text
+@2
+D=A
+@3
+D=D+A
+@0
+M=D
+```
+
+**`@2`** -> straight binary of 2: `0000000000000010`
+
+**`D=A`** -> comp=`A` (a=0, c-bits `110000`), dest=`D` (`010`), jump=none (`000`)
+`111`+`0`+`110000`+`010`+`000` = `1110110000010000`
+
+**`@3`** -> `0000000000000011`
+
+**`D=D+A`** -> comp=`D+A` (a=0, c-bits `000010`), dest=`D` (`010`), jump=`000`
+`1110000010010000`
+
+**`@0`** -> `0000000000000000`
+
+**`M=D`** -> comp=`D` (a=0, c-bits `001100`), dest=`M` (`001`), jump=`000`
+`1110001100001000`
+
+Now a program that exercises both passes — a loop testing a variable against a label:
+
+```text
+(LOOP)
+  @i
+  D=M
+  @LOOP
+  D;JGT
+```
+
+Pass 1: `(LOOP)` is the first line, so `LOOP -> 0` goes into the symbol table and the ROM counter doesn't move for it. `@i`, `D=M`, `@LOOP`, `D;JGT` occupy ROM addresses 0, 1, 2, 3.
+
+Pass 2: `i` is not predefined and not a label, so it's a new variable -> RAM address 16.
+
+**`@i`** -> `0000000000010000`
+
+**`D=M`** -> comp=`M` (a=1, c-bits `110000` — same table row as `A`, just with a=1), dest=`D` (`010`), jump=`000`
+`1111110000010000`
+
+**`@LOOP`** -> resolved from the symbol table to ROM address 0: `0000000000000000`
+
+**`D;JGT`** -> comp=`D` (a=0, `001100`), dest=none (`000`), jump=`JGT` (`001`)
+`1110001100000001`
+
+Every real Hack assembler (yours in Project 6 included) is this loop over three lookup tables plus one symbol table — nothing more.
+
+## Generalizing: Design Your Own Tiny ISA
+
+The two-pass structure isn't specific to Hack — it's specific to *any* assembly language with forward-referenced labels. To see that, define a smaller instruction set and assemble a program for it by hand.
+
+**TinyISA-8**: 8-bit instructions, one accumulator (`ACC`) instead of Hack's A/D pair, 32 words of directly addressable memory (a 5-bit address field). Format: `ooo aaaaa` — 3-bit opcode, 5-bit address.
+
+```text
+opcode  mnemonic     effect
+000     LOAD addr    ACC <- MEM[addr]
+001     STORE addr   MEM[addr] <- ACC
+010     ADD addr     ACC <- ACC + MEM[addr]
+011     SUB addr     ACC <- ACC - MEM[addr]
+100     JMP addr     PC <- addr
+101     JZ addr      if ACC == 0: PC <- addr, else PC <- PC + 1
+111     HALT         stop (addr field ignored, conventionally 00000)
+```
+
+A program that computes `MEM[A] + MEM[B]` and stores it at `C`:
+
+```text
+      LOAD  A
+      ADD   B
+      STORE C
+      HALT
+A:    .DATA 5
+B:    .DATA 7
+C:    .DATA 0
+```
+
+Pass 1 (symbol table — instructions and data share one 32-word memory here): the four instructions occupy word addresses 0-3; each `.DATA` directive doesn't emit code, it just reserves and labels a memory cell, so `A=4`, `B=5`, `C=6`.
+
+Pass 2 (encode, opcode concatenated with 5-bit address):
+
+- `LOAD A` -> opcode `000`, addr `4`=`00100` -> `00000100` = `0x04`
+- `ADD B` -> opcode `010`, addr `5`=`00101` -> `01000101` = `0x45`
+- `STORE C` -> opcode `001`, addr `6`=`00110` -> `00100110` = `0x26`
+- `HALT` -> opcode `111`, addr `00000` -> `11100000` = `0xE0`
+
+An assembler for TinyISA-8 is the same shape as the Hack assembler, just with different tables:
+
+```python
+OPCODES = {"LOAD": 0b000, "STORE": 0b001, "ADD": 0b010,
+           "SUB": 0b011, "JMP": 0b100, "JZ": 0b101, "HALT": 0b111}
+
+def assemble(lines):
+    symbols, addr = {}, 0
+    for line in lines:                       # pass 1: symbols only
+        line = line.split(";")[0].strip()
+        if not line:
+            continue
+        if line.endswith(":"):
+            symbols[line[:-1]] = addr        # label -> current word address
+        else:
+            addr += 1                        # instruction or .DATA both take one word
+
+    code, addr = [], 0
+    for line in lines:                       # pass 2: encode
+        line = line.split(";")[0].strip()
+        if not line or line.endswith(":"):
+            continue
+        parts = line.replace(":", "").split()
+        if parts[0] == ".DATA":
+            code.append(int(parts[1]) & 0xFF)
+        else:
+            mnem, *operand = parts
+            opcode = OPCODES[mnem]
+            if not operand:
+                word = opcode << 5
+            else:
+                target = operand[0]
+                value = symbols[target] if target in symbols else int(target)
+                word = (opcode << 5) | (value & 0x1F)
+            code.append(word)
+        addr += 1
+    return code
+```
+
+The only thing that changes between assemblers is *what the tables contain* — opcode widths, field widths, how many operand kinds a mnemonic takes. The two-pass shape (count instruction slots and labels first, resolve and encode second) is universal because it solves a problem, forward references, that exists in every assembly language, real or invented.
+
+## Exercise
+
+Design **TinyISA-8** instruction #6 (opcode `110`, currently unused above): call it `ADDI value`, which adds an unsigned *immediate* (not a memory address) directly to `ACC` — `ACC <- ACC + value`, where `value` is the 5-bit field itself (0-31), not an address to dereference.
+
+1. Write out the encoding table entry for `ADDI` the way the others are shown above.
+2. Hand-assemble this program to hex bytes, resolving the label yourself:
+
+```text
+      LOAD  X
+LOOP: ADDI  1
+      SUB   Y
+      JZ    DONE
+      JMP   LOOP
+DONE: HALT
+X:    .DATA 0
+Y:    .DATA 5
+```
+
+3. Modify the Python `assemble()` function so it handles `ADDI` correctly. Note that `ADDI`'s operand is a literal value, not something to look up in the symbol table, while `JZ`'s and `JMP`'s operands *are* labels — your function needs to know which opcodes take an address-type operand and which take a literal-type operand.
+
+**Hint:** the encoding entry itself is just `opcode=110` — the format `ooo aaaaa` doesn't care whether you call the field an address or an immediate, only the assembler's *encoding logic* needs to branch on which opcode it's assembling.
