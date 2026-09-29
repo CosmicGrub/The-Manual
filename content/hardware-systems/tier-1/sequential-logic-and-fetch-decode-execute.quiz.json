@@ -1,0 +1,98 @@
+[
+  {
+    "id": "hardware-systems/tier-1/sequential-logic-and-fetch-decode-execute/q1",
+    "type": "multiple_choice",
+    "prompt": "In a cross-coupled NOR-gate SR latch, what does the S=1, R=1 input combination force, and why is it called the 'forbidden' state?",
+    "choices": [
+      "It forces both Q and Q' to 0 simultaneously, breaking the rule that Q' is always the complement of Q",
+      "It forces both Q and Q' to 1 simultaneously, which overloads the gates",
+      "It has no effect at all; the latch simply holds whatever value it already had",
+      "It permanently damages the NOR gates, requiring the circuit to be rebuilt"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-1/sequential-logic-and-fetch-decode-execute/q2",
+    "type": "multiple_choice",
+    "prompt": "What change turns a plain SR latch into a D latch, eliminating the forbidden state entirely?",
+    "choices": [
+      "Replacing both NOR gates with NAND gates",
+      "Adding a clock signal directly to the NOR gates' inputs",
+      "Adding two AND gates (and an inverter) so that S = EN AND D and R = EN AND (NOT D), making S and R mutually exclusive whenever EN=1",
+      "Adding a second SR latch wired in parallel with the first"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "hardware-systems/tier-1/sequential-logic-and-fetch-decode-execute/q3",
+    "type": "multiple_choice",
+    "prompt": "Why does a master-slave D flip-flop change its output Q only at the clock's rising edge, instead of continuously tracking D the way a plain D latch does?",
+    "choices": [
+      "The master latch is transparent only while CLK is low and the slave is transparent only while CLK is high, so the two are never transparent to D at the same time except at the instant of transition",
+      "Flip-flops are physically incapable of switching more than once per clock cycle",
+      "The D input is electrically disconnected except during the rising edge itself",
+      "An internal capacitor only finishes charging once per clock cycle"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-1/sequential-logic-and-fetch-decode-execute/q4",
+    "type": "multiple_choice",
+    "prompt": "In the worked D flip-flop trace, D drops from 1 to 0 while CLK is still held at 1 (step 4). What happens to Q at that moment?",
+    "choices": [
+      "Q immediately drops to 0, matching the new D value",
+      "Q becomes undefined until the next clock edge resolves it",
+      "Q stays at 1, because the master latch is frozen for the entire time CLK=1 and never sees the new D value until the next edge",
+      "Q toggles to the opposite of whatever it was holding"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "hardware-systems/tier-1/sequential-logic-and-fetch-decode-execute/q5",
+    "type": "multiple_choice",
+    "prompt": "In an n-bit register built from Bit chips (a mux feeding a DFF), what happens to the stored value at a clock edge where load=0?",
+    "choices": [
+      "The register clears to all zeros",
+      "The mux feeds the DFF's own current output back into itself, so the DFF recaptures the same value it already held \u2014 the register appears unchanged",
+      "The DFF is disconnected from the clock signal and stops updating entirely",
+      "The register's output becomes undefined until load is reasserted"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "hardware-systems/tier-1/sequential-logic-and-fetch-decode-execute/q6",
+    "type": "multiple_choice",
+    "prompt": "A 3-bit synchronous counter (same design as the worked example) is currently at state 101 (decimal 5), with reset=0 and inc=1. What state does it move to on the next clock edge?",
+    "choices": [
+      "110",
+      "111",
+      "100",
+      "000"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-1/sequential-logic-and-fetch-decode-execute/q7",
+    "type": "multiple_choice",
+    "prompt": "During the fetch phase of the Hack CPU, which register's output is placed on the address bus feeding instruction memory (ROM)?",
+    "choices": [
+      "The A register",
+      "The D register",
+      "The PC (program counter) register",
+      "A dedicated instruction register (IR)"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "hardware-systems/tier-1/sequential-logic-and-fetch-decode-execute/q8",
+    "type": "multiple_choice",
+    "prompt": "In the Hack C-instruction 1110000010010000 (D=D+A), what do bits 5-3 (the 'ddd' destination field, value 010) specify?",
+    "choices": [
+      "Which ALU operation to perform",
+      "That the result should be stored in the D register",
+      "That the CPU should jump unconditionally to the address in A",
+      "That the ALU's second operand comes from RAM[A] instead of the A register itself"
+    ],
+    "correctIndex": 1
+  }
+]

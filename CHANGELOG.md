@@ -386,3 +386,14 @@ All notable changes to The Manual (curriculum + app) are logged here. This file 
 **Result:** `npm run build` passed clean on the first attempt. 151 unique slugs verified repo-wide.
 
 **Status:** Hardware & Computer Systems Tier 0 started (22h, 4 lessons) — the fifth track in The Manual to get real lesson content. Tiers 1-5 remain.
+
+## [0.29.0] — 2026-09-29 — Hardware & Computer Systems Tier 1: complete (NAND2Tetris-style, real assembly)
+
+**Context:** Continuing the tier-by-tier pattern. This tier is genuinely hands-on-hardware-building material — content is written to match what a learner should be able to actually construct in Logisim Evolution and single-step in gdb, not just read about.
+
+**Added**
+- `content/hardware-systems/tier-1/*.mdx` (5 files) + matching quizzes: Boolean Algebra & Combinational Logic (De Morgan's laws proven by exhaustive truth-table check, every gate derived from NAND alone, a real Karnaugh map worked example with verified minterm coverage, half/full adders and multiplexers built from gates — the NAND2Tetris Projects 1-2 material), Sequential Logic & the Fetch-Decode-Execute Cycle (NAND2Tetris Project 3 and an intro to Project 5), Computer Architecture Fundamentals I, Intro to Assembly Language (real x86-64 snippets, a real Compiler Explorer walkthrough, a real gdb single-stepping session), Number Representation Deep Dive (IEEE-754 hand-encoding, signed/unsigned overflow, endianness).
+
+**Result:** `npm run build` passed clean on the first attempt. 156 unique slugs verified repo-wide.
+
+**Status:** Hardware & Computer Systems Tier 1 complete (76h, 5 lessons). Hardware & Computer Systems is now 2/6 tiers content-complete (Tiers 0-1, 98h); Tiers 2-5 remain.

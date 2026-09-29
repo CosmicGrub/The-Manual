@@ -1,0 +1,193 @@
+---
+trackId: hardware-systems
+tier: 1
+title: "Boolean Algebra & Combinational Logic"
+order: 1
+estimatedHours: 20
+slug: boolean-algebra-and-combinational-logic
+---
+
+Tier 0 gave you the four truth tables — AND, OR, NOT, XOR — as isolated facts about bits. This module turns them into actual circuits: you'll prove the algebraic identities that let you rewrite one gate network as another, simplify a messy Boolean expression down to its minimal form with a Karnaugh map, and then build real arithmetic and data-routing hardware (adders, multiplexers) directly out of gates. This is, almost exactly, the material covered by **NAND2Tetris Projects 1 and 2** ("Boolean Logic" and "Boolean Arithmetic"), and everything here is meant to be built and clicked through in **Logisim Evolution**, not just read.
+
+## Boolean Algebra Notation and De Morgan's Laws
+
+Boolean algebra has a compact shorthand you'll see everywhere from here on: `AB` means A AND B (juxtaposition, like multiplication), `A + B` means A OR B (like addition), and `A'` means NOT A (a trailing prime). So the XOR truth table from Tier 0 is written algebraically as `A'B + AB'` — "A-not AND B, OR A AND B-not" — true exactly when A and B differ.
+
+**De Morgan's laws** are the two identities that let you flip AND/OR networks into NAND/NOR networks, and they're the reason a chip can be built out of one single gate type instead of four. There are two forms:
+
+- **Form 1:** `(AB)' = A' + B'` — "NOT of (A AND B)" equals "(NOT A) OR (NOT B)"
+- **Form 2:** `(A + B)' = A'B'` — "NOT of (A OR B)" equals "(NOT A) AND (NOT B)"
+
+Don't take these on faith — build the truth table and check every row. Form 1:
+
+| A | B | AB | (AB)' | A' | B' | A' + B' |
+|---|---|----|-------|----|----|---------|
+| 0 | 0 | 0  | 1     | 1  | 1  | 1       |
+| 0 | 1 | 0  | 1     | 1  | 0  | 1       |
+| 1 | 0 | 0  | 1     | 0  | 1  | 1       |
+| 1 | 1 | 1  | 0     | 0  | 0  | 0       |
+
+Compare the `(AB)'` column to the `A' + B'` column: `1, 1, 1, 0` against `1, 1, 1, 0`. Identical on every row — the two expressions are the same function, just written differently. Form 2, same treatment:
+
+| A | B | A+B | (A+B)' | A' | B' | A'B' |
+|---|---|-----|--------|----|----|----|
+| 0 | 0 | 0   | 1      | 1  | 1  | 1  |
+| 0 | 1 | 1   | 0      | 1  | 0  | 0  |
+| 1 | 0 | 1   | 0      | 0  | 1  | 0  |
+| 1 | 1 | 1   | 0      | 0  | 0  | 0  |
+
+`(A+B)'` is `1, 0, 0, 0`; `A'B'` is `1, 0, 0, 0`. Matches row for row. Both laws proven by exhaustive case check — with only 2 inputs there are only 4 rows, so "exhaustive" is cheap. This is the standard way you'll prove any small Boolean identity: write every input combination, evaluate both sides, and check they agree everywhere.
+
+## Why NAND Alone Is Enough: Building Every Gate From One Primitive
+
+NAND ("NOT AND") is 1 in every case except when both inputs are 1:
+
+| A | B | NAND(A,B) |
+|---|---|-----------|
+| 0 | 0 | 1         |
+| 0 | 1 | 1         |
+| 1 | 0 | 1         |
+| 1 | 1 | 0         |
+
+This one gate is **functionally complete** — every other gate can be built from nothing but NANDs, wired together. That's the entire premise of NAND2Tetris Project 1: you're handed exactly one primitive, `Nand`, and told to build `Not`, `And`, `Or`, and `Xor` yourself.
+
+**NOT from NAND:** tie both inputs of a NAND to the same signal. `NAND(A, A) = (A·A)' = A'`. Check: `NAND(0,0) = 1 = 0'`. `NAND(1,1) = 0 = 1'`. One gate.
+
+**AND from NAND:** a NAND followed by a NOT undoes the negation. `AND(A,B) = NOT(NAND(A,B)) = NAND(NAND(A,B), NAND(A,B))`. Two gates.
+
+**OR from NAND:** this is where De Morgan's law earns its keep. Form 2 rearranges to `A + B = (A'B')' = NAND(A', B')`. So invert both inputs first, then NAND them: `OR(A,B) = NAND(NAND(A,A), NAND(B,B))`. Three gates.
+
+**XOR from NAND:** the standard 4-gate construction, worth memorizing because it's exactly what you'll build in Logisim:
+```
+n1 = NAND(A, B)
+n2 = NAND(A, n1)
+n3 = NAND(B, n1)
+XOR = NAND(n2, n3)
+```
+Verify one row by hand — A=1, B=0: `n1 = NAND(1,0) = 1`. `n2 = NAND(1,1) = 0`. `n3 = NAND(0,1) = 1`. `XOR = NAND(0,1) = 1`. Correct, since 1 XOR 0 = 1. Trace the other three rows yourself; all four check out.
+
+## Karnaugh Maps: Simplifying by Grouping Adjacent 1s
+
+A truth table tells you *what* a function computes but not the smallest circuit that computes it. A **Karnaugh map (K-map)** lays the truth table's outputs into a grid where every adjacent cell differs by exactly one input bit (using Gray-code ordering: 00, 01, 11, 10 — note 11 before 10), so that any group of 1s you can visually box — size 2, 4, 8, always a power of 2 — corresponds to a term where the *varying* input drops out entirely.
+
+Worked example: simplify `F(A,B,C,D) = Σm(0,1,2,3,5,7,8,10,13,15)` — the ten minterms are the ten input combinations (numbered 0–15, A as the high bit through D as the low bit) where F is 1. Lay it out with rows = AB and columns = CD, both in Gray-code order:
+
+| AB \ CD | 00 (m·0) | 01 (m·1) | 11 (m·3) | 10 (m·2) |
+|---|---|---|---|---|
+| **00** | 1 (m0)  | 1 (m1)  | 1 (m3)  | 1 (m2)  |
+| **01** | 0 (m4)  | 1 (m5)  | 1 (m7)  | 0 (m6)  |
+| **11** | 0 (m12) | 1 (m13) | 1 (m15) | 0 (m14) |
+| **10** | 1 (m8)  | 0 (m9)  | 0 (m11) | 1 (m10) |
+
+Now group the 1s into the largest power-of-2 rectangles you can find, remembering the grid **wraps around** (top row is adjacent to bottom row, left column is adjacent to right column):
+
+1. The entire top row (`m0, m1, m2, m3`) is four 1s in a row: A=0, B=0 fixed, C and D both vary → group = `A'B'`.
+2. The middle two rows, right two columns (`m5, m7, m13, m15`): B=1, D=1 fixed, A and C both vary → group = `BD`.
+3. The four corners (`m0, m2, m8, m10`) — valid only because of wraparound, top/bottom rows and left/right columns are each adjacent: B=0, D=0 fixed, A and C both vary → group = `B'D'`.
+
+Check coverage: `A'B'` covers {0,1,2,3}, `B'D'` covers {0,2,8,10}, `BD` covers {5,7,13,15}. Union = {0,1,2,3,5,7,8,10,13,15} — exactly the original ten minterms, nothing extra, nothing missing. None of these three groups can grow any larger (try dropping a variable from `B'D'` to make it 8 cells — cell m4, which would need to join, is 0 — so it's already maximal). Minimal result:
+
+```
+F(A,B,C,D) = A'B' + B'D' + BD
+```
+
+Three terms, six literals total, down from a ten-row truth table — and every 1 accounted for by a group whose "free" variables genuinely don't affect the output within that group.
+
+## Half Adder and Full Adder: Building Arithmetic From Gates
+
+Adding two 1-bit numbers needs two outputs: the **Sum** bit and a **Carry** bit for when the result overflows past 1. This is a **half adder** — "half" because it can't yet accept an incoming carry from a previous bit position.
+
+| A | B | Sum | Carry |
+|---|---|-----|-------|
+| 0 | 0 | 0   | 0     |
+| 0 | 1 | 1   | 0     |
+| 1 | 0 | 1   | 0     |
+| 1 | 1 | 0   | 1     |
+
+Read the Sum column against Tier 0's XOR table and the Carry column against the AND table — they're identical. `Sum = A XOR B`, `Carry = A AND B`. Gate-level, that's two gates, both fed the same two inputs directly, no shared internal wiring:
+
+```
+A ---+
+     +--[ XOR ]---> Sum
+B ---+
+
+A ---+
+     +--[ AND ]---> Carry
+B ---+
+```
+
+A **full adder** adds three bits — A, B, and an incoming carry `Cin` — because every bit position past the first needs to absorb the carry out of the position before it:
+
+| A | B | Cin | Sum | Cout |
+|---|---|-----|-----|------|
+| 0 | 0 | 0   | 0   | 0    |
+| 0 | 0 | 1   | 1   | 0    |
+| 0 | 1 | 0   | 1   | 0    |
+| 0 | 1 | 1   | 0   | 1    |
+| 1 | 0 | 0   | 1   | 0    |
+| 1 | 0 | 1   | 0   | 1    |
+| 1 | 1 | 0   | 0   | 1    |
+| 1 | 1 | 1   | 1   | 1    |
+
+`Sum = A XOR B XOR Cin` (check the last row: 1⊕1⊕1 = 0⊕1 = 1 ✓). `Cout` is 1 whenever *at least two* of the three inputs are 1 — the majority function. Run this Cout column through the same K-map technique, 3 variables this time (rows = A, columns = BCin in Gray order):
+
+| A \ BCin | 00 | 01 | 11 | 10 |
+|---|---|---|---|---|
+| **0** | 0 | 0 | 1 | 0 |
+| **1** | 0 | 1 | 1 | 1 |
+
+The four 1s (BCin=11 & A=0; BCin=01,11,10 & A=1) each only touch one other 1 — no group grows bigger than a pair — giving three essential pair-groups: `{A=0,BCin=11}` and `{A=1,BCin=11}` combine into `BCin`; `{A=1,BCin=01}` with `{A=1,BCin=11}` gives `ACin`; `{A=1,BCin=10}` with `{A=1,BCin=11}` gives `AB`. Minimal result: `Cout = AB + ACin + BCin` — three terms, none droppable, which is normal for a genuine majority function.
+
+The standard way to *build* a full adder is two half adders plus one OR gate — no fresh design needed:
+
+```
+HA1:  S1  = A XOR B         C1 = A AND B
+HA2:  Sum = S1 XOR Cin      C2 = S1 AND Cin
+OUT:  Cout = C1 OR C2
+```
+
+HA1 combines the original A and B into a partial sum S1 and partial carry C1. HA2 folds Cin into that partial sum to get the real Sum, producing a second partial carry C2. The final OR gate merges C1 and C2 into Cout. Five gates total (2 XOR, 2 AND, 1 OR), and if each XOR is itself 4 NANDs, an all-NAND full adder costs 2×4 + 2×2 + 3 = 15 NAND gates. This two-half-adder wiring is provably equivalent to the `AB + ACin + BCin` K-map result above — same function, two different (both correct) circuit realizations.
+
+## Multiplexers: Selecting Between Signals With Gates
+
+A **multiplexer (mux)** picks one of several input signals to pass through, based on a separate select input — it's a gate-built if/else. The **2-to-1 mux** has data inputs A and B and one select line S: output A when S=0, output B when S=1.
+
+| S | A | B | Y |
+|---|---|---|---|
+| 0 | 0 | 0 | 0 |
+| 0 | 0 | 1 | 0 |
+| 0 | 1 | 0 | 1 |
+| 0 | 1 | 1 | 1 |
+| 1 | 0 | 0 | 0 |
+| 1 | 0 | 1 | 1 |
+| 1 | 1 | 0 | 0 |
+| 1 | 1 | 1 | 1 |
+
+When S=0 the Y column exactly tracks A (0,0,1,1); when S=1 it exactly tracks B (0,1,0,1). Boolean expression: `Y = AS' + BS`. Build it from four gates: invert S to get S'; AND(A, S') gives a term that's only "live" when S=0; AND(B, S) gives a term only live when S=1; OR the two together, since exactly one of them is live at any time:
+
+```
+S --[NOT]--> S'
+AND(A, S')  = T1
+AND(B, S)   = T2
+OR(T1, T2)  = Y
+```
+
+A **4-to-1 mux** picks among four data inputs A, B, C, D using two select bits S1 S0 (00→A, 01→B, 10→C, 11→D). You don't design this from scratch — you build it as a tree of three 2-to-1 muxes: Mux1 picks between A and B using S0; Mux2 picks between C and D using S0; Mux3 picks between Mux1's output and Mux2's output using S1.
+
+Trace it for S1=1, S0=0 (expecting output C): Mux1's select S0=0 → Mux1 outputs A. Mux2's select S0=0 → Mux2 outputs C. Mux3's select S1=1 → Mux3 outputs Mux2's value, C. Matches the expected selection. This tree structure — small muxes composed into bigger ones — is exactly how NAND2Tetris's `Mux4Way16` is defined in terms of three `Mux16` chips, and it's how you'll build wider muxes for the rest of this track without ever hand-designing a bigger truth table.
+
+## What You Should Be Able to Build in Logisim Evolution
+
+This module is NAND2Tetris Projects 1 and 2 end to end. Before moving on, you should be able to open Logisim Evolution, start from nothing but a NAND primitive, and build — each as its own reusable subcircuit, verified against its truth table using Logisim's built-in test/analysis tools — `Not`, `And`, `Or`, `Xor`, a 2-to-1 `Mux`, and a `DMux` (the mirror of a mux: one input routed to one of two outputs based on a select line, which you get almost for free once you understand mux wiring). From there: 16-bit bus versions of these (`And16` is just sixteen independent `And` gates run in parallel on sixteen wires, not a new design), a `Mux4Way16` built as a tree of `Mux16`s, a `HalfAdder`, a `FullAdder`, and finally an `Add16` — sixteen full adders chained so each one's Cout feeds the next one's Cin (a ripple-carry adder). That last chain is the literal arithmetic core you'll wire into an ALU in the next module, and eventually into a running CPU later in this tier.
+
+## Exercise: NAND-Only Half Adder and Full Adder
+
+In Logisim Evolution, disable every built-in gate except NAND (or simply refuse to place them) and build a half adder using only NAND gates — you'll need the NOT and AND derivations above, plus the 4-NAND XOR. Verify all four truth table rows by toggling the A and B inputs and checking Sum and Carry, or by using Logisim's "Combinational Analysis" to generate and compare the truth table automatically. Then wire two of your NAND-only half adders together with an OR gate (also built from NAND, via De Morgan) into a full adder, and verify all eight rows of its truth table.
+
+Hint: your XOR alone costs 4 NAND gates, and you need two of them per half adder for Sum and internal wiring — count your gates before you start placing them, and if your total for the full adder isn't landing near 15, look for a place you built AND or OR from scratch instead of reusing your NOT/AND/OR NAND-derivations.
+
+## Exercise: Karnaugh Map Challenge
+
+Simplify `G(A,B,C) = Σm(0,2,3,6)` by hand using a 3-variable K-map, the same way `Cout` was simplified above. Write out the minimal sum-of-products expression, and double check it by confirming it evaluates to exactly 1 on those four minterms and 0 on the other four.
+
+Hint: plot the four 1s first and look at which minterm is adjacent, in the grid, to *every one* of the other three. That cell has to appear in more than one group — figure out how many separate pair-groups that forces, before you try to find a single group that (incorrectly) covers everything at once.

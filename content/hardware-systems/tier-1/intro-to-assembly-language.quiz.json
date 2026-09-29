@@ -1,0 +1,98 @@
+[
+  {
+    "id": "hardware-systems/tier-1/intro-to-assembly-language/q1",
+    "type": "multiple_choice",
+    "prompt": "In the System V x86-64 calling convention used on Linux, which register conventionally holds a function's return value?",
+    "choices": [
+      "rax",
+      "rbx",
+      "rsp",
+      "rdi"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-1/intro-to-assembly-language/q2",
+    "type": "multiple_choice",
+    "prompt": "What is the relationship between rax, eax, ax, and al?",
+    "choices": [
+      "They are four completely independent 64-bit registers with no overlap",
+      "eax is the lower 32 bits of rax; ax is the lower 16 bits of eax; al is the lower 8 bits of ax",
+      "rax is the lower 32 bits of eax",
+      "al holds the highest 8 bits of rax, not the lowest"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "hardware-systems/tier-1/intro-to-assembly-language/q3",
+    "type": "multiple_choice",
+    "prompt": "rsp holds 0x7ffee000 immediately before a `call foo` instruction executes. What is rsp immediately after `call foo` runs (before foo does anything else)?",
+    "choices": [
+      "0x7ffedff8",
+      "0x7ffee008",
+      "0x7ffee000",
+      "0x7ffedfe0"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-1/intro-to-assembly-language/q4",
+    "type": "multiple_choice",
+    "prompt": "Given the sequence `mov rax, 5` / `cmp rax, 10` / `jl target`, does the jump to `target` get taken?",
+    "choices": [
+      "Yes, because cmp computes 5 - 10 and the signed result is negative, so the 'less than' condition holds",
+      "No, because 5 is smaller in magnitude so jl never fires on small numbers",
+      "Yes, but only because rax was set with mov rather than loaded from memory",
+      "No, jl only fires when comparing two registers, not a register and an immediate"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-1/intro-to-assembly-language/q5",
+    "type": "multiple_choice",
+    "prompt": "A -O2 compile of `int add3(int a, int b, int c) { return a + b + c; }` produces `lea eax, [rdi+rsi]` / `add eax, edx` / `ret`, with no push rbp at all. Why no stack frame?",
+    "choices": [
+      "add3 is a leaf function that calls nothing else and needs no local storage, so the optimizer omits frame setup entirely",
+      "Because -O2 disables the use of rbp everywhere in the program",
+      "Because functions with exactly three parameters are exempt from stack frames by the ABI",
+      "Because lea instructions are not allowed inside a stack frame"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-1/intro-to-assembly-language/q6",
+    "type": "multiple_choice",
+    "prompt": "Which gdb command sets a breakpoint at the entry of a function named add3?",
+    "choices": [
+      "break add3",
+      "watch add3",
+      "step add3",
+      "run add3"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-1/intro-to-assembly-language/q7",
+    "type": "multiple_choice",
+    "prompt": "After gdb stops at `Breakpoint 1, add3 (a=1, b=2, c=3)` and you step to the end of the function body, which command prints the current value held in the rax register?",
+    "choices": [
+      "print $rax",
+      "info $rax",
+      "display rax",
+      "show rax"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-1/intro-to-assembly-language/q8",
+    "type": "multiple_choice",
+    "prompt": "On ARM64, the `bl` (branch-and-link) instruction handles the return address differently from x86-64's `call`. How?",
+    "choices": [
+      "It stores the return address in the link register x30 instead of pushing it onto the stack",
+      "It pushes the return address onto the stack in exactly the same way x86-64's call does",
+      "It discards the return address, since ARM64 functions cannot return to their caller",
+      "It stores the return address in the stack pointer register itself"
+    ],
+    "correctIndex": 0
+  }
+]

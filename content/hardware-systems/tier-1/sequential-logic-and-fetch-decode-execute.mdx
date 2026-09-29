@@ -1,0 +1,148 @@
+---
+trackId: hardware-systems
+tier: 1
+title: "Sequential Logic & the Fetch-Decode-Execute Cycle"
+order: 2
+estimatedHours: 20
+slug: sequential-logic-and-fetch-decode-execute
+---
+
+## From Combinational Logic to Memory: Why Gates Alone Aren't Enough
+
+Everything you've built out of NAND, AND, OR, and XOR gates so far is combinational: its output depends only on its current inputs. Feed an adder the same two bytes twice and you get the same sum twice, with no memory of the first time. You cannot build a counter, a register, or RAM out of combinational gates alone, because a purely combinational circuit has no way to remember what happened one instant ago — every wire in it recomputes from scratch, forever, from whatever sits on its inputs right now.
+
+Sequential logic fixes this with feedback: a gate's output wired back around into its own input, or into an upstream gate's input. Feedback is exactly what lets a circuit's *current* output depend on its *past* inputs — and "output depends on past inputs" is the entire definition of memory. The simplest device this produces is the SR latch.
+
+## The SR Latch: The First Circuit That Remembers
+
+Take two NOR gates and cross-wire them: NOR A's inputs are S and NOR B's output; NOR A's output is Q. NOR B's inputs are R and NOR A's output (Q); NOR B's output is Q', meant to always be the complement of Q.
+
+```
+S ----+
+      |--[ NOR A ]---+----------> Q
+  +-->|              |
+  |   +--------------+
+  |                  |
+  |   +--------------+
+  +---|              |
+      |--[ NOR B ]---+----------> Q'  (NOT Q)
+R ----+
+```
+*(NOR A's second input is Q', looped up from NOR B's output. NOR B's second input is Q, looped down from NOR A's output.)*
+
+Read the truth table by hand — recall NOR: output is 1 only when **both** inputs are 0.
+
+| S | R | Result |
+|---|---|---|
+| 0 | 0 | **Hold** — Q keeps whatever value it already had |
+| 1 | 0 | **Set** — Q forced to 1, Q' to 0 |
+| 0 | 1 | **Reset** — Q forced to 0, Q' to 1 |
+| 1 | 1 | **Forbidden** — both gates are forced to output 0, so Q = Q' = 0, breaking the rule that Q' is always the opposite of Q |
+
+Walk the "hold" row concretely. Say Q is currently 1 (so Q' is 0), and you set S=0, R=0. NOR A sees inputs (S=0, Q'=0) — both 0 — so it outputs 1: Q stays 1. NOR B sees inputs (R=0, Q=1) — not both 0 — so it outputs 0: Q' stays 0. Nothing changed, and nothing *will* change until S or R is pulsed again. That's memory: the circuit keeps reporting the last Set or Reset it received, arbitrarily far into the future, powered only by its own feedback.
+
+The S=R=1 row is a real problem, not a theoretical one. If S and R both drop back to 0 at exactly the same instant, which gate's feedback "wins" and decides the final Q depends on microscopic manufacturing differences in gate delay — a genuine race condition with an unpredictable outcome. Everything below exists to eliminate that row.
+
+## The D Latch: Making the Forbidden State Structurally Impossible
+
+Add two AND gates and one inverter in front of the SR latch. Let EN (enable) and D (data) be the two real inputs: AND-1 computes `EN AND D`, feeding S. AND-2 computes `EN AND (NOT D)`, feeding R.
+
+When EN=0, both AND gates output 0 no matter what D is, so S=R=0 and the latch holds. When EN=1, S=D and R=NOT D — and D, NOT D can never both be 1, so S and R can never both be 1. The forbidden row is now unreachable by construction, not by discipline. While EN is high, Q simply tracks D in real time ("transparent"); the instant EN drops to 0, Q freezes at whatever D last was.
+
+That's still a *level*-sensitive circuit: for as long as EN is 1, any glitch on D shows up on Q immediately, and chaining several of these together lets a change race through a whole circuit within one "enable high" window. That's not survivable in a CPU built from thousands of registers. You need something that samples its input at one precise instant and ignores it completely until the next.
+
+## The D Flip-Flop: Why Edge-Triggering Matters
+
+A D flip-flop (DFF) is two D latches chained "master-slave," with opposite enables: the master's enable is `NOT CLK`, the slave's enable is `CLK` directly.
+
+- While **CLK=0**: the master is transparent (tracking D); the slave is frozen (holding its last output).
+- While **CLK=1**: the master is frozen (holding whatever D was the instant before CLK rose); the slave is transparent, passing the master's frozen value straight through to Q.
+
+The knife-edge moment is the rising edge (0→1) itself: the master locks shut at the exact instant the slave opens. Whatever D was *right before* that edge is what reaches Q — at no other moment is D visible to Q at all. That's edge-triggering.
+
+Trace a real DFF, starting at Q=0, through two full clock cycles:
+
+| Step | CLK | D | What happens | Q |
+|---|---|---|---|---|
+| 1 | 0 | 0 | Master transparent, tracking D; slave frozen | 0 |
+| 2 | 0 | 1 | D changes to 1; master's internal value follows; slave still frozen (CLK=0), so Q doesn't move yet | 0 |
+| 3 | 0→1 | 1 | **Rising edge.** Master locks in D=1 from the instant before the edge; slave opens and passes it straight to Q | **1** |
+| 4 | 1 | 0 | D drops to 0, but the master is frozen the whole time CLK=1 — this change never reaches Q | 1 |
+| 5 | 1→0 | 0 | Falling edge: master reopens and starts tracking the current D=0; slave freezes, holding its last output | 1 |
+| 6 | 0 | 0 | D stays 0; master keeps tracking 0; slave still frozen | 1 |
+| 7 | 0→1 | 0 | **Rising edge.** Master locks in D=0; slave opens, passes it to Q | **0** |
+
+Q only ever moves on rows 3 and 7 — the two rising edges. Row 4's glitch is structurally invisible, not just practically ignored: the master is provably frozen for the entire high phase, so there is no path from D to Q until the next edge. That guarantee is what lets you wire a flip-flop's output into another flip-flop's input (or its own, for a counter) without unpredictable races: every flip-flop in a circuit samples at the *same* instant, so whatever one flip-flop outputs this cycle is fully settled before the next cycle's edge asks anyone to read it.
+
+## Registers: N Flip-Flops, One Clock, One Load Line
+
+A 1-bit register (NAND2Tetris calls this chip `Bit`) is a DFF with a multiplexer in front of it, choosing every cycle between the DFF's *own current output* (looped back in) and a new input value:
+
+```
+Bit(in, load):
+    muxOut = load ? in : dffOut     # new data, or the DFF's own last output
+    dffOut = DFF(muxOut)            # sampled only at the clock edge
+    out    = dffOut
+```
+
+If `load=0`, the mux keeps re-feeding the DFF its own last output, so the next edge just recaptures the value already there — the register looks frozen even though the clock never stops ticking. If `load=1`, the mux passes the new `in` value through, and the next edge captures that instead. A 16-bit register is sixteen `Bit` chips side by side, all sharing the *same* clock and the *same* `load` line, so all 16 bits update — or all 16 hold — on exactly the same edge. That shared clock is the entire meaning of "synchronized": it carries no data at all, it just tells every flip-flop in the machine "now," simultaneously, and only at that instant does any stored value change.
+
+## Building a Counter: A 3-Bit Binary Counter, Traced Cycle by Cycle
+
+A counter is a register wired to itself through combinational "+1" logic. Each cycle: read the register's current output, run it through an incrementer (built from the same XOR/AND adder logic as Tier 1's combinational adders, just wired to add the constant 1), and feed that result back in as the register's next input.
+
+```
+Counter(reset, inc):
+    incOut     = Inc3(currentOut)                    # currentOut + 1, wrapping at 3 bits
+    nextIn     = reset ? 000 : (inc ? incOut : currentOut)
+    currentOut = Register3(nextIn, load=true)         # samples nextIn on every clock edge
+```
+
+Trace it for eight consecutive rising edges, with `reset=0` and `inc=1` held the whole time, starting from `000`:
+
+| Edge # | State *before* this edge | State *after* this edge |
+|---|---|---|
+| 1 | 000 | 001 |
+| 2 | 001 | 010 |
+| 3 | 010 | 011 |
+| 4 | 011 | 100 |
+| 5 | 100 | 101 |
+| 6 | 101 | 110 |
+| 7 | 110 | 111 |
+| 8 | 111 | **000** — wraps; the incrementer's carry out of bit 2 is simply discarded, exactly like the 9th-bit carry you dropped doing two's-complement addition in Tier 0 |
+
+Nothing here is "counting" in the sense of remembering "seven, therefore next is eight." Every cycle, the combinational incrementer freshly computes `current + 1` from whatever the register currently holds, and the register just captures that result at the edge. The illusion of counting comes entirely from feeding a combinational circuit's output back into the register that circuit reads from — the SR latch's feedback trick, scaled up and now synchronized by a clock instead of running free.
+
+## NAND2Tetris Project 3: What You're Actually Building
+
+This is precisely the ladder Project 3 has you climb, with the DFF handed to you as a *given* primitive — it's the one sequential chip you don't build from scratch, because pure combinational NAND logic has no concept of time or edges at all. The climb: `Bit` → `Register` (16 `Bit`s) → `RAM8` (8 `Register`s plus address-decoding logic to select one) → `RAM64`, `RAM512`, `RAM4K`, `RAM16K` (each built from eight of the previous size, same address-decode trick, one more address bit per layer) → `PC`, the program counter — exactly the 3-bit counter above, scaled to 16 bits, with `load` and `reset` control lines layered on top of `inc`. That `PC` chip is the bridge into everything below.
+
+## The Fetch-Decode-Execute Cycle, Precisely
+
+Three phases, every instruction, on every CPU you will ever touch. Here is exactly what moves, on exactly which bus, using the Hack CPU (NAND2Tetris Project 5) as the concrete machine — it's the smallest real one you'll actually build.
+
+**Fetch.** The PC register's current output — a 16-bit address — is placed on the address bus into instruction memory (`ROM32K`). Instruction memory is read-only and purely combinational once addressed: whatever 16-bit word sits at that address appears on ROM's output bus immediately, with no separate "instruction register" needed, because the address driving it (PC) is guaranteed stable for the entire cycle — it only changes at the *next* clock edge. That 16-bit word is the raw instruction.
+
+**Decode.** The instruction's bits feed directly into control logic — combinational and instantaneous, no extra time step. Take a real instruction, `D=D+A`, whose bit pattern is `1110000010010000`. Read it left to right:
+
+- Bit 15 = `1` → this is a C-instruction (a `0` here would instead mean an A-instruction: a plain 15-bit address literal, a completely different format).
+- Bit 12 (the `a` bit) = `0` → the ALU's second operand comes from the A register itself, not from `RAM[A]`.
+- Bits 11–6 = `000010` → these six bits wire straight into the ALU's control lines (the same ALU you build from raw gates in Project 2), selecting "D+A" out of its function table.
+- Bits 5–3 = `010` → the destination field: store the result in the D register.
+- Bits 2–0 = `000` → the jump field: no condition selected, so control logic tells the PC's mux to pick "increment," not "load from A."
+
+Nothing here is sequential — it's a combinational decoder reading fixed bit positions, exactly like pulling nibbles out of a hex byte back in Tier 0.
+
+**Execute.** The ALU reads the D and A registers' *current* outputs — both already stable on their own buses, since nothing in this cycle can see a register's *new* value, only the value it was already holding — and computes D+A. That result travels on the ALU's output bus to two places at once: into the D register's data input (armed by the decoded `dest=D` line) and into jump-comparison logic (irrelevant here, since jump=000). Separately, the PC's own incrementer computes `PC+1` from the same address that was already on the bus during fetch. At the single clock edge that ends the cycle, everything latches simultaneously: D register captures the new sum, PC captures its incremented address, and the next fetch phase begins from that new PC value.
+
+## NAND2Tetris Project 5: The CPU You're Building Next
+
+Project 5 wires exactly these pieces into one chip: the ALU (Project 2) reading an internal A register and D register (each your Project 3 `Register`), a `PC` (Project 3's counter, now carrying real 16-bit addresses instead of a toy 3-bit count), and the control-bit decoding above turning raw instruction bits into mux-select lines.
+
+One detail worth naming outright: Hack is Harvard-architected, not von Neumann. Recall the ATmega328 example from Tier 0 — separate instruction memory, separate data memory, separate buses. Hack is built the same way on purpose: `ROM32K` (instructions) and `RAM16K` (data) are two different chips with two different address spaces, not one shared road the way an x86 or ARM machine runs. That's a deliberate architectural choice, trading "code can't rewrite itself" for "simpler wiring, no fetch/data bus contention" — and you'll feel that tradeoff directly once you start writing Hack assembly.
+
+## Exercise: Trace a Counter Through a Control Change
+
+Using the same 3-bit `Counter` chip above, trace its state through four consecutive rising edges, starting from state `101`, with this exact sequence of control inputs applied at each edge in order: `inc=1`, `inc=1`, `reset=1`, `inc=1`. Write down the state *before* and *after* each of the four edges, the way the eight-row table above did it.
+
+*Hint:* check `reset` first at every edge, exactly the way the pseudocode's `reset ? 000 : (inc ? incOut : currentOut)` line does — at any edge where `reset=1`, the counter is forced to `000` on that edge no matter what `inc` is also doing. Do the binary addition for each `inc`-only step by hand, wrapping at 3 bits the same way `111 → 000` wrapped in the worked example.

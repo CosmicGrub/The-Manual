@@ -1,0 +1,98 @@
+[
+  {
+    "id": "hardware-systems/tier-1/computer-architecture-fundamentals-i/q1",
+    "type": "multiple_choice",
+    "prompt": "What does the \"stored-program\" idea in von Neumann architecture actually mean?",
+    "choices": [
+      "Both instructions and data are stored as bits in the same memory, and only how the CPU currently uses an address (instruction fetch vs. operand access) distinguishes the two",
+      "The computer keeps a backup copy of every program on a separate disk in case RAM fails",
+      "Every instruction must be manually re-wired into the machine before it can run, the way ENIAC's plugboards worked",
+      "Programs are stored exclusively in the CPU's register file so they never need to touch RAM"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-1/computer-architecture-fundamentals-i/q2",
+    "type": "multiple_choice",
+    "prompt": "A 4-bit ALU is set to control code 10 (ADD). It receives A = 0110 and B = 0101, with carry-in = 0. What are the Sum output and carry-out bit?",
+    "choices": [
+      "Sum = 1011, carry-out = 0",
+      "Sum = 1011, carry-out = 1",
+      "Sum = 0101, carry-out = 0",
+      "Sum = 1101, carry-out = 1"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-1/computer-architecture-fundamentals-i/q3",
+    "type": "multiple_choice",
+    "prompt": "The same 4-bit ALU is set to control code 11 (SUBTRACT), which computes A + (NOT B) + 1. Given A = 0111 (7) and B = 0011 (3), what 4-bit value appears at the Sum output?",
+    "choices": [
+      "0100",
+      "1010",
+      "0010",
+      "1100"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-1/computer-architecture-fundamentals-i/q4",
+    "type": "multiple_choice",
+    "prompt": "Put the control unit's per-instruction steps in the correct order.",
+    "choices": [
+      "Fetch the instruction into the IR, decode the opcode into control signals, execute (ALU/memory operation), then update the PC",
+      "Decode the opcode, fetch the instruction into the IR, update the PC, then execute",
+      "Execute the previous instruction, fetch the next one, update the PC, then decode it",
+      "Update the PC, execute, fetch, then decode"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-1/computer-architecture-fundamentals-i/q5",
+    "type": "multiple_choice",
+    "prompt": "A CPU already has RAM. Why does it also need a small on-chip register file?",
+    "choices": [
+      "Registers sit on the chip and are readable/writable in about one clock cycle, while a round trip to RAM takes 50-100+ cycles, so keeping active operands in registers keeps the ALU from stalling",
+      "Registers are non-volatile, so they preserve data when the machine loses power and RAM does not",
+      "Registers are cheaper per byte to manufacture than RAM, so using them reduces total system cost",
+      "RAM cannot physically store the bit patterns that represent machine instructions"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-1/computer-architecture-fundamentals-i/q6",
+    "type": "multiple_choice",
+    "prompt": "Using the approximate latencies from this module (L1 cache ~1 ns, RAM ~100 ns), roughly how many times slower is a typical RAM access than an L1 cache hit?",
+    "choices": [
+      "About 100x",
+      "About 10x",
+      "About 1,000x",
+      "About 2x"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-1/computer-architecture-fundamentals-i/q7",
+    "type": "multiple_choice",
+    "prompt": "A simple CPU has an address bus that is 16 lines wide. What is the maximum amount of memory it can directly address?",
+    "choices": [
+      "64 KB (2^16 addresses)",
+      "16 KB",
+      "4 KB",
+      "1 MB"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-1/computer-architecture-fundamentals-i/q8",
+    "type": "multiple_choice",
+    "prompt": "Which statement correctly distinguishes the address bus, data bus, and control bus?",
+    "choices": [
+      "The address bus carries the memory location being accessed, the data bus carries the actual value being read or written, and the control bus carries coordinating signals like read/write select and data-ready",
+      "The address bus carries the actual bits of data, the data bus carries the memory location, and the control bus is only used during a system reboot",
+      "All three buses carry the same information; they exist only for electrical redundancy in case one fails",
+      "The control bus carries the memory address, while the address bus and data bus both carry only clock signals"
+    ],
+    "correctIndex": 0
+  }
+]

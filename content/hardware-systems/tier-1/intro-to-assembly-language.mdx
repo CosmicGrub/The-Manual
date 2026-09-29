@@ -1,0 +1,232 @@
+---
+trackId: hardware-systems
+tier: 1
+title: "Intro to Assembly Language"
+order: 4
+estimatedHours: 18
+slug: intro-to-assembly-language
+---
+
+## Setup: which machine, and how much of it
+
+You already know why memory is a flat array of addressable bytes, why von Neumann machines share one memory for code and data, and how integers and floats are actually encoded in bits — that's Tier 0 ground and this module builds directly on top of it without repeating it.
+
+Assembly is what you write to talk to a CPU directly, one instruction at a time, with no compiler standing between you and the hardware. There are two ISAs (instruction set architectures) worth knowing today: **x86-64**, which runs almost every laptop, desktop, and cloud server, and **ARM64**, which runs almost every phone and now a growing share of laptops and servers (Apple Silicon, AWS Graviton). This module picks **x86-64** as the primary language and calls out ARM64 only where the contrast actually teaches you something about how CPUs work in general.
+
+This is deliberately a *minimal* instruction set: registers, `mov`, arithmetic, `cmp`/jumps, and a working stack with `call`/`ret`. You will not get full calling-convention mastery here — how to pass structs, floating-point arguments, variadic functions, or exploit the "red zone." That's Tier 3's job, once you're building real multi-file programs. Here, the goal is: given a small C function, know exactly what the CPU is doing to execute it, and be able to watch it happen live in a debugger.
+
+## The register file
+
+A register is a storage slot built directly into the CPU — no memory access required, so reading or writing one takes a single clock cycle. x86-64 gives you 16 general-purpose 64-bit registers. The first eight have historical two-letter names; the extra eight (added when x86 went 64-bit) are just numbered.
+
+| Register | Conventional role (Linux/System V ABI) |
+|---|---|
+| `rax` | accumulator; holds a function's return value |
+| `rbx` | general purpose, callee-saved (a called function must preserve it) |
+| `rcx` | 4th integer argument to a function; also the implicit shift/loop counter |
+| `rdx` | 3rd integer argument; holds the high half of 128-bit multiply/divide results |
+| `rsi` | 2nd integer argument ("source index," from old string-copy instructions) |
+| `rdi` | 1st integer argument ("destination index") |
+| `rbp` | base/frame pointer — conventionally marks the start of the current stack frame |
+| `rsp` | stack pointer — always points at the current top of the stack |
+| `r8`, `r9` | 5th, 6th integer arguments |
+| `r10`–`r15` | general purpose, mix of caller-saved and callee-saved |
+
+Two things to lock in now. First, `rdi, rsi, rdx, rcx, r8, r9` is the order the first six integer/pointer arguments land in when a C function gets called on Linux — you'll see this constantly when reading compiler output. Second, registers are *sliced*. `rax` is 64 bits; its low 32 bits are called `eax`, the low 16 of that are `ax`, and the low 8 are `al`. Writing to `eax` zeroes the upper 32 bits of `rax` automatically. So:
+
+```
+rax : [ 63 ................................ 32 | 31 ....... 16 | 15 . 8 | 7 . 0 ]
+                                                        eax
+                                                                     ax
+                                                                        al
+```
+
+If a function returns `int` (32-bit), the compiler writes the result into `eax`, and you'll read `eax`, not `rax`, in its disassembly.
+
+**ARM64 aside:** ARM64 has 31 general-purpose registers, `x0`–`x30` (with 32-bit views `w0`–`w30`, same slicing idea). `x0`–`x7` carry the first eight arguments — more than x86-64's six — and `x0` carries the return value. Same job, different headcount and naming scheme.
+
+## `mov`: moving data around
+
+`mov dst, src` copies a value into `dst`. It never adds, never compares — pure data movement, between registers, or between a register and memory.
+
+```asm
+mov rax, 5          ; rax = 5 (an immediate constant)
+mov rbx, rax         ; rbx = rax  (now both hold 5)
+mov rax, [rbx]        ; load: rax = the 8 bytes in memory at address rbx
+mov [rbx], rax         ; store: write rax's value into memory at address rbx
+```
+
+The brackets are the tell: `rbx` alone is a register value; `[rbx]` means "treat the value in `rbx` as a memory address and go read/write there." This is where von Neumann's "everything is an address into one memory" becomes concrete — `[rbx]` is literally indexing that flat byte array from a register instead of a hardcoded number.
+
+## `add` / `sub`: arithmetic
+
+```asm
+mov rax, 10
+add rax, 5      ; rax = 15
+sub rax, 3      ; rax = 12
+add rax, rbx     ; rax = rax + rbx (register + register)
+```
+
+Both instructions write their result back into the destination and set flags in a hidden register called `rflags` — in particular `ZF` (zero flag, set if the result was 0), `SF` (sign flag, set if the result is negative), `CF` (carry flag, unsigned overflow), and `OF` (signed overflow, the same overflow condition from IEEE-754/two's-complement work). Nothing reads these flags directly, but the very next instruction usually does.
+
+## `cmp` and conditional jumps
+
+`cmp a, b` computes `a - b`, throws the numeric result away, and keeps only the flags. It's arithmetic used purely for its side effects.
+
+```asm
+mov rax, 5
+cmp rax, 10      ; computes 5 - 10 = -5, sets SF=1, ZF=0, OF=0
+jl  less_branch   ; "jump if less" (signed): taken here, since 5 < 10
+jmp done
+less_branch:
+    ; rax was less than 10
+done:
+```
+
+`jmp` is an unconditional jump — always taken. The `j`-something family reads the flags `cmp` just set:
+
+| Mnemonic | True condition | Meaning |
+|---|---|---|
+| `je` / `jz` | `ZF=1` | equal / zero |
+| `jne` / `jnz` | `ZF=0` | not equal |
+| `jl` | `SF != OF` | less than (signed) |
+| `jle` | `ZF=1` or `SF != OF` | less or equal (signed) |
+| `jg` | `ZF=0` and `SF = OF` | greater than (signed) |
+| `jge` | `SF = OF` | greater or equal (signed) |
+| `jb` | `CF=1` | below (unsigned) |
+| `ja` | `CF=0` and `ZF=0` | above (unsigned) |
+
+Notice `jl`/`jg` (signed) are different mnemonics from `jb`/`ja` (unsigned) — the exact same bit pattern in a register means something different depending on whether you're treating it as signed or unsigned, so the CPU gives you two separate families of comparison jumps and it's your job (or the compiler's) to pick the right one.
+
+## The stack, and what `call`/`ret` actually do
+
+The stack is just a region of memory that `rsp` points at, growing *downward* — `push` decrements `rsp` and writes; `pop` reads and increments `rsp`. `call` and `ret` are `push`/`pop` in disguise, built specifically for function calls.
+
+Here's a complete, real program: a function that doubles its argument, called from `_start`.
+
+```asm
+section .text
+global _start
+
+_start:
+    mov  rdi, 7        ; argument: 7
+    call double_it       ; push return address, jump to double_it
+    mov  rdi, rax          ; exit code = rax (should be 14)
+    mov  rax, 60             ; syscall number for exit
+    syscall
+
+double_it:
+    push rbp             ; save caller's frame pointer
+    mov  rbp, rsp          ; establish our own frame
+    mov  rax, rdi            ; rax = the argument
+    add  rax, rax              ; rax = rax + rax = 2 * rdi
+    pop  rbp                  ; restore caller's rbp
+    ret                         ; pop return address into rip, jump there
+```
+
+Trace the stack byte-for-byte. Say `rsp = 0x7ffdaa000060` and `rbp = 0x7ffdaa000070` right before `call double_it`, and the instruction after `call` sits at address `0x400087`:
+
+```
+step                        rsp              memory written              rbp
+before call            0x7ffdaa000060        --                       0x7ffdaa000070
+call double_it   ->    0x7ffdaa000058   [0x7ffdaa000058] = 0x400087    0x7ffdaa000070
+push rbp         ->    0x7ffdaa000050   [0x7ffdaa000050] = 0x7ffdaa000070   0x7ffdaa000070
+mov rbp, rsp     ->    0x7ffdaa000050        --                       0x7ffdaa000050
+...arithmetic (rsp, rbp unchanged)...
+pop rbp          ->    0x7ffdaa000058   (reads back 0x7ffdaa000070)    0x7ffdaa000070
+ret              ->    0x7ffdaa000060   (reads back 0x400087, jumps there)   0x7ffdaa000070
+```
+
+`call` is exactly "`push` the address of the next instruction, then `jmp`." `ret` is exactly "`pop` into the instruction pointer." After the full call/return round trip, `rsp` and `rbp` are back to their original values — the stack is balanced, which is the entire discipline of writing correct assembly functions: whatever you push, you must pop, in the reverse order, before you return.
+
+**ARM64 aside — a genuinely different design:** ARM64's equivalent of `call` is `bl` (branch-and-link), but it does *not* touch the stack. It writes the return address into a dedicated register, the **link register** `x30` (`lr`), and jumps. A leaf function (one that calls nothing else) can return with `ret` reading straight from `lr` — zero stack traffic for the entire call. Only a function that itself calls something else needs to spill `lr` onto the stack first (with `stp`, store-pair) before it gets overwritten, and restore it (`ldp`) before returning. x86-64 always pays for a stack write on every call; ARM64 only pays when a function is non-leaf. This is one real reason ARM64 code can be more power-efficient for call-heavy code.
+
+## Reading real compiler output on Compiler Explorer
+
+Compiler Explorer (godbolt.org) compiles your C in the browser and shows you the assembly directly, with colored lines matching source to output. Take this function:
+
+```c
+int add3(int a, int b, int c) {
+    return a + b + c;
+}
+```
+
+Compiled with `gcc -O0 -masm=intel`, you get something close to this:
+
+```asm
+add3:
+        push    rbp
+        mov     rbp, rsp
+        mov     DWORD PTR [rbp-4], edi
+        mov     DWORD PTR [rbp-8], esi
+        mov     DWORD PTR [rbp-12], edx
+        mov     eax, DWORD PTR [rbp-4]
+        add     eax, DWORD PTR [rbp-8]
+        add     eax, DWORD PTR [rbp-12]
+        pop     rbp
+        ret
+```
+
+Line by line: `push rbp` / `mov rbp, rsp` set up a stack frame, exactly like `double_it` above. The next three `mov`s take the three arguments — which arrived in `edi`, `esi`, `edx` per the calling convention — and spill them into local stack slots at `[rbp-4]`, `[rbp-8]`, `[rbp-12]` (`DWORD PTR` means "treat this memory access as 4 bytes," matching `int`). That spilling is pure `-O0` laziness: no optimization means every C variable gets a stack slot, full stop. Then `eax` is loaded from the first slot, and the two `add`s accumulate `b` and `c` into it — this is the actual `a + b + c` from the source. `pop rbp; ret` tears the frame back down and returns, with the sum sitting in `eax` exactly where the caller expects a return value.
+
+Now flip the optimization level to `-O2`:
+
+```asm
+add3:
+        lea     eax, [rdi+rsi]
+        add     eax, edx
+        ret
+```
+
+Three instructions, no stack frame at all. `lea eax, [rdi+rsi]` ("load effective address") is being used as an arithmetic trick, not an address computation — it computes `rdi + rsi` and drops it straight into `eax` without touching the flags, in one instruction, saving a `mov` + `add` pair. Then `add eax, edx` folds in the third argument, and it returns immediately. There's no `push rbp` because `add3` is a *leaf function* (calls nothing else, needs no saved registers, needs no local storage) — the optimizer sees that and skips frame setup entirely. This is the single most useful skill this module teaches: compare `-O0` to `-O2` output for the same function on Compiler Explorer, and the diff tells you exactly what the optimizer decided was unnecessary.
+
+## Single-stepping with gdb
+
+Compile with debug symbols and no optimization so the source lines up cleanly with instructions:
+
+```
+$ gcc -g -O0 add3.c -o add3
+```
+
+where `add3.c` wraps the function above in a `main` that calls `add3(1, 2, 3)`. A real session:
+
+```
+$ gdb ./add3
+(gdb) break add3
+Breakpoint 1 at 0x1149: file add3.c, line 2.
+(gdb) run
+Starting program: /home/user/add3
+Breakpoint 1, add3 (a=1, b=2, c=3) at add3.c:2
+2           return a + b + c;
+(gdb) info registers rdi rsi rdx
+rdi            0x1                 1
+rsi            0x2                 2
+rdx            0x3                 3
+(gdb) stepi
+0x0000555555555155      2           return a + b + c;
+(gdb) x/3i $pc
+=> 0x555555555155 <add3+12>:   mov    eax,DWORD PTR [rbp-0x4]
+   0x555555555158 <add3+15>:   add    eax,DWORD PTR [rbp-0x8]
+   0x55555555515b <add3+18>:   add    eax,DWORD PTR [rbp-0xc]
+(gdb) next
+2           return a + b + c;
+(gdb) print $rax
+$1 = 6
+(gdb) continue
+Continuing.
+6
+[Inferior 1 (process 12345) exited normally]
+```
+
+`break add3` stops execution the moment the function is entered. `run` starts the program and gdb catches the breakpoint — notice it already shows `a=1, b=2, c=3`, reading straight out of the argument registers before they even get spilled to the stack. `info registers rdi rsi rdx` confirms that directly: the three arguments really are sitting in those exact registers at this instant, exactly as the calling convention promised. `stepi` executes one *machine instruction* (as opposed to `step`, which executes one *source line*, which at `-O0` can be several instructions) — useful for watching the spill-to-stack `mov`s happen one at a time. `x/3i $pc` disassembles the next three instructions at the current instruction pointer, so you can preview what's about to run. `next` finishes the line, and `print $rax` reads the register directly — `6`, confirming `1+2+3` landed exactly where the ABI says a return value belongs.
+
+## Exercise: max of two integers, branch vs. branch-free
+
+Write an x86-64 function `imax` that takes two 32-bit integers in `edi` and `esi` and returns the larger one in `eax`, using `cmp` and a conditional jump — no library calls, no C.
+
+Then:
+1. Write the equivalent C function (`int imax(int a, int b) { return a > b ? a : b; }`) and compile it on Compiler Explorer at both `-O0` and `-O2`.
+2. Compare: does `-O2` still use a conditional jump, or does it use `cmovg` (a *conditional move* — an instruction that copies a value only if a condition holds, with no branch at all)? Why might a CPU prefer avoiding a branch here?
+3. Load your compiled binary into gdb, `break imax`, `run` with some test caller, and `stepi` through it, printing `edi`, `esi`, and `eax` before and after the `cmp`.
+
+Hint: a conditional jump can mispredict — the CPU guesses which way a branch goes before it knows, and a wrong guess costs a pipeline flush. A `cmov` has no direction to guess; it always executes the same instructions and just decides which result to keep. For a comparison this simple and unpredictable, that's often faster. You won't need to explain pipelining in depth to answer this — just connect what you observe in the two disassemblies to that basic idea.

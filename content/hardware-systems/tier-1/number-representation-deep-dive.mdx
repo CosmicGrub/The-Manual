@@ -1,0 +1,164 @@
+---
+trackId: hardware-systems
+tier: 1
+title: "Number Representation Deep Dive"
+order: 5
+estimatedHours: 8
+slug: number-representation-deep-dive
+---
+
+You already know how a byte holds an unsigned count, how two's complement gives it a negative range using nothing but an inverter and an adder, and how AND/OR/NOT/XOR reduce every bitwise operator to four truth tables. This module pushes those same bits into four places real programs live or die by: how a fraction gets crammed into 32 bits, what actually happens the instant an addition doesn't fit, why the same 4 bytes can mean two different numbers depending on the chip, and what the C operators that touch bits directly actually do to real values.
+
+## IEEE-754: How a Byte Pattern Becomes a Fraction
+
+A 32-bit IEEE-754 "float" splits its 32 bits into three fields, left to right: **1 sign bit**, **8 exponent bits**, **23 mantissa (fraction) bits**. The exponent is stored with a **bias of 127** added to it, so an exponent field of `10000010` (130) means the real exponent is `130 - 127 = 3`. The mantissa always assumes a hidden leading `1.` that is never stored — only the bits after the binary point are kept.
+
+**Worked example: encode 13.25.**
+
+Step 1 — convert to binary. `13` = `1101`. `0.25` = `0.01` (since the second bit after the point is worth `2^-2 = 0.25`). So `13.25 = 1101.01` in binary.
+
+Step 2 — normalize to `1.xxxxx * 2^n` form. Slide the binary point left 3 places: `1101.01 = 1.10101 * 2^3`.
+
+Step 3 — sign bit. `13.25` is positive, so sign = `0`.
+
+Step 4 — exponent field. Real exponent is `3`, plus bias `127` = `130`. In binary: `130 = 128 + 2 = 10000010`.
+
+Step 5 — mantissa field. Drop the leading `1.` and keep the rest: `10101`. Pad on the right with zeros out to 23 bits: `10101000000000000000000`.
+
+Assembled, the 32 bits are:
+
+```
+sign  exponent   mantissa (23 bits)
+0     10000010   10101000000000000000000
+```
+
+Group those 32 bits into 8 nibbles to read off the hex: `0100 0001 0101 0100 0000 0000 0000 0000` = `0x41540000`.
+
+**Decode it back to check your work.** Split `0x41540000` back into binary: sign `0`, exponent `10000010`, mantissa `10101000000000000000000`. Exponent as decimal: `130 - 127 = 3`. Mantissa as a fraction: `1/2 + 1/8 + 1/32 = 0.5 + 0.125 + 0.03125 = 0.65625`. Restore the hidden leading 1 and apply the exponent: `(1 + 0.65625) * 2^3 = 1.65625 * 8 = 13.25`. It round-trips exactly, because `13.25` happens to need only 5 mantissa bits — most decimals (like `0.1`) need infinitely many and get silently rounded, which is the root cause of almost every "why does my float math look wrong" bug you'll ever debug.
+
+## Signed vs. Unsigned Overflow: Same Bits, Different Lies
+
+Overflow isn't an error message — it's a silently wrong number sitting in a register that looks completely valid. The hardware never inserts extra bits; when a sum needs more bits than the register has, the extra bits are simply gone.
+
+**Unsigned overflow.** Add `200` and `100` as 8-bit unsigned values. `200 = 11001000`, `100 = 01100100`. Adding them bit by bit produces a 9-bit result, `100101100`, but an 8-bit register keeps only the low 8 bits and drops the carry out of bit 7:
+
+```
+  11001000   (200)
++ 01100100   (100)
+-----------
+ 100101100   <- 9 bits; leading 1 is the carry-out, discarded
+```
+
+What's left in the register is `00101100` = `44`. Mathematically `200 + 100 = 300`; the register says `44`, which is exactly `300 - 256` (256 being `2^8`, the value of that lost 9th bit). No warning, no crash — just a register holding `44` where your program expected `300`.
+
+**Signed overflow.** Now add `+100` and `+50` as 8-bit two's complement values — both perfectly valid, both well within range on their own. `100 = 01100100`, `50 = 00110010`:
+
+```
+  01100100   (+100)
++ 00110010   (+50)
+-----------
+  10010110
+```
+
+No 9th bit is produced this time (carry-out of bit 7 is `0`) — the trap is that the carry *into* bit 7 (from the bit-6 addition) was `1`. Read `10010110` as an ordinary two's complement value: the sign bit is `1`, so it's negative — invert and add 1 to find its magnitude: `01101001 + 1 = 01101010 = 106`, so the value is `-106`. **Two positive numbers, added correctly with ordinary binary addition, produced a negative result.** That mismatch — sign bit set when both operands were positive — is precisely what a CPU's overflow flag detects: overflow happens exactly when the carry *into* the sign bit differs from the carry *out* of the sign bit (here: `1` in, `0` out).
+
+```c
+#include <stdio.h>
+#include <stdint.h>
+
+int main(void) {
+    uint8_t a = 200, b = 100;
+    uint8_t usum = a + b;              // unsigned overflow
+    printf("%u + %u = %u\n", a, b, usum);   // 200 + 100 = 44
+
+    int8_t x = 100, y = 50;
+    int8_t ssum = x + y;               // signed overflow
+    printf("%d + %d = %d\n", x, y, ssum);   // 100 + 50 = -106
+
+    return 0;
+}
+```
+
+Both lines print exactly the wrong-looking numbers derived above — this is what actually happens on real hardware, not a hypothetical.
+
+## Endianness: Same Value, Two Byte Orders
+
+A 32-bit value occupies 4 consecutive byte addresses in memory, but which byte goes in the lowest address is a hardware choice, not a law of nature. Store `0x12345678` starting at address `0x1000`:
+
+| Address | Big-endian byte | Little-endian byte |
+|---|---|---|
+| `0x1000` | `0x12` (most significant) | `0x78` (least significant) |
+| `0x1001` | `0x34` | `0x56` |
+| `0x1002` | `0x56` | `0x34` |
+| `0x1003` | `0x78` (least significant) | `0x12` (most significant) |
+
+**Big-endian** writes the most significant byte first, at the lowest address — the byte order matches how you'd read the number left to right. **Little-endian** writes the least significant byte first. Every mainstream desktop and phone CPU today (x86-64, ARM64 in its default mode) is little-endian; this matters the moment you cast a pointer, memory-map a file, or read raw bytes off disk. (Some older architectures and certain fixed protocol headers use big-endian — that's a Tier 3 topic once networking is in scope; for now, know that the choice exists and which one your own machine uses.)
+
+You can observe your own machine's choice directly:
+
+```c
+#include <stdio.h>
+#include <stdint.h>
+
+int main(void) {
+    uint32_t value = 0x12345678;
+    uint8_t *bytes = (uint8_t *)&value;
+
+    for (int i = 0; i < 4; i++) {
+        printf("byte[%d] = 0x%02X\n", i, bytes[i]);
+    }
+    return 0;
+}
+```
+
+On any little-endian machine this prints `byte[0] = 0x78`, `byte[1] = 0x56`, `byte[2] = 0x34`, `byte[3] = 0x12` — the low byte lands at the lowest address, exactly as the table above shows.
+
+## Bitwise Operators in C: Masks, Flips, and Shifts
+
+You already have the AND/OR/NOT/XOR truth tables memorized. C exposes them as `&`, `|`, `^`, `~`, and adds two more that operate on whole bit patterns at once: `<<` and `>>`. Take `uint8_t x = 0xB6` (`10110110`) and trace every operator against it:
+
+```c
+#include <stdio.h>
+#include <stdint.h>
+
+int main(void) {
+    uint8_t x = 0xB6;                    // 10110110
+
+    printf("x & 0x0F = 0x%02X\n", x & 0x0F);        // 0x06
+    printf("x | 0x0F = 0x%02X\n", x | 0x0F);        // 0xBF
+    printf("x ^ 0xFF = 0x%02X\n", x ^ 0xFF);        // 0x49
+    printf("~x       = 0x%02X\n", (uint8_t)(~x));   // 0x49
+    printf("~x raw   = 0x%08X\n", ~x);              // 0xFFFFFF49
+    return 0;
+}
+```
+
+`x & 0x0F` masks off the high nibble, leaving just `0110 = 0x06`. `x | 0x0F` forces the low nibble to all 1s: `10111111 = 0xBF`. `x ^ 0xFF` flips every bit: `01001001 = 0x49` — notice this equals `~x` for an 8-bit value, since XOR-ing with all 1s is exactly bitwise NOT. The last line is the gotcha: C promotes `x` to a (32-bit) `int` before applying `~`, so the untruncated result is `0xFFFFFF49`, not `0xFFFFFF00 | 0x49`-looking-like-8-bits — only assigning it back into a `uint8_t` chops it back down to `0x49`.
+
+**Shifts** move every bit left or right by a fixed count, filling the vacated positions — and, just like addition, bits that fall off the end are simply gone:
+
+```c
+uint8_t y = 0xC0;                         // 11000000 (192)
+uint8_t shifted = (uint8_t)(y << 2);
+printf("y << 2 = 0x%02X\n", shifted);     // 0x00
+```
+
+`192 << 2` as a full-width `int` is `768` (`0x300`), but truncating back to 8 bits drops everything above bit 7, leaving `0x00` — the top two `1` bits were shifted straight out of existence. Left shift by `n` is multiplication by `2^n` only when nothing falls off the top.
+
+Right shift has a second wrinkle: **unsigned values shift logically** (fill with 0s), but **signed values shift arithmetically** (fill with the sign bit, so negatives stay negative):
+
+```c
+uint8_t u = 0xF8;    // 11111000, unsigned 248
+int8_t  s = -8;       // 11111000, same bits, signed -8
+
+printf("u >> 1 = 0x%02X\n", (uint8_t)(u >> 1));  // 0x7C (124)
+printf("s >> 1 = %d\n", s >> 1);                  // -4
+```
+
+Identical bit pattern, two different shifts: `u >> 1` fills the top with `0`, giving `01111100 = 124` (`248 / 2`). `s >> 1` fills the top with the sign bit `1`, giving `11111100 = -4` (`-8 / 2`), preserving the sign the way two's complement demands.
+
+## Exercise: Encode -19.5 by Hand
+
+Encode `-19.5` as a 32-bit IEEE-754 float, the same five steps used for `13.25` above: convert to binary, normalize to `1.xxxxx * 2^n`, set the sign bit, add the bias to the exponent, and pad the mantissa to 23 bits. Then decode your own 32-bit answer back to decimal by reversing every step, and confirm you land back on `-19.5`.
+
+Hint: `19.5` in binary is `10011.1` — normalize it the same way `1101.01` was normalized, and remember the sign bit is the *only* field the negative sign affects; the exponent and mantissa are computed exactly as if you were encoding positive `19.5`.

@@ -1,0 +1,98 @@
+[
+  {
+    "id": "hardware-systems/tier-1/number-representation-deep-dive/q1",
+    "type": "multiple_choice",
+    "prompt": "In the 32-bit IEEE-754 single-precision format, how many bits are allocated to the sign, exponent, and mantissa fields respectively?",
+    "choices": [
+      "1, 8, 23",
+      "1, 11, 52",
+      "8, 1, 23",
+      "1, 23, 8"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-1/number-representation-deep-dive/q2",
+    "type": "multiple_choice",
+    "prompt": "When encoding 13.25 as an IEEE-754 float, the normalized form is 1.10101 * 2^3. What 8-bit binary value goes in the exponent field after applying the bias of 127?",
+    "choices": [
+      "10000010",
+      "00000011",
+      "10000011",
+      "01111101"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-1/number-representation-deep-dive/q3",
+    "type": "multiple_choice",
+    "prompt": "Decoding the IEEE-754 single-precision hex value 0x41540000 (sign 0, exponent 10000010, mantissa 10101000000000000000000) gives which decimal number?",
+    "choices": [
+      "13.25",
+      "12.25",
+      "13.5",
+      "26.5"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-1/number-representation-deep-dive/q4",
+    "type": "multiple_choice",
+    "prompt": "You add the unsigned 8-bit values 200 (11001000) and 100 (01100100) using ordinary binary addition in an 8-bit register, discarding the carry out of bit 7. What value ends up in the register?",
+    "choices": [
+      "44",
+      "300",
+      "255",
+      "156"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-1/number-representation-deep-dive/q5",
+    "type": "multiple_choice",
+    "prompt": "Adding the 8-bit two's complement encodings of +100 (01100100) and +50 (00110010) produces the bit pattern 10010110, with no carry out of bit 7. What does this represent?",
+    "choices": [
+      "-106 in two's complement -- signed overflow, since two positive operands produced a negative result",
+      "150 -- the addition is correct and no overflow occurred",
+      "106 -- unsigned overflow occurred because the carry-out was 0",
+      "-150 -- the sign bit was forced high by the missing carry"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-1/number-representation-deep-dive/q6",
+    "type": "multiple_choice",
+    "prompt": "The 32-bit value 0x12345678 is stored starting at address 0x1000 on a little-endian machine. What byte value is stored at address 0x1000?",
+    "choices": [
+      "0x78",
+      "0x12",
+      "0x34",
+      "0x56"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-1/number-representation-deep-dive/q7",
+    "type": "multiple_choice",
+    "prompt": "Given uint8_t y = 0xC0 (binary 11000000), what is the value of (uint8_t)(y << 2) once the shifted result is truncated back to 8 bits?",
+    "choices": [
+      "0x00",
+      "0x300",
+      "0x03",
+      "0xC0"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-1/number-representation-deep-dive/q8",
+    "type": "multiple_choice",
+    "prompt": "Given int8_t s = -8 (binary 11111000), what does s >> 1 evaluate to in C, given that negative signed right shifts sign-extend?",
+    "choices": [
+      "-4",
+      "124",
+      "-16",
+      "4"
+    ],
+    "correctIndex": 0
+  }
+]
