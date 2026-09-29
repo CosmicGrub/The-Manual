@@ -74,7 +74,7 @@ export function QuizRunner({ moduleId, userId, questions, onComplete }: Props) {
 
           {q.type === 'multiple_choice' &&
             q.choices.map((choice, i) => (
-              <label key={i} className="flex items-center gap-2 py-1">
+              <label key={i} className="flex items-center gap-2 py-2">
                 <input
                   type="radio"
                   name={q.id}

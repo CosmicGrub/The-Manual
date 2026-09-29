@@ -20,7 +20,7 @@ export default async function ReviewPage() {
   return (
     <main className="space-y-6">
       <header>
-        <Link href="/" className="text-sm text-neutral-500 hover:underline">
+        <Link href="/" className="inline-block py-2 text-sm text-neutral-500 hover:underline">
           ← Dashboard
         </Link>
         <h1 className="text-2xl font-semibold mt-1">Today's review</h1>

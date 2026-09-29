@@ -30,7 +30,7 @@ export default function LessonPage({ params }: { params: { trackId: string; tier
   return (
     <main className="space-y-8">
       <header>
-        <Link href={`/tracks/${params.trackId}`} className="text-sm text-neutral-500 hover:underline">
+        <Link href={`/tracks/${params.trackId}`} className="inline-block py-2 text-sm text-neutral-500 hover:underline">
           ← {getTrackName(params.trackId)}
         </Link>
         <h1 className="text-2xl font-semibold mt-1">{lesson.title}</h1>

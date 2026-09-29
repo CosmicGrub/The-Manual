@@ -40,7 +40,7 @@ export function SkillTree({ tracks }: { tracks: TrackSummary[] }) {
           {tracks.map((track) => (
             <tr key={track.id}>
               <td className="text-sm font-medium p-2 whitespace-nowrap">
-                <Link href={`/tracks/${track.id}`} className="hover:underline">
+                <Link href={`/tracks/${track.id}`} className="inline-block py-1 hover:underline">
                   {track.name}
                 </Link>
               </td>

@@ -17,7 +17,7 @@ export default function TrackPage({ params }: { params: { trackId: string } }) {
   return (
     <main className="space-y-8">
       <header>
-        <Link href="/" className="text-sm text-neutral-500 hover:underline">
+        <Link href="/" className="inline-block py-2 text-sm text-neutral-500 hover:underline">
           ← Dashboard
         </Link>
         <h1 className="text-2xl font-semibold mt-1">{getTrackName(trackId)}</h1>
@@ -33,13 +33,16 @@ export default function TrackPage({ params }: { params: { trackId: string } }) {
             {lessons.length === 0 ? (
               <p className="text-sm text-neutral-500 mt-1">No lessons written yet — see docs/curriculum/{trackId}.md for the syllabus.</p>
             ) : (
-              <ul className="mt-2 space-y-1">
+              <ul className="mt-2">
                 {lessons.map((lesson) => (
                   <li key={lesson.slug}>
-                    <Link href={`/tracks/${trackId}/${tier}/${lesson.slug}`} className="text-neutral-900 dark:text-neutral-100 hover:underline">
+                    <Link
+                      href={`/tracks/${trackId}/${tier}/${lesson.slug}`}
+                      className="block py-2 -mx-2 px-2 rounded text-neutral-900 dark:text-neutral-100 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:underline"
+                    >
                       {lesson.title}
+                      <span className="text-sm text-neutral-500 font-normal"> — ~{lesson.estimatedHours}h</span>
                     </Link>
-                    <span className="text-sm text-neutral-500"> — ~{lesson.estimatedHours}h</span>
                   </li>
                 ))}
               </ul>
