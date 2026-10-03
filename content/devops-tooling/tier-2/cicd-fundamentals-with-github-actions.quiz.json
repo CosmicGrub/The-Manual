@@ -1,0 +1,98 @@
+[
+  {
+    "id": "devops-tooling/tier-2/cicd-fundamentals-with-github-actions/q1",
+    "type": "multiple_choice",
+    "prompt": "In a workflow, the `deploy` job has `needs: [build, test]`. What does this actually cause?",
+    "choices": [
+      "deploy runs before build and test, to warm up the environment",
+      "deploy runs in parallel with build and test to save time",
+      "deploy waits until both build and test complete successfully before it starts",
+      "deploy only runs if build and test are both skipped"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "devops-tooling/tier-2/cicd-fundamentals-with-github-actions/q2",
+    "type": "multiple_choice",
+    "prompt": "Which trigger block fires when someone pushes a tag like v1.2.0, but not on ordinary commits to main?",
+    "choices": [
+      "on: push: branches: [main]",
+      "on: pull_request: branches: [main]",
+      "on: push: tags: ['v*']",
+      "on: push: branches: ['v*']"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "devops-tooling/tier-2/cicd-fundamentals-with-github-actions/q3",
+    "type": "multiple_choice",
+    "prompt": "A deploy step accidentally echoes an environment variable that was set from a repository secret. Why doesn't the real value show up in the GitHub Actions log?",
+    "choices": [
+      "GitHub scans raw log output and replaces any text matching a registered secret's value with ***",
+      "Secrets are encrypted in the log and only decrypted when you view it in a browser you're logged into",
+      "run: steps are not allowed to read environment variables derived from secrets",
+      "The secret is deleted from memory before any run step can execute"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "devops-tooling/tier-2/cicd-fundamentals-with-github-actions/q4",
+    "type": "multiple_choice",
+    "prompt": "Following the \"never commit state\" principle, where should a database password used during a CI deploy step actually live?",
+    "choices": [
+      "Hardcoded directly in the workflow YAML file for simplicity",
+      "In a .env file committed to the repo and loaded with a dotenv library",
+      "In the repository's Settings > Secrets and variables > Actions, referenced as ${{ secrets.NAME }}",
+      "In a comment directly above the deploy step so reviewers can verify it"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "devops-tooling/tier-2/cicd-fundamentals-with-github-actions/q5",
+    "type": "multiple_choice",
+    "prompt": "A cache step uses key: ${{ runner.os }}-npm-${{ hashFiles('**/package-lock.json') }}. This cache will miss (forcing a fresh dependency install) primarily when:",
+    "choices": [
+      "The workflow runs on a different calendar day than the last run",
+      "package-lock.json changes, which changes the computed hash",
+      "The job is named deploy instead of build",
+      "More than 10 jobs are defined in the same workflow file"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-2/cicd-fundamentals-with-github-actions/q6",
+    "type": "multiple_choice",
+    "prompt": "What is the actual difference between `uses:` and `run:` inside a job's steps list?",
+    "choices": [
+      "uses: executes arbitrary shell commands; run: references a reusable packaged Action",
+      "uses: references a reusable, versioned Action; run: executes a literal shell command on the runner",
+      "They are interchangeable syntax for the same behavior",
+      "uses: only works with actions/checkout; run: only works for running tests"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-2/cicd-fundamentals-with-github-actions/q7",
+    "type": "multiple_choice",
+    "prompt": "A workflow triggered by `pull_request` from a fork branch typically cannot access the base repository's secrets. Why?",
+    "choices": [
+      "Fork-hosted runners have no network access to GitHub's secret store",
+      "Secrets cost extra for runs triggered from forks",
+      "It prevents a malicious PR from modifying workflow code in the fork to exfiltrate secrets it shouldn't have",
+      "pull_request events don't support environment variables at all"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "devops-tooling/tier-2/cicd-fundamentals-with-github-actions/q8",
+    "type": "multiple_choice",
+    "prompt": "A repo has both `on: push: branches: [main]` and `on: pull_request: branches: [main]` workflows. When a PR is merged into main, both workflows end up running at different points. Why is this not a bug?",
+    "choices": [
+      "pull_request fired earlier to validate the proposed merge preview before landing; push fired separately for the merge commit that actually landed on main \u2014 two distinct, legitimate events",
+      "It is a known bug in GitHub Actions that always double-runs on merge",
+      "pull_request workflows never actually execute, only push workflows do",
+      "push triggers only fire on tag pushes, never on branch commits"
+    ],
+    "correctIndex": 0
+  }
+]

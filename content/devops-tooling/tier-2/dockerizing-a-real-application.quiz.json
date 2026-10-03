@@ -1,0 +1,98 @@
+[
+  {
+    "id": "devops-tooling/tier-2/dockerizing-a-real-application/q1",
+    "type": "multiple_choice",
+    "prompt": "In a Dockerfile, why does `COPY package*.json ./` followed by `RUN npm ci` come before `COPY . .`?",
+    "choices": [
+      "So that the dependency-install layer stays cached across rebuilds when only application source code changes, not dependencies",
+      "Because Docker requires package.json to be copied before any other file",
+      "It has no effect on caching; the order is purely stylistic",
+      "So that npm ci can see the compiled output from the build step"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "devops-tooling/tier-2/dockerizing-a-real-application/q2",
+    "type": "multiple_choice",
+    "prompt": "What does `EXPOSE 3000` actually do in a Dockerfile?",
+    "choices": [
+      "Publishes port 3000 so it's reachable from outside the container",
+      "Documents which port the container listens on; it does not publish or forward that port by itself",
+      "Opens a firewall rule on the host machine",
+      "Sets the port the application's process binds to at runtime"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-2/dockerizing-a-real-application/q3",
+    "type": "multiple_choice",
+    "prompt": "In a multi-stage build, what happens to the builder stage's filesystem (its full node_modules, compilers, devDependencies) once the build finishes?",
+    "choices": [
+      "It is merged into the final image as a compressed layer",
+      "It is kept in a separate registry for debugging",
+      "It is discarded entirely unless explicitly copied out with COPY --from=builder",
+      "It is kept only if the Dockerfile doesn't specify a runtime stage"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "devops-tooling/tier-2/dockerizing-a-real-application/q4",
+    "type": "multiple_choice",
+    "prompt": "An app container in a docker-compose.yml needs to reach a database service named `db` on the same compose file. What hostname should its connection string use?",
+    "choices": [
+      "localhost",
+      "127.0.0.1",
+      "db",
+      "the host machine's LAN IP address"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "devops-tooling/tier-2/dockerizing-a-real-application/q5",
+    "type": "multiple_choice",
+    "prompt": "You run `docker compose down` (without -v) on a stack that has a named volume for Postgres data. What happens to that data?",
+    "choices": [
+      "It is deleted along with the containers",
+      "It is preserved, because named volumes outlive the containers unless -v is passed",
+      "It is automatically backed up to the host's home directory",
+      "It depends on whether the containers were started with --build"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-2/dockerizing-a-real-application/q6",
+    "type": "multiple_choice",
+    "prompt": "Why does omitting a .dockerignore file pose the same kind of risk as committing generated/local state to git?",
+    "choices": [
+      "It doesn't -- .dockerignore is purely a build-speed optimization with no correctness implications",
+      "Without it, COPY . . can bake local secrets (like a .env file) and machine-specific artifacts permanently into image layers, just as committing state breaks a repo's reproducibility",
+      "It only affects which files are visible inside docker exec sessions",
+      "It determines which files get pushed to a registry after the image is already built"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-2/dockerizing-a-real-application/q7",
+    "type": "multiple_choice",
+    "prompt": "A single-stage Dockerfile using `FROM node:20` produces a 1.24GB image. Switching to a multi-stage build with a `node:20-slim` runtime stage drops it to 231MB. What accounts for most of that size difference?",
+    "choices": [
+      "The slim image uses a more efficient compression algorithm for the same files",
+      "The build-time-only tooling and devDependencies (compilers, TypeScript, @types packages) are no longer present in the final image",
+      "Slim images don't include the application's own compiled code",
+      "node:20-slim runs a different, faster version of Node.js"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-2/dockerizing-a-real-application/q8",
+    "type": "multiple_choice",
+    "prompt": "What is the practical effect of `depends_on` between two services in a docker-compose.yml, by default?",
+    "choices": [
+      "It controls container start order only; it does not wait for the depended-on service to be ready to accept connections",
+      "It guarantees the dependent service won't start until the other service passes a health check",
+      "It automatically retries the dependent service's connection until the other service is reachable",
+      "It creates a dedicated private network between just those two services"
+    ],
+    "correctIndex": 0
+  }
+]

@@ -542,3 +542,14 @@ All notable changes to The Manual (curriculum + app) are logged here. This file 
 **Result:** `npm run build` passed clean — 237 pages, 220 unique slugs verified repo-wide.
 
 **Status:** DevOps Tier 1 complete (48h, 7 lessons). DevOps is now 2/6 tiers content-complete (Tiers 0-1, 63h); Tiers 2-5 remain.
+
+## [0.43.0] — 2026-10-03 — DevOps Tier 2: complete (ship a real system, no hand-holding)
+
+**Context:** Continuing the tier-by-tier pattern. CI/CD Fundamentals with GitHub Actions is explicitly the canonical CI/CD module for the whole curriculum (Software Engineering only covers what CI is conceptually and points here), so it was written at full depth rather than scoped down.
+
+**Added**
+- `content/devops-tooling/tier-2/*.mdx` (7 files) + matching quizzes: Dockerizing a Real Application (a real multi-stage Dockerfile dropping image size from 1.24GB to 231MB on the same app, explained layer by layer), Container Registries and Image Hygiene (why `:latest` causes real incidents), CI/CD Fundamentals with GitHub Actions (the canonical module, taught at full depth), Deploying a Container to the Cloud, Infrastructure as Code First Pass (Terraform — plan/apply/destroy read line by line, state-file risk tied back to Tier 1's git module), Basic Observability (a real dependency-checking health endpoint, not an unconditional 200), Secrets and Config Management Basics (why a committed `.env` secret must be rotated, not just deleted from history).
+
+**Result:** `npm run build` passed clean — 244 pages, 227 unique slugs verified repo-wide.
+
+**Status:** DevOps Tier 2 complete (52h, 7 lessons). DevOps is now 3/6 tiers content-complete (Tiers 0-2, 115h); Tiers 3-5 remain.

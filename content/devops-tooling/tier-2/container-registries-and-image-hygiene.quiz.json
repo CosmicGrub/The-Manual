@@ -1,0 +1,86 @@
+[
+  {
+    "id": "devops-tooling/tier-2/container-registries-and-image-hygiene/q1",
+    "type": "multiple_choice",
+    "prompt": "A production docker-compose file references `myapp:latest` with `pull_policy: always`. An autoscaling event at 2 AM pulls a broken image with no deploy event logged anywhere. What actually caused this?",
+    "choices": [
+      "The autoscaler pulled whatever `latest` currently pointed to, which a routine CI build had silently repointed to a broken image hours earlier",
+      "Docker Hub corrupted the image during storage",
+      "The autoscaler ignored the pull policy and used a cached broken layer",
+      "git-SHA tags expired and Docker fell back to latest automatically"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "devops-tooling/tier-2/container-registries-and-image-hygiene/q2",
+    "type": "multiple_choice",
+    "prompt": "Which tag should a production deploy manifest actually reference to get an unambiguous, auditable rollback target?",
+    "choices": [
+      "latest",
+      "A semver tag like 1.4.2, since it is never reused",
+      "A git-SHA tag, since exactly one commit maps to exactly one image",
+      "Whichever tag was pushed most recently"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "devops-tooling/tier-2/container-registries-and-image-hygiene/q3",
+    "type": "multiple_choice",
+    "prompt": "In a Dockerfile with `COPY package.json package-lock.json ./` followed by `RUN npm ci` followed by `COPY . .`, why does editing only a source file (not package.json) leave `RUN npm ci` cached on rebuild?",
+    "choices": [
+      "Docker always caches RUN instructions regardless of changes",
+      "npm itself detects that no dependencies changed and skips the install",
+      "The COPY step that feeds npm ci only checksums package.json and package-lock.json, which didn't change, so that layer and everything depending on it up to that point stays a cache hit",
+      "The source file edit happened after the build started, so Docker ignores it"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "devops-tooling/tier-2/container-registries-and-image-hygiene/q4",
+    "type": "multiple_choice",
+    "prompt": "If a Dockerfile layer gets a cache miss, what happens to every layer defined after it?",
+    "choices": [
+      "They are unaffected as long as their own instructions didn't change",
+      "They must all be rebuilt too, because each layer is a diff applied on top of the filesystem state the previous layer produced",
+      "Docker skips them and reuses the previous image's final layer instead",
+      "Only the very next layer rebuilds; the rest stay cached"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-2/container-registries-and-image-hygiene/q5",
+    "type": "multiple_choice",
+    "prompt": "When authenticating to GitHub Container Registry (GHCR) with `docker login ghcr.io`, what should you use in place of your GitHub account password?",
+    "choices": [
+      "Your GitHub password works directly and is recommended",
+      "A personal access token with the write:packages scope (or the GITHUB_TOKEN injected automatically in GitHub Actions)",
+      "Your SSH private key",
+      "A Docker Hub access token, since GHCR and Docker Hub share credentials"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-2/container-registries-and-image-hygiene/q6",
+    "type": "multiple_choice",
+    "prompt": "A Dockerfile does `COPY .env .` then later `RUN rm .env` to \"clean up\" before the final image. Why does the secret remain recoverable by anyone who pulls the image?",
+    "choices": [
+      "It doesn't remain recoverable; rm permanently erases it from the image",
+      "Each instruction produces its own layer tarball; rm in a later layer only hides the file at runtime with a whiteout marker, while the earlier layer's tarball containing .env is still pushed and pullable",
+      "Docker automatically re-adds deleted files on push for integrity checking",
+      "The secret is only recoverable if the image is tagged latest"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-2/container-registries-and-image-hygiene/q7",
+    "type": "multiple_choice",
+    "prompt": "What is the correct way to supply a one-time secret (like a private package registry token) needed only during an image build, without it ending up baked into a layer?",
+    "choices": [
+      "COPY the secret file in, use it, then RUN rm it in a later instruction",
+      "Set it with ENV so it's available but not copied as a file",
+      "Use BuildKit's mount-based secret (RUN --mount=type=secret) so it's available to the build step but never written into a layer",
+      "Pass it as a build ARG, since ARG values are never stored in the image"
+    ],
+    "correctIndex": 2
+  }
+]

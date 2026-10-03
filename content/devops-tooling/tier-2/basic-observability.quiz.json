@@ -1,0 +1,98 @@
+[
+  {
+    "id": "devops-tooling/tier-2/basic-observability/q1",
+    "type": "multiple_choice",
+    "prompt": "You run two replicas of a service behind a load balancer. Both replicas use plain print() statements for logging. What specifically breaks that structured JSON logging with a request_id field fixes?",
+    "choices": [
+      "print() statements are slower to execute than logging calls",
+      "There is no way to correlate the log lines for a single request across the two separate, interleaved stdout streams",
+      "print() output cannot be captured by Docker at all",
+      "Python's print() function does not support string formatting"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-2/basic-observability/q2",
+    "type": "multiple_choice",
+    "prompt": "In the structured logging example, where does the request_id value come from for an incoming request?",
+    "choices": [
+      "It is always a hardcoded constant set once at app startup",
+      "It is read from an X-Request-Id header if present, otherwise generated fresh with uuid4()",
+      "It is the process ID of the Python interpreter",
+      "It is read from the database row being queried"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-2/basic-observability/q3",
+    "type": "multiple_choice",
+    "prompt": "A container deployed on ECS Fargate writes JSON log lines to stdout. What additional code does the application need to write to get those lines into CloudWatch Logs?",
+    "choices": [
+      "None \u2014 the awslogs log driver configured in the task definition ships stdout to CloudWatch automatically",
+      "The app must open a direct HTTPS connection to the CloudWatch Logs API for every log line",
+      "The app must install the CloudWatch agent binary inside its own process",
+      "The app must write logs to a file and then upload that file to S3 on a cron schedule"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "devops-tooling/tier-2/basic-observability/q4",
+    "type": "multiple_choice",
+    "prompt": "A /health endpoint is implemented as: `return \"OK\", 200` with no other logic. What failure mode does this fail to catch?",
+    "choices": [
+      "It will crash the process immediately on any request",
+      "It always reports healthy even when the database the app depends on is completely unreachable",
+      "It returns 404 instead of 200",
+      "It cannot run inside a Docker container"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-2/basic-observability/q5",
+    "type": "multiple_choice",
+    "prompt": "Why does the improved /health endpoint use `connect_timeout=2` on the database connection attempt instead of letting it wait indefinitely?",
+    "choices": [
+      "To make the endpoint's JSON response smaller",
+      "Postgres requires a timeout argument or it refuses the connection",
+      "So a hanging dependency check doesn't itself cause the health check to hang, which could make the platform treat an already-struggling instance even more unpredictably",
+      "To satisfy a Flask routing requirement"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "devops-tooling/tier-2/basic-observability/q6",
+    "type": "multiple_choice",
+    "prompt": "When the improved /health endpoint detects the database is unreachable, what HTTP status code should it return, and why?",
+    "choices": [
+      "200, because the endpoint itself still responded successfully",
+      "404, because the database row cannot be found",
+      "503, signaling the service is not ready to serve traffic, which ECS/Cloud Run can act on by stopping routing to that instance",
+      "500, because any failure should always be a generic server error"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "devops-tooling/tier-2/basic-observability/q7",
+    "type": "multiple_choice",
+    "prompt": "Why does the lesson recommend NOT logging an INFO-level line every time the health check endpoint is hit successfully?",
+    "choices": [
+      "Flask does not allow logging inside endpoints bound to /health",
+      "The platform calls /health every ~30 seconds per instance, and logging each success would bury the signal you need during a real incident in noise",
+      "Successful health checks are not valid JSON",
+      "CloudWatch rejects log lines that occur more than once per minute"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-2/basic-observability/q8",
+    "type": "multiple_choice",
+    "prompt": "A CloudWatch Logs Insights query filters on `duration_ms > 1000` and `level = \"WARN\"`. What property of the application's logging is required for this query to work at all?",
+    "choices": [
+      "The app must send logs directly to CloudWatch Logs Insights via a dedicated SDK call per query",
+      "The app must log plain text strings containing the word 'warning'",
+      "The app must emit structured JSON log lines with actual duration_ms and level fields, not free-text messages",
+      "The ECS task definition must set awslogs-stream-prefix to 'duration_ms'"
+    ],
+    "correctIndex": 2
+  }
+]

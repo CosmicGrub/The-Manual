@@ -1,0 +1,227 @@
+---
+trackId: devops-tooling
+tier: 2
+title: "Deploying a Container to the Cloud"
+order: 4
+estimatedHours: 8
+slug: deploying-a-container-to-the-cloud
+---
+
+## Where This Picks Up
+
+By now you have a multi-stage Dockerfile that builds a small, correct image, you're pushing that image to a registry (Docker Hub or GHCR) with a tag like `sha-7f3a9c2`, and a GitHub Actions pipeline builds and pushes that image automatically on every merge to main. None of that is running anywhere a user can hit it. This module is the step where an image sitting in a registry becomes a live URL — and where you learn what happens six minutes later when that deploy turns out to be bad.
+
+Three things, in order: pick a platform and know exactly what you're configuring on it (not just its name), change a running container's behavior without touching the image, and undo a bad deploy in seconds instead of by shipping a new commit.
+
+## Choosing a Target: Cloud Run vs ECS Fargate vs Azure Container Apps
+
+All three run a container you give them without you managing a VM. That's where the similarity ends. What you actually configure is different enough that picking "the easy one" without understanding the tradeoff will bite you the first time you need to debug a cold start or wire up a database connection.
+
+**Cloud Run (GCP).** You give it an image and it gives you a URL. There is no cluster object to create first. The unit you configure is a *service*, and every deploy to that service creates a new, immutable *revision*. Scaling, including to zero, is handled for you — you set `--min-instances` and `--max-instances` and Cloud Run does the rest based on concurrent requests per instance.
+
+```bash
+gcloud run deploy orders-api \
+  --image=us-central1-docker.pkg.dev/my-project/orders/orders-api:sha-7f3a9c2 \
+  --region=us-central1 \
+  --platform=managed \
+  --allow-unauthenticated \
+  --min-instances=1 \
+  --max-instances=10 \
+  --cpu=1 \
+  --memory=512Mi \
+  --concurrency=80 \
+  --set-env-vars=LOG_LEVEL=info
+```
+
+That's the entire deploy. No load balancer, no target group, no networking resource to create — Cloud Run sits in front of all of it.
+
+**ECS Fargate (AWS).** You configure three separate objects and wire them together yourself. A *cluster* (a logical namespace — with Fargate there's no EC2 capacity to manage inside it), a *task definition* (CPU, memory, port mappings, env vars, log driver — the container-level spec), and a *service* (desired task count, which load balancer target group to register tasks with, which subnets and security groups to place them in). The task definition is immutable: every change creates a new numbered revision.
+
+```json
+{
+  "family": "orders-api",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "arn:aws:iam::123456789012:role/ecsTaskExecutionRole",
+  "containerDefinitions": [
+    {
+      "name": "orders-api",
+      "image": "123456789012.dkr.ecr.us-east-1.amazonaws.com/orders-api:sha-7f3a9c2",
+      "portMappings": [{ "containerPort": 8080, "protocol": "tcp" }],
+      "environment": [{ "name": "LOG_LEVEL", "value": "info" }],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/orders-api",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "orders-api"
+        }
+      }
+    }
+  ]
+}
+```
+
+```bash
+aws ecs register-task-definition --cli-input-json file://task-def.json
+aws ecs update-service \
+  --cluster orders-cluster \
+  --service orders-api-svc \
+  --task-definition orders-api \
+  --force-new-deployment
+```
+
+You are also on the hook for the ALB, the target group, the security group rules, and the VPC subnets, usually via Terraform (next module) rather than by hand. This is more moving parts than Cloud Run, but it's the same moving parts you'd use for any other AWS compute, which matters if your org already standardizes on AWS networking patterns.
+
+**Azure Container Apps.** The middle ground. You first create a *Container Apps Environment* — shared infrastructure (a Log Analytics workspace, a virtual network boundary) that one or more container apps run inside, roughly analogous to an ECS cluster but managed for you. Then you create the *container app* itself, which — like Cloud Run — gets revisions automatically on every update, and has traffic-splitting across revisions built in natively rather than bolted on.
+
+```bash
+az containerapp env create \
+  --name orders-env \
+  --resource-group orders-rg \
+  --location eastus
+
+az containerapp create \
+  --name orders-api \
+  --resource-group orders-rg \
+  --environment orders-env \
+  --image myregistry.azurecr.io/orders-api:sha-7f3a9c2 \
+  --target-port 8080 \
+  --ingress external \
+  --min-replicas 1 \
+  --max-replicas 10 \
+  --cpu 0.5 --memory 1.0Gi \
+  --env-vars LOG_LEVEL=info
+```
+
+Pick Cloud Run when you want the fewest objects between you and a running container and your team isn't already deep in AWS or Azure networking conventions. Pick ECS Fargate when your org already runs AWS infra and you want this app's networking to look like everything else's. Pick Azure Container Apps when you're already on Azure and want Cloud-Run-style revision ergonomics without leaving the Azure ecosystem.
+
+## Injecting Runtime Config Without Rebuilding the Image
+
+The image `orders-api:sha-7f3a9c2` is immutable by design — that's the point of tagging by git SHA. But `PAYMENTS_API_BASE_URL` needs to point at staging today and production tomorrow, and you are not rebuilding and re-pushing an image just to change a URL string. The whole point of externalized config is that the binary doesn't change, only what's fed into it at start time.
+
+**The wrong way** is baking it into the Dockerfile:
+
+```dockerfile
+ENV PAYMENTS_API_BASE_URL=https://payments-staging.internal
+```
+
+Changing that value now means: edit the Dockerfile, commit, wait for CI to rebuild, wait for CI to push a new tag, then deploy that new tag. Five to ten minutes for a one-line config change, and you've burned a build for something that isn't a code change at all.
+
+**The right way**, on Cloud Run, updates the already-running service directly:
+
+```bash
+gcloud run services update orders-api \
+  --region=us-central1 \
+  --update-env-vars=PAYMENTS_API_BASE_URL=https://payments.internal
+```
+
+```text
+Deploying...
+Creating Revision...
+Done.
+Service [orders-api] revision [orders-api-00042-xyz] has been deployed and is serving 100 percent of traffic.
+```
+
+Same image digest, new revision, new env var, live in about ten seconds. No git commit, no CI run, no new tag. On ECS Fargate the mechanism is a tiny bit heavier — you still register a new task definition revision (because the task definition is immutable) with the updated `environment` entry, then point the service at it — but it's the same underlying idea: the container image field in the task definition doesn't change, only the env var field does. On Azure Container Apps it's `az containerapp update --name orders-api --resource-group orders-rg --set-env-vars PAYMENTS_API_BASE_URL=https://payments.internal`, which likewise creates a new revision from the same image.
+
+Now the part that matters more than the syntax: **never put a real secret in any of these commands as a literal value.** You already learned this principle in git-fundamentals, where `.tfstate` and `.tfvars` files were called out as things that never belong in git because they can carry plaintext credentials pulled straight from a provider API. The exact same failure mode shows up here. If you write `--set-env-vars=DB_PASSWORD=sup3rS3cr3t` into a deploy script and that script lives in your repo, you've committed a secret just as surely as if you'd committed `terraform.tfstate` — it's sitting in plaintext in git history, in your shell history, and in the Cloud Run audit log.
+
+The fix is the same shape on every platform: store the value in a secrets manager, and reference it by name instead of by value.
+
+```bash
+# Cloud Run: reference Secret Manager, not a literal value
+gcloud run services update orders-api \
+  --region=us-central1 \
+  --set-secrets=DB_PASSWORD=db-password:latest
+```
+
+```json
+// ECS task definition: secrets pulled at task start, separate from literal "environment"
+"secrets": [
+  {
+    "name": "DB_PASSWORD",
+    "valueFrom": "arn:aws:secretsmanager:us-east-1:123456789012:secret:db-password-AbCdEf"
+  }
+]
+```
+
+```bash
+# Azure Container Apps: Key Vault reference, not a literal value
+az containerapp secret set --name orders-api --resource-group orders-rg \
+  --secrets db-password=keyvaultref:https://orders-vault.vault.azure.net/secrets/db-password,identityref:/subscriptions/.../userAssignedIdentities/orders-id
+az containerapp update --name orders-api --resource-group orders-rg \
+  --set-env-vars DB_PASSWORD=secretref:db-password
+```
+
+Non-secret config (log level, a feature flag, a public API base URL) is fine as a plain env var in a committed deploy script. A credential is not. The dividing line is simple: if leaking it to someone who reads your repo would be a problem, it goes in a secrets manager, not in `--set-env-vars`.
+
+## Rolling Back a Bad Deploy
+
+Say the config change above also shipped with a code change — `orders-api-00043-abc` went live and `/checkout` now returns 500 for every request, because the new revision expects a migration that hasn't run yet. You need traffic back on the last good revision *right now*, not after a `git revert` works its way back through CI.
+
+First, confirm what's actually running and what came before it:
+
+```bash
+gcloud run revisions list --service=orders-api --region=us-central1
+```
+
+```text
+REVISION                 ACTIVE  SERVING  AUTHOR          CREATED
+orders-api-00043-abc     yes     100%     ci-bot          2 minutes ago
+orders-api-00042-xyz     no      0%       ci-bot          1 day ago
+orders-api-00041-def     no      0%       ci-bot          3 days ago
+```
+
+`orders-api-00042-xyz` was healthy. Route 100% of traffic back to it — this is a traffic-routing operation, not a redeploy, and the old revision's container is still registered with the service:
+
+```bash
+gcloud run services update-traffic orders-api \
+  --region=us-central1 \
+  --to-revisions=orders-api-00042-xyz=100
+```
+
+```text
+Routing traffic...
+Done.
+Serving 100 percent of traffic to revision [orders-api-00042-xyz].
+```
+
+That's it — live traffic is back on known-good code in the time it takes the command to run. The bad revision still exists (you'll want it for debugging), it's simply getting 0% of traffic now. One wrinkle worth knowing: if the good revision had scaled to zero instances in the meantime, the very first request after rollback pays a cold-start cost while Cloud Run spins up a fresh instance from the same image — after that it's warm and the cold start is gone.
+
+ECS Fargate's version of the same move: task definitions are immutable and numbered, so rolling back means pointing the service at the previous revision number, which ECS then rolls out respecting your service's `minimumHealthyPercent`:
+
+```bash
+aws ecs update-service \
+  --cluster orders-cluster \
+  --service orders-api-svc \
+  --task-definition orders-api:41 \
+  --force-new-deployment
+```
+
+Azure Container Apps gives you the choice of a traffic-split rollback (keep both revisions registered, shift weight) or killing the bad one outright:
+
+```bash
+az containerapp ingress traffic set \
+  --name orders-api --resource-group orders-rg \
+  --revision-weight orders-api--rev42=100 orders-api--rev43=0
+
+# or, more decisively:
+az containerapp revision deactivate \
+  --name orders-api --resource-group orders-rg \
+  --revision orders-api--rev43
+```
+
+Every one of these is faster than "fix forward" for an active incident — fixing forward still requires writing a correct fix under pressure, then waiting for CI to build, test, and deploy it. Rollback just points traffic at a container you already proved was fine.
+
+## Exercise
+
+You have `ghcr.io/you/notes-api:sha-9c1a004` already built and pushed by your CI pipeline from the previous module. Using whichever platform you prefer:
+
+1. Deploy it with env var `NOTES_STORAGE_BACKEND=memory`, confirm it's live with `curl`.
+2. Simulate a bad deploy: redeploy the *same image*, flipping only `NOTES_STORAGE_BACKEND=postgres` — with no Postgres actually provisioned, so the app fails its startup check and the new revision/task never goes healthy.
+3. Without rebuilding or re-pushing any image, roll live traffic back to the last good revision using the commands from this lesson. Verify with `curl` that you're getting 200s again.
+
+Hint: step 3 is not "redeploy the old code" — it's a traffic-routing command targeting a specific revision name or task definition number. You'll need to list revisions first to find the exact identifier of the last good one; guessing "the previous one" by assumption is how people roll back onto the wrong revision during a real incident.

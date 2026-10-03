@@ -1,0 +1,331 @@
+---
+trackId: devops-tooling
+tier: 2
+title: "Infrastructure as Code, First Pass (Terraform)"
+order: 5
+estimatedHours: 10
+slug: infrastructure-as-code-first-pass-terraform
+---
+
+## From YAML Pipelines to Actual Infrastructure
+
+The CI/CD module gave you a pipeline that builds and ships your application. But something still has to exist for that application to run *on* — a server, a storage bucket, a database, a load balancer. Up to now in this curriculum, "provisioning infrastructure" has meant clicking around a cloud console. That doesn't scale, isn't reviewable, and isn't repeatable: nobody can look at a PR and see what changed in your AWS account, and nobody can reliably recreate what you clicked.
+
+Terraform fixes this by making infrastructure a text file. You write what you want in HCL (HashiCorp Configuration Language), Terraform computes the difference between that description and what actually exists, and it calls the cloud provider's API to close the gap. This module gets you through one real resource, end to end: write it, plan it, apply it, understand what Terraform is tracking about it, parameterize it, and tear it down cleanly.
+
+## Providers and Resources: A Real Block, Provisioning Something Real
+
+Every Terraform configuration starts with a **provider** — the plugin that knows how to talk to a specific API (AWS, GCP, Azure, Cloudflare, even GitHub). Create `main.tf`:
+
+```hcl
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+}
+
+provider "aws" {
+  region = "us-east-1"
+}
+
+resource "aws_s3_bucket" "reports" {
+  bucket = "acme-nightly-reports-bucket"
+
+  tags = {
+    Environment = "dev"
+    ManagedBy   = "terraform"
+  }
+}
+```
+
+Three distinct things are happening here. The `terraform` block pins which provider plugin and version you're using — without this, `terraform init` would still work by guessing, but your config could silently break on a future provider release. The `provider "aws"` block configures that plugin (which region to call). The `resource` block is the actual declaration: "there should exist an `aws_s3_bucket`, which I am naming `reports` inside this configuration, with the real bucket name `acme-nightly-reports-bucket`."
+
+That resource syntax is always `resource "<provider_type>" "<local_name>"`. `aws_s3_bucket` is the type Terraform's AWS provider understands; `reports` is a name you made up, used only to refer to this resource elsewhere in your own config (you'll use it in outputs below). It is not the bucket's real name — `bucket = "acme-nightly-reports-bucket"` is.
+
+Before any of this talks to AWS, download the provider plugin:
+
+```bash
+terraform init
+```
+
+```text
+Initializing the backend...
+Initializing provider plugins...
+- Finding hashicorp/aws versions matching "~> 5.0"...
+- Installing hashicorp/aws v5.42.0...
+- Installed hashicorp/aws v5.42.0 (signed by HashiCorp)
+
+Terraform has been successfully initialized!
+```
+
+## Reading `terraform plan` Line by Line
+
+`terraform plan` computes what *would* change, without touching anything. Run it against the config above, on a fresh bucket that doesn't exist yet:
+
+```bash
+terraform plan
+```
+
+```text
+Terraform will perform the following actions:
+
+  # aws_s3_bucket.reports will be created
+  + resource "aws_s3_bucket" "reports" {
+      + arn                         = (known after apply)
+      + bucket                      = "acme-nightly-reports-bucket"
+      + id                          = (known after apply)
+      + region                      = (known after apply)
+      + tags                        = {
+          + "Environment" = "dev"
+          + "ManagedBy"   = "terraform"
+        }
+      + tags_all                    = {
+          + "Environment" = "dev"
+          + "ManagedBy"   = "terraform"
+        }
+    }
+
+Plan: 1 to add, 0 to change, 0 to destroy.
+```
+
+`+` on a line means "this will exist after apply and doesn't right now" — at the resource level, the whole thing is new; at the attribute level (`+ bucket = "..."`), that specific attribute is being set for the first time. `(known after apply)` means Terraform can't predict this value locally (AWS assigns the ARN only once the bucket is actually created) — it isn't an error, just a placeholder until apply runs.
+
+Now suppose the bucket already exists and you change only the `Environment` tag to `"staging"`:
+
+```text
+  # aws_s3_bucket.reports will be updated in-place
+  ~ resource "aws_s3_bucket" "reports" {
+        id       = "acme-nightly-reports-bucket"
+      ~ tags     = {
+          ~ "Environment" = "dev" -> "staging"
+            # (1 unchanged element hidden)
+        }
+      ~ tags_all = {
+          ~ "Environment" = "dev" -> "staging"
+            # (1 unchanged element hidden)
+        }
+        # (2 unchanged attributes hidden)
+    }
+
+Plan: 0 to add, 1 to change, 0 to destroy.
+```
+
+`~` means "changing in place" — the resource keeps its identity (same `id`), Terraform just calls an update API. Lines without a prefix, like `id = "..."`, are shown for context and aren't changing.
+
+Now the dangerous one. S3 bucket names are immutable — you can't rename a bucket, only destroy and recreate it. Change `bucket = "acme-nightly-reports-bucket"` to `"acme-nightly-reports-v2"`:
+
+```text
+  # aws_s3_bucket.reports must be replaced
+-/+ resource "aws_s3_bucket" "reports" {
+      ~ bucket = "acme-nightly-reports-bucket" -> "acme-nightly-reports-v2" # forces replacement
+      ~ id     = "acme-nightly-reports-bucket" -> (known after apply)
+        # (3 unchanged attributes hidden)
+    }
+
+Plan: 1 to add, 1 to destroy.
+```
+
+`-/+` is replacement: destroy, then create a new one, in a single apply. The `# forces replacement` comment tells you exactly which attribute triggered it — this is the single most important line to actually read in any plan touching a resource with live traffic or data, because it means downtime and, for anything stateful, data loss. A bare `-` (no `+`) in a plan's summary, as you'll see below with `destroy`, means pure deletion with nothing created in its place.
+
+## Apply, Then Destroy, Carefully
+
+Once the plan matches your intent:
+
+```bash
+terraform apply
+```
+
+Terraform shows the same plan again and stops for confirmation (unless you pass `-auto-approve`, which you should never do against production by habit):
+
+```text
+Do you want to perform these actions?
+  Terraform will perform the actions described above.
+  Only 'yes' will be accepted to approve.
+
+  Enter a value: yes
+
+aws_s3_bucket.reports: Creating...
+aws_s3_bucket.reports: Creation complete after 2s [id=acme-nightly-reports-bucket]
+
+Apply complete! Resources: 1 added, 0 changed, 0 destroyed.
+```
+
+The bucket now exists for real. To tear it down:
+
+```bash
+terraform destroy
+```
+
+```text
+Terraform will perform the following actions:
+
+  # aws_s3_bucket.reports will be destroyed
+  - resource "aws_s3_bucket" "reports" {
+      - bucket = "acme-nightly-reports-bucket" -> null
+      - id     = "acme-nightly-reports-bucket" -> null
+      - tags   = {
+          - "Environment" = "dev"
+          - "ManagedBy"   = "terraform"
+        } -> null
+    }
+
+Plan: 0 to add, 0 to change, 1 to destroy.
+
+Do you really want to destroy all resources?
+  Terraform will destroy all your managed infrastructure, as shown above.
+  There is no undo. Only 'yes' will be accepted to confirm.
+
+  Enter a value: yes
+
+aws_s3_bucket.reports: Destroying... [id=acme-nightly-reports-bucket]
+aws_s3_bucket.reports: Destruction complete after 1s
+
+Destroy complete! Resources: 0 added, 0 changed, 1 destroyed.
+```
+
+Read that second prompt literally — "destroy **all** your managed infrastructure." `terraform destroy` with no arguments doesn't ask which resource; it tears down everything in the current state. If you only want to remove one resource from a config with several, use `terraform destroy -target=aws_s3_bucket.reports`, and still read the plan it shows before confirming.
+
+## State File Basics: What `terraform.tfstate` Actually Tracks, and Why Tier 1 Was Right to Ban It From Git
+
+After that first `apply`, look in your working directory — there's a new file, `terraform.tfstate`. Open it:
+
+```json
+{
+  "version": 4,
+  "terraform_version": "1.7.5",
+  "serial": 3,
+  "lineage": "8f14e45f-ceea-167a-5916-01b7f9c4f9b3",
+  "resources": [
+    {
+      "mode": "managed",
+      "type": "aws_s3_bucket",
+      "name": "reports",
+      "provider": "provider[\"registry.terraform.io/hashicorp/aws\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "id": "acme-nightly-reports-bucket",
+            "arn": "arn:aws:s3:::acme-nightly-reports-bucket",
+            "bucket": "acme-nightly-reports-bucket",
+            "region": "us-east-1",
+            "tags": {
+              "Environment": "dev",
+              "ManagedBy": "terraform"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
+```
+
+This is the piece almost nobody appreciates until they lose it. Your `main.tf` says *what you want*. It has no idea what already exists in AWS — no bucket ARN, no real ID, nothing. The state file is the only record Terraform has connecting the `aws_s3_bucket.reports` block in your config to the actual bucket `acme-nightly-reports-bucket` that exists in a real AWS account. Every `plan` starts by reading this file, not by asking AWS "does this exist?" first.
+
+Delete `terraform.tfstate` and run `terraform apply` again with the exact same config. Terraform has no memory that the bucket was ever created. It will try to create it again — against a resource like S3 with a globally unique name, that fails outright with a "BucketAlreadyExists" error from AWS, so at least you find out immediately. Against a resource type without a uniqueness constraint (an EC2 instance, a security group rule), it happily creates a *second* one, and now you have an orphaned duplicate running in your account that nothing in your `.tf` files references and nothing will ever clean up for you.
+
+This is exactly why git-fundamentals' `.gitignore` for infra repos put `*.tfstate` in the ignore list. That lesson led with the secrets angle — state frequently holds plaintext values a provider handed back (an RDS master password, for instance). That's real, but it's not even the main reason. The deeper problem is that state is **mutable, shared, authoritative truth about infrastructure that only one copy of should ever be "current" at a time**. If two engineers each commit their own locally-modified `terraform.tfstate`, a `git merge` produces a JSON file that is textually mergeable but semantically garbage — there is no sane way to "merge" the real-world fact of which resources exist. One of those commits' view of reality is simply wrong, and Terraform has no way to tell you which. That's a different, and arguably worse, failure mode than a leaked credential: a leaked credential gets rotated; a corrupted state file gets you a `terraform apply` that silently tries to recreate or orphan live infrastructure.
+
+The real fix — a **remote backend** (S3 bucket plus a DynamoDB table for locking, so only one `apply` runs at a time against one true copy of state) — is Tier 3's Advanced Infrastructure as Code module. For this module, local state is fine for learning, on the strict condition you already know from Tier 1: it never goes in git, and you treat it as the one thing in this whole workflow that cannot be reconstructed from source — back it up, or move it to a backend, before you'd ever consider it disposable.
+
+## Variables and Outputs: Parameterizing the Bucket
+
+Hardcoding `"acme-nightly-reports-bucket"` and `"us-east-1"` directly in `main.tf` means a second environment requires a second copy-pasted file. Split the knobs out into `variables.tf`:
+
+```hcl
+variable "bucket_name" {
+  description = "Globally unique S3 bucket name"
+  type        = string
+}
+
+variable "environment" {
+  description = "Deployment environment, used in resource tags"
+  type        = string
+  default     = "dev"
+}
+
+variable "aws_region" {
+  description = "AWS region to provision into"
+  type        = string
+  default     = "us-east-1"
+}
+```
+
+`bucket_name` has no `default` — it's required, because it must be globally unique and you don't want an accidental fallback. `environment` and `aws_region` have sensible defaults but can be overridden. Rewrite `main.tf` to reference them with `var.<name>`:
+
+```hcl
+provider "aws" {
+  region = var.aws_region
+}
+
+resource "aws_s3_bucket" "reports" {
+  bucket = var.bucket_name
+
+  tags = {
+    Environment = var.environment
+    ManagedBy   = "terraform"
+  }
+}
+```
+
+Add `outputs.tf` so other tools (a CI job, a second Terraform config, a teammate) can read values back out after apply without digging through state manually:
+
+```hcl
+output "bucket_arn" {
+  description = "ARN of the reports bucket"
+  value       = aws_s3_bucket.reports.arn
+}
+
+output "bucket_id" {
+  description = "Name/ID of the created bucket"
+  value       = aws_s3_bucket.reports.id
+}
+```
+
+Supply real values with a `.tfvars` file — and per the same `.gitignore` rule as the state file, a `.tfvars` carrying anything environment-specific stays out of git (Tier 1's pattern of `*.tfvars` / `!example.tfvars` applies here too):
+
+```hcl
+# dev.tfvars — not committed
+bucket_name = "acme-nightly-reports-bucket"
+environment = "dev"
+```
+
+```bash
+terraform apply -var-file="dev.tfvars"
+```
+
+After apply, read the outputs instead of opening the state file by hand:
+
+```bash
+terraform output
+```
+
+```text
+bucket_arn = "arn:aws:s3:::acme-nightly-reports-bucket"
+bucket_id = "acme-nightly-reports-bucket"
+```
+
+```bash
+terraform output -raw bucket_arn
+```
+
+```text
+arn:aws:s3:::acme-nightly-reports-bucket
+```
+
+`-raw` strips the quotes, which matters when you're piping an output straight into another command or a CI step that expects a plain string, not HCL-formatted output.
+
+## Exercise
+
+Extend the configuration above with a new variable, `enable_versioning` (type `bool`, default `false`), and wire it to a second resource, `aws_s3_bucket_versioning`, that enables or suspends versioning on the `reports` bucket depending on that variable's value. Then:
+
+1. Run `terraform plan` with the default (`false`) and read exactly what it says will happen.
+2. Set `enable_versioning = true` in your `.tfvars`, `plan` again, and confirm the diff shows only what you expect — nothing forcing replacement of the bucket itself.
+3. `apply`, then `terraform output` to confirm nothing changed there (versioning status isn't one of the two outputs defined above — decide whether it should be, and if so, add it).
+4. `destroy` cleanly, reading the destroy plan before confirming.
+
+**Hint:** Recent versions of the AWS provider don't manage S3 bucket versioning through an attribute on `aws_s3_bucket` itself — that's a separate resource, `aws_s3_bucket_versioning`, which takes a `bucket` argument (pointing at `aws_s3_bucket.reports.id`) and a nested `versioning_configuration` block with a `status` of either `"Enabled"` or `"Suspended"`. You'll need a conditional expression (`var.enable_versioning ? "Enabled" : "Suspended"`) to map the bool to that string — look up the exact block syntax in the provider docs rather than guessing the field names.

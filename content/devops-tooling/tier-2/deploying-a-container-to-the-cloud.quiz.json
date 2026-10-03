@@ -1,0 +1,98 @@
+[
+  {
+    "id": "devops-tooling/tier-2/deploying-a-container-to-the-cloud/q1",
+    "type": "multiple_choice",
+    "prompt": "In Cloud Run and Azure Container Apps, every deploy automatically creates a new, immutable, independently-addressable unit that live traffic can be instantly routed back to. What is this unit called on both platforms?",
+    "choices": [
+      "A task definition",
+      "A stack",
+      "A revision",
+      "A deployment manifest"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "devops-tooling/tier-2/deploying-a-container-to-the-cloud/q2",
+    "type": "multiple_choice",
+    "prompt": "On ECS Fargate, which object defines a task's CPU, memory, port mappings, and environment variables, and becomes a new immutable numbered revision every time it changes?",
+    "choices": [
+      "The cluster",
+      "The task definition",
+      "The service",
+      "The target group"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-2/deploying-a-container-to-the-cloud/q3",
+    "type": "multiple_choice",
+    "prompt": "An image is already deployed and live. You need to change a non-secret runtime config value (like an external API base URL) without changing application code. What is the correct way to do this on Cloud Run?",
+    "choices": [
+      "Edit the Dockerfile ENV instruction and rebuild the image",
+      "SSH into the running container and edit the value in place",
+      "Change the value in the CI/CD pipeline YAML and wait for the next scheduled build",
+      "Run `gcloud run services update --update-env-vars` to create a new revision from the same image"
+    ],
+    "correctIndex": 3
+  },
+  {
+    "id": "devops-tooling/tier-2/deploying-a-container-to-the-cloud/q4",
+    "type": "multiple_choice",
+    "prompt": "Following the never-commit-state principle first introduced with Terraform state and .tfvars files, where should an actual secret value (like a database password) live when it needs to be injected into a deployed container?",
+    "choices": [
+      "As a literal value passed to --set-env-vars in a deploy script committed to the repo",
+      "Hardcoded as a Dockerfile ENV instruction",
+      "In a secrets manager (Secret Manager / SSM Parameter Store / Key Vault), referenced by name at deploy time",
+      "In the task definition JSON's environment array, committed to git"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "devops-tooling/tier-2/deploying-a-container-to-the-cloud/q5",
+    "type": "multiple_choice",
+    "prompt": "A bad deploy to Cloud Run is causing 500 errors on the latest revision. The previous revision orders-api-00042-xyz is known-good. What is the fastest correct way to revert live traffic?",
+    "choices": [
+      "Delete the bad revision's image from the container registry",
+      "Run `gcloud run services update-traffic orders-api --to-revisions=orders-api-00042-xyz=100`",
+      "Run `git revert` on the last commit and wait for CI to rebuild and redeploy",
+      "Scale the service to zero instances and then back up"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-2/deploying-a-container-to-the-cloud/q6",
+    "type": "multiple_choice",
+    "prompt": "On ECS Fargate, task definitions are immutable: updating one creates a new numbered revision rather than changing it in place. What command rolls a running service back to a previous task definition revision?",
+    "choices": [
+      "`aws ecs deregister-task-definition --revision 41`",
+      "`aws ecr batch-delete-image --repository-name orders-api`",
+      "`aws ecs update-service --cluster orders-cluster --service orders-api-svc --task-definition orders-api:41 --force-new-deployment`",
+      "`aws ecs stop-task --task-definition orders-api:41`"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "devops-tooling/tier-2/deploying-a-container-to-the-cloud/q7",
+    "type": "multiple_choice",
+    "prompt": "Which statement correctly contrasts what you must configure on each platform to deploy a container?",
+    "choices": [
+      "All three require you to provision and patch your own virtual machines",
+      "ECS Fargate has no concept of a cluster or task definition",
+      "Azure Container Apps requires manually wiring a load balancer and target group for every app, same as ECS",
+      "Cloud Run configures a managed service directly from an image; ECS Fargate requires a separately defined cluster, task definition, and service; Azure Container Apps requires a shared Container Apps Environment plus the container app itself"
+    ],
+    "correctIndex": 3
+  },
+  {
+    "id": "devops-tooling/tier-2/deploying-a-container-to-the-cloud/q8",
+    "type": "multiple_choice",
+    "prompt": "Why does scaling-to-zero matter when planning a Cloud Run rollback?",
+    "choices": [
+      "Rollback is only possible while min-instances is set to 0",
+      "If the previous good revision has scaled to zero, the first request after rollback pays a cold-start cost while a new instance spins up",
+      "Scaling to zero permanently deletes old revisions, making rollback impossible",
+      "Cloud Run refuses to route traffic to any revision that has scaled to zero"
+    ],
+    "correctIndex": 1
+  }
+]

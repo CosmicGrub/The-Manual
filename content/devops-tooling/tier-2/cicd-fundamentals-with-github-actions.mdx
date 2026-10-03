@@ -1,0 +1,223 @@
+---
+trackId: devops-tooling
+tier: 2
+title: "CI/CD Fundamentals with GitHub Actions"
+order: 3
+estimatedHours: 10
+slug: cicd-fundamentals-with-github-actions
+---
+
+## Why this module is the one you actually need
+
+Software Engineering's track told you *what* CI is: a server runs your tests automatically when code changes. That's the one-paragraph version. This module is where you build the real thing — a pipeline with multiple jobs, real dependencies between them, caching that saves real minutes, secrets that never leak, and triggers that fire on the right event for the right reason. Every example below is a workflow you could drop into a real repo today.
+
+GitHub Actions is the engine. A **workflow** is a YAML file in `.github/workflows/`. Each workflow has one or more **jobs**. Each job runs on a fresh virtual machine (a "runner") and executes a list of **steps**. That's the whole mental model — everything else is detail.
+
+## Anatomy of a workflow file, field by field
+
+Here is a minimal but real workflow for a Node.js project:
+
+```yaml
+# .github/workflows/ci.yml
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm ci
+      - run: npm run build
+```
+
+Field by field:
+
+- **`name`** — the label shown in the Actions tab of the GitHub UI. Optional, but a workflow with no name shows up as its filename, which gets confusing once you have five of them.
+- **`on`** — the trigger. This one fires on pushes to `main` and on pull requests targeting `main`. Nothing else starts this workflow — not a push to a feature branch, not an issue comment.
+- **`jobs`** — a map of job IDs to job definitions. `build` here is an arbitrary name you chose; it becomes the key other jobs reference later.
+- **`runs-on`** — which virtual machine image to execute the job on. `ubuntu-latest` is the default choice unless you specifically need Windows or macOS runners (which cost more compute minutes).
+- **`steps`** — an ordered list, executed top to bottom, inside the same filesystem and shell session. If one step fails, the remaining steps in that job are skipped by default and the job is marked failed.
+- **`uses`** — pulls in a prewritten, versioned **Action**: someone else's packaged automation. `actions/checkout@v4` clones your repo onto the runner (without it, the runner is an empty VM with no code). `actions/setup-node@v4` installs a specific Node version and configures `npm`/`npx` on `PATH`. The `with:` block passes inputs to that action — here, `node-version: '20'`.
+- **`run`** — executes a literal shell command on the runner, in whatever shell is default for that OS (`bash` on Linux/macOS). `npm ci` and `npm run build` are just commands you'd type locally.
+
+That's the entire vocabulary. Everything more advanced is combinations of `on`, `jobs`, `steps`, `uses`, and `run`.
+
+## Build → test → deploy: real jobs, a real dependency
+
+A single `build` job that does everything is fine for a toy repo. A real pipeline separates concerns into jobs, and makes later jobs depend on earlier ones with `needs`. Jobs with no `needs` relationship run **in parallel** by default — which is a problem if `deploy` shouldn't start before `test` finishes.
+
+```yaml
+name: Pipeline
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm ci
+      - run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  test:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm ci
+      - run: npm test
+
+  deploy:
+    needs: [build, test]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - run: ./deploy.sh
+        env:
+          DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
+```
+
+What `needs` actually does: `deploy` has `needs: [build, test]`, which means the scheduler will not even start the `deploy` job until **both** `build` and `test` have reported success. If `test` fails, `deploy` is skipped entirely — GitHub marks it "skipped," not "failed," but either way, nothing gets deployed. That's the whole point of wiring the dependency explicitly instead of cramming everything into one job: a failing test run physically cannot reach the deploy step.
+
+Notice `build` uploads its compiled output with `actions/upload-artifact`, and `deploy` pulls it back down with `actions/download-artifact`. Each job runs on its own fresh VM with no shared filesystem — artifacts are how you pass build output between jobs that run on different machines.
+
+## Caching dependencies: the actual time difference
+
+Without caching, every single job re-downloads every dependency from the npm registry, every run, forever. Watch what `npm ci` looks like cold on a real run:
+
+```
+Run npm ci
+npm warn deprecated inflight@1.0.6
+added 842 packages in 48s
+```
+
+Forty-eight seconds, every job, every push, for packages that didn't change since yesterday. `actions/cache` stores a directory keyed by a hash, and restores it on later runs if the key matches:
+
+```yaml
+  test:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
+      - run: npm ci
+      - run: npm test
+```
+
+The `key` is built from `runner.os` plus a hash of `package-lock.json`. As long as the lockfile hasn't changed, that exact key exists from a previous run, and the cache restores before `npm ci` runs. Same log, cache hit:
+
+```
+Cache restored successfully (134 MB)
+Run npm ci
+added 842 packages in 6s
+```
+
+48 seconds down to 6. That's not a rounding difference — on a pipeline with three jobs that each install dependencies, that's roughly two minutes saved per run, which is two minutes saved on every push, every PR update, every day, for the life of the repo. `restore-keys` is a fallback: if no exact key match exists (say, the lockfile just changed), it restores the *closest* prior cache instead of starting from zero, which is still faster than a fully cold install.
+
+The cache invalidates itself correctly because the key is derived from the lockfile hash — change a dependency version, the hash changes, the key changes, and you get a fresh cache population instead of stale packages silently sticking around.
+
+## Secrets: extending "never commit state" into CI
+
+The git-fundamentals module in this tier already drew the line: configuration that differs per environment, and anything sensitive, never gets committed into the repository. CI is exactly where that rule gets tested, because deploying almost always requires a credential — a cloud API key, a deploy token, a database password. The temptation is to just paste it into the workflow YAML since "it's just a private repo." Don't. The workflow file is still version-controlled text, visible in every clone, every fork, every `git log`, forever.
+
+Instead, store it in **Settings → Secrets and variables → Actions** on the repository, then reference it through the `secrets` context — never write it to a file, never echo it directly:
+
+```yaml
+  deploy:
+    needs: [build, test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: ./deploy.sh
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+```
+
+`${{ secrets.AWS_ACCESS_KEY_ID }}` is resolved by the Actions runtime at execution time and injected only as an environment variable inside that job's process — it's never written into the checked-out repo, never appears in the workflow file itself, and critically: **GitHub actively scans the raw log output of every step and replaces any substring matching a registered secret's value with `***`.** If `deploy.sh` accidentally does `echo "key is $AWS_ACCESS_KEY_ID"`, the log shows:
+
+```
+Run ./deploy.sh
+key is ***
+```
+
+even though the script itself printed the real value. The masking happens at the log-rendering layer, after the fact, based on exact string matching against every secret registered for that repo. This is also exactly why secrets fail silently if you reconstruct them (e.g., base64-encode then decode partway) — partial or transformed strings won't match the registered value and can leak. Treat the secret as opaque: pass it whole, as an env var, straight into the tool that needs it.
+
+## Triggers: push vs. pull_request vs. tag, side by side
+
+These three blocks look similar and fire under completely different conditions. Mixing them up is one of the most common CI mistakes.
+
+```yaml
+# Fires on every commit pushed directly to main,
+# including merge commits created when a PR is merged.
+on:
+  push:
+    branches: [main]
+```
+
+```yaml
+# Fires when a PR is opened, or when new commits are pushed
+# to an existing PR's branch, targeting main. Runs against a
+# merge preview of the PR branch + main — not just the branch
+# alone. For PRs from forks, repository secrets are withheld
+# by default (the PR author doesn't control your secrets).
+on:
+  pull_request:
+    branches: [main]
+```
+
+```yaml
+# Fires only when a tag matching the pattern is pushed —
+# ordinary commits to any branch do NOT trigger this.
+# Typical use: cutting a release.
+on:
+  push:
+    tags:
+      - 'v*'
+```
+
+Run all three in the same repo and here's what actually happens on a normal feature workflow: you open a PR → `pull_request` fires, running tests against the merge preview. You merge the PR → `push` fires on `main`, because a merge commit just landed there. Later, you cut a release and run `git tag v1.4.0 && git push --tags` → the `push: tags` workflow fires, and the `push: branches: [main]` workflow does **not**, because pushing a tag is a different ref than pushing a branch. These aren't redundant — `pull_request` validates *proposed* changes before they land, `push` to `main` validates what actually landed, and `push: tags` is reserved for the deliberate act of cutting a release, which is usually the only trigger you want building and shipping a Docker image or binary.
+
+## Exercise
+
+Build a CI/CD workflow for a small Python service with this shape:
+
+- A `lint` job (e.g., `ruff check .`) and a `test` job (`pytest`), both triggered on `pull_request` targeting `main`.
+- Dependency installation cached with `actions/cache`, keyed on a hash of `requirements.txt`.
+- A separate `build-and-push-image` job that builds a Docker image and pushes it to a registry using a `REGISTRY_TOKEN` repository secret — but this job should run **only** when a tag matching `v*` is pushed, not on every PR or every push to `main`.
+
+**Hint:** you can't cleanly express "lint/test on PR" and "build/push on tag" with one `on:` block feeding every job the same way, because a single workflow run only fires for one triggering event. Either split this into two workflow files (one triggered by `pull_request`, one by `push: tags`), or use one workflow with multiple `on:` triggers and a job-level `if: startsWith(github.ref, 'refs/tags/v')` condition to gate the image-building job so it skips itself on non-tag runs.

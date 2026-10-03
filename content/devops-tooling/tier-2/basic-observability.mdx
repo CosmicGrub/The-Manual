@@ -1,0 +1,296 @@
+---
+trackId: devops-tooling
+tier: 2
+title: "Basic Observability"
+order: 6
+estimatedHours: 6
+slug: basic-observability
+---
+
+## Where This Picks Up
+
+You containerized an app in Module 1, pushed it through a registry in Module 2, built a CI/CD pipeline for it in Module 3, and in Module 4 you deployed that container to Cloud Run or ECS Fargate. Right now, if that service misbehaves at 2am, your only tool is whatever you can see by eye in a dashboard that says "1 of 2 tasks healthy." That's not observability. This module fixes three specific gaps: your logs are unstructured text nobody can query, you have no idea whether your logs are even reaching the cloud log viewer, and your `/health` endpoint almost certainly lies.
+
+## Print Debugging Falls Apart at More Than One Instance
+
+Here's a small Flask API, the kind you built in Module 1, with the logging most people actually ship:
+
+```python
+# app.py — BEFORE
+from flask import Flask, request
+import psycopg2
+
+app = Flask(__name__)
+
+@app.route("/orders/<order_id>")
+def get_order(order_id):
+    print(f"fetching order {order_id}")
+    conn = psycopg2.connect(host="db", dbname="orders")
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM orders WHERE id = %s", (order_id,))
+    row = cur.fetchone()
+    if row is None:
+        print(f"order {order_id} not found")
+        return {"error": "not found"}, 404
+    print(f"returning order {order_id}")
+    return {"id": row[0], "status": row[1]}
+```
+
+Run two replicas behind a load balancer (exactly what Module 4's Cloud Run deployment does when you set `min-instances=2`), and `docker logs` on each container gives you this, independently, with no way to tell which lines belong to the same request:
+
+```text
+# container 1
+fetching order 4471
+returning order 4471
+fetching order 9012
+order 9012 not found
+
+# container 2
+fetching order 4471
+fetching order 7733
+returning order 7733
+```
+
+Notice `order 4471` appears on *both* containers — the load balancer sent a retry or two different users happened to request the same order ID. You cannot tell which, you cannot tell how long either request took, and you cannot grep across two separate log streams for "everything that happened for the request that returned a 500 to this specific user." `print()` gives you a string. A string is not data.
+
+## After: Structured JSON Logging With Real Fields
+
+Replace it with actual structured logging — every line is one JSON object with consistent fields: `timestamp`, `level`, `request_id`, and whatever else matters for that event.
+
+```python
+# app.py — AFTER
+import json
+import logging
+import sys
+import time
+import uuid
+from flask import Flask, request, g
+import psycopg2
+
+app = Flask(__name__)
+
+class JsonFormatter(logging.Formatter):
+    def format(self, record):
+        payload = {
+            "timestamp": self.formatTime(record, "%Y-%m-%dT%H:%M:%S.%fZ"),
+            "level": record.levelname,
+            "message": record.getMessage(),
+            "request_id": getattr(record, "request_id", None),
+        }
+        for key in ("duration_ms", "order_id", "status_code"):
+            if hasattr(record, key):
+                payload[key] = getattr(record, key)
+        return json.dumps(payload)
+
+handler = logging.StreamHandler(sys.stdout)
+handler.setFormatter(JsonFormatter())
+logger = logging.getLogger("orders")
+logger.addHandler(handler)
+logger.setLevel(logging.INFO)
+
+@app.before_request
+def assign_request_id():
+    g.request_id = request.headers.get("X-Request-Id", str(uuid.uuid4()))
+    g.start_time = time.time()
+
+@app.route("/orders/<order_id>")
+def get_order(order_id):
+    logger.info(
+        "fetching order",
+        extra={"request_id": g.request_id, "order_id": order_id},
+    )
+    conn = psycopg2.connect(host="db", dbname="orders")
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM orders WHERE id = %s", (order_id,))
+    row = cur.fetchone()
+    duration_ms = round((time.time() - g.start_time) * 1000, 1)
+
+    if row is None:
+        logger.warning(
+            "order not found",
+            extra={
+                "request_id": g.request_id,
+                "order_id": order_id,
+                "status_code": 404,
+                "duration_ms": duration_ms,
+            },
+        )
+        return {"error": "not found"}, 404
+
+    logger.info(
+        "order returned",
+        extra={
+            "request_id": g.request_id,
+            "order_id": order_id,
+            "status_code": 200,
+            "duration_ms": duration_ms,
+        },
+    )
+    return {"id": row[0], "status": row[1]}
+```
+
+Now the same two-replica scenario produces this on stdout:
+
+```json
+{"timestamp": "2026-10-03T14:02:11.482Z", "level": "INFO", "message": "fetching order", "request_id": "a1b2c3d4-0001", "order_id": "4471"}
+{"timestamp": "2026-10-03T14:02:11.519Z", "level": "INFO", "message": "order returned", "request_id": "a1b2c3d4-0001", "order_id": "4471", "status_code": 200, "duration_ms": 37.2}
+```
+
+The `request_id` is the entire point. Pass it through: generate it at the edge (or accept one your load balancer/gateway already sets via `X-Request-Id`), stamp it on every log line for that request on every service that touches it. Once you have more than one running instance, `request_id` is the *only* thing that lets you reconstruct "what happened for this one request" across containers, across services, and across a log viewer that interleaves everything by arrival time, not by request. `print("fetching order 4471")` can never answer "show me every log line for the request that took 4 seconds" — a JSON field can, in one query.
+
+## Getting stdout Into CloudWatch / Cloud Logging
+
+The good news: you don't write any shipping code. Both ECS Fargate and Cloud Run capture container stdout/stderr automatically — the platform's logging agent does it, not your app.
+
+**ECS Fargate** — this is configured in the task definition you wrote in Module 4, via the `awslogs` log driver:
+
+```json
+{
+  "containerDefinitions": [
+    {
+      "name": "orders-api",
+      "image": "123456789.dkr.ecr.us-east-1.amazonaws.com/orders-api:a3f9c21",
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/orders-api",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "orders-api"
+        }
+      }
+    }
+  ]
+}
+```
+
+Every line your container writes to stdout lands in CloudWatch Logs group `/ecs/orders-api` within seconds. Because you emitted JSON, CloudWatch Logs Insights can query *fields*, not just text:
+
+```text
+fields @timestamp, request_id, message, duration_ms, status_code
+| filter level = "WARN" or level = "ERROR"
+| filter duration_ms > 1000
+| sort @timestamp desc
+| limit 20
+```
+
+That finds every slow, failing request across every replica in the last query window — impossible with `print()` output, because CloudWatch would be filtering on raw substrings, not on a `duration_ms` field it can compare numerically.
+
+**Cloud Run** is even more automatic — no log driver config at all. Anything written to stdout is picked up by the Cloud Logging agent and shows up with your JSON fields nested under `jsonPayload`:
+
+```bash
+gcloud logging read \
+  'resource.type="cloud_run_revision"
+   resource.labels.service_name="orders-api"
+   jsonPayload.level="WARN"' \
+  --limit 20 --format json
+```
+
+```json
+[
+  {
+    "jsonPayload": {
+      "level": "WARN",
+      "message": "order not found",
+      "request_id": "a1b2c3d4-0001",
+      "order_id": "9012",
+      "status_code": 404,
+      "duration_ms": 22.9
+    },
+    "timestamp": "2026-10-03T14:02:12.001Z",
+    "resource": { "labels": { "service_name": "orders-api" } }
+  }
+]
+```
+
+One catch that trips people up: if you log plain unstructured text (the `print()` version), both CloudWatch and Cloud Logging still capture it — as a single opaque `message` string. You lose nothing on the shipping side; you lose everything on the *querying* side. The JSON formatting work in the previous section is what makes `jsonPayload.duration_ms > 1000` a valid filter instead of a hopeful regex over free text.
+
+## A Health Check That Actually Checks Something
+
+Here's the `/health` endpoint almost every tutorial ships:
+
+```python
+# health.py — BEFORE
+@app.route("/health")
+def health():
+    return "OK", 200
+```
+
+This returns 200 whether or not the database is reachable, whether or not the connection pool is exhausted, whether or not the process is about to OOM. On ECS and Cloud Run, the health check is what the platform uses to decide whether to route traffic to a task and whether to kill and replace it — a health check that always says "fine" means a broken instance keeps receiving real user traffic until it crashes outright.
+
+A real health check verifies the dependency that actually makes the service useful — here, the Postgres connection — with a bounded timeout so a hanging check doesn't itself cause a cascading failure:
+
+```python
+# health.py — AFTER
+import psycopg2
+from flask import jsonify
+
+@app.route("/health")
+def health():
+    checks = {}
+    overall_ok = True
+
+    try:
+        conn = psycopg2.connect(
+            host="db", dbname="orders", connect_timeout=2
+        )
+        cur = conn.cursor()
+        cur.execute("SELECT 1")
+        cur.fetchone()
+        conn.close()
+        checks["database"] = "ok"
+    except Exception as exc:
+        checks["database"] = "unreachable"
+        overall_ok = False
+        logger.error(
+            "health check failed",
+            extra={"request_id": "health-check", "message_detail": str(exc)},
+        )
+
+    status_code = 200 if overall_ok else 503
+    return jsonify({"status": "ok" if overall_ok else "degraded", "checks": checks}), status_code
+```
+
+Before (database down, `docker-compose stop db`):
+
+```bash
+$ curl -i http://localhost:8080/health
+HTTP/1.1 200 OK
+OK
+```
+
+That's the lie — the app says everything is fine while every real request to `/orders/*` is about to 500. After:
+
+```bash
+$ curl -i http://localhost:8080/health
+HTTP/1.1 503 Service Unavailable
+Content-Type: application/json
+
+{"status": "degraded", "checks": {"database": "unreachable"}}
+```
+
+Now wire the platform to actually act on it. ECS task definition:
+
+```json
+"healthCheck": {
+  "command": ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"],
+  "interval": 30,
+  "timeout": 5,
+  "retries": 3,
+  "startPeriod": 10
+}
+```
+
+Three consecutive failures (`retries: 3` at `interval: 30`s) and ECS stops routing traffic to that task and replaces it — because now the check can actually fail. With the always-200 version, this configuration is dead weight; it never fires no matter how broken the instance is.
+
+One operational detail: don't log an INFO line on every successful health check. Your platform hits `/health` every 30 seconds per instance — at any real scale that's pure log noise that buries the lines you actually need during an incident. Only log on failure, as the example above does, or at DEBUG level on success.
+
+## Exercise
+
+Extend the `/health` endpoint above to also check a Redis connection (used for session caching) and add a structured log line emitted whenever *any* dependency check fails, including which dependency and how long the check took before failing.
+
+Requirements:
+- `/health` should return `503` if either Postgres or Redis is unreachable, `200` only if both succeed.
+- The JSON response body should report each dependency's status independently (`{"status": "degraded", "checks": {"database": "ok", "cache": "unreachable"}}`), not just an overall pass/fail.
+- The failure log line needs a `duration_ms` field showing how long the failing check took.
+
+**Hint:** give the Redis check its own short timeout (`redis.Redis(host="cache", socket_connect_timeout=1, socket_timeout=1)`), separate from the Postgres check's `connect_timeout`, and time each check independently with `time.time()` around just that check — not around the whole endpoint — so `duration_ms` in the log tells you which dependency was actually slow, not how long the full request took.

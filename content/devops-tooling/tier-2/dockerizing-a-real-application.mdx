@@ -1,0 +1,275 @@
+---
+trackId: devops-tooling
+tier: 2
+title: "Dockerizing a Real Application"
+order: 1
+estimatedHours: 10
+slug: dockerizing-a-real-application
+---
+
+## Why This Matters
+
+"It works on my machine" is not a deployment strategy. Different Node versions, missing system libraries, a Postgres instance running locally that your teammate doesn't have — all of it disappears once the application and its exact runtime are packaged into an image that runs identically everywhere. That's the whole point of Docker: you're not learning a tool, you're learning to stop depending on the state of any one machine.
+
+This module uses one real application throughout: a small Express + TypeScript API that reads and writes to Postgres. By the end you'll have it running in containers, talking to a database container over a private network, with its data surviving container restarts.
+
+## The App
+
+```
+myapp/
+├── src/
+│   └── server.ts
+├── package.json
+├── package-lock.json
+└── tsconfig.json
+```
+
+```json
+{
+  "name": "myapp",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "pg": "^8.11.5"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5",
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.12.7"
+  }
+}
+```
+
+```ts
+// src/server.ts
+import express from "express";
+import { Pool } from "pg";
+
+const app = express();
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+
+app.get("/health", (_req, res) => res.json({ status: "ok" }));
+
+app.get("/widgets", async (_req, res) => {
+  const { rows } = await pool.query("SELECT id, name FROM widgets ORDER BY id");
+  res.json(rows);
+});
+
+app.listen(3000, () => console.log("listening on 3000"));
+```
+
+Notice `DATABASE_URL` comes from an environment variable, not a hardcoded hostname. That one line is what makes this app portable between "Postgres on localhost" and "Postgres in a container named `db`."
+
+## A Correct Dockerfile, Instruction by Instruction
+
+Here is a first, working Dockerfile:
+
+```dockerfile
+FROM node:20
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm ci
+
+COPY . .
+RUN npm run build
+
+EXPOSE 3000
+CMD ["node", "dist/server.js"]
+```
+
+Every instruction creates a new image layer, and Docker caches layers so that unchanged steps are skipped on rebuild. That ordering is not arbitrary:
+
+- `FROM node:20` — base layer. Full Debian userland plus Node 20 and npm. Nothing in your app yet.
+- `WORKDIR /app` — sets the working directory for every instruction after it, and creates `/app` if it doesn't exist. No meaningful layer size, just context.
+- `COPY package*.json ./` — copies only `package.json` and `package-lock.json`, nothing else. This is deliberate: it's the smallest possible input to the next step.
+- `RUN npm ci` — installs dependencies based on the lockfile. Because this layer only depends on the two files copied above, Docker can reuse this cached layer on every future build **as long as your dependencies haven't changed** — even if you've edited every line of application code since.
+- `COPY . .` — now copy the rest of the source. This invalidates the cache from this line down on every code change, which is exactly why it comes after, not before, the dependency install.
+- `RUN npm run build` — compiles TypeScript to `dist/`.
+- `EXPOSE 3000` — documentation for humans and tooling (like `docker compose`); it does not actually publish the port. You still need `-p 3000:3000` or a compose `ports:` entry to reach it from outside.
+- `CMD [...]` — the default process the container runs. Exec form (JSON array), not shell form, so `node` becomes PID 1 and receives signals like `SIGTERM` directly instead of through a shell wrapper.
+
+Build it and check the damage:
+
+```bash
+$ docker build -t myapp:v1 .
+$ docker images myapp
+REPOSITORY   TAG   IMAGE ID       SIZE
+myapp        v1    7e2a1c9f3b41   1.24GB
+```
+
+1.24GB to run an Express app. That's the cost of shipping the entire Node toolchain — compilers, npm's own dependency tree, header files for native modules — into production, when production only ever needs the compiled output and runtime dependencies.
+
+## Multi-Stage Builds: Before and After
+
+The fix: use one stage to build, and copy only the *result* into a second, smaller stage.
+
+```dockerfile
+# ---- builder stage ----
+FROM node:20 AS builder
+
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+
+COPY . .
+RUN npm run build
+
+# ---- runtime stage ----
+FROM node:20-slim
+
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --omit=dev
+
+COPY --from=builder /app/dist ./dist
+
+EXPOSE 3000
+CMD ["node", "dist/server.js"]
+```
+
+What changed:
+
+- `AS builder` names the first stage so a later stage can reference it.
+- The runtime stage starts fresh `FROM node:20-slim` — a much smaller base with no build tooling.
+- `RUN npm ci --omit=dev` in the runtime stage installs only `express` and `pg`, not `typescript` or the `@types` packages. Those were only ever needed to produce `dist/`.
+- `COPY --from=builder /app/dist ./dist` reaches into the builder stage's filesystem and pulls out exactly one directory: the compiled JavaScript. The builder stage — with its full Node install, its `node_modules` full of devDependencies, its TypeScript compiler — is discarded entirely. It never becomes part of the final image.
+
+Build and compare:
+
+```bash
+$ docker build -t myapp:v2 .
+$ docker images myapp
+REPOSITORY   TAG   IMAGE ID       SIZE
+myapp        v1    7e2a1c9f3b41   1.24GB
+myapp        v2    a93df8101cc2   231MB
+```
+
+Same application, same behavior, 81% smaller. That difference is pure build-time junk — compilers and dev dependencies — that v1 was shipping to production for no reason. This is the default shape for any compiled or transpiled app (TypeScript, Go, Rust, Java): build in a fat stage, run in a thin one.
+
+## docker-compose for Multi-Container Local Dev
+
+The app needs Postgres. Running `docker run postgres` by hand every time, remembering flags, is not a workflow. `docker-compose.yml` is:
+
+```yaml
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgres://postgres:devpassword@db:5432/myapp
+    depends_on:
+      - db
+
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_PASSWORD: devpassword
+      POSTGRES_DB: myapp
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
+```
+
+```bash
+$ docker compose up --build
+[+] Running 2/2
+ ✔ Container myapp-db-1   Started
+ ✔ Container myapp-app-1  Started
+myapp-app-1  | listening on 3000
+```
+
+`docker compose up` builds the `app` image from the Dockerfile in the current directory, pulls `postgres:16` for `db`, and starts both, wired together. `depends_on` controls start *order* only — it does not wait for Postgres to actually accept connections, which is why production compose setups add a healthcheck, but for local dev, order is usually enough since `pg.Pool` will retry on connect.
+
+## Networking: Reaching a Container by Service Name
+
+Look again at `DATABASE_URL`: `postgres://postgres:devpassword@db:5432/myapp`. The hostname is `db` — not `localhost`, not an IP address. That resolves because every service in a compose file joins a shared default network, and Docker's embedded DNS resolves each service's **name** to that container's IP on that network automatically.
+
+Prove it:
+
+```bash
+$ docker compose exec app sh -c "getent hosts db"
+172.19.0.2      db
+
+$ docker compose exec app sh -c "nc -zv db 5432"
+db (172.19.0.2:5432) open
+```
+
+From inside the `app` container, `db` is a working hostname. From your host machine's terminal, it isn't — `db` means nothing outside the compose network. This is the single most common beginner bug: hardcoding `localhost` in `DATABASE_URL` and then being confused why the app container can't reach Postgres. `localhost` inside a container refers to that container itself, not the host machine and not a sibling container.
+
+## Volumes: Persisting Postgres Data
+
+Without `volumes: - pgdata:/var/lib/postgresql/data`, Postgres writes its data files to the container's own writable layer. Delete the container, lose the database. The named volume `pgdata` is storage that lives outside any single container's lifecycle, managed by Docker itself.
+
+Prove persistence:
+
+```bash
+$ docker compose exec db psql -U postgres -d myapp \
+    -c "CREATE TABLE widgets (id serial PRIMARY KEY, name text); INSERT INTO widgets (name) VALUES ('bolt');"
+
+$ docker compose down
+[+] Running 2/2
+ ✔ Container myapp-app-1  Removed
+ ✔ Container myapp-db-1   Removed
+
+$ docker compose up -d
+$ docker compose exec db psql -U postgres -d myapp -c "SELECT * FROM widgets;"
+ id | name
+----+------
+  1 | bolt
+```
+
+The containers were destroyed and recreated. The data wasn't, because it never lived in the container — it lived in the `pgdata` volume, which `docker compose down` leaves alone. Only `docker compose down -v` deletes the volumes along with the containers. Check it directly:
+
+```bash
+$ docker volume ls
+DRIVER    VOLUME NAME
+local     myapp_pgdata
+
+$ docker volume inspect myapp_pgdata
+[
+    {
+        "Name": "myapp_pgdata",
+        "Mountpoint": "/var/lib/docker/volumes/myapp_pgdata/_data",
+        "Driver": "local"
+    }
+]
+```
+
+## Carrying Forward the "Never Commit State" Rule
+
+Back in git-fundamentals you learned to never commit state — generated files, local config, secrets — because a repo full of machine-specific junk stops being reproducible on anyone else's machine. The same discipline applies to the Docker build context, enforced with `.dockerignore`:
+
+```
+.git
+node_modules
+dist
+.env
+npm-debug.log
+```
+
+Without this file, `COPY . .` copies **everything** in the directory into the image, including your local `.env` with real credentials, your `node_modules` built for your host's architecture (which may not match the container's), and your entire `.git` history. Just as a committed `.env` breaks reproducibility for your next teammate's checkout, a copied `.env` bakes a snapshot of local secrets into every layer of an image that gets pushed to a registry — permanently, since Docker layers persist even if you later "delete" the file in a subsequent instruction. State doesn't belong in version control, and it doesn't belong in an image layer either. Same rule, same reason, two different tools.
+
+## Exercise
+
+Containerize a small Python Flask app that uses Redis as a cache. Requirements:
+
+1. A multi-stage Dockerfile: builder stage installs from `requirements.txt` into a virtualenv or `--user` site-packages; runtime stage is `python:3.12-slim` and copies only the installed packages plus your source, not pip's cache or build tools.
+2. A `docker-compose.yml` with two services, `web` and `cache` (`image: redis:7`), on the default compose network.
+3. The Flask app connects to Redis using the hostname `cache`, not `localhost` or an IP.
+4. A named volume so Redis data (if persistence is enabled) survives `docker compose down`.
+5. A `.dockerignore` that excludes `.venv`, `__pycache__`, and `.env`.
+
+**Hint:** Python's multi-stage pattern looks different from Node's — instead of copying a `dist/` folder, you typically copy an entire installed-packages directory (e.g. `/root/.local`) from the builder stage into the runtime stage, then make sure that directory is on the runtime image's `PATH`/`PYTHONPATH`. Check `pip install --user` and how it interacts with `COPY --from=builder /root/.local /root/.local`.
+
+Verify your work the same way this module did: build the image and check its size before/after going multi-stage, `exec` into `web` and `getent hosts cache` to confirm DNS resolution, write a key through the app, tear down with plain `docker compose down`, bring it back up, and confirm the key is still there.

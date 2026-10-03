@@ -1,0 +1,186 @@
+---
+trackId: devops-tooling
+tier: 2
+title: "Container Registries and Image Hygiene"
+order: 2
+estimatedHours: 4
+slug: container-registries-and-image-hygiene
+---
+
+## Where This Picks Up
+
+You already have a Dockerfile that builds a correct, multi-stage image for your app (that's the previous module). This one is about what happens the moment you run `docker push`: where that image lives, what you name it, and whether the layers inside it are small, cache-friendly, and clean of anything that shouldn't be there. Four hours, three skills: authenticate and push to a real registry, pick a tagging scheme that doesn't blow up in production, and order a Dockerfile so rebuilds take seconds instead of minutes.
+
+## Pushing to a Registry: the Real Sequence
+
+A local image is useless to anyone else until it's in a registry. Two realistic targets: Docker Hub (the default, public by default on free tier) and GitHub Container Registry, GHCR (lives next to your repo, private by default, easy permissioning via GitHub).
+
+**Docker Hub.** Assume you've already built `myapp:latest` locally.
+
+```bash
+# Tag the local image with your Docker Hub namespace and a real version
+docker tag myapp:latest csolomon/myapp:1.4.2
+
+# Authenticate - never type your real password at a prompt for this,
+# use a personal access token generated under Account Settings > Security
+docker login -u csolomon
+Password: ********************************
+Login Succeeded
+
+# Push
+docker push csolomon/myapp:1.4.2
+```
+
+Real output looks like this — each line is one layer, pushed independently:
+
+```text
+The push refers to repository [docker.io/csolomon/myapp]
+5f70bf18a086: Pushed
+8c39e2a1f4d7: Pushed
+a9d6e1b2c3f0: Mounted from library/node
+1.4.2: digest: sha256:4f3c2a1e9b7d6c5a4b3e2d1f0a9c8b7e6d5c4b3a2918273645f6e7d8c9b0a1f2 size: 1789
+```
+
+"Mounted from library/node" means Docker Hub already had that base-image layer from another image and didn't re-upload it — registries dedupe layers by content hash across every image they store, not just within yours.
+
+**GHCR.** Same image, pushed next to your GitHub repo instead. You authenticate with a personal access token that has the `write:packages` scope (classic PAT, under GitHub Settings > Developer settings), not your GitHub password:
+
+```bash
+export CR_PAT=ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+echo $CR_PAT | docker login ghcr.io -u csolomon --password-stdin
+# Login Succeeded
+
+docker tag myapp:latest ghcr.io/csolomon/myapp:1.4.2
+docker push ghcr.io/csolomon/myapp:1.4.2
+```
+
+In CI (the next module), you don't hand-type a PAT — GitHub Actions injects a short-lived token automatically:
+
+```yaml
+- name: Log in to GHCR
+  run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+```
+
+The registry name is baked into the tag itself (`ghcr.io/...` vs. no prefix for Docker Hub), which is why `docker tag` always comes before `docker push` — you're not renaming the image, you're giving it an additional, fully-qualified name that encodes where it's going.
+
+## Tagging Strategy: Why `latest` Causes Real Incidents
+
+Here's the incident, concretely. A team runs this in production, via `docker-compose.prod.yml`:
+
+```yaml
+services:
+  api:
+    image: csolomon/myapp:latest
+    pull_policy: always
+```
+
+CI builds and pushes `myapp:latest` on every merge to `main`. On Tuesday, a merge passes all tests locally and in CI — but a config difference in prod (a missing env var the tests didn't exercise) makes the app crash-loop under real traffic. Nobody runs a manual deploy. But at 2 AM, the autoscaler spins up a new replica because of a traffic spike, Compose/Kubernetes pulls `myapp:latest` fresh for that replica (that's what `pull_policy: always` is for), and it pulls Tuesday's broken build — because `latest` was silently repointed to it hours earlier. There was no deploy event to look at in the deploy log, because nobody deployed. The scaling event just happened to pull whatever `latest` meant at that moment.
+
+Worse: there's no rollback target. `latest` was overwritten in place — the previous working image still exists in the registry by digest, but nothing in your deploy config points at it, and nobody wrote its digest down.
+
+The fix is to never deploy a mutable tag:
+
+```bash
+# Tag with both a git-SHA (immutable, traceable) and a semver (human-facing)
+GIT_SHA=$(git rev-parse --short HEAD)
+docker tag myapp:latest csolomon/myapp:$GIT_SHA
+docker tag myapp:latest csolomon/myapp:1.4.2
+docker push csolomon/myapp:$GIT_SHA
+docker push csolomon/myapp:1.4.2
+```
+
+- **`latest`** — only ever for local dev. Never reference it in a deploy manifest.
+- **semver (`1.4.2`)** — for humans: changelogs, release notes, "which version is in staging." Technically re-pushable (registries let you overwrite a tag unless you turn on tag immutability), so don't treat it as a hard pointer either.
+- **git-SHA (`a1b2c3d`)** — what your deploy manifest actually references. One commit produces exactly one image with exactly one SHA tag, forever. `kubectl rollout` or `docker service update` to a specific SHA is an unambiguous, auditable rollback: you know exactly which commit is running, and you can diff it against any other SHA that's ever been deployed.
+
+Common real pattern: build pushes both `1.4.2` and `a1b2c3d` from CI, a human or an approved pipeline step separately moves a `stable` tag to point at a SHA only after it's been validated in staging — so `stable` is still a mutable pointer, but moving it is a deliberate, logged action instead of an accidental side effect of every merge.
+
+## Image Size and Layer-Caching: the Actual Mechanism
+
+Every Dockerfile instruction produces a layer, and Docker caches each layer keyed on (1) the instruction and its literal arguments, and (2) for `COPY`/`ADD`, a checksum of the files being copied — on top of whatever layer came before it. That last part is the one people miss: a layer's cache key includes its *position in the chain*. If the layer two steps up gets a cache miss, every layer after it rebuilds too, even if their own inputs didn't change — because each one is a diff applied on top of the previous filesystem state, and that state is now different.
+
+Here's a Node app Dockerfile that gets this backwards:
+
+```dockerfile
+# BEFORE
+FROM node:20-slim
+WORKDIR /app
+COPY . .
+RUN npm ci
+CMD ["node", "server.js"]
+```
+
+Edit one line in `src/routes.js` — nothing to do with dependencies — and rebuild:
+
+```text
+=> [2/4] WORKDIR /app                                            0.0s
+=> [3/4] COPY . .                                                 0.3s
+=> [4/4] RUN npm ci                                              41.8s
+```
+
+`COPY . .` copies the entire build context, so its checksum includes `src/routes.js`. That checksum changed, so the layer cache misses, so `RUN npm ci` — the *next* layer — rebuilds from scratch too, even though `package.json` didn't change at all. Every source edit pays the full dependency-install cost.
+
+Fix it by splitting the copy and ordering least-frequently-changed first:
+
+```dockerfile
+# AFTER
+FROM node:20-slim
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY . .
+CMD ["node", "server.js"]
+```
+
+Same edit to `src/routes.js`, rebuild:
+
+```text
+=> [2/4] WORKDIR /app                                             0.0s
+=> [3/4] COPY package.json package-lock.json ./                   0.0s CACHED
+=> [4/4] RUN npm ci                                                0.0s CACHED
+=> [5/4] COPY . .                                                  0.2s
+```
+
+`package.json`/`package-lock.json` didn't change, so that `COPY`'s checksum matches, so it's a cache hit, so `RUN npm ci` — which depends only on the filesystem state that step produced — is also a cache hit and skipped entirely. Only the final `COPY . .` (and anything after it) reruns. The rule: order Dockerfile instructions from the thing that changes least often (base image, system packages, lockfile-driven installs) to the thing that changes most often (your actual source).
+
+For size specifically, collapse related `RUN` commands into one layer so intermediate state (like apt's package lists) doesn't get shipped: `RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*` as a single instruction, not three. And make sure `.dockerignore` excludes `.git/`, `node_modules/`, and build artifacts — they bloat the build context sent to the daemon and get included in that `COPY . .` checksum, triggering cache misses for reasons that have nothing to do with your actual code.
+
+## Secrets in Layers: the Same Lesson as "Never Commit State"
+
+git-fundamentals already made you treat `.tfstate` and `.tfvars` as radioactive: never commit them, because git history doesn't forget — deleting a file in a later commit doesn't remove it from the commits before it. Image layers work the same way, and it bites people who don't expect it:
+
+```dockerfile
+# DON'T
+COPY .env .
+RUN export $(cat .env | xargs) && npm run migrate
+RUN rm .env
+```
+
+That last `RUN rm .env` feels like cleanup. It isn't. Each `RUN`/`COPY` produces its own layer, stored and pushed as its own tarball. Deleting a file in a later layer just writes a "whiteout" marker telling the overlay filesystem to hide it when the image runs — the earlier layer's tarball, `.env` and all, is still sitting in the registry, still gets pushed, and still gets pulled by anyone with read access to the image:
+
+```bash
+docker history myapp:bad --no-trunc   # shows the COPY .env . layer, with its real size
+docker save myapp:bad -o myapp.tar
+tar -xf myapp.tar && ls */layer.tar   # the .env contents are recoverable from the layer that added it
+```
+
+There's no git-filter-repo equivalent you want to rely on here — you can't surgically rewrite image history and expect every downstream puller to be fine. The fix is the same discipline as the infra repo: never let the secret enter a layer in the first place. Use BuildKit's mount-based secrets (`RUN --mount=type=secret,id=dbpass ...`, which never gets written to a layer) or inject secrets at container runtime via environment variables or a mounted volume — not via `COPY` or a baked `RUN export`.
+
+## Exercise
+
+Given this Dockerfile for a Python Flask app:
+
+```dockerfile
+FROM python:3.12-slim
+WORKDIR /app
+COPY . .
+RUN pip install -r requirements.txt
+RUN pip install gunicorn
+CMD ["gunicorn", "-b", "0.0.0.0:8000", "app:app"]
+```
+
+1. Rewrite it so that editing `app.py` alone doesn't invalidate the `pip install` layer.
+2. Combine the two `RUN pip install` lines into one layer.
+3. Write the three `docker tag` / `docker push` commands you'd run to publish this as `ghcr.io/<you>/flaskapp` with both a semver tag `2.0.0` and the current git-SHA — assuming you're already logged in.
+
+Hint: `pip` needs `requirements.txt` present to run, same shape of problem as `npm ci` needing `package.json` — the fix is the same split-copy pattern, just with Python's dependency file instead of Node's.
