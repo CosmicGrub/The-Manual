@@ -1,0 +1,151 @@
+---
+trackId: cybersecurity-ethical-hacking
+tier: 5
+title: "Teaching, Mentoring & Security Community Contribution"
+order: 4
+estimatedHours: 20
+slug: teaching-mentoring-and-security-community-contribution
+---
+
+## Why Teaching Is Tier 5's Real Checkpoint
+
+The Manual retired the multiple-choice gate for Tier 5 for a reason: at this level, "do you understand X" is no longer the question worth asking. The question is whether you can move what you know into someone else's head, into a maintainer's merge queue, or into a room full of strangers at a workshop — and have it land. Teaching is not a victory lap after the real work. It's a distinct, gradeable skill with its own failure modes: explaining above or below the audience's actual level, handing a struggling mentee the answer instead of the next question, or running a CTF where every challenge is either trivial or impossible because nobody tested the difficulty curve. This module drills three concrete instances of that skill: writing a technical explainer, mentoring through a wrong attempt, and organizing a beginner event. All three get graded the same way everything else in this tier does — by people, not by an answer key.
+
+## Structuring a Technical Explainer for a Specific Audience: Kerberoasting for a Tier 1 Reader
+
+The hardest part of writing a good technical blog post isn't the technical content — it's figuring out exactly what your reader already has and building only on that. Pick the wrong floor and you either bore an expert with a hashing primer or lose a beginner at the first acronym. Here's the worked case: you're writing a post titled "Kerberoasting, Explained for Someone Who Just Finished Tier 1" — a real audience constraint, because a Tier 1 graduate has done the OWASP Top 10, has a conceptual grasp of hashing versus encryption, and has used Burp Suite, but has touched zero Active Directory. Kerberoasting lives in the Tier 3 AD module, three tiers ahead of your reader. That gap is the entire design problem.
+
+Structure it in five sections, in this order, and don't skip the bridge:
+
+```text
+1. Hook: one sentence on why this matters (AD runs most corporate networks;
+   Kerberoasting needs no admin rights and no exploit code, just a valid
+   domain login)
+2. Bridge from what they know: Kerberos authentication, mapped onto hashing
+   concepts from Tier 1's Cryptography Fundamentals module
+3. The mechanism: SPNs, TGTs, TGS tickets, and exactly where the crackable
+   material comes from
+4. The demo: real commands against your own AD lab, real output
+5. The fix: what a defender actually changes, tied back to detection
+```
+
+Section 2 is where most explainers for this audience either succeed or quietly lose the reader, so write it deliberately. Your Tier 1 reader already knows that a weakly-hashed password can be cracked offline if you can get the hash — that's the DVWA/Juice Shop password-cracking exercise from Tier 1's crypto module. Kerberoasting is the same offline-cracking idea, just aimed at a different hash. Say that sentence explicitly; don't assume the parallel is obvious.
+
+Section 3 then earns the jargon one term at a time:
+
+- An **SPN** (Service Principal Name) is just a label — `MSSQLSvc/sql01.corp.local:1433` — that maps a network service to the AD account running it.
+- Any authenticated domain user — no special privileges required — can ask the Key Distribution Center (KDC) for a **TGS** (service ticket) for *any* SPN registered in the domain. That's by design; it's how Kerberos lets you request access to a service.
+- The TGS is encrypted with a key derived from the *service account's* NTLM password hash — not yours, not the KDC's.
+- You never get the plaintext key back. You get ciphertext you can take home and attack offline, exactly like a cracked `/etc/shadow` entry, except nobody has to breach a server to get it — just ask the KDC, politely, for a ticket you're entitled to request.
+
+Section 4 is where credibility is won or lost — this has to be a real command sequence against your own lab, not a screenshot you found:
+
+```bash
+# Enumerate SPNs on your own lab DC and request their TGS tickets,
+# as an authenticated low-privilege domain user, using Impacket:
+GetUserSPNs.py CORP.LOCAL/alice:'LabPass123!' -dc-ip 10.10.10.5 -request
+
+# Output includes a $krb5tgs$23$... hash for the svc_sql account.
+# Crack it offline, never touching the DC again:
+hashcat -m 13100 svc_sql.hash /usr/share/wordlists/rockyou.txt
+```
+
+Section 5 closes the loop a Tier 1 reader needs closed: the fix isn't "patch a CVE" (there's no CVE here, it's a protocol feature), it's operational — managed service accounts (gMSA) with 120-character auto-rotated passwords, or at minimum AES-only ticket encryption so legacy RC4 tickets (the ones `hashcat -m 13100` targets) stop being issued at all.
+
+If you're adapting this into a 20-minute conference-style talk instead of a post, the content doesn't change but the packaging does. A talk needs: a slide-per-idea pace (one concept per slide, not a wall of bullet points), a pre-recorded fallback of the live demo (DC demos fail live at a rate that should embarrass the entire industry but doesn't), and a held-back "for the curious" slide on gMSA internals for the Q&A rather than the main deck — conference audiences skew wider in prior knowledge than a blog's self-selected readers, so you plan for the question instead of pre-answering it for everyone. A blog post, by contrast, can go deeper in the body and push the edge cases into footnotes and links a reader clicks only if they want to.
+
+## Mentoring a Tier 0–2 Learner Through a Wrong-but-Reasoned Exploit Attempt
+
+Mentoring at this tier means watching someone else's work and resisting the single easiest, most damaging thing you can do: handing them the payload. Here's a real-shaped case.
+
+Your mentee is working the Juice Shop login-bypass SQLi challenge — standard Tier 1 material. They understand the theory correctly: the login query probably looks like `SELECT * FROM Users WHERE email = '<input>' AND password = '<hash>'`, and a payload like `' OR 1=1 --` in the email field should short-circuit the WHERE clause and return the first row regardless of password. That reasoning is sound. They type the payload directly into the email field in the browser, submit, and get a normal "invalid credentials" response. They message you: *"I think Juice Shop patched this version, the SQLi doesn't work, should I move to a different challenge?"*
+
+That conclusion is wrong, but the error isn't in their SQLi theory — it's an assumption they never surfaced: that the only thing standing between their keystrokes and the SQL query is the query itself. Don't tell them that. Ask the question that makes them find it themselves:
+
+> "Walk me through what happens to your input between the moment you hit Submit and the moment a query runs on the server. Is there anything in between?"
+
+If they stall, narrow it without naming the fix:
+
+> "You set up Burp Suite in Tier 1's proxy module. What would you see if you watched the actual request leave your browser instead of trusting the form?"
+
+That's the entire intervention. It costs you nothing to say and it costs them everything to skip — because the real bug in their approach is that Juice Shop's frontend does client-side input filtering that silently strips or blocks some of the characters their payload needs, and the form never sends what they typed. The fix isn't a better payload; it's routing through Burp's proxy and editing the raw request after the browser's filter has already run, which is a skill they already have and just didn't reach for. Handing them a working payload teaches them that this specific string works on this specific challenge. Asking the Burp question teaches them to always suspect the client when a theoretically-sound injection silently does nothing — a transferable debugging instinct that pays off on every future lab.
+
+Write the follow-up feedback as a short, structured note, not a chat scroll-back:
+
+```text
+What you got right: your WHERE-clause reasoning for the login bypass is
+correct, and that's the hard part.
+
+Where it broke down: you tested the payload through the rendered form,
+which runs client-side validation before anything reaches the network.
+A query being theoretically bypassable and a request actually carrying
+your bypass string are two different claims — you'd only verified the
+first one.
+
+Try this next: intercept the same submission in Burp (Proxy > HTTP
+history), look at the raw request body, and compare it character-for-
+character to what you typed into the field.
+
+Don't skip to a different challenge yet — re-run this one after the
+proxy step and tell me what changed.
+```
+
+Notice the shape: affirm the correct reasoning explicitly (so they don't junk a good mental model along with the wrong conclusion), name the precise gap, point at a tool they already own, and require them to close the loop themselves before moving on. That's the entire job description of a mentor at a checkpoint — not grading pass/fail, but diagnosing exactly where a reasonable model diverged from reality and handing back the smallest possible nudge that gets them to re-test it.
+
+## Running or Contributing to a Beginner CTF or Workshop
+
+Organizing a small CTF is a design problem wearing a security costume, and most first-time organizers fail at the same step: difficulty scoping. Map your challenge tiers directly onto this track's own tier structure, since you already have calibrated difficulty language for it:
+
+```text
+Tier 0-1 equivalent (3-5 challenges): single-step, one OWASP category
+  each, no chaining — a reflected XSS, a Caesar cipher, a robots.txt
+  find. Solve time target: 5-15 minutes.
+Tier 2 equivalent (3-4 challenges): two-step chains — enumerate a
+  hidden endpoint, then exploit an IDOR you find there. Solve time
+  target: 20-40 minutes.
+Tier 3 equivalent (1-2 challenges): a short attack chain mirroring a
+  mini pentest — recon, one exploit, one pivot. These are your
+  "stretch" challenges; expect most beginners not to finish them, and
+  that's fine, that's what they're for.
+```
+
+Run every challenge through at least two testers who are *not* its author before the event. An author always under-estimates difficulty, because they already know the twist. If both testers solve a "Tier 1-equivalent" challenge in under two minutes with zero hints, it's too easy for its slot; if neither solves a "Tier 2-equivalent" challenge inside the target window even with the first hint, it's miscalibrated the other way — fix the challenge, not the hint.
+
+Hints are their own design problem, and the standard beginner-workshop failure mode is the opposite of being too stingy: giving one hint that basically *is* the solution. Use a fixed three-tier ladder for every challenge, unlocked in order, each costing a bite out of the challenge's score:
+
+```text
+Hint 1 (cheap, ~10% of points): names the vulnerability category or
+  the tool to reach for — "this is an access-control issue, not an
+  injection one" — without naming the parameter or endpoint.
+Hint 2 (moderate, ~25% of points): narrows to the mechanism — "look
+  at what changes in the request when you view your own profile
+  versus someone else's" — without giving the exact parameter value.
+Hint 3 (expensive, ~40% of points): confirms the near-final step —
+  "the ID is sequential and unauthenticated reads are allowed" —
+  but still requires them to actually find and submit the flag
+  themselves.
+```
+
+No hint, at any tier, ever contains the literal payload or the flag format. That line is what keeps a hint a hint instead of a walkthrough, and it's the single most common thing beginner-event organizers get wrong when they're being "nice."
+
+For logistics, a self-hosted CTFd instance is the standard, well-documented choice for a local or small online event — free, open source, and built for exactly this:
+
+```bash
+git clone https://github.com/CTFd/CTFd.git
+cd CTFd
+docker compose up -d
+# served on :8000; configure challenges, hints, and scoring from the admin panel
+```
+
+Set dynamic (decay) scoring rather than flat points per challenge: a challenge's point value decreases as more teams solve it, which does two things a beginner event specifically needs — it stops the event from being decided purely by who happens to be fastest at the easy challenges, and it keeps later solvers motivated instead of staring at a leaderboard that's already been "won." Time-box the event explicitly (a 3-4 hour local workshop, not an unstructured all-day grind), and budget real organizer time for live triage: someone watching a Discord or CTFd's built-in ticket queue the entire time for "is challenge 7 broken" reports, because a silently-broken challenge mid-event is the fastest way to lose a room of beginners' trust.
+
+If you want a model for category mix and difficulty pacing rather than designing from nothing, study the structure of a retired, publicly-archived event — picoCTF publishes full archives of its past annual competitions once they conclude, and DEF CON CTF qualifier write-ups from past years are widely published after each event closes. Read how they pace categories across a weekend and how their own hint systems are tiered. Use the *structure* as a reference; never reuse a live, currently-running competition's actual challenges or flags as your material, and never publish anything that would spoil a challenge still open to other competitors.
+
+## Exercise
+
+Do both halves; this is explicitly a peer-reviewed checkpoint item, not an auto-graded one.
+
+1. Pick one concept from Tier 2 or Tier 3 of this track (Kerberoasting, a SQLMap-automated injection chain, a BloodHound attack path — your choice) and write a 150-250 word outline, in the five-section structure above, for explaining it to a reader who has only finished Tier 1. List explicitly, in one line each, which Tier 1 concepts you're bridging from for every new term you introduce.
+2. Design one original beginner-level web or crypto challenge (your own code, your own flag format) and write its full three-tier hint ladder following the cost structure above.
+
+Hand both to a peer — ideally someone around Tier 1-2 themselves — and ask them to try to solve your challenge using only your hints, in order, stopping the moment they'd need a fourth hint that doesn't exist. If they finish using only Hint 1, your challenge is miscalibrated for its intended slot. If they're still stuck after Hint 3, your ladder has a gap — find exactly which step it skips, and fix the hint, not the challenge's underlying difficulty.

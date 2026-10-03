@@ -1,0 +1,98 @@
+[
+  {
+    "id": "cybersecurity-ethical-hacking/tier-5/advanced-ctf-and-research/q1",
+    "type": "multiple_choice",
+    "prompt": "On CTFtime.org, what does an event's \"weight\" primarily influence?",
+    "choices": [
+      "The physical prize pool size",
+      "How much the event contributes to a team's CTFtime global rating",
+      "The required flag format",
+      "The number of categories offered"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-5/advanced-ctf-and-research/q2",
+    "type": "multiple_choice",
+    "prompt": "In a typical CTFd-style jeopardy competition using dynamic scoring, what happens to a challenge's point value as more teams solve it?",
+    "choices": [
+      "It increases to reward later solvers",
+      "It stays fixed regardless of solve count",
+      "It decreases toward a configured minimum as solve count rises",
+      "It resets to zero after exactly 10 solves"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-5/advanced-ctf-and-research/q3",
+    "type": "multiple_choice",
+    "prompt": "Which of these is a legitimate way to judge whether a CTFtime-listed event is beginner-friendly but still a real competition, before registering?",
+    "choices": [
+      "Only join events with a weight above 50",
+      "Check whether past years' challenge archives show a wide spread of point values and difficulty, and read the organizer's own description/rules",
+      "Assume all online jeopardy events are beginner friendly",
+      "Only trust events that have on-site attendance"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-5/advanced-ctf-and-research/q4",
+    "type": "multiple_choice",
+    "prompt": "OverTheWire's Narnia and Behemoth wargames primarily train which class of skill?",
+    "choices": [
+      "Web application SQL injection",
+      "Memory-corruption / binary exploitation against small setuid-root C programs",
+      "Wireless network cracking",
+      "Phishing email analysis"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-5/advanced-ctf-and-research/q5",
+    "type": "multiple_choice",
+    "prompt": "A later OverTheWire Behemoth-style level combines a format-string vulnerability with a stack buffer overflow protected by NX and a stack canary. What exploitation strategy is this combination designed to teach?",
+    "choices": [
+      "Use the format string purely to crash the program and skip to the next level",
+      "Use the format string as a read primitive to leak the canary and a libc address, then build a return-to-libc chain to get code execution despite NX",
+      "Ignore the canary entirely since NX makes it irrelevant",
+      "Use SQL injection to bypass the level's login check"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-5/advanced-ctf-and-research/q6",
+    "type": "multiple_choice",
+    "prompt": "A rigorous public CTF write-up for a retired/concluded competition should, at minimum, include which of the following?",
+    "choices": [
+      "Only the final flag, to prove it was solved",
+      "Challenge metadata, binary/service triage output, vulnerability analysis, exploitation strategy, working exploit code, and the resulting flag",
+      "A link to the organizer's private scoring infrastructure",
+      "No methodology, to keep it a short fun fact"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-5/advanced-ctf-and-research/q7",
+    "type": "multiple_choice",
+    "prompt": "Why does this track insist that CTF write-ups and technique discussion reference only retired or concluded competitions and challenges?",
+    "choices": [
+      "Retired challenges are objectively easier",
+      "Spoiling a still-live challenge undermines the competition for other active participants and breaks CTF community norms",
+      "CTFtime automatically deletes data for live challenges",
+      "Discussing live challenges is illegal"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-5/advanced-ctf-and-research/q8",
+    "type": "multiple_choice",
+    "prompt": "In jeopardy-style CTF scoreboards, what is a \"first blood\"?",
+    "choices": [
+      "The first team to register for the event",
+      "A bonus or recognition awarded to the first team to solve a specific challenge",
+      "A scoring penalty applied to the last team to solve a challenge",
+      "The team's final overall placement"
+    ],
+    "correctIndex": 1
+  }
+]

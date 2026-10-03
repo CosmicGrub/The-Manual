@@ -645,3 +645,14 @@ All notable changes to The Manual (curriculum + app) are logged here. This file 
 **Result:** `npm run build` passed clean — 274 unique slugs verified repo-wide.
 
 **Status:** Cybersecurity & Ethical Hacking Tier 4 complete (150h, 6 lessons). Cybersecurity is now 5/6 tiers content-complete (Tiers 0-4, 426h); only Tier 5 (Expert/Innovator) remains.
+
+## [0.52.0] — 2026-10-03 — Cybersecurity & Ethical Hacking Tier 5: track is now fully content-complete
+
+**Context:** The final tier of the eighth track, and arguably the one requiring the most careful ground-rule enforcement: real, working exploit code for a famous, decade-old, fully-patched CVE (a real Nuclei detection template for the 2017 Apache Struts2/Equifax vulnerability) and a full Heartbleed reproduction exercise. Every module opens with an explicit, absolute statement of the ground rule — already-disclosed, already-patched CVEs only, reproduced in the learner's own network-isolated lab, never a live or current target — and was manually read end-to-end before assembly, the same scrutiny applied to every prior tier in this track.
+
+**Added**
+- `content/cybersecurity-ethical-hacking/tier-5/*.mdx` (4 files) + matching quizzes: Contributing to Security Open-Source Tooling (a real Nuclei detection template for CVE-2017-5638, validated against a vulhub lab container, then walked through the real projectdiscovery/nuclei-templates PR workflow), Advanced CTF & Research, Vulnerability Research on Disclosed CVEs (CVE-2021-41773 reproduced with a side-by-side vulnerable/patched Docker pair proving the exact fix, plus a full Heartbleed exercise), Teaching, Mentoring & Security Community Contribution.
+
+**Result:** `npm run build` passed clean — 278 unique slugs verified repo-wide.
+
+**Status:** Cybersecurity & Ethical Hacking complete (all 6 tiers, 516h, 31 lessons). This is the eighth fully content-complete track in The Manual, alongside CS Foundations, Language Mastery, Software Engineering, AI/ML & Prompt Engineering, Hardware & Computer Systems, Platforms, and DevOps. Only Capstones, Specializations & Career Launch remains.

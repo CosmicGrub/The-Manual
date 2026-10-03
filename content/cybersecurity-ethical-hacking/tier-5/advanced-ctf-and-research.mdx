@@ -1,0 +1,181 @@
+---
+trackId: cybersecurity-ethical-hacking
+tier: 5
+title: "Advanced CTF & Research"
+order: 2
+estimatedHours: 25
+slug: advanced-ctf-and-research
+---
+
+## Why this module matters
+
+By Tier 5 you've already written exploits against disclosed CVEs in your own lab, filed a real coordinated disclosure, and shipped a patch or template to an open-source security project. The remaining gap is competitive and reputational: can you perform under the clock against people who are actively trying to out-think you, and can you communicate what you found well enough that strangers trust your work? CTF competitions and public write-ups are how the security community answers both questions about you before it ever reads your resume. This module is about doing that correctly — picking real, scheduled competitions, training on OverTheWire's harder wargame levels, and publishing a write-up that reads like it came from someone who could get hired to do this.
+
+## Reading a CTFtime event listing
+
+CTFtime.org is the de facto global calendar and rating system for jeopardy and attack-defense CTFs. Every event page carries the same fields, and reading them correctly is a skill in itself.
+
+Open any event page (for example, Google CTF, CSAW CTF Qualification Round, or a seasonal event like justCTF) and you'll see:
+
+- **Format** — almost always "Jeopardy" (independent categorized challenges, each worth points) or "Attack-Defense" (teams run vulnerable services against each other) or "Mixed." Tier 5 work should start with Jeopardy; it's asynchronous and forgiving of your schedule.
+- **Location** — "On-line" or a city/venue for on-site finals. Most quals rounds are online and open to anyone; finals are often invite-only based on quals placement.
+- **Weight** — a number CTFtime computes per event based on the caliber and number of participating teams. Weight is the multiplier that determines how many CTFtime rating points the event distributes. A weight of 10-30 is a small or new event; 50-90 is a well-established mid-tier event (CSAW quals, pbCTF); 100+ is a marquee event (DEF CON CTF quals, Google CTF). Weight tells you nothing about beginner-friendliness directly — it tells you how seriously the field takes it, which correlates loosely with difficulty.
+- **Start/End (UTC) and duration** — Jeopardy quals typically run 24-48 hours so you can pick your own hours; attack-defense finals are often a tight 8-hour on-site block. Always convert to your local time before committing.
+- **Organizers and official URL** — click through to the organizer's own site/CTFd instance, not just the CTFtime mirror. Read their rules page for team-size limits, eligibility (some events are student-only, like CSAW), and whether write-ups or sharing solutions during the event is banned (almost always yes, during the live window).
+- **Participants** — the live registration count. A few hundred teams is normal for a solid mid-weight event; a few thousand signals something like picoCTF-adjacent scale.
+
+The one field CTFtime doesn't show you directly but that matters most for your decision: the **challenge archive from previous years**. Nearly every recurring CTF publishes its prior year's challenges and often official write-ups on GitHub once the event ends. Search `"<event name> ctf" writeups github` or check the organizer's own GitHub org before you register.
+
+## Judging a beginner-friendly, but real, competition
+
+"Beginner-friendly" does not mean "not a real competition." It means the organizers deliberately built a wide point/difficulty spread so a first-time competitor can get early wins and a seasoned player still has something hard to chase. Concrete ways to tell the difference before you commit a weekend:
+
+1. **Pull last year's scoreboard shape.** If the archive shows dozens of challenges worth 50-150 points and only a handful above 400, the spread is wide and friendly. If everything clusters at 400+, it's built for specialists.
+2. **Check category count, not just challenge count.** An event with web, crypto, pwn, reverse, forensics, OSINT, and misc categories lets you contribute somewhere even if binary exploitation isn't your strength yet. An event with only pwn and reverse is signaling an experienced audience.
+3. **Read the organizer's own framing.** Google CTF runs a dedicated "Beginner's Quest" track alongside its main competition every year specifically so newcomers aren't thrown into the same bracket as top-20 teams — that's an explicit, real, non-condescending on-ramp from a top-tier organizer, not a toy event.
+4. **Look at historical weight trend, not just this year's.** An event with three straight years of moderate, stable weight (40-70) has a track record of running cleanly: infrastructure stays up, challenges are tested, scoring doesn't need a mid-event patch. A brand-new event with no history is a coin flip on infra quality, independent of difficulty.
+5. **Confirm it's still active.** CTFtime events go stale; check that the organizer posted something in the last 12 months (Twitter/X, Discord, a GitHub commit) before you plan around it.
+
+## Jeopardy scoring in practice
+
+Jeopardy platforms (almost all of them run on CTFd or a CTFd-like scorer) use **dynamic scoring**, not fixed point values. A common CTFd decay curve looks like this:
+
+```text
+value(solves) = max(minimum, floor(((minimum - initial) / decay^2) * solves^2 + initial))
+```
+
+With `initial = 500`, `minimum = 100`, `decay = 20`:
+
+- 1st solve: ~500 points (near full value — you got there first)
+- 10th solve: ~400 points
+- 20th solve: 100 points (floor reached — now it's a cheap, "everyone should get this" challenge)
+
+This is why jeopardy CTFs reward speed on easy-to-medium challenges disproportionately: solving a 500-point challenge in the first hour, before decay kicks in, can be worth more than solving a nominally "harder" 400-point challenge on day two after fifty teams have already cashed it in. Your total score is the sum of your solved challenges' *value at the moment you solved them* (most platforms lock in your points at solve time, they don't retroactively decay past solves). Ties are broken by timestamp of your last solve — the team that reached the same score earlier wins the tiebreak. Many events also award a visible **"first blood"** badge (and sometimes a small bonus) to the first team to crack each individual challenge, which is a real signal of raw skill independent of final placement, worth chasing even on a team that won't finish top 10 overall.
+
+Attack-defense scoring is structurally different (you gain points for keeping your own services alive and patched, and for successfully exploiting other teams' instances of the same services) but you won't encounter it as a newcomer on CTFtime's recommended events, so jeopardy mechanics above are what you need cold.
+
+## OverTheWire's advanced wargames: what they actually test
+
+OverTheWire is not a scheduled competition — it's an always-on, self-paced wargame server, which makes it the right training ground *between* CTFtime events. Narnia and Behemoth are its binary-exploitation tracks: a series of small setuid-root C programs on a shared Linux box, where each level's goal is to read the password for the next level out of a file only the current level's user can access. You connect with plain SSH:
+
+```bash
+ssh narnia0@narnia.labs.overthewire.org -p 2226
+ssh behemoth0@behemoth.labs.overthewire.org -p 2221
+```
+
+Early levels in both tracks are straightforward stack buffer overflows with no mitigations — you overflow a local buffer, overwrite a saved return address or a nearby variable, and redirect execution. That's where Tier 2-3 of this track left you.
+
+What changes in the later levels, without spoiling any specific level's exact offsets or password: the binaries start compiling with real modern protections turned on — NX (no-execute stack), stack canaries, and sometimes partial RELRO — and the vulnerability class often shifts from "pure overflow" to **format string bugs** (an attacker-controlled format string passed to `printf`/`fprintf` without a literal `"%s"` wrapper). A level that pairs a format-string bug with NX and a canary is deliberately teaching you a specific two-stage technique:
+
+1. Use the format string as an **information-leak primitive** first — `%x`, `%p`, or positional specifiers like `%7$x` to walk the stack and read out values you don't control directly, including the stack canary and a saved return address pointing into libc.
+2. Use that leaked libc address to compute the base of libc (subtract the known offset of whatever symbol you leaked), then compute the addresses of `system()` and a `"/bin/sh"` string inside that same libc.
+3. Trigger the *second* vulnerability (often a classic overflow elsewhere in the same binary) now that you know the canary value (so you can overwrite it with its own correct value and pass the canary check) and know real libc addresses — and build a minimal **return-to-libc** chain: overflow up to the canary, replace it with the leaked value, continue past the saved frame pointer, and overwrite the return address with the address of `system()`, followed by a fake return address and a pointer to `"/bin/sh"` on the stack.
+
+This is the standard technique the real-world CVE write-ups you studied in earlier modules use constantly against NX-protected binaries — OverTheWire's later Narnia/Behemoth levels exist specifically to drill it in a controlled, legal, already-solved-by-thousands sandbox before you ever point it at a disclosed CVE reproduction. Your exploit-development loop for any such level, independent of its specific offsets, looks like this in `pwntools`:
+
+```python
+from pwn import *
+
+context.binary = elf = ELF('./behemoth_target')  # local copy for offline analysis
+io = remote('behemoth.labs.overthewire.org', 1234)  # actual level port, from the wargame
+
+# Stage 1: leak via the format string bug
+io.sendline(b'%7$x.%8$x.%9$x')
+leak = io.recvline()
+canary, libc_leak = parse_leak(leak)        # your own parsing, offsets are level-specific
+libc_base = libc_leak - KNOWN_LIBC_OFFSET
+
+system_addr = libc_base + LIBC_SYSTEM_OFFSET
+binsh_addr  = libc_base + LIBC_BINSH_OFFSET
+
+# Stage 2: overflow with the correct canary restored
+payload  = b'A' * OFFSET_TO_CANARY
+payload += p32(canary)
+payload += b'B' * PADDING_TO_RET
+payload += p32(system_addr)
+payload += p32(0xdeadbeef)      # fake return address, never reached
+payload += p32(binsh_addr)
+
+io.sendline(payload)
+io.interactive()
+```
+
+Treat the all-caps constants as the research you do yourself with `file`, `checksec`, `objdump -d`, and `gdb` against that specific level's binary — that discovery work *is* the exercise OverTheWire is giving you, and it's exactly what no-spoiler discipline on this track means: the technique class is public knowledge, the level's exact numbers are yours to find.
+
+## Writing and publishing a technically rigorous public write-up
+
+Your earlier, simpler write-up template (challenge name, flag, one paragraph) does not hold up at Tier 5. A rigorous public write-up — the kind senior researchers actually cite — reads like a mini incident report. Here's the structure, modeled on the register used for classic, heavily-studied retired challenges like PlaidCTF 2013's `ropasaurusrex` (a 2013, long-concluded pwn challenge so thoroughly documented in dozens of public write-ups over the past decade that it's a standard teaching example for introductory ROP, with zero live-competition impact from discussing it):
+
+```markdown
+# ropasaurusrex — PlaidCTF 2013 (pwn, retired/concluded event)
+
+## TL;DR
+32-bit ELF, NX enabled, no PIE, no canary. A `read()` call with an
+attacker-controlled length overflows a fixed stack buffer. Leak a
+`write@plt`/GOT value via a staged ROP chain to compute the libc base,
+then return-to-libc into `system("/bin/sh")`.
+
+## Challenge metadata
+- Competition: PlaidCTF 2013 (concluded)
+- Category: pwn
+- Points at solve time: (as awarded; event is retired, static scoreboard)
+
+## Target triage
+    $ file rop
+    rop: ELF 32-bit LSB executable, Intel 80386, statically linked
+    $ checksec rop
+    Arch:     i386
+    RELRO:    No RELRO
+    Stack:    No canary found
+    NX:       NX enabled
+    PIE:      No PIE (0x08048000)
+
+No canary and no PIE means static addresses and no stack-smashing
+detection — the overflow itself is trivial. NX means shellcode on the
+stack won't execute, so the path to code execution has to be ROP.
+
+## Vulnerability analysis
+`main` calls `read(0, buf, 0x200)` into a buffer declared with room for
+far fewer bytes before the saved return address — a straightforward
+linear stack overflow with no bounds check on the read length.
+
+## Exploitation strategy
+1. Confirm the exact overflow offset with a cyclic pattern.
+2. Since there's no leaked libc and no format-string leak available
+   here, build a two-stage chain: first call `write(1, write_got, 4)`
+   via a ROP chain to leak the GOT entry for `write` itself back to us
+   over the socket, giving us a known-libc-function's real runtime
+   address.
+3. Compute libc base from the known offset of `write` in the libc
+   version the challenge ships.
+4. Resend the overflow with a second-stage chain that calls
+   `system("/bin/sh")` using the now-known libc base.
+
+## Exploit
+    (full, runnable pwntools script — the actual payload bytes,
+    offsets, and libc-offset constants used)
+
+## Result
+    $ python3 exploit.py
+    [+] Opening connection: Done
+    [+] leaked write@got: 0xf7e38...
+    [+] libc base: 0xf7dcf000
+    [*] Switching to interactive mode
+    $ cat flag.txt
+    PCTF{...}
+
+## Lessons / references
+- Why a GOT leak was necessary here specifically (no format string,
+  no existing leak primitive) versus the format-string leak used in
+  other challenges.
+- Link to the official PlaidCTF 2013 challenge repository/archive.
+- Link to at least one other public write-up you cross-checked against.
+```
+
+The non-negotiable elements a reviewer or hiring manager actually checks for: real `checksec`/`file` output (not paraphrased), a stated vulnerability class with the actual vulnerable call or line, an exploitation *strategy* explained before the exploit code (not code-first), the full runnable exploit, and a real success transcript. Publish it on a static site, a GitHub Pages blog, or a `writeups` GitHub repo with one Markdown file per challenge, and submit the repo link to CTFtime's own write-up index for that event (every concluded event page has a "submit a writeup" link) — that's the real, documented path other researchers and recruiters use to find you.
+
+## Exercise
+
+Pick one currently scheduled event on CTFtime.org within the next 60 days that satisfies all of: Jeopardy format, weight under 60, online, and a published prior-year archive showing at least four categories and a point spread from under 150 to over 400. Register, and in your own lab (not against the live scoreboard until the event window opens) rebuild your `pwntools` exploitation workflow against two Narnia or Behemoth levels you haven't solved yet, each involving a different vulnerability class (one pure overflow, one format-string-assisted leak). Then write a full rigorous write-up, using the structure above, for a Behemoth or Narnia level you've already completed in an earlier tier — OverTheWire explicitly permits and hosts public write-ups and walkthroughs for its own levels once you've solved them, since it is a permanent training ground rather than a live-scored competition, so this carries none of the spoiler concerns around a currently-running CTFtime event. Publish it to a public GitHub repo.
+
+Hint: for the GOT-leak-style technique, your biggest early blocker will be matching your local libc version to the remote target's exactly — a leaked address computed against the wrong libc build will look plausible and still crash. Check the target's libc version explicitly before trusting any offset you hardcode.

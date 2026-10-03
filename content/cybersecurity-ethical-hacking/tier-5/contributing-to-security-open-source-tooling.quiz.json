@@ -1,0 +1,98 @@
+[
+  {
+    "id": "cybersecurity-ethical-hacking/tier-5/contributing-to-security-open-source-tooling/q1",
+    "type": "multiple_choice",
+    "prompt": "Which GitHub label should a first-time contributor filter for in OWASP Juice Shop, WebGoat, or ZAP to find a tractable entry point?",
+    "choices": [
+      "good first issue",
+      "wontfix",
+      "duplicate",
+      "needs-triage"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-5/contributing-to-security-open-source-tooling/q2",
+    "type": "multiple_choice",
+    "prompt": "In the CVE-2017-5638 (Apache Struts2 S2-045) example, what specifically makes the request exploitable?",
+    "choices": [
+      "A SQL injection in the login form",
+      "An OGNL expression embedded in the Content-Type header, evaluated by the Jakarta Multipart parser before application code runs",
+      "A hardcoded default administrator password",
+      "A buffer overflow during the TLS handshake"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-5/contributing-to-security-open-source-tooling/q3",
+    "type": "multiple_choice",
+    "prompt": "Why does this module insist that any Nuclei detection template you write be tested only against your own isolated lab reproduction of a CVE, never a scan of arbitrary hosts?",
+    "choices": [
+      "Isolated labs produce faster scan results",
+      "Nuclei only works on localhost",
+      "Running detection or exploit logic against systems you don't own or lack authorization for is illegal and unethical, and the only legitimate target for this work is a disclosed, patched CVE you've deliberately reproduced yourself",
+      "Maintainers reject PRs that weren't tested against production systems"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-5/contributing-to-security-open-source-tooling/q4",
+    "type": "multiple_choice",
+    "prompt": "Which command checks that a Nuclei template's YAML structure and required info fields are correct before you open a PR?",
+    "choices": [
+      "nuclei -validate -t <template.yaml>",
+      "yamllint --nuclei <template.yaml>",
+      "nuclei -update-templates",
+      "git commit --verify-template"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-5/contributing-to-security-open-source-tooling/q5",
+    "type": "multiple_choice",
+    "prompt": "A maintainer comments that your template's matcher is too loose and could false-positive on an unrelated error page. What is the most appropriate response?",
+    "choices": [
+      "Close the PR since the maintainer didn't like it",
+      "Argue that the original matcher is fine because it worked in your test",
+      "Tighten the matcher (e.g., a more specific regex), push a follow-up commit, and explain what changed and why",
+      "Force-push an unrelated rewrite of the whole template to start over"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-5/contributing-to-security-open-source-tooling/q6",
+    "type": "multiple_choice",
+    "prompt": "Why does OWASP Juice Shop enforce Angular-style commit message prefixes like feat:, fix:, and chore:?",
+    "choices": [
+      "It's required by GitHub itself",
+      "Its semantic-release pipeline parses these prefixes to determine the next version number and auto-generate the changelog",
+      "It has no functional purpose, it's purely cosmetic",
+      "It's required for Docker image tagging"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-5/contributing-to-security-open-source-tooling/q7",
+    "type": "multiple_choice",
+    "prompt": "What is the non-negotiable scope boundary for vulnerability research at this tier of the curriculum?",
+    "choices": [
+      "Only against the learner's own isolated reproductions of already-disclosed, already-patched CVEs \u2014 never a live, unpatched, or current target, and never a 0-day",
+      "Against any publicly reachable server running an outdated software version",
+      "Against a competitor's staging environment with permission implied by a bug bounty program",
+      "Against any system, as long as findings are reported responsibly afterward"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-5/contributing-to-security-open-source-tooling/q8",
+    "type": "multiple_choice",
+    "prompt": "In the ZAP (zaproxy/zap-extensions) contribution model, what is a typical 'good first issue' type of change?",
+    "choices": [
+      "Rewriting ZAP's core proxy engine",
+      "A false-positive fix in an existing passive or active scan rule inside a specific add-on module, with an accompanying test update",
+      "Migrating the entire project to a new programming language",
+      "Designing a new logo for the project"
+    ],
+    "correctIndex": 1
+  }
+]

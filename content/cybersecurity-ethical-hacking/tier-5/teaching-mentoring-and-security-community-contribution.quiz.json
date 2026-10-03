@@ -1,0 +1,98 @@
+[
+  {
+    "id": "cybersecurity-ethical-hacking/tier-5/teaching-mentoring-and-security-community-contribution/q1",
+    "type": "multiple_choice",
+    "prompt": "When structuring a technical explainer like 'Kerberoasting for a Tier 1 reader,' what is the primary design move for bridging the audience gap?",
+    "choices": [
+      "Build the new material explicitly on concepts the audience already has (e.g. offline hash cracking) before introducing new primitives like SPNs and TGS tickets",
+      "Use simpler vocabulary throughout even if it makes the explanation less precise",
+      "Include every known attack variant so the reader sees the full threat landscape",
+      "Skip the defense/mitigation section since a beginner can't implement it yet"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-5/teaching-mentoring-and-security-community-contribution/q2",
+    "type": "multiple_choice",
+    "prompt": "Why does Kerberoasting let any authenticated domain user obtain crackable material for a service account, without needing elevated privileges first?",
+    "choices": [
+      "Any domain user can request a TGS for any registered SPN, and that ticket is encrypted with a key derived from the service account's own password hash, which can be attacked offline",
+      "The attacker must already hold domain admin rights before requesting any service ticket",
+      "The KDC returns the service account's password in plaintext to any requester",
+      "The Key Distribution Center verifies the requester owns the SPN before issuing a ticket"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-5/teaching-mentoring-and-security-community-contribution/q3",
+    "type": "multiple_choice",
+    "prompt": "A mentee's SQLi payload is theoretically correct but fails when typed into Juice Shop's login form, leading them to wrongly conclude the app isn't vulnerable. What is the most productive thing for a mentor to do, without handing over a payload?",
+    "choices": [
+      "Ask them to check what happens to their input before it reaches the server, pointing them back toward the Burp Suite proxy skill they already have",
+      "Give them the exact working payload string so they can confirm the vulnerability exists",
+      "Tell them to abandon the challenge since the app has clearly been patched",
+      "Explain that client-side validation proves the server-side query is also safely parameterized"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-5/teaching-mentoring-and-security-community-contribution/q4",
+    "type": "multiple_choice",
+    "prompt": "What is the correct shape of written feedback on a wrong-but-reasoned exploit attempt?",
+    "choices": [
+      "Affirm the parts of their reasoning that were sound, name precisely where the model diverged from reality, point at a tool or concept to revisit, and require them to re-test it themselves",
+      "Quietly substitute the correct payload into their terminal so they see the working exploit",
+      "Tell them to keep trying random variations until something works",
+      "Give no technical detail at all so they are forced to start over from scratch"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-5/teaching-mentoring-and-security-community-contribution/q5",
+    "type": "multiple_choice",
+    "prompt": "What hint-ladder design is recommended for a beginner-friendly CTF challenge?",
+    "choices": [
+      "A tiered ladder (roughly three steps) that first names the category or tool, then narrows to the mechanism, then confirms the near-final step, each costing more points, without ever giving the literal payload or flag",
+      "One all-or-nothing hint that states the vulnerability class and the fix directly",
+      "No hints at all, so solvers either get it or don't",
+      "A full walkthrough available from the start of the event"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-5/teaching-mentoring-and-security-community-contribution/q6",
+    "type": "multiple_choice",
+    "prompt": "Why should CTF or workshop material reference only retired or concluded competitions for structural inspiration, rather than a currently live one?",
+    "choices": [
+      "Reusing or spoiling a still-open challenge undermines the competition for everyone still working it and breaks the no-spoiler norm the community relies on",
+      "Retired competitions have noticeably better server infrastructure",
+      "Current competitions legally forbid any write-ups under any circumstances",
+      "Retired challenges are always technically simpler to study"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-5/teaching-mentoring-and-security-community-contribution/q7",
+    "type": "multiple_choice",
+    "prompt": "What practically distinguishes adapting the same technical content into a conference-style talk versus a blog post?",
+    "choices": [
+      "A talk needs timed, slide-per-idea pacing and a pre-recorded demo fallback for when the live demo fails; a blog post can go deeper in linear prose and push edge cases into links or footnotes",
+      "A blog post must never contain runnable code, while a talk always must",
+      "A conference talk never needs an introductory hook or framing",
+      "The structure is identical regardless of delivery medium"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-5/teaching-mentoring-and-security-community-contribution/q8",
+    "type": "multiple_choice",
+    "prompt": "In a self-hosted CTFd beginner workshop, why choose dynamic (decay) scoring over flat per-challenge points?",
+    "choices": [
+      "It lowers a challenge's point value as more teams solve it, which keeps the event from being decided purely by who is fastest on the easy challenges and keeps later solvers motivated",
+      "It automatically disables all hints once enabled",
+      "It hides the leaderboard from all participants for the entire event",
+      "CTFd requires decay scoring and offers no alternative scoring mode"
+    ],
+    "correctIndex": 0
+  }
+]
