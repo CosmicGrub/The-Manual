@@ -1,0 +1,256 @@
+---
+trackId: cybersecurity-ethical-hacking
+tier: 2
+title: "Digital Forensics Fundamentals"
+order: 5
+estimatedHours: 10
+slug: digital-forensics-fundamentals
+---
+
+## Why This Module Exists
+
+Every exploit you've run so far against Metasploitable2, DVWA, or Juice Shop left evidence. Timestamps changed. Processes spawned. Log lines got written. A pentester who can only break in is half a pentester — the other half is being able to read the wreckage afterward, because that's exactly what a blue team does to figure out what you did, and it's exactly what you'll need to do when a client asks "can you prove what happened." This module builds that skill on four fronts: filesystem artifacts, GUI-driven disk image triage with Autopsy, memory forensics with Volatility, and log reconstruction using logs you generate yourself by attacking your own lab.
+
+Everything below runs against a disposable image you build, a public practice image made for training, or logs from your own host-only lab VM. Nothing here touches a real machine you use day to day.
+
+## Lab Setup
+
+You need:
+
+- Your Tier 0 host-only lab network (Metasploitable2, DVWA/Juice Shop containers)
+- The Sleuth Kit (`sleuthkit` package — `apt install sleuthkit` on your attack VM or a dedicated forensics VM)
+- Autopsy (download the Linux/Windows build from autopsy.com, or `apt install autopsy` on older Kali)
+- Volatility 2 (`pip install volatility` or clone `volatilityfoundation/volatility` — Volatility 3 works too, commands shown here use the Volatility 2 CLI since most free training material and the sample images still target it)
+- A disposable raw disk image you build yourself (next section)
+- A public memory sample built for training — the Volatility Foundation publishes exactly these on its own GitHub wiki (`volatilityfoundation/volatility` wiki → "Memory Samples")
+
+Do all of this in a forensics working directory you don't mind filling with multi-gigabyte files:
+
+```bash
+mkdir -p ~/forensics-lab/{images,memdumps,cases}
+cd ~/forensics-lab
+```
+
+## Part 1 — Filesystem Forensics: Metadata, Timestamps, and Deleted File Recovery
+
+### Build a throwaway disk image
+
+Don't practice on a real disk. Build a small loopback filesystem image inside your lab VM, put files on it, delete one, then recover it.
+
+```bash
+cd ~/forensics-lab/images
+dd if=/dev/zero of=evidence.img bs=1M count=64
+mkfs.ext4 -F evidence.img
+mkdir -p /mnt/evidence
+sudo mount -o loop evidence.img /mnt/evidence
+echo "case notes: suspect accessed payroll.csv on the lab box" | sudo tee /mnt/evidence/notes.txt
+echo "name,salary\nalice,90000\nbob,85000" | sudo tee /mnt/evidence/payroll.csv
+sudo rm /mnt/evidence/payroll.csv
+sudo umount /mnt/evidence
+```
+
+You now have a 64MB ext4 image with one file deleted from it — a realistic miniature of "find the thing someone tried to erase."
+
+### Read metadata and MACB timestamps with The Sleuth Kit
+
+First find the partition layout (even a single-filesystem image gets checked this way out of habit — on a full disk image this step is mandatory):
+
+```bash
+$ mmls evidence.img
+```
+
+For a raw filesystem (no partition table) you go straight to `fsstat` to confirm the filesystem type and block size:
+
+```bash
+$ fsstat evidence.img
+FILE SYSTEM INFORMATION
+--------------------------------------------
+File System Type: Ext4
+Volume Name:
+Volume ID: 3f2a91...
+...
+Inode Range: 1 - 16384
+Root Directory: 2
+```
+
+List every file, including deleted ones, with `fls`:
+
+```bash
+$ fls -r -p evidence.img
+r/r 12: notes.txt
+r/r * 13: payroll.csv
+```
+
+The `*` is the whole point — that's `fls` telling you inode 13 is marked deleted but still has a directory entry pointing at it. Now pull the inode's own metadata with `istat`:
+
+```bash
+$ istat evidence.img 13
+inode: 13
+Not Allocated
+Group: 0
+Generation Id: 0
+uid / gid: 0 / 0
+mode: -rw-r--r--
+size: 29
+num of links: 0
+
+Inode Times:
+Accessed:       2026-09-14 10:02:11 (UTC)
+File Modified:  2026-09-14 10:02:11 (UTC)
+Inode Modified: 2026-09-14 10:03:47 (UTC)
+File Created:   2026-09-14 10:02:11 (UTC)
+```
+
+This is MACB in practice: Modified (content last written), Accessed (last read), Changed (inode metadata last changed — here, the moment of deletion, 96 seconds after creation), Birth (creation). That 96-second gap between File Created and Inode Modified is your evidence the file was deleted shortly after being written, before `size`, block pointers, and `num of links: 0` tell you it's gone but not yet overwritten.
+
+### Recover the deleted file with icat
+
+Since the inode's block pointers are still intact (nothing has overwritten those blocks yet), pull the content straight out by inode number:
+
+```bash
+$ icat evidence.img 13
+name,salary
+alice,90000
+bob,85000
+```
+
+That's the entire recovery: `fls` to find the deleted, still-referenced inode; `istat` to confirm the timeline; `icat` to carve the content back out. On a real exam image you'd do the same three commands against a much bigger disk — the workflow doesn't change.
+
+## Part 2 — Autopsy: GUI Disk Image Triage
+
+The command line is precise but slow for broad triage. Autopsy wraps The Sleuth Kit in a case-management GUI with ingest modules that do hashing, keyword indexing, and file-type carving for you.
+
+### Get a practice image
+
+Use a disk image built specifically for forensics training, not anything with real personal data. Digital Corpora (digitalcorpora.org) and NIST's CFReDS project both publish free, legally-distributable practice images built for exactly this exercise — multi-gigabyte Windows and Linux images seeded with planted artifacts (deleted documents, browser history, recovered photos) for students to find. Download one practice image and note its SHA-256 from the hosting page before you touch it — hashing on receipt is the first thing a real examiner does, and you should build the habit now.
+
+```bash
+$ sha256sum practice_image.E01
+3a7f1c...  practice_image.E01
+```
+
+### Build the case and run ingest
+
+1. Autopsy → **New Case** → name it, pick a case directory under `~/forensics-lab/cases`.
+2. **Add Data Source** → Disk Image or VM File → point at the `.E01`/`.img`.
+3. When prompted, select ingest modules: at minimum enable **Hash Lookup**, **File Type Identification**, **Extension Mismatch Detector**, **Exif Parser**, and **Keyword Search**. These run automatically in the background once you finish the wizard — a multi-GB image can take 20-40 minutes, so this is a good point to start the Volatility section below in parallel.
+4. Watch the ingest progress bar in the bottom-right corner. Don't start manually browsing data sources until it's at least past the file-system-level modules, or you'll miss carved/deleted entries that appear mid-run.
+
+### Find one specific artifact
+
+In the left-hand tree: **Data Sources → [image name] → Deleted Files**. This view lists every file the filesystem marked as removed but whose data Autopsy could still locate — the GUI equivalent of the `fls *` marker you saw with the command line.
+
+Click through the deleted entries and watch the **Metadata** tab in the lower-right panel — it shows the same MACB fields `istat` gave you, now with a file preview above it. For a deleted JPEG, the **Metadata** sub-tab (not the inode metadata — the EXIF one, under the image viewer) frequently still has intact EXIF data even when the file itself was deleted, because EXIF lives in the file's own bytes, not filesystem metadata. If the practice image includes GPS tags in a recovered photo's EXIF block, that single field — latitude/longitude embedded in a file the suspect thought was gone — is the kind of one-artifact finding these training images are built around. Right-click any file of interest → **Extract File(s)** to pull it out for your case notes, and **Add File Tag** to mark it so it shows up in your final report export (**Generate Report** in the toolbar, HTML or Excel format).
+
+## Part 3 — Volatility: Memory Forensics
+
+A disk image shows you what's at rest. A memory dump shows you what was running — live processes, open network sockets, injected code, decrypted strings that never touch disk. Memory forensics is also why you never want to just `poweroff` a compromised box before imaging it: volatile evidence is gone the instant RAM loses power.
+
+### Get a sample memory image
+
+The Volatility Foundation hosts public sample `.vmem` images on their project wiki specifically for learning the tool, built from real (but long-known, publicly documented) malware infections run in disposable VMs — not from anyone's personal machine. The most commonly used beginner sample is `cridex.vmem`, a Windows XP memory image infected with the Cridex banking trojan. Download it into `~/forensics-lab/memdumps/`.
+
+### Identify the OS profile
+
+Volatility needs to know the exact OS build to locate kernel structures correctly. Never skip this step:
+
+```bash
+$ volatility -f cridex.vmem imageinfo
+Volatility Foundation Volatility Framework 2.6.1
+INFO    : volatility.debug    : Determining profile based on KDBG search...
+          Suggested Profile(s) : WinXPSP2x86, WinXPSP3x86
+                     AS Layer1 : IA32PagedMemoryPae (Kernel AS)
+                      PAE type : PAE
+                           DTB : 0x319000L
+                     KDBG      : 0x80545ae0L
+...
+```
+
+Pick the first suggestion for `--profile` on every subsequent command.
+
+### List processes, then find the malicious one
+
+```bash
+$ volatility -f cridex.vmem --profile=WinXPSP2x86 pslist
+Offset(V)  Name                 PID   PPID   Thds  Hnds   Time
+---------- -------------------- ----- ------ ----- ----- -------------------
+0x823c89c8 System                   4      0    53   240  1970-01-01 00:00:00
+0x822f0598 smss.exe               368      4     3    19  2012-07-13 18:02:42
+0x822a5318 csrss.exe              584    368    11   404  2012-07-13 18:02:43
+0x8226f020 winlogon.exe           608    368    19   519  2012-07-13 18:02:43
+0x821dfb28 services.exe           652    608    16   268  2012-07-13 18:02:43
+0x82275020 lsass.exe              664    608    21   338  2012-07-13 18:02:43
+0x822411b0 explorer.exe          1484    1388    13   349  2012-07-13 18:02:45
+0x81e2d770 reader_sl.exe         1640   1484     1    34  2012-07-13 18:02:46
+...
+```
+
+`reader_sl.exe` is the tell. It's disguised to look like an Adobe Reader helper process, but it's spawned as a child of `explorer.exe` with no legitimate installer behind it — exactly the Cridex dropper this sample is known for. Confirm with `pstree` to see the parent/child chain cleanly, and `dlllist -p 1640` to see what it loaded.
+
+### Find its network connections
+
+```bash
+$ volatility -f cridex.vmem --profile=WinXPSP2x86 netscan
+Offset(P)   Proto  Local Address      Foreign Address   State        Pid   Owner
+----------  -----  -----------------  ----------------  -----------  ----  --------------
+0x02352e10  TCP    10.0.0.11:1037     41.168.5.140:8080  ESTABLISHED  1640  reader_sl.exe
+```
+
+(Exact offsets, ports, and PIDs vary slightly by Volatility build and the exact sample you download — the point is the method, not memorizing a specific number.) `netscan` walks the kernel's network pool tags and attributes each socket to a PID, which `connscan`'s older pool-scanning approach can miss or get wrong — prefer `netscan` on any image newer than Windows XP, and use it here too since it also reports socket state. The result: PID 1640, the disguised `reader_sl.exe`, held an established connection out to an external IP on port 8080 — classic C2 callback behavior for this malware family. That's your "process + network connection" finding, straight out of volatile memory that a disk image alone would never have shown you, since the connection only existed in a live kernel socket table.
+
+## Part 4 — Log Analysis Fundamentals
+
+Disk and memory forensics tell you what's on a box. Logs tell you the sequence of events that got it there — and you already have real ones, because you've been attacking your own lab all through this tier.
+
+### Apache access log anatomy
+
+On your DVWA/Juice Shop lab host, `/var/log/apache2/access.log` (or the container's stdout logs if you're running it in Docker) uses the standard combined format:
+
+```text
+192.168.56.1 - - [14/Sep/2026:10:14:02 +0000] "GET /dvwa/vulnerabilities/sqli/?id=1' UNION SELECT user,password FROM users-- -&Submit=Submit HTTP/1.1" 200 4312 "-" "sqlmap/1.7.2#stable (http://sqlmap.org)"
+```
+
+Fields left to right: client IP, identity (usually `-`), authuser (`-`), timestamp, the request line in quotes, HTTP status code, response size in bytes, referrer, and user-agent. That last field is a gift here — `sqlmap/1.7.2#stable` is sqlmap's default User-Agent string, unmistakable once you know to look for it, and the request itself carries the literal `UNION SELECT user,password FROM users` payload you ran against DVWA earlier in this tier.
+
+### auth.log anatomy
+
+On your Metasploitable2 attack host or whichever lab VM you ran a brute force against, `/var/log/auth.log` records every authentication attempt:
+
+```text
+Sep 14 10:21:03 metasploitable sshd[2211]: Failed password for root from 192.168.56.1 port 51201 ssh2
+Sep 14 10:21:03 metasploitable sshd[2212]: Failed password for root from 192.168.56.1 port 51202 ssh2
+Sep 14 10:21:04 metasploitable sshd[2213]: Failed password for root from 192.168.56.1 port 51203 ssh2
+Sep 14 10:21:09 metasploitable sshd[2240]: Accepted password for root from 192.168.56.1 port 51244 ssh2
+Sep 14 10:21:09 metasploitable sshd[2240]: pam_unix(sshd:session): session opened for user root by (uid=0)
+```
+
+### Reconstruct an attack from your own lab logs
+
+Pull the exact window of your own earlier Hydra run against Metasploitable2's SSH service:
+
+```bash
+$ grep "sshd" /var/log/auth.log | awk '{print $1,$2,$3,$NF==""?"":$0}' | tail -40
+```
+
+More usefully, count attempts per second to spot the automated burst pattern a human typing passwords could never produce:
+
+```bash
+$ grep "Failed password" /var/log/auth.log | awk '{print $1,$2,$3}' | sort | uniq -c
+      4 Sep 14 10:21:03
+      6 Sep 14 10:21:04
+      5 Sep 14 10:21:05
+```
+
+Four to six failed attempts in the same one-second bucket, repeated across many seconds, followed by a single `Accepted password` line — that's a brute force succeeding, and the timestamp on that `Accepted` line is the exact moment your earlier Hydra session (or Metasploit's `ssh_login` module) cracked the credential. Cross-reference it against your attack VM's own command history or Metasploit `resource` log from that session, and you've built a one-paragraph incident timeline from raw text: reconnaissance (if any), the brute-force window, the successful authentication timestamp, and the session that followed — which is the exact skill a real incident response engagement pays for.
+
+## Exercise
+
+Using only your own lab:
+
+1. Build a second disposable ext4 image (128MB), create three files, delete two of them at different times (sleep a few seconds between deletions), then unmount it.
+2. Using `fls`, `istat`, and `icat` only (no Autopsy), identify which of the two deleted files was deleted first, and recover both files' contents.
+3. Separately, run a Nikto scan against your own DVWA or Juice Shop container, then find the exact Apache access.log lines Nikto generated by its distinctive User-Agent string, and report the start and end timestamp of the scan based on the first and last matching log line.
+
+Hint for step 2: compare the `Inode Modified` field across the two recovered inodes — deletion updates that field, not `File Created`.
+
+Submit your findings as a short written timeline (not full solution expected here — this is yours to work out), the same format you'll use when a real client asks "what happened and when."

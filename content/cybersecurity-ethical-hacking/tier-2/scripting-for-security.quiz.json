@@ -1,0 +1,98 @@
+[
+  {
+    "id": "cybersecurity-ethical-hacking/tier-2/scripting-for-security/q1",
+    "type": "multiple_choice",
+    "prompt": "In lab_portscan.py, what is the purpose of the validate_target() function and its LAB_SUBNET check?",
+    "choices": [
+      "It speeds up the scan by pre-resolving DNS",
+      "It refuses to run the scan against any IP address outside the authorized 192.168.56.0/24 lab subnet",
+      "It automatically installs nmap if it is missing",
+      "It encrypts the scan traffic so it cannot be detected"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-2/scripting-for-security/q2",
+    "type": "multiple_choice",
+    "prompt": "In scan_port(), what does sock.connect_ex((host, port)) == 0 indicate?",
+    "choices": [
+      "The port is closed",
+      "The connection attempt timed out",
+      "The connection succeeded, meaning the port is open",
+      "The host is unreachable"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-2/scripting-for-security/q3",
+    "type": "multiple_choice",
+    "prompt": "Why does lab_portscan.py use a ThreadPoolExecutor instead of scanning ports one at a time in a simple loop?",
+    "choices": [
+      "It is required by the socket module",
+      "It allows many connection attempts to run concurrently, so the total scan time is much shorter than the sum of each port's timeout",
+      "It encrypts each connection",
+      "It is the only way to scan more than one port in Python"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-2/scripting-for-security/q4",
+    "type": "multiple_choice",
+    "prompt": "In check_pwned_password.py, what information is actually sent over the network to Have I Been Pwned's API?",
+    "choices": [
+      "The plaintext password",
+      "The full SHA-1 hash of the password",
+      "Only the first 5 characters of the SHA-1 hash (the prefix)",
+      "The password and the username together"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-2/scripting-for-security/q5",
+    "type": "multiple_choice",
+    "prompt": "Why is HIBP's k-anonymity design (sending only a hash prefix) considered a correct, legitimate way to use the Pwned Passwords API?",
+    "choices": [
+      "It makes the API call faster",
+      "It lets you check a password against a massive breach dataset without ever transmitting the real password or its full hash to a third party",
+      "It is required to get an API key",
+      "It automatically changes the password for you"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-2/scripting-for-security/q6",
+    "type": "multiple_choice",
+    "prompt": "What rate limit does vt_hash_lookup.py's SECONDS_BETWEEN_REQUESTS = 15 enforce when looking up multiple hashes?",
+    "choices": [
+      "VirusTotal's public API limit of roughly 4 requests per minute",
+      "A limit imposed by the Python requests library itself",
+      "Have I Been Pwned's rate limit",
+      "An arbitrary number with no real-world basis"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-2/scripting-for-security/q7",
+    "type": "multiple_choice",
+    "prompt": "Why does vt_hash_lookup.py read the VirusTotal API key from the VT_API_KEY environment variable instead of hardcoding it in the script?",
+    "choices": [
+      "Environment variables make the API calls faster",
+      "Hardcoding a key in source risks committing or sharing it accidentally; reading it from the environment keeps it out of the code entirely",
+      "VirusTotal's API does not accept keys passed in headers",
+      "Environment variables are required by Python's requests library"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-2/scripting-for-security/q8",
+    "type": "multiple_choice",
+    "prompt": "Why is the EICAR test file's hash used in the VirusTotal lookup example instead of a hash from real malware?",
+    "choices": [
+      "EICAR is the only hash VirusTotal's API accepts",
+      "It is a standardized, harmless test string that every antivirus engine is designed to flag, so it demonstrates a real 'malicious' detection without ever handling actual malware",
+      "EICAR hashes always return a 404 not found",
+      "VirusTotal gives EICAR lookups a higher rate limit"
+    ],
+    "correctIndex": 1
+  }
+]

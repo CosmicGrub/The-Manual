@@ -1,0 +1,98 @@
+[
+  {
+    "id": "cybersecurity-ethical-hacking/tier-2/independent-tryhackme-hackthebox-practice/q1",
+    "type": "multiple_choice",
+    "prompt": "On HackTheBox, which combination is the recommended starting point for a Tier 2 learner who has not yet independently rooted 5 boxes?",
+    "choices": [
+      "Medium difficulty, Windows, any star rating",
+      "Easy difficulty, Linux, star rating at or above 4.0",
+      "Hard difficulty, Linux, star rating below 3.0",
+      "Insane difficulty, any OS, highest completion count"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-2/independent-tryhackme-hackthebox-practice/q2",
+    "type": "multiple_choice",
+    "prompt": "Why does the methodology recommend running nmap with -p- (a full 65535-port sweep) before running a detailed -sC -sV scan?",
+    "choices": [
+      "Because -p- is faster than scanning the top 1000 ports",
+      "Because the detailed scan cannot run unless every port has already been scanned once",
+      "Because a default top-1000 scan can miss a service deliberately placed on a nonstandard high port",
+      "Because -sC and -sV require root privileges that -p- grants"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-2/independent-tryhackme-hackthebox-practice/q3",
+    "type": "multiple_choice",
+    "prompt": "During privilege escalation enumeration, what is the correct way to treat LinPEAS output?",
+    "choices": [
+      "Run every exploit it suggests immediately, in the order listed",
+      "Treat it as a lead generator and manually verify each flagged item (e.g. cross-reference SUID binaries against GTFOBins) before acting",
+      "Ignore it entirely and rely only on manual find commands",
+      "Use it only after privilege escalation has already succeeded, as a reporting tool"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-2/independent-tryhackme-hackthebox-practice/q4",
+    "type": "multiple_choice",
+    "prompt": "According to this module, what does 'retired' status on HackTheBox actually change about write-up policy?",
+    "choices": [
+      "Nothing \u2014 write-ups are always forbidden regardless of status",
+      "Retired machines are removed from the active/competitive machine pool, so the platform permits publishing write-ups for them, unlike active machines",
+      "Retired status only applies to TryHackMe, not HackTheBox",
+      "Retired machines can only be written up if the learner has an Insane-tier subscription"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-2/independent-tryhackme-hackthebox-practice/q5",
+    "type": "multiple_choice",
+    "prompt": "A write-up's 'Findings' section should primarily contain:",
+    "choices": [
+      "A copy of the entire nmap scan output with no interpretation",
+      "The specific vulnerabilities identified and their impact, e.g. 'unauthenticated RCE in component X leading to shell access'",
+      "A list of every tool installed on the attacking machine",
+      "The learner's personal opinion of the platform's difficulty rating"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-2/independent-tryhackme-hackthebox-practice/q6",
+    "type": "multiple_choice",
+    "prompt": "Before brute-forcing a login form found during web enumeration, what should be checked first?",
+    "choices": [
+      "Whether the form accepts Unicode characters",
+      "Default credentials for the fingerprinted software, then auth bypass or SQL injection on the login itself",
+      "The server's time zone setting",
+      "Whether the form uses POST or GET"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-2/independent-tryhackme-hackthebox-practice/q7",
+    "type": "multiple_choice",
+    "prompt": "Why do TryHackMe and HackTheBox both restrict publishing solutions for active content?",
+    "choices": [
+      "To protect their servers from excessive traffic",
+      "Because publishing spoilers defeats the learning value for future users and enables fraudulent completion claims",
+      "Because of licensing restrictions from third-party software vendors",
+      "Because active machines are legally classified as confidential"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-2/independent-tryhackme-hackthebox-practice/q8",
+    "type": "multiple_choice",
+    "prompt": "In the Phase 3 systematic testing checklist, what should be checked for any parameter that accepts a file path or an 'include' value?",
+    "choices": [
+      "Cross-site request forgery (CSRF)",
+      "Local file inclusion or path traversal",
+      "DNS cache poisoning",
+      "Clickjacking via iframe"
+    ],
+    "correctIndex": 1
+  }
+]

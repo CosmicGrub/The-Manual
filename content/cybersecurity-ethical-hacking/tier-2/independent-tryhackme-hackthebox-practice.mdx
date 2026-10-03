@@ -1,0 +1,177 @@
+---
+trackId: cybersecurity-ethical-hacking
+tier: 2
+title: "Independent TryHackMe / HackTheBox Practice"
+order: 2
+estimatedHours: 18
+slug: independent-tryhackme-hackthebox-practice
+---
+
+## What this module actually trains
+
+Every other module in this track hands you a fixed target: Juice Shop, DVWA, a PortSwigger lab with a known bug class. This module trains something different — your ability to work *unknown* targets without a walkthrough open in another tab. That is the actual job of a penetration tester: nobody hands you a hint file.
+
+This module will not walk you through any specific current TryHackMe room or HackTheBox machine. Both platforms have explicit write-up policies that forbid publishing solutions to active content, and for good reason (covered at the end of this module). What you get instead is the methodology itself: how to pick a target that matches your skill, how to enumerate it systematically, how to escalate privileges once you have a foothold, and how to write it up afterward. Apply this process to whatever room or box you're actually working — the process is the product here, not any single machine.
+
+Budget: 18 hours. Expect to spend that as roughly 2 hours re-reading this methodology and building your checklist, then 14-16 hours actually grinding boxes on THM/HTB using it, then 1-2 hours writing your first real write-up.
+
+## Picking a target that matches your level
+
+Beginners waste enormous amounts of time on two failure modes: picking something far too hard and burning out, or picking something too easy and learning nothing. Both platforms give you real signals to avoid this — use them.
+
+**On HackTheBox**, every machine has:
+- A **difficulty rating**: Easy / Medium / Hard / Insane, plus a community-voted star rating (1-5) that's often more honest than the official label.
+- **User-submitted tags** visible after you've rooted a few boxes (and partially visible before, via the machine's "Information" card): OS (Linux/Windows), and sometimes a hint at the vuln class.
+- **Release date** — older retired machines tend to have far more write-ups and forum discussion available, which matters once you're stuck.
+
+Concrete rule for Tier 2: start with machines explicitly labeled **Easy**, Linux, with a star rating at or above 4.0 (low star ratings on "Easy" boxes usually mean a disputed unintuitive step that will eat your night for the wrong reasons). Do not touch anything rated Medium or above until you've independently rooted at least 5 Easy boxes with no walkthrough.
+
+**On TryHackMe**, the signal is the room's listed difficulty (Easy/Medium/Hard) plus its description. TryHackMe is more curriculum-structured than HTB — look specifically for rooms tagged as part of a beginner path (e.g. the "Jr Penetration Tester" or "Complete Beginner" learning paths) before jumping into standalone CTF-style rooms. A room's **number of completions** is also a signal: a very high completion count usually means a room with a single well-defined path and good guardrails, which is what you want before you can enumerate unassisted.
+
+A practical skill check before starting *any* room/box: read the room/machine's own description and name only (no spoiler searching). If you can't articulate, in one sentence, what category of vulnerability or technique it's probably testing, you're not ready for it yet — go one difficulty tier down.
+
+## The generic enumeration methodology
+
+This is the process. Memorize the shape of it, not any specific command — you'll adapt commands to whatever's actually open. Below, `TARGET` stands in for whatever IP HTB/THM assigns you for that box; it is never a real address.
+
+### Phase 1 — Initial recon
+
+```bash
+# full TCP port sweep first, fast, no service detection
+nmap -p- --min-rate=3000 -T4 TARGET -oN nmap-allports.txt
+
+# then a targeted, detailed scan against whatever ports came back
+nmap -p22,80,139,445 -sC -sV -A TARGET -oN nmap-detailed.txt
+```
+
+Why two passes: a default top-1000 scan can miss a service running on a high, nonstandard port — a surprisingly common trick on intentionally vulnerable machines. The full sweep catches it; the second pass gets banner grabs, script output, and OS guesses only on the ports that matter.
+
+Read the output like a checklist, not a wall of text:
+
+```text
+PORT    STATE SERVICE     VERSION
+22/tcp  open  ssh         OpenSSH 8.2p1 Ubuntu
+80/tcp  open  http        Apache httpd 2.4.41
+139/tcp open  netbios-ssn Samba smbd 4.6.2
+445/tcp open  netbios-ssn Samba smbd 4.6.2
+```
+
+From this alone you already have three leads: a web app, an SSH service with a known-vulnerable-sounding version worth checking against CVE databases, and SMB — which on an intentionally vulnerable Linux box is very often either anonymously readable or running an outdated Samba version with a public exploit.
+
+### Phase 2 — Service enumeration
+
+Work every open port, in order of attack surface size (usually web first, then file-sharing, then anything else):
+
+```bash
+# SMB — always check anonymous access first, it costs nothing
+smbclient -L //TARGET/ -N
+smbmap -H TARGET
+
+# web — map directories/files before touching anything manually
+gobuster dir -u http://TARGET -w /usr/share/wordlists/dirb/common.txt -x php,txt,bak
+
+# whatever CMS or framework the web root reveals, fingerprint it
+whatweb http://TARGET
+```
+
+If a login form turns up, do not jump straight to brute force. Check first for default credentials for whatever software `whatweb`/the page footer identified, then for auth bypass or SQLi on the login itself (this is exactly the testing you already practiced against DVWA and the PortSwigger auth labs — same methodology, new target).
+
+### Phase 3 — Systematic testing
+
+This is where beginners go in circles. Impose structure: for every input field, upload form, or parameter you find, run through the same short list before moving to the next one:
+
+1. Does it reflect your input unescaped anywhere in the response? (XSS candidate)
+2. Does it touch a database? Try a single quote, see what breaks. (SQLi candidate)
+3. Does it take a file path, filename, or "include" parameter? (LFI/path traversal candidate)
+4. Does it accept file uploads? What extensions are blocked client-side vs server-side?
+5. Is there an API behind the UI you can hit directly with `curl` or Burp Repeater, bypassing client-side validation entirely?
+
+Keep a running notes file as you go — timestamp, what you tried, what came back. You will need this for the write-up later, and you will absolutely forget the exact payload that worked by the time you get to privilege escalation.
+
+### Phase 4 — Privilege escalation checklist
+
+Once you have a low-privilege shell (web shell, SSH with found creds, whatever), run this checklist in order rather than guessing:
+
+```bash
+# who/what am I
+id; sudo -l; cat /etc/os-release
+
+# what can I run as another user with no password
+sudo -l
+
+# SUID binaries — cross-reference findings against GTFOBins
+find / -perm -4000 -type f 2>/dev/null
+
+# writable files owned by root, or in root-run cron jobs
+cat /etc/crontab
+find / -writable -type f 2>/dev/null | grep -v "^/proc"
+
+# kernel/distro version, for a known local-root exploit
+uname -a
+```
+
+Then, if nothing manual turns up fast:
+
+```bash
+# automated enumeration — run this, then manually verify every finding it flags
+./linpeas.sh > linpeas-output.txt
+```
+
+Treat LinPEAS output as a lead generator, not an answer key — it flags dozens of things, most irrelevant on any given box. Your job is to triage: cross-reference every SUID binary it lists against GTFOBins, check every writable cron script by hand, and confirm every "possible" CVE against the actual installed version before trying it.
+
+## Writing your own write-up
+
+Write one after every box you root, before you move to the next one, while the details are still fresh. A write-up is also how you build a portfolio — redacted appropriately, this becomes something you can show in a job application.
+
+Use this structure every time:
+
+```markdown
+# [Machine Name] — [Platform] — [Difficulty]
+
+## Scope
+- Target: [platform]'s assigned lab IP, retired machine, rooted on [date]
+- Objective: user flag + root flag
+- Tools: nmap, gobuster, [whatever else you actually used]
+
+## Methodology
+1. Initial recon: full port sweep found ports 22/80/445 open
+2. Service enum: gobuster on port 80 revealed /admin, whatweb fingerprinted
+   [CMS name] version [X]
+3. Vulnerability: [CMS] version [X] has a known [vuln class] — CVE-[number]
+4. Exploitation: [what you actually ran, with the real command/payload]
+5. Privilege escalation: `sudo -l` showed [binary] runnable as root with no
+   password; cross-referenced on GTFOBins for the escape
+
+## Findings
+- [Vuln 1]: unauthenticated [type] in [component], leads to [impact]
+- [Vuln 2]: misconfigured sudo rule allows privilege escalation to root
+
+## Remediation
+- Patch [CMS] to version [Y] or later
+- Remove the NOPASSWD sudo entry for [user]; scope it to the specific
+  command with full path if it's genuinely needed
+```
+
+If you want a concrete illustration of what a finished one of these looks like rather than just the template, look at a write-up on a **retired** HTB machine — HTB's own community actively publishes and links these for retired boxes specifically because the platform's rules allow it once a machine leaves active rotation. Reading two or three retired write-ups (not for a box you plan to attempt — pick ones you have no intention of doing) will show you the register and level of detail expected far better than this template alone.
+
+## Why platforms restrict write-ups, and what "retired" changes
+
+HTB's Terms of Service and TryHackMe's write-up policy both prohibit publishing solutions, walkthroughs, or significant spoilers for **active** content. The reason is structural, not arbitrary: both platforms' entire value proposition is that a room or machine teaches something when you're forced to find it yourself. A public step-by-step defeats that for every future learner who searches for it before attempting the box — and it also lets people fraudulently claim completions (and resume-worthy certifications) for work they didn't do.
+
+**"Retired" on HTB** specifically means the machine has been moved out of the active machine pool used for live rankings and is no longer part of competitive scoring — it's now accessible only to VIP/subscription users for practice, and at that point the platform explicitly permits write-ups, because the "spoiler" concern no longer applies to a machine that's left competitive circulation. **Active** machines on HTB, and **any room on TryHackMe that is currently part of the standard catalog** (TryHackMe does not have a "retired" tier the way HTB does — their policy is a blanket no-spoilers-for-current-rooms rule, full stop), are off-limits for public solutions regardless of how "easy" or old they feel to you.
+
+Practical rule: before you publish *anything* about a box or room — on a blog, GitHub, even a tweet — check the machine's current status on the platform itself. If it says active, keep your write-up private (a personal notes repo, not pushed public) until it retires. If you're not sure whether TryHackMe allows it at all for a given room, default to not publishing publicly; keep it in a private notebook instead.
+
+## Exercise
+
+Pick one HTB machine tagged **Easy**, Linux, with a community rating of 4.0+, that you have not looked at before. Before touching Metasploit or any exploit script, do the following and keep written notes as you go:
+
+1. Run the two-phase nmap scan from Phase 1 and record the full port list.
+2. For every open port, note which Phase 2 enumeration step applies and run it.
+3. Build your own ranked list of the top 3 most promising leads before trying any of them — write down *why* each one is promising, based on version numbers or exposed functionality you actually observed.
+4. Get a foothold, then run the Phase 4 privilege escalation checklist in order rather than jumping straight to an automated script.
+5. Write the full root-to-root write-up using the template above.
+
+Hint: if your initial full-port nmap sweep comes back with *only* 22 and 80 open and the web app on 80 looks like a dead end after gobuster, go back and check whether the first scan used `-p-` (all 65535 ports) rather than the default top-1000 — intentionally vulnerable boxes frequently hide a second service on a high port specifically to test whether you did the full sweep.
+
+Do not search for a walkthrough for this specific machine before you finish it. If you get stuck for more than 90 minutes on one step, that's useful signal for next time's difficulty pick — not a reason to search, yet. Give it the full session first.

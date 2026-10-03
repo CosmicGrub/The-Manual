@@ -1,0 +1,98 @@
+[
+  {
+    "id": "cybersecurity-ethical-hacking/tier-2/digital-forensics-fundamentals/q1",
+    "type": "multiple_choice",
+    "prompt": "In MACB timestamp analysis (as shown by Sleuth Kit's istat), what does the 'C' represent?",
+    "choices": [
+      "Created",
+      "Changed (inode/metadata change time)",
+      "Copied",
+      "Cleared"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-2/digital-forensics-fundamentals/q2",
+    "type": "multiple_choice",
+    "prompt": "Which Sleuth Kit command lists file names in a filesystem, including deleted entries still pointing at an intact inode, so you can identify what to recover?",
+    "choices": [
+      "mmls",
+      "fls",
+      "icat",
+      "ils"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-2/digital-forensics-fundamentals/q3",
+    "type": "multiple_choice",
+    "prompt": "Which Sleuth Kit command extracts the raw content of a file directly by its inode number, which is how you carve a deleted file's data back out?",
+    "choices": [
+      "icat",
+      "fsstat",
+      "blkcat",
+      "mactime"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-2/digital-forensics-fundamentals/q4",
+    "type": "multiple_choice",
+    "prompt": "In Autopsy, what has to finish running before keyword search hits, hash matches, and carved file types are reliably available in a new case?",
+    "choices": [
+      "Exporting the report",
+      "The Ingest Modules",
+      "Creating a timeline",
+      "Tagging files"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-2/digital-forensics-fundamentals/q5",
+    "type": "multiple_choice",
+    "prompt": "Before running process or network plugins against a Windows memory image in Volatility, which plugin determines the correct OS profile to use?",
+    "choices": [
+      "pslist",
+      "imageinfo",
+      "netscan",
+      "dlllist"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-2/digital-forensics-fundamentals/q6",
+    "type": "multiple_choice",
+    "prompt": "Which Volatility plugin reconstructs active and recently-closed TCP connections with process attribution, and is generally preferred over the older connscan approach?",
+    "choices": [
+      "netscan",
+      "hashdump",
+      "cmdscan",
+      "svcscan"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-2/digital-forensics-fundamentals/q7",
+    "type": "multiple_choice",
+    "prompt": "In a Linux auth.log, a burst of 'Failed password for root' lines in rapid succession followed by a single 'Accepted password for root' line most likely indicates:",
+    "choices": [
+      "A successful brute-force login after repeated password guesses",
+      "DNS cache poisoning",
+      "A kernel panic during SSH negotiation",
+      "A successful SSH key-based login with no password involved"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-2/digital-forensics-fundamentals/q8",
+    "type": "multiple_choice",
+    "prompt": "In a standard Apache combined-format access.log line, which field is the HTTP status code returned to the client?",
+    "choices": [
+      "The first quoted string",
+      "The number immediately after the closing quote of the request line (e.g. 200, 404)",
+      "The last field in the line",
+      "The timestamp in brackets"
+    ],
+    "correctIndex": 1
+  }
+]

@@ -1,0 +1,353 @@
+---
+trackId: cybersecurity-ethical-hacking
+tier: 2
+title: "Scripting for Security"
+order: 3
+estimatedHours: 12
+slug: scripting-for-security
+---
+
+## Three Scripts, Three Skills
+
+By now your lab footprint is fixed: Kali on the host-only network at `192.168.56.101`, running Juice Shop (`:3000`), DVWA (`:80`), and WebGoat (`:8080`) as local containers; Metasploitable2 as a separate VM at `192.168.56.102`, same `192.168.56.0/24` host-only segment, no route out. Everything in this lesson runs against that exact footprint, plus two public security APIs you query about data you already hold — your own password candidates, a hash you already have. Nothing here touches a host you don't own or an API endpoint that isn't explicitly built for this kind of query.
+
+You already wrote a bash version of "check if my lab VMs are up" in Tier 1 (`lab_sweep.sh`, using `/dev/tcp`). Python buys you three things bash can't do cleanly: real HTTP status codes instead of a bare TCP connect, structured data you can filter and reuse instead of text you have to `grep`, and libraries (`requests`, `socket`, `ipaddress`) built for exactly this.
+
+## Script 1: A Lab Health-Check, Properly This Time
+
+The repetitive task: every study session starts with "did DVWA's container actually survive the last reboot?" Checking four services by hand, every time, is exactly the kind of thing you automate once.
+
+```python
+#!/usr/bin/env python3
+"""
+lab_healthcheck.py — confirms your lab targets are up before you
+waste ten minutes debugging a lesson that was never going to load.
+
+Scope: this script only ever talks to 192.168.56.0/24, the Tier 0
+host-only lab network. Do not add hosts outside that range.
+"""
+
+import socket
+import sys
+from datetime import datetime
+
+import requests
+
+LAB_TARGETS = [
+    {"name": "Juice Shop",      "host": "192.168.56.101", "port": 3000, "path": "/"},
+    {"name": "DVWA",            "host": "192.168.56.101", "port": 80,   "path": "/login.php"},
+    {"name": "WebGoat",         "host": "192.168.56.101", "port": 8080, "path": "/WebGoat/login"},
+    {"name": "Metasploitable2", "host": "192.168.56.102", "port": 22,   "path": None},
+]
+
+
+def tcp_open(host, port, timeout=2.0):
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except (socket.timeout, ConnectionRefusedError, OSError):
+        return False
+
+
+def http_status(host, port, path, timeout=3.0):
+    url = f"http://{host}:{port}{path}"
+    try:
+        return requests.get(url, timeout=timeout).status_code
+    except requests.exceptions.RequestException:
+        return None
+
+
+def main():
+    print(f"Lab health check — {datetime.now().isoformat(timespec='seconds')}")
+    print("-" * 58)
+    all_up = True
+    for t in LAB_TARGETS:
+        if tcp_open(t["host"], t["port"]):
+            status = f"UP (HTTP {http_status(t['host'], t['port'], t['path'])})" if t["path"] else "UP (port open)"
+        else:
+            status, all_up = "DOWN", False
+        print(f"{t['name']:<14} {t['host']}:{t['port']:<5} {status}")
+    print("-" * 58)
+    sys.exit(0 if all_up else 1)
+
+
+if __name__ == "__main__":
+    main()
+```
+
+Run it from Kali:
+
+```text
+$ python3 lab_healthcheck.py
+Lab health check — 2026-10-03T09:14:02
+----------------------------------------------------------
+Juice Shop     192.168.56.101:3000  UP (HTTP 200)
+DVWA           192.168.56.101:80    UP (HTTP 200)
+WebGoat        192.168.56.101:8080  DOWN
+Metasploitable2 192.168.56.102:22   UP (port open)
+----------------------------------------------------------
+```
+
+That's a real, immediately useful tool: it tells you WebGoat's container didn't start before you spend time wondering why a browser tab is spinning. `tcp_open()` uses a raw socket connect to answer "is anything listening at all," and `http_status()` only bothers making an HTTP request once the port is confirmed open — no point timing out twice. The exit code (`0` or `1`) also means you can chain this into a shell script later and branch on the result.
+
+## Script 2: A Port Scanner That Cannot Leave Your Lab
+
+`nmap` is better than anything you're about to write — faster, more accurate, with OS and service fingerprinting you won't replicate in forty lines. You're writing one anyway because once you've built a TCP connect scan yourself, `nmap -sT` stops being a magic flag and becomes "the thing I just wrote, except threaded in C and with a service-signature database."
+
+```python
+#!/usr/bin/env python3
+"""
+lab_portscan.py — a bare-bones TCP connect scanner.
+
+WARNING: NEVER point this at anything outside your own isolated
+host-only lab network (192.168.56.0/24). The validate_target()
+check below exists for exactly that reason and must not be
+removed or bypassed. This is a learning tool, not a replacement
+for nmap on a real engagement.
+"""
+
+import ipaddress
+import socket
+import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+LAB_SUBNET = ipaddress.ip_network("192.168.56.0/24")
+
+COMMON_PORTS = [21, 22, 23, 25, 53, 80, 110, 111, 139, 143,
+                443, 445, 3306, 3389, 5432, 8080, 8180]
+
+
+def validate_target(ip_str):
+    ip = ipaddress.ip_address(ip_str)
+    if ip not in LAB_SUBNET:
+        raise ValueError(
+            f"{ip_str} is outside the authorized lab subnet "
+            f"({LAB_SUBNET}). Refusing to scan."
+        )
+    return ip
+
+
+def scan_port(host, port, timeout=0.75):
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.settimeout(timeout)
+    try:
+        return port, sock.connect_ex((host, port)) == 0
+    finally:
+        sock.close()
+
+
+def scan_host(host, ports=COMMON_PORTS, max_workers=40):
+    open_ports = []
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        futures = {pool.submit(scan_port, host, p): p for p in ports}
+        for future in as_completed(futures):
+            port, is_open = future.result()
+            if is_open:
+                open_ports.append(port)
+    return sorted(open_ports)
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print(f"Usage: {sys.argv[0]} <lab-host-ip>")
+        sys.exit(1)
+
+    target = sys.argv[1]
+    try:
+        validate_target(target)
+    except ValueError as e:
+        print(f"[!] {e}")
+        sys.exit(1)
+
+    print(f"Scanning {target} ({len(COMMON_PORTS)} common ports)...")
+    for port in scan_host(target):
+        print(f"  {port}/tcp  open")
+```
+
+Against your real Metasploitable2 VM:
+
+```text
+$ python3 lab_portscan.py 192.168.56.102
+Scanning 192.168.56.102 (17 common ports)...
+  21/tcp  open
+  22/tcp  open
+  23/tcp  open
+  25/tcp  open
+  53/tcp  open
+  80/tcp  open
+  111/tcp  open
+  139/tcp  open
+  445/tcp  open
+  3306/tcp  open
+  5432/tcp  open
+  8180/tcp  open
+```
+
+That matches what you'd get from `nmap -p21,22,23,25,53,80,111,139,445,3306,5432,8180 192.168.56.102` — vsftpd, SSH, Telnet, Postfix, DNS, Apache, rpcbind, Samba, MySQL, PostgreSQL, and Tomcat (8180), all stock on Metasploitable2. Now try the guardrail:
+
+```text
+$ python3 lab_portscan.py 8.8.8.8
+[!] 8.8.8.8 is outside the authorized lab subnet (192.168.56.0/24). Refusing to scan.
+```
+
+`ipaddress.ip_address()` parses the string into a comparable object, `ip_network("192.168.56.0/24")` builds the whole subnet as a range, and `in` does a real CIDR membership check — not a string match on `"192.168.56."`, which someone could defeat with a typo or a sloppy copy-paste. `connect_ex()` returns `0` on a successful connection and a nonzero errno otherwise, which is why `== 0` is the open/closed test. `ThreadPoolExecutor` runs up to 40 of those connect attempts in parallel instead of waiting out each 0.75-second timeout one port at a time — seventeen ports sequentially would take up to 12 seconds; threaded, it's under one.
+
+**The same pattern makes a fuzzer.** Swap "try a port" for "try a path," and you have a bare-bones directory brute-forcer against your own DVWA:
+
+```python
+import requests
+
+TARGET = "http://192.168.56.101/dvwa"  # your own lab instance only
+WORDLIST = ["admin", "backup", "config", "login.php", "setup.php", ".git"]
+
+for word in WORDLIST:
+    r = requests.get(f"{TARGET}/{word}", timeout=3)
+    if r.status_code != 404:
+        print(f"{word:<12} -> {r.status_code}")
+```
+
+Same discipline applies: `TARGET` is hardcoded to your own lab IP, not a variable someone could repoint at a live site.
+
+## Script 3: Checking a Password Against Have I Been Pwned — Correctly
+
+Troy Hunt's Pwned Passwords API is built for exactly this use case, and it's designed so you never have to send a real password anywhere. The API uses **k-anonymity**: you SHA-1 hash the password locally, send only the first five hex characters of that hash, and the API returns every known breached hash sharing that prefix — hundreds of candidates. You find the match yourself, locally, among the batch. Your actual password, and even its full hash, never leaves your machine.
+
+```python
+#!/usr/bin/env python3
+"""
+check_pwned_password.py — checks a password against HIBP's
+Pwned Passwords dataset using k-anonymity. Only a 5-character
+hash PREFIX is ever sent over the network; the match is
+confirmed locally. No API key is required for this endpoint.
+"""
+
+import hashlib
+import sys
+
+import requests
+
+API_URL = "https://api.pwnedpasswords.com/range/{prefix}"
+
+
+def check_password(password: str) -> int:
+    sha1 = hashlib.sha1(password.encode("utf-8")).hexdigest().upper()
+    prefix, suffix = sha1[:5], sha1[5:]
+
+    headers = {"Add-Padding": "true"}  # per HIBP docs: hides real response size
+    resp = requests.get(API_URL.format(prefix=prefix), headers=headers, timeout=5)
+    resp.raise_for_status()
+
+    for line in resp.text.splitlines():
+        hash_suffix, count = line.split(":")
+        if hash_suffix == suffix:
+            return int(count)
+    return 0
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print(f"Usage: {sys.argv[0]} '<password>'")
+        sys.exit(1)
+
+    count = check_password(sys.argv[1])
+    if count:
+        print(f"Seen in {count:,} known breaches — never use this password anywhere.")
+    else:
+        print("Not found in the Pwned Passwords dataset.")
+```
+
+```text
+$ python3 check_pwned_password.py 'password123'
+Seen in over 300,000 known breaches — never use this password anywhere.
+
+$ python3 check_pwned_password.py 'kX9$mQ2!vL7p#Rz4'
+Not found in the Pwned Passwords dataset.
+```
+
+A legitimate use of this for your own lab work: before you set a password on any account — including a throwaway one for a lab VM — run it through this check first. The `Add-Padding` header is in HIBP's own documentation specifically to defeat an attacker who might otherwise guess which response is a real match by measuring response size; it costs you nothing to include it. No API key, no auth — this specific endpoint is free and open on purpose, but don't hammer it in a tight loop; HIBP publishes the full dataset as a downloadable file precisely for anyone who needs to run millions of checks.
+
+## Script 4: Looking Up a File Hash on VirusTotal's Public API
+
+VirusTotal's free, public API (v3) is rate-limited to **4 requests per minute and 500 per day**. It's meant for checking files or hashes you already possess — a binary you downloaded and want a second opinion on, not for scraping other people's submissions or bulk-uploading files that aren't yours. You need a free account and API key for this one, kept out of your source entirely:
+
+```bash
+export VT_API_KEY="your-key-here"
+```
+
+```python
+#!/usr/bin/env python3
+"""
+vt_hash_lookup.py — looks up a file hash on VirusTotal's public
+API v3, respecting the free-tier rate limit (4 requests/minute).
+Requires VT_API_KEY as an environment variable — never hardcode
+an API key in source you might commit or share.
+"""
+
+import os
+import sys
+import time
+
+import requests
+
+API_KEY = os.environ.get("VT_API_KEY")
+BASE_URL = "https://www.virustotal.com/api/v3/files/{file_hash}"
+SECONDS_BETWEEN_REQUESTS = 15  # 4 req/min public-tier limit
+
+
+def lookup_hash(file_hash):
+    if not API_KEY:
+        raise RuntimeError("Set VT_API_KEY in your environment first.")
+    headers = {"x-apikey": API_KEY}
+    resp = requests.get(BASE_URL.format(file_hash=file_hash), headers=headers, timeout=10)
+    if resp.status_code == 404:
+        return {"found": False}
+    resp.raise_for_status()
+    attrs = resp.json()["data"]["attributes"]
+    stats = attrs["last_analysis_stats"]
+    return {"found": True, "malicious": stats["malicious"], "name": attrs.get("meaningful_name", "unknown")}
+
+
+def lookup_many(hashes):
+    for i, h in enumerate(hashes):
+        result = lookup_hash(h)
+        if result["found"]:
+            print(f"{h[:16]}...  malicious={result['malicious']}  name={result['name']}")
+        else:
+            print(f"{h[:16]}...  not found")
+        if i < len(hashes) - 1:
+            time.sleep(SECONDS_BETWEEN_REQUESTS)
+
+
+if __name__ == "__main__":
+    # The EICAR standard antivirus test file's real SHA-256 hash —
+    # a harmless string every AV engine is designed to flag.
+    # Safe, legitimate, known-good hash to test this script against.
+    EICAR_SHA256 = "275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0"
+    lookup_many([EICAR_SHA256])
+```
+
+```text
+$ python3 vt_hash_lookup.py
+275a021bbfb64895...  malicious=58  name=eicar.com.txt
+```
+
+The EICAR hash is the right choice to demo this with: it's a globally standardized test string every antivirus vendor is designed to flag, so you get a real, non-trivial "malicious" count back without ever touching actual malware. The `time.sleep(SECONDS_BETWEEN_REQUESTS)` call isn't decoration — it's the difference between "a script that respects VirusTotal's terms of service" and "a script that gets your free API key suspended after your third lookup."
+
+## Exercise: Build a Lab Recon Script
+
+Write `lab_recon.py`, confined to `192.168.56.0/24` and the Pwned Passwords API only. It should:
+
+1. Import `validate_target` and `scan_host` from `lab_portscan.py` (don't copy-paste the functions — `from lab_portscan import validate_target, scan_host`) and run them against your Metasploitable2 VM at `192.168.56.102`.
+2. If port `21` (FTP) comes back open, take a short hardcoded list of five candidate passwords you're considering trying against that FTP service in a later lesson, and run each one through `check_pwned_password.py`'s `check_password()` function.
+3. Print a clear verdict for each candidate: breach count if found, or "not in the dataset — still verify it isn't a default credential before use."
+
+**Hint:** two of your scripts are already modules the moment you stop running them as `__main__` directly — importing a function from another `.py` file in the same directory is exactly like importing from the standard library, as long as the function doesn't live inside an `if __name__ == "__main__":` block. Add a short `time.sleep()` between the five HIBP calls out of courtesy to a shared public API, the same way `vt_hash_lookup.py` does for VirusTotal.
+
+## Checklist Before Moving On
+
+- `lab_healthcheck.py` correctly reports UP/DOWN for Juice Shop, DVWA, WebGoat, and Metasploitable2 on your own lab network
+- `lab_portscan.py` finds the real open ports on your Metasploitable2 VM (`192.168.56.102`) and refuses to run against any IP outside `192.168.56.0/24`
+- You can explain, in one sentence, why `connect_ex() == 0` means "port open" and why threading the scan matters
+- `check_pwned_password.py` returns a real breach count for a known-weak password and zero for a strong one, using only a 5-character hash prefix over the wire
+- `vt_hash_lookup.py` correctly looks up the EICAR test hash, reads its API key from an environment variable, and sleeps between requests to respect the 4-requests-per-minute limit
+- You can state why HIBP's k-anonymity design and VirusTotal's rate limiting both exist, and why ignoring either would be a terms-of-service problem, not just bad manners

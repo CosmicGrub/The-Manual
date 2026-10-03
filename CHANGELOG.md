@@ -612,3 +612,14 @@ All notable changes to The Manual (curriculum + app) are logged here. This file 
 **Result:** `npm run build` passed clean — 274 pages, 257 unique slugs verified repo-wide.
 
 **Status:** Cybersecurity & Ethical Hacking Tier 1 complete (73h, 6 lessons). Cybersecurity is now 2/6 tiers content-complete (Tiers 0-1, 93h); Tiers 2-5 remain.
+
+## [0.49.0] — 2026-10-03 — Cybersecurity & Ethical Hacking Tier 2: complete (independent practice, Metasploit, forensics)
+
+**Context:** Continuing the tier-by-tier pattern, same non-negotiable authorized-targets framing as Tier 1, manually reviewed end-to-end before assembly. The TryHackMe/HackTheBox module required particular care: it teaches only reusable methodology (recon → service enumeration → systematic testing → privilege escalation → write-up), explicitly refuses to walk through any specific active room or machine, and explains why both platforms' write-up policies exist and what "retired" actually changes — rather than spoiling content for every future learner who might read this curriculum.
+
+**Added**
+- `content/cybersecurity-ethical-hacking/tier-2/*.mdx` (5 files) + matching quizzes: Web App Pentesting Methodology (a real PortSwigger UNION-injection lab solved via the count-columns/confirm-string-columns/substitute-real-names method), Independent TryHackMe/HackTheBox Practice (generic methodology only, no spoiled solutions), Scripting for Security (a lab health-check script and a port scanner explicitly hardcoded to the learner's own `192.168.56.0/24` lab subnet), Intro to Exploitation & Metasploit (the exact vsftpd 2.3.4 backdoor found manually with nmap back in Tier 1, now run through `msfconsole` against the learner's own Metasploitable2 VM with the actual Ruby exploit source read and explained line by line), Digital Forensics Fundamentals.
+
+**Result:** `npm run build` passed clean — 262 unique slugs verified repo-wide.
+
+**Status:** Cybersecurity & Ethical Hacking Tier 2 complete (75h, 5 lessons). Cybersecurity is now 3/6 tiers content-complete (Tiers 0-2, 168h); Tiers 3-5 remain.
