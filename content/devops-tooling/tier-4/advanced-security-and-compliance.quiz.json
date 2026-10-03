@@ -1,0 +1,98 @@
+[
+  {
+    "id": "devops-tooling/tier-4/advanced-security-and-compliance/q1",
+    "type": "multiple_choice",
+    "prompt": "In the STRIDE walkthrough of the ingress controller, an attacker uses a vulnerable app endpoint to reach http://169.254.169.254/latest/meta-data/iam/security-credentials/<role> and steal the node's temporary IAM credentials. Which STRIDE category does this fall under?",
+    "choices": [
+      "Spoofing",
+      "Information disclosure",
+      "Repudiation",
+      "Denial of service"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-4/advanced-security-and-compliance/q2",
+    "type": "multiple_choice",
+    "prompt": "Which SLSA Build Level requires that provenance generation run isolated from the actual build steps, in a hardened environment, so that even a fully compromised build script cannot forge or tamper with its own provenance?",
+    "choices": [
+      "Level 0",
+      "Level 1",
+      "Level 2",
+      "Level 3"
+    ],
+    "correctIndex": 3
+  },
+  {
+    "id": "devops-tooling/tier-4/advanced-security-and-compliance/q3",
+    "type": "multiple_choice",
+    "prompt": "What does an SBOM in a standardized format like CycloneDX or SPDX give you that a plain 'npm list' or 'pip freeze' dump does not?",
+    "choices": [
+      "Nothing meaningful \u2014 they are functionally equivalent",
+      "A standardized, machine-readable schema covering transitive dependencies, licenses, and hashes that can be automatically correlated against vulnerability databases",
+      "It can only ever be produced by hand, which makes it more trustworthy",
+      "It lists only direct dependencies, never transitive ones"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-4/advanced-security-and-compliance/q4",
+    "type": "multiple_choice",
+    "prompt": "In the Gatekeeper/OPA example, what Kubernetes mechanism actually enforces the Rego policy at the moment someone runs 'kubectl apply'?",
+    "choices": [
+      "A CronJob that scans the cluster nightly for violations",
+      "A ValidatingAdmissionWebhook that Gatekeeper registers, which calls OPA to evaluate the Rego policy before the object is persisted to etcd",
+      "Client-side validation performed by kubectl itself",
+      "The container runtime's seccomp profile"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-4/advanced-security-and-compliance/q5",
+    "type": "multiple_choice",
+    "prompt": "The naive Rego rule `violation[...] { container.securityContext.runAsNonRoot != true; ... }` fails to reject a container that omits `securityContext` entirely. Why?",
+    "choices": [
+      "Because Gatekeeper caches the previous version of the manifest",
+      "Because in Rego, referencing a missing field produces an undefined value, and comparing undefined with != is itself undefined, so the rule body never evaluates true and the violation never fires",
+      "Because the Kubernetes API server rejects the webhook call before OPA can run",
+      "Because runAsNonRoot defaults to true unless explicitly overridden"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-4/advanced-security-and-compliance/q6",
+    "type": "multiple_choice",
+    "prompt": "What is the key difference between SLSA Build Level 2 and Build Level 3?",
+    "choices": [
+      "Level 3 requires signing with GPG keys instead of Sigstore",
+      "Level 2 requires a hermetic build and Level 3 does not",
+      "Level 3 requires provenance generation to run isolated from the build steps so a malicious build script cannot forge or tamper with it; Level 2 only requires a hosted service to generate signed provenance without that isolation",
+      "There is no practical difference between the two levels"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "devops-tooling/tier-4/advanced-security-and-compliance/q7",
+    "type": "multiple_choice",
+    "prompt": "Under the zero-trust model shown with Istio, if a pod is compromised but sits in the same namespace and is network-reachable, what actually prevents it from successfully calling the payments service's /v1/charge endpoint?",
+    "choices": [
+      "The VPC's network ACLs block the traffic automatically",
+      "Nothing \u2014 any pod in the same namespace is always trusted",
+      "Mutual TLS using workload identities (e.g. SPIFFE principals) plus an AuthorizationPolicy that only grants access to specific authenticated service identities, independent of network location",
+      "The Kubernetes NetworkPolicy alone, since it performs identity-based authentication"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "devops-tooling/tier-4/advanced-security-and-compliance/q8",
+    "type": "multiple_choice",
+    "prompt": "A company relies solely on a corporate firewall and VPN to control access to internal services, trusting any request that originates from inside the network perimeter. This is an example of:",
+    "choices": [
+      "A zero-trust architecture",
+      "A perimeter-based ('castle-and-moat') trust model",
+      "SLSA Level 3 build isolation",
+      "Defense provided by an SBOM"
+    ],
+    "correctIndex": 1
+  }
+]

@@ -1,0 +1,98 @@
+[
+  {
+    "id": "devops-tooling/tier-4/performance-and-cost-engineering-at-scale/q1",
+    "type": "multiple_choice",
+    "prompt": "A disk is losing 3.23 GiB/day of free space and the operational action threshold is 50 GiB free. Which Prometheus function is purpose-built to project when that threshold will be crossed, based on a trailing window of historical samples?",
+    "choices": [
+      "rate()",
+      "histogram_quantile()",
+      "predict_linear()",
+      "increase()"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "devops-tooling/tier-4/performance-and-cost-engineering-at-scale/q2",
+    "type": "multiple_choice",
+    "prompt": "A capacity forecast alert based on predict_linear() is set with `for: 1h` instead of firing instantly. Why?",
+    "choices": [
+      "Prometheus requires all alert rules to wait at least one hour before firing",
+      "A single noisy sample can push the linear projection across the threshold briefly; requiring it to hold for an hour avoids a flapping, ignorable alert",
+      "predict_linear() takes up to an hour to compute its result",
+      "It reduces the cardinality of the resulting time series"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-4/performance-and-cost-engineering-at-scale/q3",
+    "type": "multiple_choice",
+    "prompt": "In a monthly cost showback report broken down by the `Team` tag, 17% of spend shows up as \"untagged.\" What is the correct FinOps priority here?",
+    "choices": [
+      "Ignore it since 17% is a normal rounding error in any cloud bill",
+      "Immediately start right-sizing the largest tagged instances, since untagged spend can't be acted on anyway",
+      "Treat closing the untagged gap as high priority: it represents real, unaccountable spend, often orphaned resources nobody owns",
+      "Delete every untagged resource automatically without investigation"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "devops-tooling/tier-4/performance-and-cost-engineering-at-scale/q4",
+    "type": "multiple_choice",
+    "prompt": "A nightly batch reconciliation job is stateless, checkpoints progress regularly, and can tolerate a worker disappearing mid-run. Which purchasing change is the best fit for cutting its cost, based on its risk tolerance?",
+    "choices": [
+      "Move it to Spot Instances, since its interruption tolerance matches Spot's reclaim risk",
+      "Buy a 3-year All-Upfront Reserved Instance, since reservations always minimize cost",
+      "Move it to a larger On-Demand instance type to finish faster",
+      "Leave it on On-Demand, since batch jobs should never use Spot"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "devops-tooling/tier-4/performance-and-cost-engineering-at-scale/q5",
+    "type": "multiple_choice",
+    "prompt": "A VerticalPodAutoscaler is deployed with `updateMode: \"Off\"`. What does this configuration actually do in a production cluster?",
+    "choices": [
+      "It disables the VPA object entirely, so it collects no data",
+      "It automatically evicts and resizes pods immediately based on observed usage",
+      "It only produces usage-based recommendations via `kubectl describe vpa`, without ever modifying running pods",
+      "It pauses the HorizontalPodAutoscaler for the same target"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "devops-tooling/tier-4/performance-and-cost-engineering-at-scale/q6",
+    "type": "multiple_choice",
+    "prompt": "A Deployment's pods request 2 vCPU each but a two-week VPA recommendation shows p95 usage around 320m. What is the direct consequence of leaving the request at 2 vCPU?",
+    "choices": [
+      "No consequence, since `limits` are what actually constrains the container at runtime",
+      "The cluster autoscaler provisions far more node capacity than the workload needs, because the scheduler bin-packs against the requested reservation, not real usage",
+      "The pods will be OOMKilled because the request is too low",
+      "Prometheus will refuse to scrape metrics from an over-requested pod"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-4/performance-and-cost-engineering-at-scale/q7",
+    "type": "multiple_choice",
+    "prompt": "An HPA has no `behavior` block and flaps between 4 and 12 replicas under spiky traffic. To fix this while still scaling up quickly when load genuinely increases, what should the `behavior.scaleDown.stabilizationWindowSeconds` be set to, relative to `scaleUp`?",
+    "choices": [
+      "Set much higher than scaleUp's, so scale-down only acts after load has stayed low for a sustained period, while scale-up can react immediately",
+      "Set to 0, same as scaleUp, so both directions react instantly",
+      "Set much lower than scaleUp's, so the HPA removes replicas before it ever adds them",
+      "stabilizationWindowSeconds only applies to scaleUp and has no effect under scaleDown"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "devops-tooling/tier-4/performance-and-cost-engineering-at-scale/q8",
+    "type": "multiple_choice",
+    "prompt": "Why is the error-ratio-style query pattern (rate of failures divided by rate of total requests) relevant when deciding whether a capacity or cost problem is urgent, rather than just looking at a raw utilization percentage?",
+    "choices": [
+      "It isn't relevant; capacity planning only ever uses raw percentages",
+      "Raw percentages don't tell you the trend or the time remaining; a rate-based, threshold-driven forecast (like predict_linear) converts a snapshot into an actionable deadline",
+      "Ratios are always more accurate than counters in Prometheus",
+      "Rate-based queries are only valid for HTTP metrics, never for disk or memory"
+    ],
+    "correctIndex": 1
+  }
+]

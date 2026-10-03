@@ -1,0 +1,98 @@
+[
+  {
+    "id": "devops-tooling/tier-4/multi-cloud-and-hybrid-architecture-design/q1",
+    "type": "multiple_choice",
+    "prompt": "Meridian Payments keeps PayLink's fraud-detection pipeline on GCP after the acquisition instead of migrating it to AWS. What is the strongest justification given in the worked example?",
+    "choices": [
+      "GCP is generally cheaper per compute hour than AWS",
+      "Migrating would mean re-deriving six years of model/pipeline lineage for no functional gain, while the GCP footprint is already a working, bounded asset",
+      "Running two clouds always provides better uptime than one",
+      "Terraform does not support managing AWS resources at Meridian's scale"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-4/multi-cloud-and-hybrid-architecture-design/q2",
+    "type": "multiple_choice",
+    "prompt": "In the negotiation with AWS, what specifically gave Meridian leverage to hold its EDP discount at 22% on the existing commitment rather than being pushed to a larger commitment?",
+    "choices": [
+      "A written threat to leave AWS entirely within 30 days",
+      "A real, named, auditable workload already running on a second cloud provider, not a bluff",
+      "Hiring more platform engineers",
+      "Switching their primary region to eu-west-1"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-4/multi-cloud-and-hybrid-architecture-design/q3",
+    "type": "multiple_choice",
+    "prompt": "What is the anti-pattern this module names explicitly as NOT a justification for multi-cloud?",
+    "choices": [
+      "Workload-scoped multi-cloud driven by acquisition or regulation",
+      "Using a second cloud as negotiating leverage with a quantifiable dollar value",
+      "Symmetric multi-cloud: running the same stateless tier on two clouds for resilience when the primary cloud already offers a contractual 99.99% SLA",
+      "Keeping data in a specific region to satisfy a regulator"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "devops-tooling/tier-4/multi-cloud-and-hybrid-architecture-design/q4",
+    "type": "multiple_choice",
+    "prompt": "The cloud-agnostic `k8s-cluster` Terraform module in this module's example fails to prevent a specific production incident. What was it?",
+    "choices": [
+      "A billing overrun from untagged resources",
+      "Pod scheduling failures from ENI/IP exhaustion on AWS nodes, because the module exposed no way to enable VPC CNI prefix delegation",
+      "A Kubernetes version mismatch between clusters",
+      "An expired TLS certificate on the ingress controller"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-4/multi-cloud-and-hybrid-architecture-design/q5",
+    "type": "multiple_choice",
+    "prompt": "Why couldn't the cloud-agnostic module simply be extended with a generic 'ip_density' setting that worked for both AWS and GCP?",
+    "choices": [
+      "Terraform does not support conditional resource configuration",
+      "GCP's alias-IP-range model doesn't have an equivalent prefix-delegation concept, since it carves pod IPs from a much larger VPC-native range by default and rarely hits the same ceiling",
+      "GCP clusters cannot run more than 10 nodes",
+      "Prefix delegation is deprecated on AWS"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-4/multi-cloud-and-hybrid-architecture-design/q6",
+    "type": "multiple_choice",
+    "prompt": "In the Vantage Robotics example, why does the vision-guided control loop have to run on-prem rather than in the nearest cloud region?",
+    "choices": [
+      "On-prem hardware is cheaper to operate long-term",
+      "The control loop has an 8ms closed-loop deadline, and the round trip to the nearest cloud region alone (about 22ms) already exceeds it before any compute time",
+      "The factory has no internet connectivity",
+      "Kubernetes cannot run outside of a public cloud"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-4/multi-cloud-and-hybrid-architecture-design/q7",
+    "type": "multiple_choice",
+    "prompt": "What mechanism does the example use to make a Kubernetes Service created in the on-prem factory cluster resolvable by name from the cloud-side EKS cluster?",
+    "choices": [
+      "A public load balancer with a static IP",
+      "Submariner's ServiceExport, which extends ClusterIP-style Service resolution across cluster boundaries over an encrypted tunnel",
+      "Manually copying the Service's YAML into the other cluster",
+      "DNS round-robin between the two clusters' load balancers"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-4/multi-cloud-and-hybrid-architecture-design/q8",
+    "type": "multiple_choice",
+    "prompt": "What is the module's stated test for when a hybrid on-prem/cloud split is actually worth its operational cost?",
+    "choices": [
+      "Whenever a team wants to look more sophisticated than a pure-cloud setup",
+      "Whenever on-prem hardware happens to already exist",
+      "Only when a hard constraint -- a latency deadline the network cannot meet, or a legal data-residency boundary -- makes running everything in the cloud provably impossible",
+      "Whenever the cloud provider raises prices"
+    ],
+    "correctIndex": 2
+  }
+]

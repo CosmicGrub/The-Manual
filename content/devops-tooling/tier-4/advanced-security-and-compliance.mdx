@@ -1,0 +1,249 @@
+---
+trackId: devops-tooling
+tier: 4
+title: "Advanced Security and Compliance"
+order: 4
+estimatedHours: 12
+slug: advanced-security-and-compliance
+---
+
+## Scope: infrastructure and compliance, not application code
+
+This module is about the controls that sit around your applications, clusters, and build pipelines — not the application code itself. Deep application threat modeling, SAST/DAST tooling, and exploit-level web app security (SQL injection, XSS, auth bypass) belong to the Cybersecurity & Ethical Hacking track's Application Security Specialist path. This module doesn't re-derive that work. What you're building here: an infrastructure threat model, a supply-chain posture backed by SBOM and SLSA, policy-as-code gates that reject bad manifests before they ever reach a cluster, and a zero-trust model for how services authenticate to each other on top of the network layer you already built in Tier 3's Kubernetes Fundamentals and Service Networking modules.
+
+## 1. Threat modeling infrastructure: STRIDE on a real component
+
+STRIDE gives you six questions to ask about a component: can someone **S**poof an identity, **T**amper with data, **R**epudiate an action, get **I**nformation disclosed, cause a **D**enial of service, or achieve **E**levation of privilege. Applied to application logic this gets deep fast — that's the Application Security Specialist path's territory. Applied to infrastructure, it stays concrete and finishes in an afternoon.
+
+**Component:** an NGINX Ingress Controller fronting a public API, running on cloud VMs where the Instance Metadata Service (IMDS, `169.254.169.254`) is reachable from inside a pod's network namespace unless you've explicitly hardened it.
+
+| STRIDE | Concrete threat against this component | Mitigation |
+|---|---|---|
+| Spoofing | A backend pod forges `X-Forwarded-For`/`X-Real-IP` headers that the ingress passes downstream, defeating an app that does IP-based allowlisting | Never use client-supplied headers for authorization; require mTLS client certs or signed JWTs validated per request |
+| Tampering | Someone with `edit` RBAC on the `ingress-nginx` namespace adds a `nginx.ingress.kubernetes.io/configuration-snippet` annotation that injects a custom directive proxying arbitrary internal hosts | Restrict who can create/edit `Ingress` objects via RBAC; use a Gatekeeper constraint to deny arbitrary `configuration-snippet` annotations outright |
+| Repudiation | Ingress and admission changes aren't shipped anywhere tamper-evident, so after an incident nobody can prove who changed what | Turn on the Kubernetes audit log at `RequestResponse` level for `ingress.networking.k8s.io`, ship it to immutable storage (S3 with Object Lock or equivalent) |
+| Information disclosure | A request-handling bug in the backend lets an attacker make the app issue an outbound request to `http://169.254.169.254/latest/meta-data/iam/security-credentials/<role>`, a classic SSRF that returns the node's temporary cloud credentials in the HTTP response | Require IMDSv2 (session-token-bound, hop-limit 1) on every node; add a `NetworkPolicy` denying pod egress to `169.254.169.254` unless a workload explicitly needs it |
+| Denial of service | The ingress controller's single replica is saturated by a slow-POST flood, taking down every service behind it at once because it's a shared choke point | Run 3+ replicas with a `PodDisruptionBudget`, set proxy timeouts/body-size limits, put request-rate limiting in front |
+| Elevation of privilege | The controller's `ServiceAccount` is bound to a `ClusterRole` that can `get`/`list` `secrets` cluster-wide (a common default in Helm installs, for TLS secret sync) — compromise the controller via a malicious annotation and you've inherited every Secret in the cluster | Scope the `ServiceAccount`'s RBAC to specific namespaces and resource names, never cluster-wide `secrets: get/list`; read the Helm chart's default `ClusterRole` before installing it |
+
+Notice none of these rows is "the login form is vulnerable to SQL injection." That's an application-layer finding, and it belongs in the Application Security Specialist path's SAST/DAST workflow. What you threat-model here is what the app runs *on top of*: the ingress, the node, the metadata service, the RBAC graph.
+
+## 2. Supply-chain security: SBOM and SLSA
+
+A build pipeline that pulls dependencies from npm, PyPI, or a public registry without recording what it pulled is a blind spot. Two things close it: a verifiable inventory of what's in the artifact (SBOM), and a verifiable record of how the artifact was built (SLSA provenance).
+
+### SBOM: what's actually in the thing you shipped
+
+Generate one with `syft`:
+
+```bash
+syft packages dir:./myapp -o cyclonedx-json > sbom.json
+```
+
+Excerpt of the output:
+
+```json
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.5",
+  "serialNumber": "urn:uuid:3e671687-395b-41f5-a30f-a58921a69b79",
+  "version": 1,
+  "components": [
+    {
+      "type": "library",
+      "name": "lodash",
+      "version": "4.17.15",
+      "purl": "pkg:npm/lodash@4.17.15",
+      "hashes": [{ "alg": "SHA-256", "content": "3e3e6e2e9c2f..." }],
+      "licenses": [{ "license": { "id": "MIT" } }]
+    },
+    {
+      "type": "library",
+      "name": "express",
+      "version": "4.17.1",
+      "purl": "pkg:npm/express@4.17.1",
+      "licenses": [{ "license": { "id": "MIT" } }]
+    }
+  ]
+}
+```
+
+Feed the `purl` list into a scanner: `grype sbom:sbom.json` flags `lodash@4.17.15` against CVE-2020-8203 (prototype pollution), fixed in 4.17.19+. Nobody on the team has to remember that your app pulls `lodash` transitively through three other packages — the SBOM makes that inventory a one-line CI gate instead of institutional memory.
+
+### SLSA: what distinguishes the levels
+
+SLSA (Supply-chain Levels for Software Artifacts) grades how trustworthy the *build process itself* is, not the code. The levels differ in one specific thing: how hard it is for someone controlling the build to forge or tamper with the provenance that describes that build.
+
+| Level | What it actually requires | Concrete example |
+|---|---|---|
+| L0 | No guarantees — the artifact was built somehow | `docker build` on a laptop, pushed straight to a registry |
+| L1 | Provenance exists: a machine-readable record of the build (commit, builder, commands) — but it's self-reported by the build job, so whoever controls that job can also edit the record | A CI step runs `cosign attest` with provenance it generated inline, in the same job that built the artifact |
+| L2 | Provenance is generated by a hosted build service and cryptographically signed with *that service's* identity, not a script you wrote — but the build steps and the attestation still share the same trust boundary | `actions/attest-build-provenance` on a GitHub-hosted runner, signed via GitHub's OIDC/Sigstore identity |
+| L3 | Provenance generation is isolated from the build steps in a hardened environment — a compromised build script physically cannot see or forge it | `slsa-github-generator`'s reusable workflow: your build job hands its artifact hash to a *separate* job with no access to your build's secrets, which independently signs the provenance |
+
+The jump that matters in practice is L2 → L3: isolating the thing that attests from the thing that builds. L1 and L2 both ultimately trust "whatever the build job says happened." L3 doesn't — the build job never holds the signing key. This isn't theoretical: the 2020 SolarWinds and 2021 Codecov incidents were both build-pipeline tampering that L3-grade provenance isolation would have made far harder to carry out invisibly.
+
+## 3. Policy-as-code: OPA/Gatekeeper rejecting a root container
+
+Open Policy Agent (OPA) evaluates policies written in Rego. Gatekeeper wraps OPA as a Kubernetes `ValidatingAdmissionWebhook`: every object the API server would persist gets sent to Gatekeeper first, Gatekeeper runs the matching Rego policy, and a `violation` means the API server rejects the object before it ever reaches `etcd`.
+
+Here's a manifest that should never be admitted:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: legacy-worker
+  namespace: batch
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: legacy-worker }
+  template:
+    metadata:
+      labels: { app: legacy-worker }
+    spec:
+      containers:
+        - name: worker
+          image: registry.internal/legacy-worker:2.3.1
+          # no securityContext at all -> runs as UID 0 by default
+```
+
+A first attempt at the Rego policy looks reasonable but is actually broken:
+
+```rego
+package k8sdenyroot
+
+# BROKEN: never fires when securityContext is missing entirely
+violation[{"msg": msg}] {
+  container := input.review.object.spec.containers[_]
+  container.securityContext.runAsNonRoot != true
+  msg := sprintf("container %v must set runAsNonRoot: true", [container.name])
+}
+```
+
+The bug: when `securityContext` is absent (the common case — most engineers don't set it explicitly, they just inherit root), `container.securityContext.runAsNonRoot` is **undefined** in Rego, not `false`. Comparing an undefined value with `!=` produces an undefined result, the rule body never fully evaluates, and `violation` never gets this entry. Gatekeeper admits the pod. This naive rule only ever catches a container that *explicitly* writes `runAsNonRoot: false` — it misses the far more common silent-root case entirely.
+
+The fix wraps the check in its own rule and negates it:
+
+```rego
+package k8sdenyroot
+
+violation[{"msg": msg}] {
+  container := input.review.object.spec.containers[_]
+  not runs_as_non_root(container)
+  msg := sprintf("container %q must set securityContext.runAsNonRoot: true (got: missing or false)", [container.name])
+}
+
+runs_as_non_root(container) {
+  container.securityContext.runAsNonRoot == true
+}
+```
+
+`not runs_as_non_root(container)` is true whenever the helper rule fails to prove `true` — whether `runAsNonRoot` is explicitly `false` *or* missing entirely. Rego's `not` treats "undefined" as "not satisfied," so pushing the check into its own rule and negating the call closes the exact gap that broke the first version.
+
+Wire it up as a `ConstraintTemplate` and a `Constraint`:
+
+```yaml
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: k8sdenyroot
+spec:
+  crd:
+    spec:
+      names: { kind: K8sDenyRoot }
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8sdenyroot
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+          not runs_as_non_root(container)
+          msg := sprintf("container %q must set securityContext.runAsNonRoot: true (got: missing or false)", [container.name])
+        }
+
+        runs_as_non_root(container) {
+          container.securityContext.runAsNonRoot == true
+        }
+```
+
+```yaml
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sDenyRoot
+metadata:
+  name: deny-root-containers
+spec:
+  match:
+    kinds:
+      - apiGroups: ["apps"]
+        kinds: ["Deployment"]
+    namespaces: ["batch", "default"]
+```
+
+Apply the original manifest and watch it get rejected:
+
+```
+$ kubectl apply -f legacy-worker-deployment.yaml
+Error from server (Forbidden): error when creating "legacy-worker-deployment.yaml":
+admission webhook "validation.gatekeeper.sh" denied the request: [deny-root-containers]
+container "worker" must set securityContext.runAsNonRoot: true (got: missing or false)
+```
+
+Shift the same policy left with `conftest test legacy-worker-deployment.yaml -p policy/` in CI, so the PR fails before anyone even runs `kubectl apply`.
+
+## 4. Zero-trust networking: verifying every hop, not just the edge
+
+**Perimeter model:** everything inside the VPC or cluster network is implicitly trusted because it already passed the firewall/security-group/VPN check at the edge. A `checkout` service calling a `payments` service over plain HTTP on port 8080, authenticated by nothing more than "the packet arrived from an IP inside our CIDR block," is perimeter thinking. Tier 3's Service Networking module got you this far — `ClusterIP` routing, `NetworkPolicy` restricting which pods can reach which ports. That's necessary, but it still only answers "can this packet get there," not "should this specific caller be trusted."
+
+**Zero trust** assumes breach: any pod, including one in your own namespace, could be compromised. Trust is based on cryptographically verified identity per request, not network location. Every hop gets mutual TLS using workload identities (SPIFFE IDs, e.g. `spiffe://cluster.local/ns/checkout/sa/checkout-api`), and authorization is keyed to that identity, not an IP range.
+
+Concretely, with a service mesh layered on top of the Tier 3 networking you already have:
+
+```yaml
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: default
+  namespace: payments
+spec:
+  mtls:
+    mode: STRICT
+```
+
+```yaml
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: payments-allow-checkout-only
+  namespace: payments
+spec:
+  selector:
+    matchLabels: { app: payments-api }
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals: ["cluster.local/ns/checkout/sa/checkout-api"]
+      to:
+        - operation:
+            methods: ["POST"]
+            paths: ["/v1/charge"]
+```
+
+`STRICT` mTLS means `payments-api` refuses any connection that isn't wrapped in a client certificate matching a SPIFFE identity issued by the mesh's own CA. A plain HTTP request from a compromised pod sitting in the same namespace, fully reachable at the network layer, gets a TLS handshake failure — not a 200. The `AuthorizationPolicy` goes further: even a *different* workload presenting a valid mesh-issued certificate (say, a `logging` service account) still gets a 403 on `/v1/charge`, because its principal isn't in the `from.source.principals` list. Compare that to the perimeter model, where if an attacker's foothold pod sits inside the VPC and the security group allows port 8080 from anywhere in the subnet, that network-location check is the *entire* authorization decision — no identity, no per-call policy, nothing that asks whether this specific caller is who it claims to be.
+
+## Putting the four pillars together
+
+These aren't four independent checkboxes — in a mature pipeline they chain. The SBOM and SLSA provenance from Section 2 are themselves artifacts, and nothing stops you from writing a Gatekeeper-style policy (via `conftest` in CI, before deploy) that refuses to promote an image to production unless it ships with a signed SBOM and L3 provenance attached. The STRIDE walkthrough from Section 1 is what tells you *which* Rego policies and *which* authorization boundaries are worth writing in the first place — "deny root containers" and "restrict the ingress controller's RBAC" both came directly out of rows in that table, not from a generic security checklist. And zero-trust mTLS in Section 4 is the runtime enforcement of the same principle policy-as-code enforces at admission time: don't trust something just because it's already inside your boundary — verify it, every time, whether the thing you're verifying is a Kubernetes manifest at apply time or a service call at request time.
+
+At senior/staff level this is the actual job: not running a vulnerability scanner once and calling it done, but building the pipeline so that an insecure manifest, an unverifiable build, or an unauthenticated service call fails loudly and automatically, long before it reaches a human for review.
+
+## Exercise: extend the policy gate
+
+Your cluster currently allows any `Pod` to mount the host's Docker socket via a `hostPath` volume at `/var/run/docker.sock` — a direct container-breakout vector, since a process with socket access can launch a new privileged container directly on the host, sidestepping every container-level restriction you've put on the Pod itself.
+
+Write a `ConstraintTemplate` + `Constraint` pair, following the same `violation[...]` / helper-rule pattern used in Section 3, that denies any Pod spec containing a volume whose `hostPath.path` equals `/var/run/docker.sock`. Test it against a Pod manifest that mounts the socket and confirm the API server rejects it with a message naming the offending volume.
+
+**Hint:** iterate `input.review.object.spec.volumes[_]` the way the root-check example iterated `containers[_]`. This time, don't try to prove the *absence* of a key with a negated helper — check directly for the specific *bad* value (`volume.hostPath.path == "/var/run/docker.sock"`). Proving a dangerous value is present is simpler and less error-prone here than proving a safe one is missing.

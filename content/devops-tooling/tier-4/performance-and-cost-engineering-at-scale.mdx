@@ -1,0 +1,252 @@
+---
+trackId: devops-tooling
+tier: 4
+title: "Performance and Cost Engineering at Scale"
+order: 5
+estimatedHours: 8
+slug: performance-and-cost-engineering-at-scale
+---
+
+## Where Tier 3 left off
+
+Tier 3's Kubernetes Fundamentals had you set `resources.requests` and `resources.limits` on a pod spec for the first time, mostly to get the scheduler to behave. Tier 3's Observability Deep Dive had you write PromQL for error ratio and p95 latency so you could alert on things breaking *right now*. This module reuses both of those building blocks for a different purpose: not "is it broken," but "is it too big, too small, or about to run out of room" — and what that costs in dollars, not just milliseconds.
+
+This is the module where DevOps stops being purely a reliability discipline and starts being an accountability discipline. A senior platform engineer doesn't just keep things up; they can tell you, with real numbers, when a disk will fill, which team is driving the cloud bill, and why that deployment is running on three times the hardware it needs.
+
+## Infrastructure profiling and capacity planning
+
+Capacity planning done badly looks like someone eyeballing a Grafana graph and saying "looks fine for now." Done properly, it's a forecast with a number and a date attached, derived from the same utilization metrics Tier 3 taught you to scrape.
+
+Take a concrete case: `db-primary-1`, a Postgres node with a 500 GiB EBS volume mounted at `/data`. You already have `node_exporter` running, so `node_filesystem_avail_bytes{mountpoint="/data"}` has been in Prometheus the whole time — you just haven't asked it the right question yet.
+
+Pull the raw numbers first, 30 days apart:
+
+```promql
+# 30 days ago (via node_filesystem_avail_bytes offset 30d)
+node_filesystem_avail_bytes{instance="db-primary-1", mountpoint="/data"} offset 30d
+# -> 187 GiB free (62.6% used)
+
+node_filesystem_avail_bytes{instance="db-primary-1", mountpoint="/data"}
+# -> 90 GiB free today (82.0% used)
+```
+
+That's a consumption rate of `(187 - 90) / 30 ≈ 3.23 GiB/day`. Eyeballing that against "500 GiB total" feels okay — you're at 82%, not 95%. But the number that matters isn't "how full," it's "how many days until it's a problem," and your actual action threshold is operational, not arbitrary: below 50 GiB free, autovacuum and WAL checkpointing on Postgres start fighting each other for disk I/O and you risk an outage, not just a full-disk alert.
+
+Days remaining: `(90 - 50) / 3.23 ≈ 12.4 days`.
+
+Don't do this arithmetic by hand in a spreadsheet every week — Prometheus has a function built for exactly this, `predict_linear()`, which fits a linear regression over a given range and projects it forward:
+
+```promql
+# Will /data have less than 50 GiB free 14 days from now,
+# based on the trailing 30-day trend?
+predict_linear(node_filesystem_avail_bytes{instance="db-primary-1", mountpoint="/data"}[30d], 14 * 86400) < 50 * 1024^3
+```
+
+Wire that straight into an alert rule, and you get paged for a *forecast*, not an emergency:
+
+```yaml
+groups:
+  - name: capacity-forecasts
+    rules:
+      - alert: DiskWillExhaustIn14Days
+        expr: |
+          predict_linear(
+            node_filesystem_avail_bytes{mountpoint="/data"}[30d], 14 * 86400
+          ) < 50 * 1024^3
+        for: 1h
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "{{ $labels.instance }} projected to drop below 50GiB free on /data within 14 days"
+          description: "Current trend: ~3.2 GiB/day consumed. Provision additional storage or archive old data before the deadline."
+```
+
+The `for: 1h` matters: `predict_linear` on a noisy series can flicker across the threshold on a single bad sample, and a capacity forecast firing and clearing every few minutes trains people to ignore it exactly like a flapping disk-full alert does.
+
+The payoff of doing this with a formula instead of a gut check: provisioning an EBS volume resize takes about 10 minutes of API calls but requires a maintenance window and sign-off that realistically takes 2-3 days to schedule. With a 12.4-day runway and a 3-day lead time, you have roughly 9 days of actual slack — tight enough to open the ticket today, not comfortable enough to wait for the "disk 90% full" page that fires with zero days of runway left.
+
+The same technique applies to anything that grows roughly linearly: a Kafka topic's retained bytes against broker disk, connection pool exhaustion against a fixed `max_connections`, or an EKS node group's pod count against its IP address budget in a VPC subnet. The pattern is always: two utilization samples, a time delta, a rate, a hard threshold, and `predict_linear` (or `deriv()` plus simple arithmetic if you're not in Prometheus) doing the extrapolation instead of a human doing it from memory on a Friday afternoon.
+
+## FinOps basics: attribution and a real cost cut
+
+FinOps starts with a question most engineering orgs can't answer on day one: "which team's workload is this dollar for?" Without an answer, the cloud bill is just one large unarguable number, and nobody can be held accountable for it or rewarded for shrinking it.
+
+**Attribution via tagging.** The mechanism is boring on purpose: every billable resource gets a consistent set of tags, enforced at creation time, not bolted on later. In Terraform:
+
+```hcl
+locals {
+  mandatory_tags = {
+    Team        = "payments"
+    Service     = "checkout-api"
+    Environment = "production"
+    CostCenter  = "cc-4471"
+  }
+}
+
+resource "aws_instance" "checkout_worker" {
+  # ...
+  tags = local.mandatory_tags
+}
+```
+
+Enforce it with an AWS Organizations tag policy (or OPA/Conftest in CI, which the next module in this tier covers in depth) so untagged resources fail to apply rather than quietly landing on nobody's budget. Once tags exist, Cost Explorer or a cluster-level tool like Kubecost/OpenCost can group spend by them. A real monthly showback report, filtered by the `Team` tag, looks like this:
+
+| Team | Monthly spend | % of total |
+|---|---|---|
+| payments | $18,420 | 36% |
+| search | $14,900 | 29% |
+| platform | $9,120 | 18% |
+| *(untagged)* | $8,760 | 17% |
+
+That last row is the one that matters most to a FinOps practice in its first quarter. 17% unattributed spend isn't a rounding error — on a $51,200/month bill that's over $105,000 a year nobody can account for, usually test resources someone forgot to tear down, a shared NAT gateway nobody claimed, or infrastructure from a project that shipped and whose owner moved teams. Chasing that slice down to under 5% is routinely the single highest-leverage FinOps action in an org's first year, ahead of any instance-level optimization.
+
+**A real cost reduction, with before/after numbers.** The payments team runs a nightly batch reconciliation job on a fleet of 15 `c5.2xlarge` instances (8 vCPU, 16 GiB), On-Demand, in `us-east-1`, for about 6 hours a night. The workload is stateless, checkpoints its progress every batch, and can tolerate a worker disappearing mid-run — which makes it a textbook Spot candidate, something nobody had gotten around to because "it works" on On-Demand.
+
+```
+Before (On-Demand, 15x c5.2xlarge, ~6 hrs/night, 30 nights):
+  15 * $0.34/hr * 6 hrs * 30 days = $918.00/month
+
+After (Spot, same instance type, same schedule,
+       interruption handling via checkpoint/resume + a 20% On-Demand base
+       to guarantee minimum capacity for SLA):
+  12 instances on Spot @ ~$0.102/hr avg + 3 On-Demand @ $0.34/hr
+  = (12 * $0.102 + 3 * $0.34) * 6 hrs * 30 days
+  = (1.224 + 1.02) * 180
+  = $403.92/month
+```
+
+That's a 56% reduction ($514/month, ~$6,170/year) on one job, from a change that cost an afternoon: add a Spot interruption handler (catch the two-minute termination notice from the instance metadata endpoint, flush in-flight state, let the orchestrator reschedule the batch) and cap Spot at 80% of the fleet so a bad Spot-capacity night still meets the SLA on the guaranteed On-Demand floor. This is the FinOps pattern in miniature: find a workload whose *risk tolerance* doesn't match its *purchasing model*, and close the gap. Reserved Instances and Savings Plans are the same idea applied to steady-state, always-on workloads instead of interruptible ones — commit to a baseline you know you'll use, and only pay On-Demand rates for the bursty part above it.
+
+## Right-sizing and autoscaling tuning
+
+Tagging and purchasing options assume the resource itself is the right size. Often it isn't, and nobody notices because "requests" in Kubernetes are a *reservation*, not a *measurement* — the scheduler bin-packs against what you asked for, not what you use.
+
+**Finding the over-provisioned resource.** The `checkout-api` Deployment runs 40 replicas with requests copy-pasted from an old template:
+
+```yaml
+resources:
+  requests:
+    cpu: "2"
+    memory: "4Gi"
+  limits:
+    cpu: "2"
+    memory: "4Gi"
+```
+
+That's 80 vCPU and 160 GiB of *requested* capacity across the fleet, which is what the scheduler bin-packs nodes against — regardless of real usage. A two-week VerticalPodAutoscaler in recommendation-only mode (it never touches running pods in this mode, it just watches and reports) tells you what's actually happening:
+
+```yaml
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: checkout-api-vpa
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: checkout-api
+  updatePolicy:
+    updateMode: "Off"   # recommend only, never auto-apply in prod
+```
+
+```bash
+$ kubectl describe vpa checkout-api-vpa
+...
+  Container Recommendations:
+    Container Name: checkout-api
+    Target:
+      Cpu:     320m
+      Memory:  812Mi
+    Uncapped Target:
+      Cpu:     298m
+      Memory:  779Mi
+```
+
+Real p95 usage is roughly 320m CPU and 812Mi memory — about one-sixth the requested CPU and one-fifth the requested memory. Those 40 pods were never going to use 2 full vCPUs each; the template just said so, and the cluster autoscaler added nodes to satisfy a reservation nobody checked against reality. Right-sized requests, with a sane buffer above the VPA target rather than the raw p95:
+
+```yaml
+resources:
+  requests:
+    cpu: "400m"
+    memory: "900Mi"
+  limits:
+    cpu: "800m"      # 2x request: absorb transient spikes without OOM-killing
+    memory: "1200Mi"
+```
+
+Reserved capacity for the fleet drops from 80 vCPU / 160 GiB to 16 vCPU / 36 GiB — enough to go from 10 `m5.2xlarge` nodes (needed just to satisfy the old requests) down to 3, with the cluster autoscaler reclaiming the rest on its own once the new spec rolls out. At $0.384/hr on-demand per node, that's 7 fewer nodes, or about $1,962/month given back, from editing eight lines of YAML — because someone finally compared the reservation to the metric.
+
+**Tuning the autoscaler, not just the resource.** Right-sizing the pod doesn't fix a badly tuned HorizontalPodAutoscaler. A naive HPA:
+
+```yaml
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: checkout-api-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: checkout-api
+  minReplicas: 4
+  maxReplicas: 20
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 50
+```
+
+With no `behavior` block, the HPA re-evaluates every 15 seconds and can scale down as aggressively as it scales up. On spiky traffic (checkout load that pulses every few minutes with ad-campaign clicks), this produces exactly the flapping you'd expect: replica count observed oscillating 4 → 12 → 5 → 11 → 6 within ten minutes, 23 scaling events in an hour, and every scale-down evicting pods that a scale-up re-creates two minutes later — paying the pod startup cost (connection pool warmup, JIT warmup, cold caches) repeatedly for no benefit.
+
+The fix is asymmetric on purpose: scale up fast, because a user waiting on a 503 is the expensive failure mode; scale down slow, because killing a pod you'll need again in three minutes is the cheap-but-wasteful failure mode.
+
+```yaml
+spec:
+  minReplicas: 4
+  maxReplicas: 20
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 50
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 0     # react immediately to load
+      policies:
+        - type: Percent
+          value: 100                    # can double replica count per period
+          periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300   # require 5 min of sustained low load first
+      policies:
+        - type: Percent
+          value: 10                     # remove at most 10% of replicas per period
+          periodSeconds: 60
+```
+
+`stabilizationWindowSeconds: 300` on scale-down means the HPA looks back over the last 5 minutes of recommended replica counts and uses the *highest* one — a single dip doesn't trigger a scale-down, only a sustained one does. The 10%-per-60s cap on top of that prevents even a genuine sustained drop from cutting capacity in one violent step. After this change on the real `checkout-api` service, scaling events dropped from 23/hour to 4/hour, and p95 latency during the same ad-campaign traffic pattern stayed flat instead of spiking every time a scale-down undershot and had to immediately reverse.
+
+## Exercise
+
+Your `recommendation-engine` Deployment runs 25 replicas with `requests: { cpu: 1, memory: 2Gi }` and `limits` set identically. You have 14 days of Prometheus data via `container_cpu_usage_seconds_total` and `container_memory_working_set_bytes`, and a VPA in `"Off"` mode has been running the same two weeks.
+
+Do three things, and justify each with a number:
+
+1. Write the PromQL to get p95 CPU and p95 memory usage per pod over the last 14 days for this deployment (hint: `histogram_quantile` doesn't apply here since these aren't histograms — you'll want `quantile_over_time` from Prometheus's native range-vector functions, applied per-pod via a `rate()` of the CPU counter first).
+2. Propose new `requests`/`limits` and compute how many fewer nodes (assume `m5.xlarge`, 4 vCPU/16GiB, bin-packed at 80% target utilization) the fleet needs afterward.
+3. Design an HPA `behavior` block for this service assuming its traffic is steady during business hours but has a hard 9am spike (batch jobs enqueue work) — justify your `stabilizationWindowSeconds` choices specifically for that spike shape, not generically.
+
+There's no single right answer for the exact numbers since you're inventing the 14-day data — the point is producing a defensible calculation chain (metric → p95 → request value → node count → autoscaler behavior) rather than a guess at any step.
+
+## Key takeaways
+
+- Capacity planning is a forecast with a date, not a feeling: two utilization samples, a rate, a threshold, and `predict_linear` turn "looks fine" into "12.4 days of runway."
+- Cost attribution requires tags enforced at creation time, and the untagged/unallocated slice of your bill is usually the first thing worth fixing, not the last.
+- A Kubernetes resource `request` is a reservation the scheduler bin-packs against, not a measurement of real usage — VPA in recommendation mode is how you find the gap between the two.
+- Autoscaler tuning is asymmetric by design: fast to scale up (user-facing cost of being slow is high), slow and rate-limited to scale down (cost of flapping is wasted churn, not an outage).

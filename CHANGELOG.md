@@ -564,3 +564,14 @@ All notable changes to The Manual (curriculum + app) are logged here. This file 
 **Result:** `npm run build` passed clean — 251 pages, 234 unique slugs verified repo-wide.
 
 **Status:** DevOps Tier 3 complete (72h, 7 lessons). DevOps is now 4/6 tiers content-complete (Tiers 0-3, 187h); Tiers 4-5 remain.
+
+## [0.45.0] — 2026-10-03 — DevOps Tier 4: complete (staff-level specializations)
+
+**Context:** Continuing the tier-by-tier pattern. Advanced Security and Compliance stays scoped to the infra/compliance angle — Cybersecurity & Ethical Hacking's Application Security Specialist path owns deep application threat-modeling and SAST/DAST.
+
+**Added**
+- `content/devops-tooling/tier-4/*.mdx` (7 files) + matching quizzes: Site Reliability Engineering Practice (a full worked SLI→SLO→error-budget→burn-rate chain on one running `checkout-api` example, ending in a real dual-window PrometheusRule and a real incident timeline), Platform Engineering and GitOps (ArgoCD's reconciliation loop), Advanced Kubernetes (CRDs/Operators, service mesh, multi-cluster), Advanced Security and Compliance (SBOM/SLSA, a real Rego OPA policy), Performance and Cost Engineering at Scale (real FinOps numbers), Contributing to Open-Source Infrastructure Tooling, Multi-Cloud and Hybrid Architecture Design.
+
+**Result:** `npm run build` passed clean — 258 pages, 241 unique slugs verified repo-wide.
+
+**Status:** DevOps Tier 4 complete (74h, 7 lessons). DevOps is now 5/6 tiers content-complete (Tiers 0-4, 261h); only Tier 5 (Expert/Innovator) remains.

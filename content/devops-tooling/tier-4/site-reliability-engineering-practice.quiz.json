@@ -1,0 +1,98 @@
+[
+  {
+    "id": "devops-tooling/tier-4/site-reliability-engineering-practice/q1",
+    "type": "multiple_choice",
+    "prompt": "Across a rolling 28-day window, checkout-api serves 20,000,000 valid requests and its SLO is 99.9%. How many bad events (errors or slow responses) does the error budget allow for that period?",
+    "choices": [
+      "2,000",
+      "20,000",
+      "200,000",
+      "1,980,000"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-4/site-reliability-engineering-practice/q2",
+    "type": "multiple_choice",
+    "prompt": "checkout-api has already logged 19,500 bad events against its 20,000-event budget for the period. How much budget remains, and what does that imply?",
+    "choices": [
+      "500 events (2.5%) remain -- any further spike risks a full freeze on risky releases",
+      "10,500 events (52.5%) remain -- plenty of room for a risky release",
+      "0 events remain -- the SLO has already been breached",
+      "19,500 events (97.5%) remain -- the budget is healthy"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "devops-tooling/tier-4/site-reliability-engineering-practice/q3",
+    "type": "multiple_choice",
+    "prompt": "With 500 events of error budget remaining and a current bad-event rate of 410 events/hour, about how long until that remaining budget hits zero?",
+    "choices": [
+      "About 73 minutes",
+      "About 12 hours",
+      "About 2 days",
+      "About 1 week"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "devops-tooling/tier-4/site-reliability-engineering-practice/q4",
+    "type": "multiple_choice",
+    "prompt": "In the INC-2024-0512 timeline, how much time elapsed between the initial page (14:02 UTC) and the rollback finishing across all pods (14:26 UTC)?",
+    "choices": [
+      "9 minutes",
+      "24 minutes",
+      "45 minutes",
+      "90 minutes"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-4/site-reliability-engineering-practice/q5",
+    "type": "multiple_choice",
+    "prompt": "What is the primary goal of a blameless postmortem?",
+    "choices": [
+      "Determine which engineer to retrain or discipline",
+      "Surface the systemic and process contributing factors so the same class of failure becomes less likely to recur",
+      "Produce a document that protects the team legally",
+      "Assign a severity score so the incident can be closed quickly"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-4/site-reliability-engineering-practice/q6",
+    "type": "multiple_choice",
+    "prompt": "Automating a toil task costs 34 hours of one-time engineering work and saves 66.8 hours per year of ongoing manual work. Roughly how long until that investment breaks even?",
+    "choices": [
+      "About 1 month",
+      "About 6 months",
+      "About 18 months",
+      "About 3 years"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-4/site-reliability-engineering-practice/q7",
+    "type": "multiple_choice",
+    "prompt": "Per Google's SRE definition, which best describes 'toil'?",
+    "choices": [
+      "Any task that touches production systems",
+      "Manual, repetitive operational work that scales linearly with service growth and leaves no lasting improvement behind",
+      "Time spent writing new automation or tooling",
+      "Long-range architecture and capacity planning work"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-4/site-reliability-engineering-practice/q8",
+    "type": "multiple_choice",
+    "prompt": "Why do production burn-rate alerts typically combine a short window (e.g. 1h) with a longer window (e.g. 6h) instead of relying on just one?",
+    "choices": [
+      "Short windows catch severe, fast-moving burns quickly, while the longer window filters out brief noisy blips -- together they balance speed against false pages",
+      "Kubernetes requires at least two time windows for any alert to fire",
+      "The short window is only used for log rotation, not alerting",
+      "Longer windows are always more accurate, so the short window is irrelevant"
+    ],
+    "correctIndex": 0
+  }
+]

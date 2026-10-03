@@ -1,0 +1,148 @@
+---
+trackId: devops-tooling
+tier: 4
+title: "Platform Engineering and GitOps"
+order: 2
+estimatedHours: 12
+slug: platform-engineering-and-gitops
+---
+
+## From "I provision it myself" to "the platform provisions it"
+
+In Tier 3 you did real infrastructure work by hand: you wrote a `Deployment` and a `Service`, you reasoned about `ClusterIP` vs `headless` Services and how kube-proxy wires virtual IPs to pod endpoints, you wrote an `Ingress`, and you `kubectl apply`'d all of it directly against a cluster you had `kubectl` access to. That's the right way to *learn* Kubernetes. It is the wrong way to *run* Kubernetes for 40 application teams.
+
+An internal developer platform (IDP) is the layer that takes everything you did by hand in Tier 3 and turns it into a paved road: a narrow, opinionated interface that an application developer uses without ever touching a raw manifest, a cloud console, or a ticket queue.
+
+Concretely, here is what a real IDP abstracts away for a Go service at a mid-size company ("Acme"):
+
+| Tier 3: you did this directly | Platform engineering: the platform does this |
+|---|---|
+| Hand-wrote `Deployment` + `Service` + `Ingress` YAML | Developer runs `acme-cli new service checkout --template=go-grpc`, which scaffolds a repo from a golden-path template with manifests already correct |
+| Manually created the namespace with `kubectl create ns` | Namespace is generated from a self-service request (see below) with quotas, network policy, and RBAC already attached |
+| Reasoned about Service selectors matching Pod labels yourself | Golden-path template ships Service/Deployment label pairs that are guaranteed consistent — the developer never edits a selector |
+| Filed a ticket to the DBA team for a Postgres instance, waited | Developer declares `database: postgres-small` in a platform manifest; a Crossplane composition or Terraform module provisions RDS and injects credentials via a Secret, no ticket |
+| SSH'd into a node or ran `kubectl logs` to debug | Platform wires OpenTelemetry + a pre-built Grafana dashboard automatically into every service from the template, zero config |
+| You were responsible for knowing cluster topology | Developer never knows or cares which cluster, region, or node pool the workload lands on |
+
+The platform is not "Kubernetes with a nicer UI." It is a product, with the application developer as its customer. Team Topologies calls this a "platform team as a service provider, not a gatekeeper" — the test for whether something belongs on the platform is: *does this reduce cognitive load for a stream-aligned team without taking away their autonomy to deploy on their own schedule?* A namespace, a database claim, a CI pipeline template, and an ingress-with-TLS-already-configured all pass that test. Code review and business logic do not — the platform never touches those.
+
+At Acme, before the platform existed, a new service's path to production took a median of 4.2 business days: a namespace request ticket (SRE queue, ~1 day), a database request ticket (DBA queue, ~2 days), and manual Ingress/DNS wiring (~1 day). After the self-service platform shipped, the same path took a median of 11 minutes, and the SRE ticket queue dropped 78%. That 4.2-day number is the real cost platform engineering is built to kill — not elegance for its own sake.
+
+## GitOps: the live cluster is a cache of git, not a source of truth
+
+GitOps formalizes a specific discipline: the desired state of your infrastructure lives in a git repository as declarative manifests, and an in-cluster controller continuously makes the live cluster match that repository. Nobody runs `kubectl apply` by hand against a GitOps-managed cluster, and nobody's CI pipeline runs `helm upgrade` directly against production. CI's job stops at "merge to the git repo." The controller's job is everything after that.
+
+This is a real behavior change from Tier 3, where you pushed state *to* the cluster. In GitOps the cluster *pulls* state from git. That inversion is what gives you the two properties teams actually pay for: an audit trail that is just `git log`, and automatic correction of drift — someone's emergency `kubectl edit` at 2am gets silently reverted on the next reconcile unless they also commit the fix.
+
+### A real ArgoCD Application
+
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: checkout-service
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: payments
+  source:
+    repoURL: https://github.com/acme/platform-gitops.git
+    targetRevision: main
+    path: apps/checkout-service/overlays/production
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: checkout-prod
+  syncPolicy:
+    automated:
+      prune: true        # delete live resources that were removed from git
+      selfHeal: true      # revert manual kubectl edits that drift from git
+    syncOptions:
+      - CreateNamespace=false
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+```
+
+`path: apps/checkout-service/overlays/production` points at a Kustomize overlay — this is exactly the kustomize layering you built in Tier 3, just now rendered by ArgoCD's `repo-server` instead of by you running `kustomize build` locally. The `project: payments` field scopes this Application to an AppProject that restricts which destination clusters/namespaces and which source repos this team is allowed to point at — that's the multi-tenancy guardrail that keeps self-service safe, which we come back to below.
+
+### The actual reconciliation-loop mechanism
+
+ArgoCD is three components, and understanding what each one owns is what makes "how does it detect drift" click:
+
+- **repo-server**: clones the git repo, runs the templating/rendering (`helm template`, `kustomize build`, or plain YAML) and produces the *desired* manifest set. It caches rendered output keyed by commit SHA.
+- **application-controller**: holds Kubernetes informers watching every resource type the Application manages. This is a live, event-driven cache of the *actual* cluster state — it does not poll the API server per reconcile, it watches it continuously.
+- **api-server**: serves the UI/CLI and owns the `Application` CRD lifecycle.
+
+The loop, concretely, every 3 minutes by default (`timeout.reconciliation`, configurable down to seconds, plus an immediate trigger on a git webhook push):
+
+1. `application-controller` asks `repo-server` for the desired manifests at `targetRevision` (a branch, so this re-resolves to whatever commit `main` currently points at).
+2. It diffs each desired resource against the corresponding object in its live-state informer cache. The diff is a **normalized** three-way comparison — it ignores fields it doesn't manage (status subresources, fields defaulted by admission webhooks, server-set metadata) using the same `managedFields` data that `kubectl apply --server-side` relies on. This normalization is why ArgoCD doesn't flag a resource `OutOfSync` just because a mutating webhook added an annotation.
+3. If anything differs, the Application's `status.sync` flips to `OutOfSync`. If `syncPolicy.automated` is set, the controller immediately calls `kubectl apply`-equivalent logic to push the desired manifests. If `prune: true`, any resource that exists live but is no longer in git gets deleted.
+4. `selfHeal: true` is what makes this a *closed loop* rather than a one-shot deploy: even if nothing changed in git, if the live state drifts (a human ran `kubectl edit`, or a `HorizontalPodAutoscaler` someone forgot to GitOps-manage changed replica count outside the Deployment spec, or a defective controller mutated a field), the controller sees that diff on its next tick — triggered either by the watch event firing immediately or by the 3-minute timer — and reapplies the git version. The human's edit survives until the next reconcile tick, then gets reverted. That is the entire "mechanism": continuous diff between an event-driven live-state cache and freshly rendered git state, with apply-on-diff when automated sync is enabled.
+
+Compare that explicitly to what you did in Tier 3: you ran `kubectl apply -f deployment.yaml` once, by hand, when you wanted a change live. There was no process watching for someone else changing it back. GitOps's entire value is turning that one-shot push into a standing control loop — the same control-loop pattern you learned as the mechanism *inside* Kubernetes (a Deployment controller reconciling ReplicaSets) is now applied one layer up, with git as the spec.
+
+## Self-service infrastructure: no ticket, no SRE in the loop
+
+The IDP pattern that actually eliminates the ticket queue is: the developer's "request" *is* a git commit, and ArgoCD's `ApplicationSet` controller turns a directory convention into a fleet of Applications automatically.
+
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: team-namespaces
+  namespace: argocd
+spec:
+  generators:
+    - git:
+        repoURL: https://github.com/acme/platform-gitops.git
+        revision: main
+        directories:
+          - path: teams/*
+  template:
+    metadata:
+      name: '{{path.basename}}-namespace'
+    spec:
+      project: platform
+      source:
+        repoURL: https://github.com/acme/platform-gitops.git
+        targetRevision: main
+        path: '{{path}}'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{path.basename}}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+```
+
+The git generator scans `teams/*` on every reconcile. Each matching directory (`teams/fraud-detection/`, `teams/checkout/`, ...) automatically becomes its own ArgoCD `Application`, templated from the same spec. This means "provisioning a new environment" is now: add a directory to a repo, open a PR, get it merged. No SRE approves a ticket; the `ApplicationSet` controller notices the new directory on its next tick and creates the Application itself.
+
+What a developer actually does, end to end, at Acme:
+
+1. Developer opens Acme's internal Backstage portal and fills out a form: team name, environment (`staging`/`production`), CPU/memory quota tier (`small` = 4 vCPU/8Gi, `medium` = 16 vCPU/32Gi), database flavor.
+2. Backstage's scaffolder renders a skeleton — `namespace.yaml`, `resourcequota.yaml`, `networkpolicy.yaml`, `rolebinding.yaml` — into `teams/fraud-detection/` and opens a PR against `platform-gitops` automatically, with the requesting developer as author.
+3. A lightweight CI check validates the manifests (schema validation, quota ceilings, that the namespace name isn't already taken) and auto-approves/merges if all checks pass — no human reviewer in the common case.
+4. The `team-namespaces` ApplicationSet picks up the new directory within seconds of the webhook firing, creates `fraud-detection-namespace` as a new Application, and ArgoCD syncs it: namespace created, quota applied, NetworkPolicy denies cross-namespace traffic by default, RoleBinding grants the `fraud-detection` team's SSO group `edit` scoped to their namespace only.
+5. Developer has a working, isolated, quota-bounded namespace in under 15 minutes, with zero SRE involvement, and a full audit trail — the PR — of who asked for what and when.
+
+The `ResourceQuota` is the part that makes self-service safe to hand out without a human gatekeeper: without it, a team's typo'd `replicas: 500` silently starves the cluster for everyone else, and someone discovers it from a page at 3am instead of from a quota rejection at merge time. A `small` tier capped at 4 vCPU/8Gi means the blast radius of any one team's mistake is bounded and known in advance — Acme sized that ceiling directly off its node pool's per-namespace fair-share budget.
+
+What this module deliberately does *not* cover: enforcing those quota and security rules as admission-time policy (OPA/Gatekeeper, Kyverno) so a bad manifest is rejected before merge rather than caught by CI script — that's this track's own **supply-chain and policy-as-code security** module, later in this tier. It also doesn't cover deep application-level threat modeling of what a self-service-provisioned service does at runtime — that's the Cybersecurity & Ethical Hacking track's Application Security Specialist path. This module's job is the platform *mechanism*: how a developer gets infrastructure without a ticket, and how the live cluster stays truthful to git.
+
+## Exercise
+
+Acme's platform team wants to onboard a new team, `recommendations`, requesting the `medium` quota tier (16 vCPU / 32Gi) in `staging` only.
+
+1. Write the four manifests (`namespace.yaml`, `resourcequota.yaml`, `networkpolicy.yaml`, `rolebinding.yaml`) that would go in `teams/recommendations/` to match the `small`-tier pattern described above, scaled to `medium`.
+2. Confirm, in your own words, that the existing `team-namespaces` ApplicationSet (shown above) needs *zero* changes to pick this up — explain exactly which generator behavior makes that true.
+3. Now simulate drift: someone manually runs `kubectl scale --replicas=0 -n recommendations-staging deploy/some-leftover-debug-pod` outside of git (assume it's a resource type ArgoCD doesn't manage, so it's untouched) — but then also directly `kubectl edit`s the `ResourceQuota` object itself, doubling its `limits.cpu`. Walk through, tick by tick, what ArgoCD's `application-controller` does, given `selfHeal: true`, and roughly how long the inflated quota survives before it's reverted.
+
+**Hint:** For part 3, the answer hinges on the difference between a resource ArgoCD's Application actually manages (listed in the rendered manifests for that Application) versus one that merely lives in the same namespace — and on the default `timeout.reconciliation` value stated earlier in this lesson.

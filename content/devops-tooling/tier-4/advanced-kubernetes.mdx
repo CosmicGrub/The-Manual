@@ -1,0 +1,236 @@
+---
+trackId: devops-tooling
+tier: 4
+title: "Advanced Kubernetes"
+order: 3
+estimatedHours: 14
+slug: advanced-kubernetes
+---
+
+## From Reconcile Loops to Custom Resources
+
+Tier 3 showed you the mechanism underneath every built-in Kubernetes controller: a Deployment doesn't touch Pods directly, it owns a ReplicaSet, and a control loop continuously compares desired state (`spec`) to observed state (`status`) and issues API calls to close the gap. That loop — watch, diff, act, repeat — is not special-cased to Deployments. It's the entire control plane's design pattern, and Kubernetes lets you register your own resource types and run your own loop against them. That's a Custom Resource Definition (CRD) plus an Operator.
+
+A CRD adds a new `kind` to the API server's schema. Once it exists, `kubectl apply -f` on your custom kind behaves exactly like applying a Deployment: the object is validated against an OpenAPI schema, stored in etcd, and versioned like any other resource. By itself, a CRD does nothing — there's no built-in controller for `RedisCluster` the way there's a built-in one for `Deployment`. The Operator is the process you write (or install) that watches your custom kind and does something about it.
+
+## A Real Minimal CRD
+
+Here's a CRD for a `RedisCluster` kind that represents "I want a Redis cluster with N replicas running version X":
+
+```yaml
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: redisclusters.cache.example.com
+spec:
+  group: cache.example.com
+  names:
+    kind: RedisCluster
+    plural: redisclusters
+    singular: rediscluster
+    shortNames: ["rc"]
+  scope: Namespaced
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required: ["replicas", "version"]
+              properties:
+                replicas:
+                  type: integer
+                  minimum: 1
+                version:
+                  type: string
+            status:
+              type: object
+              properties:
+                readyReplicas:
+                  type: integer
+                phase:
+                  type: string
+```
+
+`subresources: status: {}` matters more than it looks: it splits `/status` into its own API endpoint, separate from `/spec`. That means the operator can write status updates with a `Status().Update()` call that doesn't require (or trigger) a spec-level write — and critically, writing status does not re-trigger a reconcile the way editing spec does, avoiding an infinite update loop.
+
+Once the CRD is installed, this is a valid object:
+
+```yaml
+apiVersion: cache.example.com/v1
+kind: RedisCluster
+metadata:
+  name: sessions-cache
+  namespace: platform
+spec:
+  replicas: 3
+  version: "7.2"
+```
+
+`kubectl get rc` (using the shortName) now lists it, `kubectl describe rc sessions-cache` shows its status, and RBAC can be scoped to this kind exactly like any other resource. None of this creates a single Redis pod yet — it's just a declared intent sitting in etcd until something acts on it.
+
+## What the Operator's Control Loop Actually Does
+
+The operator is a long-running process (usually itself deployed as a Deployment in the cluster) that opens a watch on `RedisCluster` objects and runs a reconcile function on every add, update, or periodic resync. Here's a real, runnable shape of that function using `controller-runtime` (the library behind kubebuilder and the Operator SDK):
+
+```go
+func (r *RedisClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	var rc cachev1.RedisCluster
+	if err := r.Get(ctx, req.NamespacedName, &rc); err != nil {
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+
+	var sts appsv1.StatefulSet
+	err := r.Get(ctx, client.ObjectKey{Name: rc.Name, Namespace: rc.Namespace}, &sts)
+	switch {
+	case apierrors.IsNotFound(err):
+		sts = buildStatefulSetFor(rc)
+		if err := r.Create(ctx, &sts); err != nil {
+			return ctrl.Result{}, err
+		}
+	case err != nil:
+		return ctrl.Result{}, err
+	case *sts.Spec.Replicas != rc.Spec.Replicas:
+		sts.Spec.Replicas = &rc.Spec.Replicas
+		if err := r.Update(ctx, &sts); err != nil {
+			return ctrl.Result{}, err
+		}
+	}
+
+	rc.Status.ReadyReplicas = sts.Status.ReadyReplicas
+	rc.Status.Phase = phaseFor(sts)
+	if err := r.Status().Update(ctx, &rc); err != nil {
+		return ctrl.Result{}, err
+	}
+	return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+}
+```
+
+Walk through what actually happens when someone bumps `replicas: 3` to `replicas: 5` and applies it: the API server's watch stream pushes an update event to the operator; `Reconcile` fires; it fetches the live `RedisCluster`, then fetches the `StatefulSet` it previously created; it sees `*sts.Spec.Replicas` (3) doesn't match `rc.Spec.Replicas` (5); it patches the StatefulSet's replica count; the built-in StatefulSet controller (a controller you didn't write, doing exactly the same reconcile pattern) takes it from there and schedules two more pods. Finally the operator writes `status.readyReplicas` and `status.phase` back onto the `RedisCluster` object so `kubectl get rc` reflects real state, and requeues itself in 30 seconds in case something changes without a watch event (a node died, a pod got OOMKilled outside of any spec change).
+
+This is exactly the Deployment → ReplicaSet → Pod chain from Tier 3, with one difference: the logic connecting "desired spec" to "actual resources" is domain-specific code you own, not a built-in controller. A real Redis operator would do more than scale a StatefulSet — before a version upgrade it might force a `BGSAVE`, verify replication lag is near zero across replicas, and only then roll pods one at a time, checking each new pod rejoins the replication set before moving to the next. That operational knowledge is the entire reason the Operator pattern exists: `kube-controller-manager` knows how to scale a StatefulSet; it has no idea what "safe to restart" means for Redis. Prometheus Operator (`ServiceMonitor` → scrape config), cert-manager (`Certificate` → issued TLS secret, auto-renewed), and the Zalando/CrunchyData Postgres operators all follow this identical shape.
+
+## Service Mesh: What a Sidecar Adds That a Service Can't
+
+Tier 3's Service object gives you a stable virtual IP and DNS name, with `kube-proxy` load-balancing across endpoints via iptables or IPVS rules. That's L4 — it moves TCP packets to one of N backend IPs. It has no idea what HTTP method a request used, no concept of request identity, and no built-in encryption. A service mesh exists to add an L7-aware, identity-aware proxy into the data path of every pod, without changing your application code.
+
+Istio does this with a mutating admission webhook. Label a namespace:
+
+```bash
+kubectl label namespace payments istio-injection=enabled
+```
+
+Any pod created in that namespace afterward gets an Envoy sidecar container injected automatically. Before injection, a pod has one container and shows `1/1 READY`. After, `kubectl get pods` shows `2/2 READY` — the second container is `istio-proxy`. An `istio-init` init container runs first and installs iptables rules that transparently redirect all inbound traffic on the pod's ports, and all outbound traffic, through the Envoy proxy listening on `15006`/`15001`. The application never changes a line of code or a connection string — it still calls `http://pricing:80` — but every byte now passes through Envoy on the way in and out.
+
+**mTLS** is enforced with a `PeerAuthentication` object:
+
+```yaml
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: default
+  namespace: payments
+spec:
+  mtls:
+    mode: STRICT
+```
+
+Istiod (the control plane) issues each sidecar a short-lived X.509 certificate carrying a SPIFFE identity (`spiffe://cluster.local/ns/payments/sa/checkout`), rotated automatically, no cert-manager step required for in-mesh traffic. With `STRICT` set, a connection attempt from a pod with no sidecar is rejected outright — there's no certificate to present, so the Envoy on the receiving end refuses the handshake. Compare that to a plain ClusterIP Service: it is plaintext TCP with zero notion of "who is calling me," only "something hit this IP on this port." The mesh is what turns "network-reachable" into "cryptographically authenticated," and it does it without touching application code because the proxy — not the app — terminates and originates TLS.
+
+**Traffic shaping** is the other half, done with `VirtualService` and `DestinationRule`:
+
+```yaml
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: web-app
+spec:
+  host: web-app
+  subsets:
+    - name: v1
+      labels:
+        version: v1
+    - name: v2
+      labels:
+        version: v2
+---
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: web-app
+spec:
+  hosts:
+    - web-app
+  http:
+    - route:
+        - destination: { host: web-app, subset: v1 }
+          weight: 90
+        - destination: { host: web-app, subset: v2 }
+          weight: 10
+```
+
+Without a mesh, a 90/10 canary means literally running 9 `v1` pods and 1 `v2` pod and accepting that the Service's uniform load-balancing only approximates your target split — and it breaks the moment either Deployment autoscales. With the `VirtualService`, the split is an explicit percentage enforced per-request by Envoy, completely decoupled from how many pods of each version actually exist — you can run 2 `v1` pods and 2 `v2` pods and still get a true 90/10 split. The same object type gives you retries, per-route timeouts, and fault injection (deliberately returning 500s to 1% of traffic to test downstream resilience) — all L7 behavior a Service, which never parses past the TCP layer, structurally cannot express.
+
+None of this is free. An Envoy sidecar typically costs another 50-100m CPU and 50-128Mi memory per pod at idle, and every hop now crosses an extra proxy in both directions, adding roughly 1-3ms of latency per hop. Linkerd trades some of Istio's traffic-shaping depth for a materially lighter proxy (written in Rust, no separate `DestinationRule`/`VirtualService` CRDs for basic routing) and ships mTLS on by default via `linkerd inject` — a reasonable choice when you need identity and basic retries but not weighted canarying or fault injection. Picking a mesh is a real tradeoff against the resource budget of every pod in the cluster, not a strictly-upside add-on.
+
+## Multi-Cluster: What Actually Breaks Past One
+
+Teams split into multiple clusters for reasons that have nothing to do with Kubernetes itself: blast-radius isolation (a control-plane or networking incident in one cluster can't take down every region), data residency (EU customer data must stay on EU-resident infrastructure), upgrade risk (roll a new Kubernetes minor version onto one cluster and watch it for a week before touching the rest of the fleet), or hard tenant isolation that namespaces alone don't give you. The moment you do this, two problems that a single cluster solves for free become your problem to solve explicitly.
+
+**Cross-cluster service discovery.** `pricing.default.svc.cluster.local` only resolves inside the cluster that created it — cluster-local DNS and pod CIDRs are scoped per cluster by design, and two clusters' pod networks typically aren't even mutually routable without deliberate work. The Kubernetes Multi-Cluster Services (MCS) API formalizes the fix:
+
+```yaml
+apiVersion: multicluster.x-k8s.io/v1alpha1
+kind: ServiceExport
+metadata:
+  name: pricing
+  namespace: default
+```
+
+An MCS controller (GKE's Multi-Cluster Services, or an open implementation like Submariner) watches for `ServiceExport` objects, and — over a dedicated, usually encrypted tunnel established between the clusters' networks — propagates that Service's endpoints to every other cluster in the same `ClusterSet`. Each importing cluster gets a derived `ServiceImport` and a synthetic local Service, and the object becomes reachable as `pricing.default.svc.clusterset.local` from pods in a cluster that never ran `pricing` itself. A mesh solves the same problem differently: Istio multi-cluster installs an east-west gateway per cluster and a shared root CA across the mesh, so a `checkout` pod in cluster-eu can reach `pricing.default.svc.cluster.local` in cluster-us through the gateway while still getting mTLS-authenticated end to end — discovery and the security boundary solved by the same mechanism, which is why production multi-cluster setups usually pick a mesh-based approach once they're already running one for in-cluster traffic.
+
+**Config sync across the fleet.** GitOps already made one cluster's live state converge on what's in Git. The problem at N clusters is that a single ArgoCD `Application` or Flux `Kustomization` targets one cluster context. Fleet-wide sync needs a generator layer on top. ArgoCD's `ApplicationSet` with a `clusters` generator stamps out one `Application` per registered cluster automatically:
+
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: web-app-fleet
+spec:
+  generators:
+    - clusters: {}
+  template:
+    metadata:
+      name: 'web-app-{{name}}'
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/myorg/web-app-manifests.git
+        targetRevision: main
+        path: 'k8s/overlays/{{name}}'
+      destination:
+        server: '{{server}}'
+        namespace: web
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+```
+
+`clusters: {}` reads every cluster secret registered via `argocd cluster add` and generates one Application per cluster, each pointed at a cluster-specific overlay path so region-specific values (replica counts, resource limits, feature flags) can legitimately differ while the base manifests stay identical. `selfHeal: true` is what actually keeps the fleet converged: if someone runs `kubectl edit deployment` directly against `cluster-eu`, ArgoCD detects the drift from Git on its next diff and reverts it — Git, not any one cluster's live API state, is the single source of truth across the fleet. Without this generator layer, "make sure all five clusters have the same `NetworkPolicy`" degrades into someone's shell script looping `kubectl apply` over a list of contexts, with no record of whether it actually ran everywhere.
+
+A third, lower-visibility cost worth naming briefly: observability and RBAC both become per-cluster by default too. Tier 3's observability stack (one Prometheus per cluster) needs a federation layer — Thanos or Mimir — to answer "what's p99 latency across the whole fleet" as a single query instead of five separate dashboards, and user access needs a centralized identity provider (OIDC) feeding per-cluster RoleBindings instead of five independently managed RBAC configs drifting apart over time.
+
+## Exercise
+
+You operate two clusters, `cluster-us` and `cluster-eu`. A `pricing` Service exists only in `cluster-us` (duplicating it in `cluster-eu` isn't worth the cost). `checkout` pods running in `cluster-eu` need to call it, authenticated with mTLS, and you need both clusters' mesh security policy objects to stay consistent as you add more cross-cluster calls over time.
+
+Write out, concretely, the actual components and object kinds you'd stand up — not "use a service mesh," but which gateway, which trust configuration, which CRDs get applied in which cluster — plus the mechanism that keeps those objects in sync across both clusters without someone hand-applying YAML to two `kubectl` contexts every time something changes.
+
+Hint: the networking half needs an east-west gateway per cluster and a shared trust domain/root CA so identities issued in one cluster are trusted in the other; the config half is exactly the `ApplicationSet`-style fleet generator from this lesson, pointed at the manifests that define that gateway and trust config, not a one-off manual apply.

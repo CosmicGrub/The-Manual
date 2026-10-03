@@ -1,0 +1,175 @@
+---
+trackId: devops-tooling
+tier: 4
+title: "Contributing to Open-Source Infrastructure Tooling"
+order: 6
+estimatedHours: 10
+slug: contributing-to-open-source-infrastructure-tooling
+---
+
+## Why This Module Is Different From the Rest of the Track
+
+Every other module in this track teaches you a tool. This one teaches you a *process* — the actual mechanics of getting a change accepted into a codebase you don't own, written by people you've never met, who owe you nothing. That's a different skill than writing Terraform or debugging a CrashLoopBackOff, and it's the one skill a staff-level infra engineer uses constantly: reading unfamiliar code fast, and working inside someone else's review culture instead of your own team's.
+
+The checkpoint for this tier requires a real, seriously-attempted PR to an open-source DevOps/infrastructure tool — not an issue, not a comment, a PR that goes through the project's actual review process end to end. This module is the preparation for that.
+
+## Finding a Project You Can Actually Land a Change In
+
+"Pick an open-source project" is bad advice by itself. Most first-time contributors fail not because they can't write code, but because they pick a project (or an issue inside the right project) that's too big, too political, or too stale to be tractable in the time they have. Use three filters before you read a single line of code.
+
+**Filter 1: Is the project actually alive?** Check the commit history and the issue-response latency, not the star count. `cert-manager/cert-manager` (the de facto standard for TLS certificate automation on Kubernetes) merges PRs multiple times a week and triages issues in a weekly "bug scrub" meeting — you can see this directly:
+
+```bash
+gh repo view cert-manager/cert-manager --json pushedAt,openIssues,stargazerCount
+gh issue list --repo cert-manager/cert-manager --label "good first issue" --state open --limit 20
+```
+
+If the last merged commit is six months old, or every open issue has a maintainer's unanswered question sitting on it for a year, don't pick that project no matter how good the tool is. A dead review pipeline means your PR dies in a queue, not from rejection — the worst outcome, because you never learn why.
+
+**Filter 2: Does it have contribution infrastructure, not just code?** A project with a `CONTRIBUTING.md`, a labeled issue taxonomy, and a documented local dev setup is telling you it has *absorbed* outside contributors before and has a repeatable process for it. `terraform-provider-aws` is a good example: its root `CONTRIBUTING.md` is short on purpose — it exists to redirect you into a `docs/contributing/` directory containing separate guides for raising a pull request, the maintainer review SLA, and a full "new resource" procedural checklist. That's a project that has been burned by unscoped first-time PRs before and fixed it by writing the process down. Read that whole directory before you write anything, not just the root file.
+
+**Filter 3: Is the specific issue actually tractable?** This is where most people get it wrong, including experienced engineers new to a specific codebase. A `good-first-issue` label is a maintainer's *opinion*, not a guarantee — labels rot as a codebase changes underneath them. Judge tractability yourself against four concrete criteria:
+
+1. **Single-subsystem scope.** The fix touches one package/directory, not a cross-cutting change that ripples through five. In `cert-manager`, an issue scoped to "the webhook's validation of `Certificate.spec.duration`" is tractable; an issue scoped to "rework how all controllers handle requeue backoff" is not, for a first contribution.
+2. **Reproducible.** You can get the bug to happen, or get the missing feature's absence to show up, on your own machine within an hour. If reproducing it requires a multi-node cluster with a specific cloud provider's quirks, that's a signal to keep looking.
+3. **A maintainer has already confirmed the approach.** Look for a comment from someone with merge rights saying something like "yes, we'd accept a PR that does X" — not just the original issue description. An issue with no maintainer engagement at all might be a trap: the "obvious" fix might have already been rejected in a PR you haven't found yet.
+4. **You can name the test file before you write the fix.** If you can't point to `internal/service/ec2/instance_test.go` (or wherever the equivalent lives) and say "this is where my test goes," you don't understand the issue's boundaries yet — go read more code first.
+
+A realistic example of what a *good* tractable issue looks like, tagged `good-first-issue` in a project like cert-manager: "the `cmctl status certificate` command doesn't print the `Issuer` kind when it's a `ClusterIssuer`, only `Issuer` — a one-line formatting bug in the CLI's output function, with an existing test file (`cmd/ctl/pkg/status/certificate`) you'd extend rather than create from scratch." That's single-subsystem, reproducible in minutes, almost certainly maintainer-approved on sight, and the test location is obvious. Compare that to an issue titled "improve cert-manager's performance at scale" with forty comments and no assignee — same project, same label possibly, completely different tractability.
+
+## Orienting Yourself in a Terraform Provider's Codebase
+
+You will not read `terraform-provider-aws` linearly — it's hundreds of thousands of lines generated and hand-written across hundreds of AWS services. You orient by pattern-matching its structure, which is rigidly consistent precisely so that contributors *can* skim it.
+
+```text
+terraform-provider-aws/
+  internal/
+    service/
+      ec2/
+        instance.go                 # schema + CRUD for aws_instance
+        instance_data_source.go     # read-only aws_instance data source
+        instance_test.go            # TestAcc* acceptance tests
+      s3/
+        bucket.go
+        bucket_test.go
+      ...
+  website/
+    docs/
+      r/instance.html.markdown      # user-facing docs for the resource
+  .changelog/
+    38421.txt                       # one file per PR, not a hand-edited CHANGELOG.md
+```
+
+The convention is: one resource per Go file, named after the Terraform resource type, inside a directory named after the AWS service. If an issue says "the `aws_instance` resource is missing support for `maintenance_options`," you go straight to `internal/service/ec2/instance.go` — no searching required, because the directory structure *is* the index.
+
+Every resource file follows the same shape, built on `terraform-plugin-sdk/v2`'s schema type:
+
+```go
+func ResourceInstance() *schema.Resource {
+    return &schema.Resource{
+        CreateWithoutTimeout: resourceInstanceCreate,
+        ReadWithoutTimeout:   resourceInstanceRead,
+        UpdateWithoutTimeout: resourceInstanceUpdate,
+        DeleteWithoutTimeout: resourceInstanceDelete,
+
+        Schema: map[string]*schema.Schema{
+            "ami": {
+                Type:     schema.TypeString,
+                Required: true,
+                ForceNew: true,
+            },
+            "instance_type": {
+                Type:     schema.TypeString,
+                Required: true,
+            },
+            // ... dozens more arguments
+        },
+    }
+}
+```
+
+Four functions, one per Terraform lifecycle verb, each translating between Terraform's state and an AWS SDK call. `resourceInstanceCreate` builds an `ec2.RunInstancesInput`, calls the SDK, and writes the resulting instance ID back into state. `resourceInstanceRead` calls `DescribeInstances` and reconciles drift. Once you've read one resource file end to end, you've effectively read the shape of all 1,400+ of them — the specifics change, the pattern doesn't.
+
+Tests follow the same discoverability principle. Acceptance tests are named `TestAcc<Service><Resource>_<scenario>`:
+
+```go
+func TestAccEC2Instance_basic(t *testing.T) {
+    resource.ParallelTest(t, resource.TestCase{
+        PreCheck:                 func() { acctest.PreCheck(ctx, t) },
+        ErrorCheck:               acctest.ErrorCheck(t, names.EC2ServiceID),
+        ProtoV5ProviderFactories: acctest.ProtoV5ProviderFactories,
+        CheckDestroy:             testAccCheckInstanceDestroy(ctx),
+        Steps: []resource.TestStep{
+            {
+                Config: testAccInstanceConfig_basic(rName),
+                Check: resource.ComposeTestCheckFunc(
+                    testAccCheckInstanceExists(ctx, resourceName, &v),
+                ),
+            },
+        },
+    })
+}
+```
+
+These are real acceptance tests — they provision actual AWS resources and tear them down (`CheckDestroy`). That matters for judging an issue's tractability too: if fixing it requires an acceptance test and you have no AWS account to run one against, that's a real constraint on which issues you can responsibly pick up, not a detail to discover after you've already opened a PR.
+
+This same orientation method — find the directory convention, read one complete example end to end, trust the pattern to repeat — is exactly how you'd approach a Kubernetes ecosystem tool like `cert-manager` instead. There, the equivalent move is recognizing that cert-manager is built on the same controller-reconciliation pattern you already know from Tier 3's Kubernetes fundamentals module: a `Deployment` reconciles desired replica count against actual pods via a control loop, and cert-manager's `Certificate` and `Issuer` CRDs are reconciled the exact same way, by controllers living under `pkg/controller/certificate-request/` and `pkg/controller/certificates/`. Knowing that going in means you don't waste the first two hours reading CRD YAML schemas looking for "the logic" — the logic is in the reconciler, not the schema, exactly as it is for a Deployment.
+
+## The RFC / Design-Review Process: Two Real, Very Different Models
+
+Not every change goes straight to a PR. Design-level changes — new APIs, breaking behavior, anything that other maintainers will have to live with for years — go through a design-review process first, and that process varies enormously by project governance. Two real examples, deliberately contrasted:
+
+**Kubernetes Enhancement Proposals (KEPs)** — heavyweight, formal, staged. Any non-trivial change to core Kubernetes goes through `kubernetes/enhancements`: a PR adding a `kep.yaml` metadata file plus a full design-doc `README.md` following a mandatory template (Summary, Motivation, Goals/Non-Goals, Proposal, Design Details, Test Plan, Graduation Criteria, Production Readiness Review questionnaire).
+
+```yaml
+# kep.yaml — representative structure
+title: Example Enhancement
+kep-number: 4601
+authors:
+  - "@example-author"
+owning-sig: sig-storage
+status: implementable
+stage: alpha
+latest-milestone: v1.31
+milestone:
+  alpha: "v1.31"
+  beta: "v1.33"
+  stable: "v1.35"
+```
+
+A KEP must be sponsored by a SIG (Special Interest Group — e.g. `sig-storage`, `sig-network`), approved by that SIG's tech leads, and separately approved by a Production Readiness Review (PRR) team before any code behind a feature gate can merge, even at `alpha`. `status: provisional` means "idea, no commitment yet"; `implementable` means design is approved and code can start; the `stage` field (alpha/beta/stable) tracks graduation across Kubernetes' ~15-week release cycles, each with its own KEP freeze deadline. This is slow by design — it's a multi-vendor, multi-company governance model and the process exists to force consensus before code, not after.
+
+**Terraform AWS provider proposals** — lightweight, issue-driven, single-vendor-gated. There is no `kubernetes/enhancements`-style sibling repo for `terraform-provider-aws`. Most new resources, data sources, or arguments start as an ordinary GitHub issue; community members `+1` it, a HashiCorp maintainer triages it with service/enhancement labels, and once a maintainer comments something like "we'd accept a PR for this," that comment *is* the design approval — there's no separate written document, no staged graduation, no cross-company sign-off, because the provider's final merge authority sits with HashiCorp, not a federation of SIGs. Only genuinely cross-cutting changes (like the multi-year migration from `terraform-plugin-sdk` to `terraform-plugin-framework`) get a written design document at all, and even then it's typically published as a blog post or an internal doc referenced from the relevant GitHub discussion, not a structured, versioned proposal repo the public iterates on directly.
+
+The practical lesson: before you invest in writing a design doc nobody asked for, check which model you're in. Opening a four-page RFC for a provider that only expects a GitHub issue wastes your time and signals you didn't read the process; showing up to a Kubernetes SIG with a one-line comment where a KEP is required gets your PR closed with a link to the template. Reading the process correctly is as much a part of this module as reading the code.
+
+## Making the Contribution
+
+Once you've picked a tractable issue and understand where the fix lives, the actual contribution has mechanical requirements that vary by project and that reviewers will bounce your PR for ignoring:
+
+- **Sign-off.** Many infra projects (cert-manager included) require a Developer Certificate of Origin sign-off on every commit — `git commit -s` — enforced by a bot that blocks merge until every commit in the PR has it. Forgetting this is the single most common reason a first PR stalls.
+- **Changelog entries as code, not prose edits.** `terraform-provider-aws` doesn't want you editing a shared `CHANGELOG.md` (merge-conflict hell across hundreds of concurrent PRs). Instead you add one file per PR:
+
+```text
+.changelog/38421.txt
+```
+```
+```release-note:enhancement
+resource/aws_instance: Add `maintenance_options` argument
+```
+```
+
+  A CI check fails your PR if this file is missing, formatted wrong, or uses an unrecognized `release-note:` category (`enhancement`, `bug`, `breaking-change`, etc.).
+- **Draft PRs for early feedback.** Open your PR as a draft before it's finished if you're unsure about approach — this is the socially correct way to get a maintainer's "yes, keep going" signal cheaply, instead of discovering a fundamental objection after three days of polishing.
+- **Expect review latency measured in days to weeks, not hours.** Maintainers triage dozens of PRs against their own full-time work. A week of silence is normal, not rejection — pinging politely after two weeks is fine; pinging after two days is not.
+
+## Exercise
+
+Pick one real project — `cert-manager/cert-manager`, `terraform-provider-aws`, or `argoproj/argo-cd` all work — and do the following without writing a line of production code yet:
+
+1. Find and read its full contribution guide (not just the root `CONTRIBUTING.md` if it redirects elsewhere).
+2. Use `gh issue list --repo <owner>/<repo> --label "good first issue"` to pull the current list, then apply the four tractability criteria from this lesson to rank the top five candidates from most to least tractable, writing one sentence of justification per issue.
+3. For your top-ranked issue, use the orientation method shown above to name the exact file(s) you'd change and the exact test file you'd extend.
+4. Write a single paragraph — not a PR, not code — describing your planned approach, as if you were about to post it as a comment on the issue to get maintainer sign-off before starting.
+
+**Hint:** if step 3 is hard — if you genuinely can't narrow it to specific files — that's not a sign you need to read more code before answering. It's a sign the issue itself isn't tractable yet, and the right move is back to step 2, not forward into step 3. Treating "I can't scope this" as information about the issue, not about your skill, is the actual habit this exercise is building.

@@ -1,0 +1,98 @@
+[
+  {
+    "id": "devops-tooling/tier-4/advanced-kubernetes/q1",
+    "type": "multiple_choice",
+    "prompt": "When an Operator's reconcile loop fires for a custom resource, what does it actually do?",
+    "choices": [
+      "It reads the current state of the resources it owns, compares them to the custom resource's desired spec, and issues API calls (create/update) to converge them -- the same pattern as the built-in Deployment to ReplicaSet controller",
+      "It deletes and recreates the custom resource object itself on every event",
+      "It restarts the kube-apiserver to pick up the new schema",
+      "It only runs once, at cluster bootstrap, and never again"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "devops-tooling/tier-4/advanced-kubernetes/q2",
+    "type": "multiple_choice",
+    "prompt": "In a CRD's schema, what does declaring `subresources: status: {}` actually enable?",
+    "choices": [
+      "It makes the resource cluster-scoped instead of namespaced",
+      "It splits /status onto its own API endpoint so the operator can write status fields without a spec-level write, and without that status write re-triggering a spec-change reconcile",
+      "It automatically encrypts the status field at rest in etcd",
+      "It has no real effect on API behavior and exists only for documentation"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-4/advanced-kubernetes/q3",
+    "type": "multiple_choice",
+    "prompt": "A pod in an Istio-injected namespace shows 2/2 READY instead of the 1/1 you'd expect from its Deployment. What is the second container, and how does traffic actually reach it?",
+    "choices": [
+      "A duplicate replica of the app scheduled into the same pod for redundancy",
+      "The injected Envoy sidecar (istio-proxy); an init container installs iptables rules that transparently redirect inbound and outbound traffic through it, with no change to the app's code",
+      "The CRD controller responsible for that namespace's custom resources",
+      "A second copy of kube-proxy running inside the pod"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-4/advanced-kubernetes/q4",
+    "type": "multiple_choice",
+    "prompt": "Why can't a plain Kubernetes Service, by itself, enforce a true 90/10 weighted canary split that's independent of how many pods of each version are running?",
+    "choices": [
+      "A Service operates at L4 and load-balances uniformly across every endpoint matching its selector; it has no concept of application version or per-request weighting, so without a mesh you'd have to approximate the split with replica counts",
+      "Services already support a `weight` field in their spec for exactly this purpose",
+      "Kubernetes refuses to schedule two different image versions behind one Service",
+      "kube-proxy caches DNS results so weighting is impossible at the network layer"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "devops-tooling/tier-4/advanced-kubernetes/q5",
+    "type": "multiple_choice",
+    "prompt": "A namespace has a PeerAuthentication object with `mtls: { mode: STRICT }`. What does this actually enforce?",
+    "choices": [
+      "It encrypts data at rest in etcd for that namespace",
+      "Each sidecar must present a certificate carrying its workload identity to connect; a pod with no mesh sidecar has no certificate to present and is rejected outright by a STRICT-mode peer",
+      "It only applies to traffic leaving the cluster toward the public internet, not pod-to-pod traffic",
+      "It replaces the Service object entirely, so Services can be deleted once STRICT mode is set"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-4/advanced-kubernetes/q6",
+    "type": "multiple_choice",
+    "prompt": "A Service named `pricing` exists in cluster-us. Why doesn't it automatically become reachable by name from pods running in a separate cluster-eu?",
+    "choices": [
+      "Service DNS names and pod networking are scoped to a single cluster by design; cross-cluster reachability requires an explicit mechanism, such as the Multi-Cluster Services API (ServiceExport/ServiceImport) or a mesh east-west gateway, plus actual network connectivity between the clusters",
+      "Kubernetes clusters share one global DNS namespace by default, so this already works without extra setup",
+      "Pod CIDRs across independent clusters are globally unique and mutually routable automatically",
+      "Only resources of kind StatefulSet can ever be reached across cluster boundaries"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "devops-tooling/tier-4/advanced-kubernetes/q7",
+    "type": "multiple_choice",
+    "prompt": "An ArgoCD ApplicationSet uses a `clusters: {}` generator with `syncPolicy.automated.selfHeal: true` across a five-cluster fleet. An engineer runs `kubectl edit deployment` directly against one member cluster. What happens?",
+    "choices": [
+      "Nothing changes; ArgoCD only evaluates state once, at the Application's initial creation",
+      "ArgoCD's next diff against the Git source detects the drift and automatically reverts the live change back to match what's defined in Git",
+      "The ApplicationSet immediately deletes that cluster's registration from the fleet",
+      "The hand-made change is automatically propagated out to all five clusters in the fleet"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-4/advanced-kubernetes/q8",
+    "type": "multiple_choice",
+    "prompt": "Besides the security and traffic-control benefits, what is a genuine operational cost of injecting a service mesh sidecar into every pod?",
+    "choices": [
+      "It makes setting CPU and memory resource requests/limits unnecessary",
+      "Each sidecar proxy consumes additional CPU and memory per pod, and routing traffic through an extra proxy process on every hop adds a small amount of latency",
+      "It makes it impossible to ever disable mTLS once enabled",
+      "It requires deleting every existing Service object in the cluster before it will work"
+    ],
+    "correctIndex": 1
+  }
+]

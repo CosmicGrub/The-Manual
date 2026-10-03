@@ -1,0 +1,176 @@
+---
+trackId: devops-tooling
+tier: 4
+title: "Multi-Cloud and Hybrid Architecture Design"
+order: 7
+estimatedHours: 8
+slug: multi-cloud-and-hybrid-architecture-design
+---
+
+## Multi-Cloud and Hybrid Architecture Design
+
+Most "multi-cloud strategy" decks are vendor-neutral mush: a 2x2 of "flexibility" versus "lock-in" with no numbers on either axis. Real multi-cloud and hybrid decisions get made with a spreadsheet of migration costs, egress bills, headcount, and contract terms. This module walks through three worked decisions the way a staff engineer actually has to make them, then builds the Kubernetes networking you need to run a real hybrid split, on top of the cluster fundamentals and Service networking you already have from Tier 3.
+
+## 1. When Multi-Cloud Is (and Isn't) Justified
+
+Here's the scenario. Meridian Payments runs 100% on AWS: $38M/year in committed spend under an Enterprise Discount Program (EDP), three-year term expiring in four months. Two things just happened:
+
+1. **Acquisition**: Meridian acquired PayLink, a fraud-detection startup. PayLink's entire ML pipeline — a BigQuery data warehouse with six years of labeled fraud data, and a Dataflow-based feature pipeline feeding a Vertex AI model — runs on GCP. GCP spend: $2.9M/year.
+2. **Regulatory**: Meridian just signed its first EU enterprise customers. Their contracts require cardholder data to stay in an EU region, with a data processing addendum naming the specific storage location.
+
+The AWS renewal is on the table. AWS's opening offer: 22% off list in exchange for a $52M three-year commitment, up from $38M. The account team has made clear the discount shrinks if Meridian shows no credible reason to need the discount — i.e., no leverage.
+
+Three options, with real numbers:
+
+**Option A — Migrate PayLink's pipeline to AWS, go single-cloud.** Estimated migration cost: $1.8M and 9 engineer-months, because BigQuery ML's SQL-native model training and Dataflow's autoscaling windowed aggregations don't have a clean 1:1 mapping onto Redshift ML and Kinesis Data Analytics — the fraud team would be re-deriving feature engineering logic, not lifting and shifting it. Ongoing: one platform, one IAM model, one on-call rotation. Negotiating leverage with AWS: none — you've signaled you'll pay whatever they ask because you have no alternative.
+
+**Option B — Go all-in on GCP.** Migrating Meridian's core payments platform (hundreds of services, a decade of Step Functions/SQS-based orchestration, PCI-scoped infrastructure under active audit) off AWS is not a 9-month job, it's a 3-year, eight-figure one, with the PCI re-certification clock resetting. Dead on arrival on cost and risk grounds alone.
+
+**Option C — Workload-scoped multi-cloud.** Keep PayLink's fraud pipeline on GCP, permanently, as its own bounded workload with its own team, its own IAM boundary, and a narrow, well-defined data contract (a daily batch of tokenized transaction features, not live database replication) feeding fraud scores back into the AWS-hosted payments core over an API. Everything else — the actual payment processing, the EU-resident cardholder data store in `eu-west-1` — stays on AWS, now split across two regions for the residency requirement.
+
+The complexity cost of Option C is real and specific, not hand-waved: 3 additional platform FTE (~$660K/year loaded) to own GCP IAM, GCP billing, a second Terraform provider, and a second incident runbook; a second observability pipeline (Datadog's GCP integration, ~$40K/year incremental); and roughly $14K/year in cross-cloud egress for the daily feature batch (600GB/day at GCP's ~$0.08/GB to-internet egress tier, landing in an AWS-side S3 bucket via a private interconnect that halves that rate in practice). Call it $750K/year all-in to run two clouds for one workload.
+
+**Decision made**: Option C. The acquisition made PayLink's GCP footprint a sunk, working asset — migrating it destroys value re-deriving six years of model lineage for no functional gain. The EU residency requirement is non-negotiable regardless of cloud count. And critically: the mere existence of a second cloud contract gave procurement a credible fallback story in the AWS renewal. Meridian didn't move a single payments workload to GCP to win the negotiation — they didn't need to. Showing AWS a real, named, auditable GCP relationship (not a bluff) was enough to hold the EDP at 22% off the *existing* $38M commitment instead of being pushed to $52M. That's roughly $3M/year in negotiating leverage, which more than pays for the $750K/year of running two clouds.
+
+The anti-pattern to name explicitly: **symmetric multi-cloud** — running the same stateless web tier on both AWS and GCP "for resilience" when AWS already delivers a contractual 99.99% SLA on the services in question. That buys you protection against an outage type (a full AWS regional/global failure) that happens roughly once every few years, at the cost of doubling your CI/CD, IAM, networking, and on-call surface area permanently. Multi-cloud is justified when it's **workload-scoped and driven by a real constraint** — inherited infrastructure, data residency, a regulator naming a specific provider, genuine negotiating leverage with a number behind it. It is not justified as generic insurance against a vendor's outage page.
+
+## 2. The Abstraction Cost of Cloud-Agnostic Tooling
+
+Teams reach for cloud-agnostic abstractions — a Crossplane composite resource, a hand-rolled Terraform module, a "deploy anywhere" platform layer — to avoid rewriting infrastructure code per cloud. The cost shows up later, when the abstraction's lowest-common-denominator model can't express a capability one cloud has and the other doesn't.
+
+Concrete case: a platform team builds a cloud-agnostic `k8s-cluster` Terraform module meant to stand up either an EKS or a GKE cluster from the same interface:
+
+```hcl
+module "cluster" {
+  source       = "./modules/k8s-cluster"
+  provider_tag = "aws"          # or "gcp"
+  node_count   = 40
+  instance_type = "generic-8vcpu-32gb"
+  pod_cidr     = "100.64.0.0/16"
+}
+```
+
+The module's internal mapping translates `instance_type` to `m5.2xlarge` on AWS or `n2-standard-8` on GCP, and wires up networking through each provider's native CNI with default settings. It ships, both clusters come up, everyone moves on.
+
+Eight months later the AWS cluster — 40 nodes, running a mesh of ~35 pods per node for a microservices estate that grew faster than planned — starts failing pod scheduling with `0/40 nodes are available: Insufficient pods` and, more specifically, ENIs on nodes exhausting available IP addresses. This is the real, well-known failure mode of the AWS VPC CNI: by default, each ENI attachment on a node consumes one IP per pod slot, and instance types have a hard cap on both ENIs and IPs-per-ENI (an `m5.2xlarge` supports 4 ENIs x 15 IPs = 58 usable pod IPs before overhead — nowhere near 35 pods x headroom once you count DaemonSets and system pods). The fix exists and is well documented: enable **CNI prefix delegation**, which assigns a /28 prefix (16 IPs) per ENI slot instead of one IP at a time, multiplying usable pod density roughly 16x on supported instance types.
+
+But the cloud-agnostic module has no slot for this. It models "a cluster with N nodes," not "a cluster with a specific AWS VPC CNI IP-density strategy," because GCP's alias-IP-range model doesn't have an equivalent prefix-delegation concept to map it to — GCP clusters just carve pod IP ranges out of a much larger VPC-native alias range by default and rarely hit this ceiling at the same node counts. The abstraction was built to the intersection of both clouds' *default* behavior, and the AWS-specific scaling knob the team actually needed got abstracted away entirely.
+
+The fix requires breaking the abstraction, not patching it — adding an AWS-only escape hatch:
+
+```hcl
+# AWS-specific override, bypassing the generic module for this setting
+resource "aws_eks_addon" "vpc_cni" {
+  cluster_name = module.cluster.cluster_name
+  addon_name   = "vpc-cni"
+
+  configuration_values = jsonencode({
+    env = {
+      ENABLE_PREFIX_DELEGATION = "true"
+      WARM_PREFIX_TARGET       = "1"
+    }
+  })
+}
+```
+
+This is the actual, recurring shape of the abstraction tax: cloud-agnostic tooling buys you a shared interface for the 80% of configuration that's genuinely common (node counts, basic networking, instance sizing), and it costs you discoverability on the 20% that is provider-specific and load-bearing. The team didn't find this until they hit a production scheduling failure at 2am, because the module's interface gave no hint that "IP density" was even a dimension that varied by provider. The lesson for architecture review: before adopting a cloud-agnostic layer, enumerate the provider-specific scaling and security knobs your actual workload will need at 10x current scale (IAM-based ephemeral credentials, native WAF integration, spot/preemptible interruption handling, CNI IP density) and confirm the abstraction either exposes them or has a documented escape hatch — don't find out during an incident.
+
+## 3. Hybrid On-Prem/Cloud Patterns
+
+The clean justification for hybrid is almost always one of two things: data can't legally leave a boundary, or a response-time requirement makes a network hop to a cloud region physically impossible to meet. Here's a latency-driven split, worked concretely.
+
+Vantage Robotics runs a robotic assembly line where a vision-guided arm has a **closed-loop control deadline of 8ms**: camera frame in, defect-correction command out, or the part is scrapped. The nearest cloud region is a 22ms round trip on a good network day, before you even add compute time — categorically incompatible with the deadline, not just "slower than ideal." The control loop has to run physically at the edge. But the factory also wants fleet-wide predictive maintenance dashboards and a model that retrains weekly on vibration/temperature telemetry across 14 factories — something nobody wants to operate as 14 separate on-prem ML stacks.
+
+The split: a lightweight Kubernetes distribution (k3s) runs on an industrial PC bolted to the line, hosting only the control-loop pods, pinned with a taint so nothing else schedules there:
+
+```yaml
+apiVersion: v1
+kind: Node
+metadata:
+  name: line-04-edge
+  labels:
+    node-role: realtime-control
+spec:
+  taints:
+    - key: "realtime"
+      value: "true"
+      effect: NoSchedule
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vision-control-loop
+  namespace: line-04
+spec:
+  replicas: 1
+  template:
+    spec:
+      tolerations:
+        - key: "realtime"
+          operator: "Exists"
+          effect: NoSchedule
+      nodeSelector:
+        node-role: realtime-control
+      priorityClassName: system-node-critical
+      containers:
+        - name: control-loop
+          image: registry.vantage.internal/vision-control:4.2.1
+          resources:
+            requests: { cpu: "3500m", memory: "2Gi" }
+            limits:   { cpu: "4000m", memory: "2Gi" }
+```
+
+That's the same Deployment/node-affinity/taint-and-toleration mechanics from Tier 3's Kubernetes fundamentals — nothing new there. What's new is the cross-boundary piece: telemetry (not control commands — control never leaves the building) streams out over a site-to-site IPsec VPN to an MQTT broker, which a cloud-side Kafka Connect job ingests into an EKS cluster running the retraining pipeline. Cross-cluster service discovery is handled with **Submariner**, which extends ClusterIP-style Service resolution across cluster boundaries over an encrypted tunnel — the same Service abstraction from Tier 3's networking module, just resolvable from a cluster that isn't the one that created it:
+
+```yaml
+apiVersion: multicluster.x-k8s.io/v1alpha1
+kind: ServiceExport
+metadata:
+  name: telemetry-ingest
+  namespace: line-04
+---
+# On the cloud-side EKS cluster, this Service becomes resolvable as:
+# telemetry-ingest.line-04.svc.clusterset.local
+```
+
+And the boundary is locked down with an explicit default-deny plus a narrow allow, so a compromised cloud-side pod can't reach back into the factory's control plane — only the one telemetry port, one direction:
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: deny-all-ingress-line04
+  namespace: line-04
+spec:
+  podSelector: {}
+  policyTypes: ["Ingress"]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-telemetry-egress-only
+  namespace: line-04
+spec:
+  podSelector:
+    matchLabels: { app: vision-control-loop }
+  policyTypes: ["Egress"]
+  egress:
+    - to: [{ podSelector: { matchLabels: { app: mqtt-broker } } }]
+      ports: [{ protocol: TCP, port: 1883 }]
+```
+
+The reason this split exists is the 8ms deadline, full stop — not a cost optimization, not a preference. If the deadline were 200ms instead of 8ms, the honest architectural answer would be "run it all in the cloud region nearest the factory and skip the on-prem cluster entirely," because operating a Kubernetes cluster on a factory floor (patching, hardware failures, no cloud-grade power/cooling SLA) is strictly more expensive than not doing that. Don't reach for hybrid because it sounds more sophisticated than "just use the cloud" — reach for it when a specific, named constraint makes "just use the cloud" physically or legally impossible.
+
+## Exercise
+
+A hospital network wants one architecture decision document covering: (1) their Epic-adjacent patient records database, which a state law requires to stay within the state's borders, and (2) their nightly batch job that de-identifies records and trains a 6-hour readmission-risk model, which currently runs on a single on-prem GPU box that's now a capacity bottleneck blocking the data science team.
+
+Write the hybrid split: what stays on-prem, what moves to cloud, what crosses the boundary, and in what form (raw records, or something else). Specify the Kubernetes-level mechanism you'd use to keep the two environments appropriately isolated versus appropriately connected, using the taint/toleration, NetworkPolicy, and cross-cluster Service patterns from this module.
+
+**Hint**: the state-law constraint applies to one specific dataset, not to "computation about patients" in general — the retraining job's bottleneck (GPU capacity) and the residency law's scope (raw identified records) point to different boundaries for different pieces of this system. De-identification is the operation that should happen on whichever side of the line the law actually draws.
+
+## Key Takeaways
+
+- Justify multi-cloud per workload, with real migration-cost and run-cost numbers on one side and a named constraint (inherited infrastructure, regulation, measurable negotiating leverage) on the other — never as generic redundancy against a cloud that already offers a contractual SLA.
+- Before adopting a cloud-agnostic abstraction, enumerate the provider-specific knobs your workload will need at scale (CNI IP density, IAM-based ephemeral credentials, spot/preemptible handling) and confirm an escape hatch exists — don't discover the gap during an incident.
+- Hybrid on-prem/cloud splits earn their operational cost only when a hard constraint — a latency deadline the network cannot meet, or a legal boundary data cannot cross — makes "just use the cloud" provably impossible, and the Tier 3 Service/NetworkPolicy primitives extend cleanly across that boundary with Submariner- or mesh-style cluster federation.

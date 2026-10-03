@@ -1,0 +1,251 @@
+---
+trackId: devops-tooling
+tier: 4
+title: "Site Reliability Engineering Practice"
+order: 1
+estimatedHours: 10
+slug: site-reliability-engineering-practice
+---
+
+## Why This Module Exists
+
+Tier 3 taught you to run Kubernetes workloads and wire up service networking so things *can* talk to each other reliably. SRE practice is the discipline layer on top: deciding what "reliable" actually means in numbers, deciding when a human gets woken up, writing down what happened without wrecking trust on the team, and killing the repetitive manual work that eats the hours you'd rather spend on the first three things. Everything below uses one running example -- a `checkout-api` service -- so the numbers stay connected across sections instead of floating in the abstract.
+
+## SLIs: Defining "Good" From Real Request Data
+
+An SLI (Service Level Indicator) is a ratio: good events divided by valid events, measured directly from production telemetry. Vague SLIs ("the API should be fast and reliable") are useless; you need a precise event definition pulled from your load balancer or request logs.
+
+For `checkout-api`, pulled straight from the load balancer access logs over a trailing 28-day window:
+
+- **Valid requests** (excludes client errors like malformed requests, 4xx caused by the caller): `20,000,000`
+- **Good events** -- HTTP status `< 500` *and* server-side latency `< 300ms`: `19,980,500`
+- **Bad events** -- everything else (5xx, or success but slower than 300ms): `19,500`
+
+```
+SLI = good_events / valid_requests
+    = 19,980,500 / 20,000,000
+    = 0.999025  →  99.9025%
+```
+
+Note the SLI bundles two failure modes -- *wrong* and *slow* -- into one number. That's deliberate: a checkout that returns 200 OK in 4 seconds is just as useless to the user as a 500. Keep your "good" definition tied to what the user actually experiences, not to what's easy to query.
+
+## SLOs: Turning the SLI Into a Target
+
+An SLO (Service Level Objective) is a target value for the SLI over a defined window, chosen by what the business actually needs -- not by what's technically achievable. Leadership and the checkout team agreed on:
+
+> **SLO: 99.9% of valid requests succeed within 300ms, measured over a rolling 28-day window.**
+
+99.9025% measured against a 99.9% target looks fine at a glance. It isn't -- it's barely above the line, and "barely above the line" is exactly the state that should make an SRE nervous, because the next bad deploy pushes you under it.
+
+## Error Budgets: The Budget You're Allowed to Spend
+
+The error budget is just `1 - SLO`, converted into the same units as your SLI. At 99.9% over 20,000,000 requests:
+
+```
+error_budget = (1 - 0.999) × 20,000,000 = 20,000 bad events allowed per 28 days
+```
+
+That 20,000-event budget is a currency. Every risky deploy, every flaky dependency, every slow query spends it. `checkout-api` has already spent `19,500` of its `20,000` events this period:
+
+```
+budget_remaining = 20,000 - 19,500 = 500 events  (2.5% of budget left)
+```
+
+This is the number that should drive decisions, not the SLI by itself. 97.5% of the budget gone means: no risky releases, no toggling untested feature flags, no "let's just ship it Friday afternoon" until the budget recovers at the start of the next rolling window. That's the entire point of an error budget -- it converts a fuzzy reliability conversation into an objective go/no-go gate that both SRE and product teams agreed to in advance.
+
+## Burn Rate: How Fast You're Spending It
+
+Error budget alone tells you *how much* is left; burn rate tells you *how fast* you're losing it, which is what should actually page someone. Burn rate is the ratio of your current bad-event rate to the rate your budget allows:
+
+```
+allowed_rate  = 20,000 events / (28 days × 24 hours) = 29.76 bad events/hour
+```
+
+Now look at the last 1-hour window: `29,760` requests, `410` bad events.
+
+```
+observed_rate = 410 events/hour
+burn_rate     = observed_rate / allowed_rate = 410 / 29.76 ≈ 13.8x
+```
+
+A burn rate of 13.8x means you're consuming budget 13.8 times faster than the "spend it evenly over 28 days" pace. With only `500` events of budget left and a burn rate pulling `410` events every hour:
+
+```
+time_to_exhaustion = 500 events / 410 events-per-hour ≈ 1.22 hours ≈ 73 minutes
+```
+
+That's a page-now number, not a file-a-ticket number. Google's SRE Workbook documents a widely copied convention for exactly this: a burn rate of **14.4x** (sustained over a short window, confirmed over a longer one) exhausts a 28-day budget in about 2 days and warrants an immediate page; **6x** exhausts it in about 4.7 days and warrants a ticket investigated same business day. `checkout-api`'s 13.8x sits right at that fast-burn threshold -- paging is correct. Here's the dual-window alert that encodes it:
+
+```yaml
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: checkout-api-slo-burn-rate
+  namespace: monitoring
+spec:
+  groups:
+    - name: checkout-api-slo
+      rules:
+        - alert: CheckoutAPIErrorBudgetFastBurn
+          expr: |
+            (
+              sum(rate(http_requests_total{service="checkout-api", outcome="bad"}[1h]))
+              /
+              sum(rate(http_requests_total{service="checkout-api"}[1h]))
+            ) > (14.4 * 0.001)
+            and
+            (
+              sum(rate(http_requests_total{service="checkout-api", outcome="bad"}[5m]))
+              /
+              sum(rate(http_requests_total{service="checkout-api"}[5m]))
+            ) > (14.4 * 0.001)
+          for: 2m
+          labels:
+            severity: page
+          annotations:
+            summary: "checkout-api burning >14.4x its 28-day error budget"
+            description: "At this rate the 28-day budget is gone in ~2 days. Page now."
+        - alert: CheckoutAPIErrorBudgetSlowBurn
+          expr: |
+            (
+              sum(rate(http_requests_total{service="checkout-api", outcome="bad"}[6h]))
+              /
+              sum(rate(http_requests_total{service="checkout-api"}[6h]))
+            ) > (6 * 0.001)
+          for: 15m
+          labels:
+            severity: ticket
+```
+
+The short window (1h/5m) catches a fast, severe burn quickly. The long window (6h) stops a brief noisy blip from paging someone at 3am for nothing. You need both.
+
+## Incident Response: From Page to Resolution
+
+Here's the real timeline that burn-rate alert produced.
+
+**INC-2024-0512 -- checkout-api fast error-budget burn**
+
+| Time (UTC) | Event |
+|---|---|
+| 13:50 | `checkout-api` v2.47.0 rolled out to 100% of pods |
+| 14:02 | PagerDuty pages primary on-call: `CheckoutAPIErrorBudgetFastBurn`, burn rate 13.8x |
+| 14:04 | On-call acknowledges, opens the service dashboard |
+| 14:07 | Confirms 5xx spike is isolated to calls into the payment-processor fee-calculation path |
+| 14:09 | Correlates spike start to the 13:50 deploy; declares SEV2; opens `#inc-2024-0512`; pages payments secondary on-call per escalation policy |
+| 14:15 | Payments on-call joins; finds a `NullPointerException` in the new international-fee-calculation code path via the error tracker |
+| 14:18 | Root cause identified: a fee-table lookup assumed every currency has a configured row; two new currencies shipped in this release without one |
+| 14:18 | Decision: abort the rollout and roll back rather than hotfix live |
+| 14:21 | Rollback to v2.46.3 initiated |
+| 14:26 | Rollback complete across all pods |
+| 14:31 | 5xx rate back to baseline (~0.02%); burn rate under 1x |
+| 14:50 | 15 minutes of stable metrics confirmed; incident closed; postmortem scheduled |
+
+Page to rollback-complete: **24 minutes**. That speed came from two things worth naming explicitly: a single-command rollback path (no manual re-deploy), and an escalation policy that got the team who actually owned the broken code into the channel within 6 minutes of the page, instead of the generalist on-call engineer guessing at payments internals alone.
+
+## On-Call Rotations That Don't Burn People Out
+
+The structure that made that page land on someone awake and able to act: a 6-person rotation, one week primary + one week secondary, four weeks off between primary shifts. Escalation policy: 5 minutes to acknowledge, auto-escalate to secondary if unacknowledged, auto-escalate to the engineering manager after 15 minutes. Target page load, tracked per shift: fewer than 2 actionable pages per week is healthy; 3+ in a week triggers a retro on *why*, because a noisy rotation is itself a reliability problem -- it trains people to ignore pages. Handoff between rotations is a written note, not a hallway conversation: open incidents, services currently near budget exhaustion, and any muted alerts with a reason and an expiry date.
+
+## Blameless Postmortems: Writing Up the Incident
+
+The postmortem for INC-2024-0512 focuses on *why the system let this happen*, not *who broke it*.
+
+> **Postmortem: INC-2024-0512 -- checkout-api elevated errors after v2.47.0**
+> **Status:** Reviewed · **Severity:** SEV2 · **Duration:** 36 min (13:50-14:26 UTC)
+>
+> **Summary:** The v2.47.0 release introduced two new currencies without corresponding fee-table rows. The fee-calculation path dereferenced a missing lookup result, throwing a `NullPointerException` for ~3% of checkout traffic (international cards). Error-budget burn rate hit 13.8x before rollback restored the baseline.
+>
+> **Impact:** Approximately 250 checkout attempts failed for international-card customers between deploy and rollback.
+>
+> **Contributing factors (not root-caused to a person):**
+> 1. The canary stage ran 10 minutes at 10% traffic. International-currency checkouts are only ~3% of total volume, so the canary window didn't see a statistically meaningful sample of the one path that was broken, and auto-promoted anyway.
+> 2. CI did not require a fee-table entry to exist for every currency enabled in a release; the code assumed the lookup always succeeds and didn't guard the null case.
+> 3. The only burn-rate alert wired up used a 1-hour evaluation window with no faster 5-minute companion, adding avoidable detection latency.
+>
+> **What went well:** Single-command rollback; payments on-call engaged within 6 minutes of the page.
+>
+> **What went poorly:** Canary traffic split, missing CI guard, single-window alerting.
+>
+> **Action items:**
+> - Add a 5-minute fast-confirmation window alongside the existing 1-hour burn-rate alert. *Owner: SRE-platform. Due: 2 weeks.*
+> - Add a CI check that fails a release if any enabled currency lacks a fee-table row. *Owner: payments-team. Due: 3 weeks.*
+> - Change canary promotion to require a minimum sample size per payment-method/currency combination, not just a time-and-percentage gate. *Owner: payments-team. Due: 4 weeks.*
+
+Nobody's name appears next to a mistake. The write-up assumes any engineer could have shipped this given the gaps in the canary and CI -- which is true, and is exactly why the fixes target the gaps instead of the person.
+
+## Toil Reduction: Finding and Killing Repetitive Work
+
+Toil, in Google's SRE definition, is manual, repetitive operational work that scales linearly with the number of things you run and leaves nothing better behind when you're done. A clean example an SRE team actually carried for over a year: rotating internal TLS certificates by hand.
+
+**The manual process**, run once per service, every 90 days, across 40 internal services:
+
+```bash
+# per-certificate manual rotation -- repeated 40 times, every 90 days
+ssh ops-bastion.internal
+openssl req -new -newkey rsa:2048 -nodes \
+  -keyout payments-svc.key -out payments-svc.csr \
+  -subj "/CN=payments-svc.payments.svc.cluster.local"
+internal-ca sign --csr payments-svc.csr --days 90 --out payments-svc.crt
+kubectl create secret tls payments-svc-tls \
+  --cert=payments-svc.crt --key=payments-svc.key \
+  -n payments --dry-run=client -o yaml | kubectl apply -f -
+kubectl rollout restart deployment/payments-svc -n payments
+kubectl rollout status deployment/payments-svc -n payments
+# verify with curl, update the tracking spreadsheet, move to the next service
+```
+
+**The time-cost math:** ~25 minutes per certificate (generate, sign, apply, restart, verify, log it) × 40 services = `1,000 minutes` ≈ `16.7 hours` every quarter, done by whichever of 6 SREs is on the rotation that cycle. Over a year, that's `4 × 16.7 = 66.8 hours` -- about **1.7 work-weeks per year**, spent entirely on a task that produces zero improvement and carries real downside risk: a missed or late rotation expires a cert and causes an outage, which is a second, worse cost this task creates rather than prevents.
+
+**The automation**, using exactly the Kubernetes primitives from Tier 3 (Deployments, Secrets, Services) plus one new piece -- a controller that reconciles a `Certificate` custom resource against the actual state of the cluster, the same controller pattern you'd recognize from any operator:
+
+```yaml
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: payments-svc-tls
+  namespace: payments
+spec:
+  secretName: payments-svc-tls
+  duration: 2160h       # 90 days
+  renewBefore: 360h      # renew automatically 15 days before expiry
+  issuerRef:
+    name: internal-ca-issuer
+    kind: ClusterIssuer
+  dnsNames:
+    - payments-svc.payments.svc.cluster.local
+```
+
+`cert-manager` watches that object, re-signs through the internal CA issuer before expiry, writes the result into the existing `Secret`, and a `Reloader`-style sidecar triggers the rolling restart -- no human runs any of the manual steps again.
+
+**Investment vs. payoff:** building and testing the `cert-manager` + issuer setup: ~3 days (24 hours). Onboarding each of the 40 services onto a `Certificate` manifest: ~15 minutes each = 10 hours. Total one-time investment: **34 hours**, against a loaded engineering cost of roughly $85/hour ≈ $2,890. That buys back `66.8 hours/year` of recurring toil, worth about $5,678/year at the same rate:
+
+```
+breakeven = 34 hours / 66.8 hours-per-year × 12 months ≈ 6.1 months
+```
+
+After about six months the automation has paid for itself; every quarter after that is pure time returned to the team, plus the elimination of the human-error failure mode the manual process carried.
+
+## Exercise
+
+Your team runs `search-api`. Pulled from the last 28 days of load-balancer logs:
+
+- Valid requests: `86,400,000`
+- Bad events (5xx or p95 latency over threshold): `95,472`
+- Agreed SLO: `99.9%` over the rolling 28-day window
+- Last 1-hour window: `130,000` requests, `1,850` bad events
+
+Work through:
+1. Calculate the current SLI. Is the SLO currently being met?
+2. Calculate the error budget in events for the 28-day window, and compare it to the bad events already logged. What's the budget status -- remaining, or something else?
+3. Calculate the current burn rate from the 1-hour window numbers.
+4. Given your answers to 2 and 3, would you page someone right now, and if so, is the right response "roll back the last deploy" or something different? Justify it with the numbers, not a gut feeling.
+
+**Hint:** Do question 2's subtraction carefully before you reach for a "time to exhaustion" formula -- check whether the result is still a positive number of events before you divide anything by it. If it isn't, the right organizational response isn't a burn-rate countdown at all; it's whatever your team's error-budget policy says happens when you're already past zero (freeze on risky changes, reliability work gets priority over feature work) until the rolling window recovers.
+
+## Key Takeaways
+
+- An SLI is a precise ratio from real telemetry; an SLO is the target you chose for it; the error budget is `(1 - SLO) × volume`, a currency every team agreed to spend together.
+- Burn rate -- current bad-event rate divided by the rate your budget allows -- is what should trigger a page, not the raw SLI. Dual-window alerting (fast + slow) balances catching real fast burns against paging on noise.
+- Fast rollback paths and escalation policies that reach the right owning team in minutes, not the generalist on-call alone, are what turn a budget-burning incident into a 24-minute fix instead of a multi-hour one.
+- A blameless postmortem's action items target process and system gaps -- canary sample size, CI guards, alert windows -- never a person's name.
+- Toil has a real dollar and hour cost you can calculate exactly, which is also exactly how you justify the engineering time to kill it, and how you know when the automation has paid for itself.

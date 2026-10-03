@@ -1,0 +1,98 @@
+[
+  {
+    "id": "devops-tooling/tier-4/platform-engineering-and-gitops/q1",
+    "type": "multiple_choice",
+    "prompt": "In the Tier 3 vs. platform-engineering comparison, what is the key difference between how a developer got a namespace before the platform existed versus after?",
+    "choices": [
+      "Before: filed a ticket and waited on SRE; after: a self-service request (e.g. a PR adding a directory) triggers automatic provisioning with no SRE in the loop",
+      "Before: used Helm; after: used raw kubectl apply",
+      "Before: namespaces were created automatically by Kubernetes; after: they must be requested manually",
+      "There is no real difference \u2014 the platform just adds a UI on top of the same ticket process"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "devops-tooling/tier-4/platform-engineering-and-gitops/q2",
+    "type": "multiple_choice",
+    "prompt": "In GitOps, where does CI's responsibility end and the GitOps controller's responsibility begin?",
+    "choices": [
+      "CI runs `helm upgrade` directly against the production cluster; the controller only reports status",
+      "CI's job stops at merging rendered state into the git repository; the controller is responsible for applying that state to the live cluster and keeping it there",
+      "CI and the controller both apply manifests to the cluster independently, and whichever runs last wins",
+      "The controller only runs once at initial cluster bootstrap; after that, CI takes over all deployments"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-4/platform-engineering-and-gitops/q3",
+    "type": "multiple_choice",
+    "prompt": "According to the reconciliation-loop mechanism described, how does ArgoCD's application-controller know the current live state of the cluster, and how is that compared to the desired state from git?",
+    "choices": [
+      "It runs `kubectl get` on a fixed polling schedule and diffs raw JSON byte-for-byte against the git YAML",
+      "It maintains Kubernetes informers that watch live resources continuously, and normalizes the diff against freshly rendered git manifests (ignoring server-managed fields) to decide Synced vs OutOfSync",
+      "It has no live-state cache; every sync re-reads the entire cluster from etcd directly",
+      "It trusts the Kubernetes audit log to tell it what changed, rather than comparing state directly"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-4/platform-engineering-and-gitops/q4",
+    "type": "multiple_choice",
+    "prompt": "An engineer runs `kubectl edit` on a Deployment managed by an ArgoCD Application with `selfHeal: true`. What happens?",
+    "choices": [
+      "The edit is permanent; ArgoCD only applies changes on new git commits",
+      "ArgoCD immediately blocks the kubectl command from succeeding",
+      "The edit takes effect temporarily, but on the next reconciliation tick the controller detects the drift against git's desired state and reverts the live object back to match git",
+      "The edit is automatically committed back into the git repository to keep git in sync with the cluster"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "devops-tooling/tier-4/platform-engineering-and-gitops/q5",
+    "type": "multiple_choice",
+    "prompt": "In the `team-namespaces` ApplicationSet example using a git `directories` generator over `teams/*`, how does a brand-new team directory (e.g. `teams/recommendations/`) get turned into a running Application without editing the ApplicationSet itself?",
+    "choices": [
+      "It doesn't \u2014 the ApplicationSet spec must be manually edited for every new team",
+      "The generator re-scans the `teams/*` glob on each reconcile; any new matching directory is automatically rendered through the same template into its own Application",
+      "A human must run `argocd app create` manually for each new team directory",
+      "New teams require a separate Helm chart install per team"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-4/platform-engineering-and-gitops/q6",
+    "type": "multiple_choice",
+    "prompt": "Why does the self-service namespace flow attach a ResourceQuota to every team namespace by default, rather than letting teams request compute unbounded?",
+    "choices": [
+      "ResourceQuota is required by Kubernetes for any namespace to exist",
+      "It bounds the blast radius of a team's mistake (e.g. a typo'd replica count) to a known ceiling, so self-service can be safely granted without a human reviewer in the common path",
+      "It is purely a billing/accounting label with no effect on scheduling",
+      "It replaces the need for a NetworkPolicy entirely"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-4/platform-engineering-and-gitops/q7",
+    "type": "multiple_choice",
+    "prompt": "The module explicitly says enforcing quota/security rules as admission-time policy (e.g. OPA/Gatekeeper, Kyverno) so a bad manifest is rejected before merge is covered where?",
+    "choices": [
+      "In this same module, in the self-service infrastructure section",
+      "It isn't covered anywhere in this curriculum",
+      "In this track's own later Tier 4 supply-chain and policy-as-code security module",
+      "In the Cybersecurity & Ethical Hacking track's Application Security Specialist path"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "devops-tooling/tier-4/platform-engineering-and-gitops/q8",
+    "type": "multiple_choice",
+    "prompt": "What does the `project: payments` field on the ArgoCD Application manifest provide?",
+    "choices": [
+      "It sets the Kubernetes namespace the resources are deployed into",
+      "It names the git branch the Application tracks",
+      "It scopes the Application to an AppProject, restricting which source repos and destination clusters/namespaces that team is allowed to target \u2014 a multi-tenancy guardrail",
+      "It configures the Helm chart's values file"
+    ],
+    "correctIndex": 2
+  }
+]

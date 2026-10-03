@@ -1,0 +1,98 @@
+[
+  {
+    "id": "devops-tooling/tier-4/contributing-to-open-source-infrastructure-tooling/q1",
+    "type": "multiple_choice",
+    "prompt": "What is the main reason to read a project's full contribution guide (not just skim the root CONTRIBUTING.md) before opening your first PR?",
+    "choices": [
+      "It usually contains project-specific mechanical requirements \u2014 like DCO sign-off, changelog file format, or local dev setup \u2014 that will get your PR bounced if ignored",
+      "It is legally required before you can submit any open-source contribution",
+      "It guarantees a maintainer will merge your PR without review",
+      "It replaces the need to read any of the actual source code"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "devops-tooling/tier-4/contributing-to-open-source-infrastructure-tooling/q2",
+    "type": "multiple_choice",
+    "prompt": "Which signal most reliably indicates a GitHub issue is a tractable first contribution, beyond just carrying a 'good first issue' label?",
+    "choices": [
+      "It has the largest number of comments and community engagement",
+      "It has been open the longest, proving maintainers consider it low priority",
+      "It is scoped to a single subsystem, is reproducible quickly, and a maintainer has already confirmed an approach in the comments",
+      "It is labeled 'help wanted' regardless of how many files or subsystems it touches"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "devops-tooling/tier-4/contributing-to-open-source-infrastructure-tooling/q3",
+    "type": "multiple_choice",
+    "prompt": "In terraform-provider-aws's codebase structure, where would you look first to find the implementation of the `aws_instance` resource?",
+    "choices": [
+      "internal/service/ec2/instance.go",
+      "The root main.go file",
+      "website/docs/r/instance.html.markdown",
+      "The terraform-plugin-sdk repository itself, since providers don't implement resources directly"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "devops-tooling/tier-4/contributing-to-open-source-infrastructure-tooling/q4",
+    "type": "multiple_choice",
+    "prompt": "What do the Create/Read/Update/Delete functions in a Terraform provider resource file actually do?",
+    "choices": [
+      "They are unused legacy scaffolding kept for backward compatibility",
+      "They translate Terraform's desired-state lifecycle operations into calls against the underlying cloud provider's SDK, and write results back into Terraform state",
+      "They only run during `terraform plan`, never during `terraform apply`",
+      "They directly edit the .tf configuration files on disk"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-4/contributing-to-open-source-infrastructure-tooling/q5",
+    "type": "multiple_choice",
+    "prompt": "Why does terraform-provider-aws require a separate file per PR under .changelog/ instead of a hand-edited CHANGELOG.md?",
+    "choices": [
+      "Because the changelog is auto-deleted after each release and needs to be rebuilt",
+      "To avoid merge conflicts from hundreds of concurrent PRs all editing the same shared file, and to let CI validate each entry's format automatically",
+      "Because CHANGELOG.md is reserved for security advisories only",
+      "It is purely a stylistic preference with no functional purpose"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-4/contributing-to-open-source-infrastructure-tooling/q6",
+    "type": "multiple_choice",
+    "prompt": "How does the Kubernetes Enhancement Proposal (KEP) process most fundamentally differ from how terraform-provider-aws typically handles a new feature proposal?",
+    "choices": [
+      "KEPs require SIG sponsorship and a staged, milestone-gated written design doc with a Production Readiness Review, while most terraform-provider-aws changes are approved through informal GitHub issue discussion and a maintainer comment",
+      "Both projects require an identical formal RFC document before any code can be written",
+      "Terraform-provider-aws requires more governance sign-offs than Kubernetes because it has more active contributors",
+      "KEPs are optional design notes with no bearing on whether code actually merges"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "devops-tooling/tier-4/contributing-to-open-source-infrastructure-tooling/q7",
+    "type": "multiple_choice",
+    "prompt": "A KEP's kep.yaml lists `stage: alpha`. What does that indicate about the feature?",
+    "choices": [
+      "The feature has no code yet and is still just an idea under discussion",
+      "The feature is fully stable, on by default, and covered by Kubernetes' API compatibility guarantees",
+      "The feature is implemented behind a feature gate, off by default, and not yet guaranteed to be API-stable",
+      "The feature has been rejected and will not be implemented"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "devops-tooling/tier-4/contributing-to-open-source-infrastructure-tooling/q8",
+    "type": "multiple_choice",
+    "prompt": "You already know from Tier 3 that a Deployment reconciles desired vs. actual pod state through a controller loop. How does that same pattern help you orient in cert-manager's codebase?",
+    "choices": [
+      "It doesn't apply \u2014 cert-manager uses a completely unrelated architecture with no controllers",
+      "It means cert-manager's Certificate and Issuer CRDs are reconciled by controller packages, so the real logic lives in the reconcilers, not in the CRD schema definitions",
+      "It means you should only read the CRD YAML schemas, since the controllers are auto-generated and contain no custom logic",
+      "It means cert-manager requires its own separate Kubernetes cluster that doesn't use controllers at all"
+    ],
+    "correctIndex": 1
+  }
+]
