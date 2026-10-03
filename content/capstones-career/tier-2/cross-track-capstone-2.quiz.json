@@ -1,0 +1,98 @@
+[
+  {
+    "id": "capstones-career/tier-2/cross-track-capstone-2/q1",
+    "type": "multiple_choice",
+    "prompt": "What's the key difference between Capstone #1 and Capstone #2's instructions?",
+    "choices": [
+      "Capstone #2 gives a reference implementation and full test suite to copy, same as Capstone #1",
+      "Capstone #2 states a brief and acceptance tests but leaves the implementation, file layout, and debugging to the learner",
+      "Capstone #2 removes testing entirely to save time",
+      "Capstone #2 is identical in scope to Capstone #1, just in a different language"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-2/cross-track-capstone-2/q2",
+    "type": "multiple_choice",
+    "prompt": "Which three tracks' Tier 2 material make up the 'bedrock trio' this capstone combines?",
+    "choices": [
+      "AI/ML, DevOps, and Platforms",
+      "Cybersecurity, Hardware & Computer Systems, and Platforms",
+      "CS Foundations, Language Mastery, and Software Engineering",
+      "Only Software Engineering, repeated at greater depth"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "capstones-career/tier-2/cross-track-capstone-2/q3",
+    "type": "multiple_choice",
+    "prompt": "Why is a hash map the right structure for mapping a short code back to its link record, instead of a sorted list searched with binary search?",
+    "choices": [
+      "Hash maps use less disk space on every system",
+      "Sorted lists cannot store strings as keys",
+      "The hash map gives O(1) lookup for this access pattern, versus O(log n) for binary search on a sorted list",
+      "Binary search only works on numeric data"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "capstones-career/tier-2/cross-track-capstone-2/q4",
+    "type": "multiple_choice",
+    "prompt": "In the concurrency bug walkthrough, what is the actual root cause of two requests generating the same short code?",
+    "choices": [
+      "The base62 encoding function has a mathematical error",
+      "SQLite does not support more than one row",
+      "A check-then-act race: two threads read the same current max id before either thread's insert commits, so both compute the same next id",
+      "The test itself is broken and the API has no real bug"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "capstones-career/tier-2/cross-track-capstone-2/q5",
+    "type": "multiple_choice",
+    "prompt": "Why does the concurrency test fail only some of the time instead of every time?",
+    "choices": [
+      "That intermittency is the signature of a race condition -- a plain logic error would be wrong on every run, not just some",
+      "pytest randomly skips assertions on alternating runs",
+      "The test file has a syntax error that sometimes gets caught",
+      "Network latency to localhost varies too much to ever get a consistent result"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "capstones-career/tier-2/cross-track-capstone-2/q6",
+    "type": "multiple_choice",
+    "prompt": "In the security-flavored addition, why does the rate limiter use a deque of timestamps per key instead of a single running counter per key?",
+    "choices": [
+      "A deque lets old timestamps outside the current window be dropped from the front, so the count always reflects only the recent sliding window rather than all time",
+      "Deques are required by Flask for any per-request logic",
+      "A single counter would use more memory than a deque in every case",
+      "Timestamps cannot be stored in a plain integer counter"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "capstones-career/tier-2/cross-track-capstone-2/q7",
+    "type": "multiple_choice",
+    "prompt": "What's the real advantage of the min-heap-based TopNTracker over just re-sorting all links by click count on every request to the trending endpoint?",
+    "choices": [
+      "It avoids re-sorting the entire collection on every click by keeping only the top N in a small heap",
+      "It guarantees the trending list is always perfectly up to the millisecond with zero tradeoffs",
+      "It eliminates the need for any data structure at all",
+      "It makes click counts stored as floating-point numbers instead of integers"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "capstones-career/tier-2/cross-track-capstone-2/q8",
+    "type": "multiple_choice",
+    "prompt": "In the LRU cache exercise, why does a cache that evicts by insertion order (FIFO) fail the given test even though it passes a simpler happy-path test?",
+    "choices": [
+      "FIFO eviction has no bug and the test itself is written incorrectly",
+      "FIFO eviction only works for caches larger than 10 items",
+      "FIFO eviction removes the oldest-inserted item regardless of recent access, so re-accessing an old item doesn't protect it from eviction the way true LRU requires",
+      "FIFO eviction is actually faster than LRU, which is why it's preferred in production systems"
+    ],
+    "correctIndex": 2
+  }
+]

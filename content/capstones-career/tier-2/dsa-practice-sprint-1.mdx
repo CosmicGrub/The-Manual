@@ -1,0 +1,367 @@
+---
+trackId: capstones-career
+tier: 2
+title: "DS&A Practice Sprint 1"
+order: 2
+estimatedHours: 10
+slug: dsa-practice-sprint-1
+---
+
+## Building On Tier 1's Primer — Now You Actually Build the Structures
+
+Tier 1's *DS&A Foundations Primer* gave you intuition: arrays are O(1) to index but O(n) to insert at the front, hash maps trade a cheap hash computation for an O(1) lookup, and you fixed a hidden O(n^2) `dedupe` function by swapping a list membership check (`num not in result`) for a set. That was reading code and reasoning about growth rates. This sprint is where you build the actual structures from scratch, trace algorithms by hand, and put in disciplined reps against real problems — the kind this track's own interview-prep thread later assumes you can already solve without re-deriving from first principles.
+
+Ten hours, three concrete outputs by the end: you can implement a stack, a queue, and a linked list from memory, not from a tutorial tab open next to you; you can trace merge sort and a recursive call stack on paper, no IDE; and you have a running log of at least 15-20 solved practice problems with real post-mortems on the ones you got wrong — not "fixed it," but *why* it was wrong and what pattern you're now watching for.
+
+## Sorting: Four Algorithms, One Comparison Table
+
+| Algorithm | Best case | Average case | Worst case | Space | Stable? |
+|---|---|---|---|---|---|
+| Bubble sort | O(n) | O(n^2) | O(n^2) | O(1) | Yes |
+| Insertion sort | O(n) | O(n^2) | O(n^2) | O(1) | Yes |
+| Merge sort | O(n log n) | O(n log n) | O(n log n) | O(n) | Yes |
+| Quicksort | O(n log n) | O(n log n) | O(n^2) | O(log n) | No |
+
+"Stable" means equal elements keep their original relative order after sorting. It matters more than it sounds: sort a list of employees by department, and a stable sort guarantees employees within the same department stay in whatever order they were in before — alphabetical by name, say — without you having to add a second sort key.
+
+```python
+employees = [
+    ("Dana", "Eng"), ("Amir", "Sales"), ("Beth", "Eng"), ("Cole", "Sales"),
+]
+by_dept = sorted(employees, key=lambda e: e[1])
+print(by_dept)
+# [('Amir', 'Sales'), ('Cole', 'Sales'), ('Dana', 'Eng'), ('Beth', 'Eng')]
+```
+
+Python's `sorted` is stable (it's a variant of merge sort called Timsort), so "Amir" still comes before "Cole" within Sales, and "Dana" before "Beth" within Eng — their original relative order survived. Quicksort offers no such guarantee; two equal keys can end up in either order depending on how partitioning split them.
+
+Why does quicksort's worst case hit O(n^2) at all if it's usually fast in practice? It picks a pivot and partitions everything smaller to one side, larger to the other. If the pivot is consistently a bad choice — say you always pick the first element, and the input is already sorted — every partition splits into "nothing" and "everything else," and you get n nested partitions instead of log n. Merge sort never has this problem because it always splits exactly in half regardless of the data, which is the real tradeoff: merge sort pays O(n) extra memory for a *guaranteed* O(n log n); quicksort is usually faster in practice and sorts in-place (O(log n) space for the recursion), but a bad pivot choice or adversarial input can blow it up to quadratic.
+
+## Tracing Merge Sort By Hand
+
+Merge sort: split the array in half recursively until pieces are size 1, then merge pairs back together in sorted order. Trace it on `[5, 2, 4, 1]`:
+
+```
+split:  [5, 2, 4, 1]
+     -> [5, 2]        [4, 1]
+     -> [5]  [2]      [4]  [1]        <- base case, size 1, already "sorted"
+
+merge:  [5] + [2]  -> compare 5,2 -> [2, 5]
+        [4] + [1]  -> compare 4,1 -> [1, 4]
+
+merge:  [2, 5] + [1, 4]
+          compare 2, 1 -> take 1  -> [1]
+          compare 2, 4 -> take 2  -> [1, 2]
+          compare 5, 4 -> take 4  -> [1, 2, 4]
+          only 5 left  -> take 5  -> [1, 2, 4, 5]
+```
+
+Every merge step only ever looks at the two front elements of each half and takes the smaller one — that's why merging two sorted halves of total length n takes O(n), and why doing that log n times (once per level of splitting) gives O(n log n) overall. Here's the runnable version:
+
+```python
+def merge_sort(arr):
+    if len(arr) <= 1:
+        return arr
+    mid = len(arr) // 2
+    left = merge_sort(arr[:mid])
+    right = merge_sort(arr[mid:])
+    return merge(left, right)
+
+def merge(left, right):
+    result = []
+    i = j = 0
+    while i < len(left) and j < len(right):
+        if left[i] <= right[j]:   # <= keeps stability: ties favor "left"
+            result.append(left[i]); i += 1
+        else:
+            result.append(right[j]); j += 1
+    result.extend(left[i:])
+    result.extend(right[j:])
+    return result
+
+print(merge_sort([5, 2, 4, 1]))   # [1, 2, 4, 5]
+```
+
+## Searching: Binary Search's Precondition
+
+Linear search checks elements one by one — O(n), no requirements on the data. Binary search is O(log n) but demands something linear search doesn't: the array must already be sorted. Each comparison eliminates half the remaining candidates.
+
+```python
+def binary_search(arr, target):
+    lo, hi = 0, len(arr) - 1
+    while lo <= hi:
+        mid = (lo + hi) // 2
+        if arr[mid] == target:
+            return mid
+        elif arr[mid] < target:
+            lo = mid + 1
+        else:
+            hi = mid - 1
+    return -1   # not found
+```
+
+That precondition is the whole tradeoff: if your data changes constantly and you'd have to re-sort before every search, binary search's O(log n) can lose to a hash map's O(1) from Tier 1's primer — sorting itself costs O(n log n). Binary search wins when the data is already sorted (or sorted once and searched many times) and you can't afford a hash map's memory overhead.
+
+## Recursion: Tracing a Call Stack Frame by Frame
+
+A recursive function calls itself with a smaller input until it hits a base case, then the results unwind back up. Trace `factorial(4)`:
+
+```python
+def factorial(n, depth=0):
+    print("  " * depth + f"-> factorial({n}) called")
+    if n <= 1:
+        print("  " * depth + f"<- factorial({n}) returns 1 (base case)")
+        return 1
+    result = n * factorial(n - 1, depth + 1)
+    print("  " * depth + f"<- factorial({n}) returns {result}")
+    return result
+
+factorial(4)
+```
+
+Output:
+
+```
+-> factorial(4) called
+  -> factorial(3) called
+    -> factorial(2) called
+      -> factorial(1) called
+      <- factorial(1) returns 1 (base case)
+    <- factorial(2) returns 2
+  <- factorial(3) returns 6
+<- factorial(4) returns 24
+```
+
+The call stack, at its deepest point, holds four pending frames stacked on top of each other — `factorial(4)` waiting on `factorial(3)`, which is waiting on `factorial(2)`, which is waiting on `factorial(1)`:
+
+```
+| factorial(1) -- about to return 1          |  <- top of stack
+| factorial(2) -- paused at "n * factorial(1)" |
+| factorial(3) -- paused at "n * factorial(2)" |
+| factorial(4) -- paused at "n * factorial(3)" |  <- bottom
+```
+
+`factorial(4)` cannot compute `4 * factorial(3)` until `factorial(3)` actually returns a value — the multiplication is the *last* thing that happens in each frame, not the first. This is also why unbounded recursion crashes with a stack overflow: each pending call reserves real memory for its frame, and that memory isn't freed until the call above it returns.
+
+## Stack: LIFO, and Where It's the Natural Fit
+
+```python
+class Stack:
+    def __init__(self):
+        self._items = []
+
+    def push(self, item):
+        self._items.append(item)
+
+    def pop(self):
+        if not self._items:
+            raise IndexError("pop from empty stack")
+        return self._items.pop()
+
+    def peek(self):
+        return self._items[-1]
+
+    def is_empty(self):
+        return len(self._items) == 0
+```
+
+Natural-fit problem: checking balanced brackets. A closing bracket must match the *most recently opened, still-unmatched* bracket — that's exactly what last-in-first-out gives you for free.
+
+```python
+def is_balanced(expr):
+    pairs = {")": "(", "]": "[", "}": "{"}
+    stack = Stack()
+    for ch in expr:
+        if ch in "([{":
+            stack.push(ch)
+        elif ch in ")]}":
+            if stack.is_empty() or stack.pop() != pairs[ch]:
+                return False
+    return stack.is_empty()
+
+print(is_balanced("{[()]}"))   # True
+print(is_balanced("{[(])}"))   # False - "]" closes over an unmatched "("
+```
+
+On `"{[(])}"`, the stack holds `["{", "[", "("]` when it hits `]`. It pops `(`, which doesn't match `]`'s expected `[` — mismatch detected immediately, which is the whole point: a queue couldn't do this, because the *last* opened bracket is what needs closing next, not the *first*.
+
+## Queue: FIFO, and Where It's the Natural Fit
+
+```python
+from collections import deque
+
+class Queue:
+    def __init__(self):
+        self._items = deque()
+
+    def enqueue(self, item):
+        self._items.append(item)
+
+    def dequeue(self):
+        if not self._items:
+            raise IndexError("dequeue from empty queue")
+        return self._items.popleft()
+
+    def is_empty(self):
+        return len(self._items) == 0
+```
+
+Use `collections.deque`, not a plain list. `list.pop(0)` is O(n) for the exact same reason `arr.insert(0, x)` was O(n) in Tier 1's primer — every remaining element has to shift. `deque.popleft()` is O(1) because a deque is implemented as a doubly linked block structure with no shifting required.
+
+Natural-fit problem: processing support tickets fairly, in the order they arrived.
+
+```python
+tickets = Queue()
+for t in ["ticket-101", "ticket-102", "ticket-103"]:
+    tickets.enqueue(t)
+
+while not tickets.is_empty():
+    print("handling:", tickets.dequeue())
+# handling: ticket-101
+# handling: ticket-102
+# handling: ticket-103
+```
+
+A stack would process `ticket-103` first and `ticket-101` last — correct for "most recent first," wrong for "first come, first served." The structure isn't a style choice; it encodes the ordering the problem actually requires.
+
+## Linked List: O(1) Insert at the Front, For Real This Time
+
+```python
+class Node:
+    def __init__(self, value):
+        self.value = value
+        self.next = None
+
+class LinkedList:
+    def __init__(self):
+        self.head = None
+
+    def push_front(self, value):
+        node = Node(value)
+        node.next = self.head
+        self.head = node
+
+    def to_list(self):
+        out, node = [], self.head
+        while node:
+            out.append(node.value)
+            node = node.next
+        return out
+
+ll = LinkedList()
+for v in [3, 2, 1]:
+    ll.push_front(v)
+print(ll.to_list())   # [1, 2, 3]
+```
+
+`push_front` is genuinely O(1): create a node, point it at the old head, move `head` to the new node. No shifting, because nothing is contiguous — unlike `arr.insert(0, x)`, which was O(n) back in Tier 1's primer because every element physically moves one slot over. Natural-fit problem: anything with frequent inserts/removals at arbitrary positions and no need for index-based access — an undo history, a playlist you're constantly reordering by splicing nodes rather than shifting an array.
+
+## Running the Sprint: Tracking Problems and Writing Post-Mortems
+
+A practice sprint without a log is just "doing some problems" — it doesn't compound. Keep a spreadsheet or plain markdown table with these columns:
+
+```
+Date | Problem | Source | Topic tag | Result | Time spent | Post-mortem notes | Retry date
+```
+
+Target: 2-3 problems a day, mixing topics (sorting/searching, stacks/queues, linked lists, recursion) rather than grinding one category to exhaustion. Any problem you get wrong — Wrong Answer, Time Limit Exceeded, or you gave up and looked at the solution — gets a full post-mortem before you move on. Correct-on-first-try problems get one line in the log and nothing more; the learning happens on the misses.
+
+## A Real Post-Mortem, Start to Finish
+
+Here's what a useful post-mortem actually contains, worked on a real bug — "Search Insert Position": given a sorted array and a target, return the index where the target is, or where it should be inserted to keep the array sorted.
+
+```python
+def search_insert(nums, target):
+    lo, hi = 0, len(nums) - 1
+    while lo <= hi:
+        mid = (lo + hi) // 2
+        if nums[mid] == target:
+            return mid
+        elif nums[mid] < target:
+            lo = mid + 1
+        else:
+            hi = mid - 1
+    return hi   # BUG
+```
+
+Test case: `nums = [1, 3, 5, 6]`, `target = 2`. Expected `1`, got `0`.
+
+```
+Date: practice-sprint day 4
+Problem: "Search Insert Position" (binary search variant)
+Result: Wrong Answer on first submit; Accepted on fix
+Time spent before reviewing: 18 minutes
+
+What I submitted:
+  [code above, returning `hi` at the end]
+
+Failing case: nums=[1,3,5,6], target=2 -> expected 1, got 0
+
+What I assumed:
+  I assumed `hi` was the correct boundary to return once the loop
+  exits, by loose memory of "a" binary search template.
+
+What actually happens:
+  Trace it: lo=0,hi=3 -> mid=1, nums[1]=3>2 -> hi=0.
+  lo=0,hi=0 -> mid=0, nums[0]=1<2 -> lo=1.
+  Now lo=1,hi=0, loop exits (lo > hi).
+  At exit, `lo` (1) is the correct insertion point. `hi` (0) is
+  one position too far left -- it's lo minus 1, not the answer.
+
+Root cause:
+  I pattern-matched to a half-remembered template instead of
+  re-deriving what `lo` and `hi` each mean *at the moment the loop
+  exits*, as opposed to what they mean during the loop.
+
+The fix:
+  Return `lo`, not `hi`, after the loop.
+
+Generalizable lesson (goes on the watch list):
+  Whenever a binary-search loop ends on `lo > hi`, `lo` is the
+  insertion point. Before submitting any binary search, write out
+  what each variable represents at exit and test by hand against
+  one case where the target is NOT in the array -- that's exactly
+  the case this bug only shows up on.
+
+Tag: binary-search / off-by-one / boundary-invariant
+Retry: re-solve from scratch in 5 days, no notes.
+```
+
+That last section — the generalizable lesson — is what separates a post-mortem from "oh, typo, fixed it." The fix resolves this one problem. The lesson is what stops you from writing the same bug into a *different* binary search problem next week. Tag it, and when you hit another off-by-one three sprints from now, grep your log for "boundary-invariant" before you start debugging from zero.
+
+## Exercise: Build a Queue Out of Two Stacks
+
+You now have working `Stack` and `Queue` classes. Here's a problem that forces you to actually understand both, not just call them: implement a queue (`enqueue` / `dequeue`, FIFO behavior) using **only** two `Stack` instances — no `deque`, no list, no cheating with an index pointer.
+
+```python
+class QueueFromStacks:
+    def __init__(self):
+        self.in_stack = Stack()
+        self.out_stack = Stack()
+
+    def enqueue(self, item):
+        # your code here
+        pass
+
+    def dequeue(self):
+        # your code here
+        pass
+```
+
+Test it against this before you trust it:
+
+```python
+q = QueueFromStacks()
+q.enqueue(1)
+q.enqueue(2)
+q.enqueue(3)
+print(q.dequeue())   # must print 1
+print(q.dequeue())   # must print 2
+q.enqueue(4)
+print(q.dequeue())   # must print 3
+print(q.dequeue())   # must print 4
+```
+
+**Hint:** `enqueue` is simple — always push onto `in_stack`. The trick is `dequeue`. A stack pop gives you the *most recently added* item, which is backwards from what a queue needs. If `out_stack` is empty, you need to move everything from `in_stack` into `out_stack` first — one `pop` from `in_stack` followed by one `push` onto `out_stack`, repeated until `in_stack` is empty — before popping from `out_stack`. Think about why that transfer reverses the order twice over, ending up correct, and why you only need to do the transfer when `out_stack` is actually empty rather than on every single `dequeue`.
+
+Log this one in your sprint tracker. If your first attempt fails the test above, that's a post-mortem, not a failure — write it up the same way as the worked example, tag it, and move to the next problem.

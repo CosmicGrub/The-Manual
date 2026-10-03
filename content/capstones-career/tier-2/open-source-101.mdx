@@ -1,0 +1,213 @@
+---
+trackId: capstones-career
+tier: 2
+title: "Open Source 101"
+order: 3
+estimatedHours: 6
+slug: open-source-101
+---
+
+## Building on Tier 0: You Already Know the Etiquette
+
+Tier 0's "Open-Source Etiquette & Licensing" lesson covered PR descriptions as conversations (the What/Why/How/Testing structure), writing a README that sells a project in one screen, and picking a license. This module assumes all of that and adds the piece that comes before you write a single line: reading a repo's own rulebook before you touch it, judging whether an issue is actually worth your time, and running the exact mechanical sequence — fork, branch, PR, review, merge — end to end on a real project. If any of the Tier 0 material is fuzzy, go reread it; the PR template you'll use below is the same What/Why/How/Testing shape from that lesson, not a new one.
+
+## Anatomy of a Real Repo: Reading Rails Before Touching It
+
+Every serious open-source project ships three files that tell you how it actually wants to be approached, and almost nobody reads them before opening their first issue. Here's what they say on a real, large, actively-maintained project: [rails/rails](https://github.com/rails/rails), the Ruby on Rails web framework.
+
+**CONTRIBUTING.md** — the real opening of Rails's version:
+
+```markdown
+#### **Did you find a bug?**
+
+* **Do not open up a GitHub issue if the bug is a security vulnerability
+  in Rails**, and instead refer to our security policy.
+* **Ensure the bug was not already reported** by searching on GitHub
+  under Issues.
+* If you're unable to find an open issue addressing the problem,
+  open a new one. Be sure to include a title and clear description...
+
+#### **Do you intend to add a new feature or change an existing one?**
+
+* Suggest your change in the rubyonrails-core forum and start writing code.
+* Do not open an issue on GitHub until you have collected positive
+  feedback about the change. GitHub issues are primarily intended for
+  bug reports and fixes.
+```
+
+Two load-bearing rules in there that a skimmer misses entirely. First: security bugs route to a separate disclosure process, never a public issue — true on almost every project of this size, and filing a public issue for a real vulnerability is the single fastest way to burn trust with a maintainer. Second, and this is the one beginners trip on constantly: **feature requests don't start as GitHub issues at all.** They start as forum discussion, and an issue only gets opened after a maintainer has signaled interest. An issue that skips this and jumps straight to "I think Rails should support X" is, by the project's own stated process, filed wrong — which matters a lot in the next section.
+
+**CODE_OF_CONDUCT.md** — the entire real file:
+
+```markdown
+# Contributor Code of Conduct
+
+The Rails team is committed to fostering a welcoming community.
+
+**Our Code of Conduct can be found here**:
+
+https://rubyonrails.org/conduct
+```
+
+That's it. Three lines. This is a real, common pattern worth knowing: many large projects keep a *pointer* in the repo instead of the full text, because the actual code of conduct lives on an org-wide page they want to update once, not per-repo. Don't read a short CODE_OF_CONDUCT.md as "they don't take it seriously" — click through. What it tells a contributor either way is the same thing: there is an enforcement mechanism, there is a place to report abuse, and the project is explicitly not a free-for-all. Treat its presence (short or long) as a floor on behavior, not decoration.
+
+**Issue templates** — Rails's `.github/ISSUE_TEMPLATE/bug_report.md`:
+
+```markdown
+---
+name: Bug report
+about: Report an issue with Rails you've discovered
+---
+
+### Steps to reproduce
+
+\`\`\`ruby
+# Your reproduction script goes here
+\`\`\`
+
+### Expected behavior
+
+### Actual behavior
+
+### System configuration
+
+**Rails version**:
+
+**Ruby version**:
+```
+
+And sitting next to it, `.github/ISSUE_TEMPLATE/config.yml`:
+
+```yaml
+blank_issues_enabled: false
+```
+
+That one line is doing real work: it removes GitHub's "Open a blank issue" option entirely from the picker a reporter sees. You cannot file an issue on Rails without going through a template that forces you to supply a runnable reproduction script, not a paragraph of prose. A template tells you, concretely, the minimum evidence a maintainer requires before they'll even look — skip a required field and you've told them you didn't read it.
+
+One more thing worth knowing: GitHub auto-detects these three files in a repo's root, `docs/`, or `.github/` folder and surfaces them automatically — a "Contributing guidelines" link on the issue-creation page, a code-of-conduct banner, a template picker. You don't have to go hunting through folders by hand; GitHub already did the hunting and put the result in front of you. The only step left is actually reading what it found.
+
+## How to Judge a "Good First Issue" (Not Just Find One)
+
+A `good first issue` label is a maintainer's claim, made at some point in the past, that this is tractable for a newcomer. Labels rot. The issue in front of you might have been accurate eighteen months ago and be a trap today — already half-fixed by an unmerged PR, scoped to code that's since been deleted, or claimed and abandoned by three people before you. Tier 0 taught you to write a PR description a stranger can act on without guessing; judging an issue is the same skill pointed the other direction — can you tell, from what's written, whether acting on this is actually safe to attempt?
+
+Run every "good first issue" candidate through this before you touch any code:
+
+| Signal | Good sign | Red flag |
+|---|---|---|
+| Last activity | A maintainer commented recently confirming it's still valid | Silence for a year, or the label predates the file/function it references |
+| Assignment state | Unassigned, no linked PR | An open (even stale) PR already attached, or someone said "I'm on this" within the last two weeks |
+| Scope | Names a specific file, function, or line | Issue body uses words like "probably needs a redesign" or "we should rethink how..." |
+| Reproducibility | You can reproduce the bug yourself in under 15 minutes from the steps given | Steps are vague, missing, or don't actually reproduce it on current `main` |
+| Comment thread | 0-3 comments, mostly maintainer triage | 15+ comments, unresolved disagreement about what the right fix even is |
+
+Worked example, using what you just read in Rails's own CONTRIBUTING.md:
+
+**Issue A** — "Broken link to API docs in the Active Record Querying guide, points to a page that 404s." One comment from a maintainer: "Confirmed, thanks — the docs site reorganized last month." No assignee, no linked PR.
+
+**Issue B** — labeled `good first issue`, titled "Make ActiveRecord query caching configurable per-model instead of global," opened eight months ago by a community member, 22 comments arguing about API shape, no maintainer has weighed in on an actual design, no one has confirmed this is even wanted.
+
+| | Issue A | Issue B |
+|---|---|---|
+| Last activity | Maintainer confirmed last month | Community back-and-forth, no maintainer decision |
+| Scope | One file, one URL | New configurable behavior across a subsystem |
+| Rails's own process | N/A — it's a bug, filed correctly | This is a **feature**, and CONTRIBUTING.md says features start in the forum, not as an issue |
+| Verdict | Tractable. Fix it, cite the issue number, done in an hour. | A trap. Even the label is wrong by the project's own stated process — this needed forum consensus before it was ever filed as an issue, and a PR against it will get bounced back to "did you discuss this on the forum first?" |
+
+Issue B isn't bad because it's hard. It's bad because the five-row checklist and the project's own rules — the ones you read two sections ago — both say "not actually ready," and the label alone told you none of that.
+
+## The Full Loop: Fork → Branch → PR → Review → Merge
+
+Here's the complete, real sequence for Issue A above, from fork to a clean repo afterward.
+
+**1. Fork and clone:**
+
+```bash
+# via GitHub CLI
+gh repo fork rails/rails --clone
+
+# or manually, after clicking "Fork" on github.com/rails/rails
+git clone https://github.com/YOUR-USERNAME/rails.git
+cd rails
+git remote add upstream https://github.com/rails/rails.git
+git fetch upstream
+```
+
+`origin` now points at your fork, `upstream` at the real project. You will push to `origin` and pull from `upstream` — mixing those two up is the single most common early mistake.
+
+**2. Branch off the real main, not your fork's possibly-stale main:**
+
+```bash
+git checkout -b fix-querying-guide-link upstream/main
+```
+
+**3. Make the change, then commit it like the PR description you'd write in Tier 0 — specific, not "fix stuff":**
+
+```bash
+git add guides/source/active_record_querying.md
+git commit -m "Fix broken link to API docs in Active Record Querying guide"
+git push -u origin fix-querying-guide-link
+```
+
+**4. Open the PR, reusing Tier 0's What/Why/How/Testing structure directly in the body:**
+
+```bash
+gh pr create --repo rails/rails \
+  --base main \
+  --head YOUR-USERNAME:fix-querying-guide-link \
+  --title "Fix broken link in Active Record Querying guide" \
+  --body "## What
+Fixes a 404 link to the ActiveRecord::QueryMethods API docs in the
+Active Record Querying guide.
+
+## Why
+Referenced in issue #<number> — the docs site reorganized and the
+old path no longer resolves.
+
+## How
+Updated the URL to its current location under edgeapi.rubyonrails.org.
+
+## Testing
+Manually confirmed the new URL resolves. Docs-only change, no code paths affected."
+```
+
+**5. Review comes back requesting a change.** You add commits, you don't rewrite history — force-pushing over a commit a reviewer already looked at makes their comments orphan and makes it look like you're hiding something:
+
+```bash
+git add guides/source/active_record_querying.md
+git commit -m "Address review: fix second stale link in the same section"
+git push origin fix-querying-guide-link
+```
+
+The open PR updates automatically; no new PR needed.
+
+**6. Maintainer approves and merges** (usually a squash merge on GitHub — your several commits collapse into one on `main`). Clean up afterward so your fork doesn't drift:
+
+```bash
+git checkout main
+git pull upstream main
+git push origin main
+git branch -d fix-querying-guide-link
+git push origin --delete fix-querying-guide-link
+```
+
+That's the whole loop. Every step above is a real command against a real workflow — the only thing that changes project to project is which file you're editing and what the CI checks look like.
+
+## Handling Review Feedback Without Taking It Personally
+
+A real review comment, the kind that stings on first read:
+
+> "This is going to silently break anyone who overrode `cache_key` before this change. There's no test for that path, and the CHANGELOG entry doesn't flag it as a breaking change. Please add a regression test and call this out properly before I look at this again."
+
+That reads blunt because it's optimized for information density, not for your feelings — the reviewer is telling you exactly what's wrong and exactly what fixes it, in two sentences, instead of softening it into something vaguer and less actionable. The unprofessional response is to get defensive ("well it works for my use case") or to go silent for two weeks. The professional one addresses every concrete point and shows the work:
+
+> "Good catch — I hadn't considered the override case. Added a regression test for a model with a custom `cache_key` in `a1b2c3d`, and updated the CHANGELOG to call out the behavior change explicitly. Let me know if you'd also want a note in the upgrade guide; happy to add that too."
+
+Notice what it does: no apology-as-deflection, no arguing the point, cites the actual commit that fixes it, and offers a next step instead of waiting to be told one. If you genuinely disagree with a review comment, the same tone still applies — state your reasoning once, with evidence (a benchmark, a test that passes, a line in the docs), and if the maintainer still disagrees after that, their call wins on their project. You're not being graded on being right; you're being graded on whether working with you costs more than it's worth. Comments on your diff are not comments on you — the fastest way to look junior is treating the two as the same thing.
+
+## Exercise: Triage Three Real Candidates
+
+Pick a real, active GitHub repository — ideally in a language or ecosystem you're already building in from an earlier capstone. Search it (or search across many projects at once on [goodfirstissue.dev](https://goodfirstissue.dev), from this track's Tier 2 resources) for issues labeled `good first issue` or `help wanted`. Pull three candidates and run each one through the five-row checklist from this lesson, writing one or two sentences of actual judgment per issue — not "this seems fine," but which row it passed or failed and why.
+
+For whichever candidate (if any) passes, run through the fork → branch sequence above far enough to have a local branch checked out and tracking `upstream/main`, ready for the actual fix. If all three fail triage, that's a legitimate, useful result too — write down specifically which row killed each one, then go pull three more.
+
+**Hint, not a solution:** GitHub's own issue search supports `is:issue is:open label:"good first issue"` directly in the search bar scoped to one repo — don't just read the label, click into the issue and check its *last comment's date* first, before you read anything else about what it's asking for. A `good first issue` label with no activity in a year has already failed the checklist before you've read a word of the description.

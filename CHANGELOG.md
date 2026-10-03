@@ -678,3 +678,14 @@ All notable changes to The Manual (curriculum + app) are logged here. This file 
 **Result:** `npm run build` passed clean — 286 unique slugs verified repo-wide.
 
 **Status:** Capstones Tier 1 complete (23h, 4 lessons). Capstones is now 2/6 tiers content-complete (Tiers 0-1, 34h); Tiers 2-5 remain.
+
+## [0.55.0] — 2026-10-03 — Capstones & Career Tier 2: complete (no hand-holding, first merged PR)
+
+**Context:** Continuing the tier-by-tier pattern. Capstone #2 is handed to the learner as a brief and five failing acceptance tests, not a tutorial — a deliberate structural escalation from Capstone #1's fully-worked reference implementation, matching the tier goal of moving from guided exercises to independent building.
+
+**Added**
+- `content/capstones-career/tier-2/*.mdx` (4 files) + matching quizzes: Cross-Track Capstone #2 (a URL-shortener REST API brief with 5 real pytest acceptance tests and zero reference implementation, a real Big-O justification requirement for the code-lookup data structure, two real specialization-flavored extensions — a sliding-window rate limiter for a security lean, a min-heap trending-links endpoint for a data-engineering lean), DS&A Practice Sprint 1 (sorting/searching tradeoffs, recursion traced with its call stack, stacks/queues/linked lists from scratch), Open Source 101 (the full real fork→branch→PR→review→merge loop), Specialization Deep-Dive Intro (a fully worked security-branch example extending Tier 1's Nmap-style taster script, with the same pattern explicitly generalized to the other five branches).
+
+**Result:** `npm run build` passed clean — 290 unique slugs verified repo-wide.
+
+**Status:** Capstones Tier 2 complete (34h, 4 lessons). Capstones is now 3/6 tiers content-complete (Tiers 0-2, 68h); Tiers 3-5 remain.

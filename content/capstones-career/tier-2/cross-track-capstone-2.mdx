@@ -1,0 +1,263 @@
+---
+trackId: capstones-career
+tier: 2
+title: "Cross-Track Capstone #2"
+order: 1
+estimatedHours: 10
+slug: cross-track-capstone-2
+---
+
+## What changes at Capstone #2 (no hand-holding, for real)
+
+Capstone #1 handed you a scoping table, a finished 70-line reference implementation, and a full test suite to read. That was deliberate — you were learning the shape of "scope, build, test, ship" for the first time. This one doesn't do that. Below is a brief: what the project must do, what data structure it genuinely needs, and the acceptance tests it has to pass. No step-by-step build order, no reference solution. You pick the file layout, you pick the implementation details, you find your own bugs. That gap is the actual skill this module is teaching — everything else is scaffolding around it.
+
+If that feels uncomfortable, good — that discomfort is what "independent building" means in the tier goal. You already have everything you need: Capstone #1's scoping discipline, the Tier 0 Open-Source Etiquette module's README and PR habits, and three tracks' worth of Tier 2 material landing at the same time. This module is where those stop being separate lessons and start being one project.
+
+## The bedrock trio: what Tier 2 each one is actually for here
+
+Three tracks hit Tier 2 at roughly the same point for most learners, and this capstone exists specifically to force them together instead of letting them sit as three disconnected skill lists:
+
+| Track | What Tier 2 gave you | What it's for in this project |
+|---|---|---|
+| CS Foundations | Hash tables, stacks/queues/linked lists, Big-O analysis, a from-scratch algorithms toolkit | The real data structure under the hood, plus the discipline of justifying *why* it's the right one, not just that it works |
+| Language Mastery | Intermediate OOP, calling SQL from your language, package/build tooling, test runner mechanics | How the project is actually organized as code: real classes, parameterized queries, a reproducible dependency/test setup |
+| Software Engineering | REST API design, SOLID principles, TDD, integration/API testing, DB design | The shape of the service itself: endpoints, status codes, layering, and tests that exercise the whole system, not just one function |
+
+Notice none of these are being re-taught here. If "why is a hash map O(1)" or "what does SOLID's single-responsibility principle actually mean" feels shaky, that's a sign to go back to those modules — this capstone assumes you have them, it doesn't re-explain them.
+
+## The assignment: one project, stated as a brief
+
+Build **a URL-shortener REST API with a real data structure at its core, persisted, and visibly flavored toward a specialization you're leaning toward.** That's the whole brief. Here's the floor — the part everyone building this project must have, regardless of flavor:
+
+- `POST /links` with `{"url": "..."}` creates a short code and returns `201` with `{"code": "...", "url": "..."}`.
+- `GET /<code>` redirects (`302`) to the original URL if the code exists, `404` if it doesn't, and increments a click counter.
+- `GET /links/<code>/stats` returns the code, the original URL, and the click count.
+- Short codes are generated from an internal, monotonically increasing id, base62-encoded — not random. This matters: it's what forces the data-structure question instead of letting you dodge it.
+- Data survives a process restart (real persistence, not an in-memory dict that resets every run).
+
+That last bullet about code generation is the real design decision in this project. Codes have to map back to records in O(1) — a sorted list with binary search would work (O(log n)) but is the wrong tool once you've learned why hash maps exist; a linear scan would "work" on six rows and fall over on six thousand. Pick a hash map (or your language's dict, which *is* a hash map) for the lookup, and write one real paragraph in your README justifying that choice in Big-O terms. That paragraph is not optional decoration — it's the CS Foundations half of this capstone made visible.
+
+## The floor, as acceptance tests you have to pass
+
+Instead of a tutorial, here's the floor spec as tests. Your job is to make these pass against your own implementation — the implementation itself is yours to write:
+
+```python
+# test_floor_api.py — you did not write this file, you make it pass
+import requests
+
+BASE = "http://localhost:5000"
+
+def test_create_returns_code_and_201():
+    r = requests.post(f"{BASE}/links", json={"url": "https://example.com/a-long-path"})
+    assert r.status_code == 201
+    body = r.json()
+    assert "code" in body and "url" in body
+
+def test_redirect_follows_to_original_url():
+    code = requests.post(f"{BASE}/links", json={"url": "https://example.com"}).json()["code"]
+    r = requests.get(f"{BASE}/{code}", allow_redirects=False)
+    assert r.status_code == 302
+    assert r.headers["Location"] == "https://example.com"
+
+def test_unknown_code_is_404():
+    r = requests.get(f"{BASE}/this-code-does-not-exist", allow_redirects=False)
+    assert r.status_code == 404
+
+def test_click_count_increments_on_redirect():
+    code = requests.post(f"{BASE}/links", json={"url": "https://example.com"}).json()["code"]
+    requests.get(f"{BASE}/{code}", allow_redirects=False)
+    requests.get(f"{BASE}/{code}", allow_redirects=False)
+    stats = requests.get(f"{BASE}/links/{code}/stats").json()
+    assert stats["clicks"] == 2
+
+def test_persists_across_restart():
+    code = requests.post(f"{BASE}/links", json={"url": "https://example.com"}).json()["code"]
+    # -- restart your server process here, by hand, before re-running this test --
+    stats = requests.get(f"{BASE}/links/{code}/stats").json()
+    assert stats["url"] == "https://example.com"
+```
+
+Five tests, zero implementation. This is intentionally closer to how a real ticket arrives at work: "here's what it must do," not "here's how to write it."
+
+## Visibly yours: the same base idea, two specialization flavors
+
+A bare floor implementation is correct but says nothing about where you're leaning. "Visibly connects to a specialization interest" means someone skimming your repo for 30 seconds can tell which branch you're drawn to, without reading your README's text — because the *feature itself* is specialization-shaped. Same base project, two real examples of what that looks like:
+
+| | Floor (everyone builds this) | Security lean | Data-engineering lean |
+|---|---|---|---|
+| Added data structure | — | A sliding-window counter (deque of timestamps) per client IP | A bounded min-heap tracking the top-N most-clicked codes |
+| New endpoint/behavior | — | `POST /links` returns `429` after too many requests/minute from one IP | `GET /links/trending?n=10` returns the top N links by clicks, kept current on every redirect |
+| New failure mode you must handle | — | A burst from one abusive client must not degrade requests from everyone else | The heap must stay in sync with real click counts — not a stale snapshot recomputed occasionally |
+| What it tells a reader | "I can build CRUD" | "I think about abuse and limits" | "I think about aggregate stats under load" |
+
+For the security flavor, a sliding-window limiter is a real, small class — wiring it into your route, choosing the limit/window, and deciding what response a blocked client gets is left to you:
+
+```python
+from collections import deque
+import time
+
+class SlidingWindowLimiter:
+    """At most `limit` calls per key in any `window_seconds` window."""
+    def __init__(self, limit: int, window_seconds: float):
+        self.limit = limit
+        self.window_seconds = window_seconds
+        self._hits: dict[str, deque] = {}
+
+    def allow(self, key: str) -> bool:
+        now = time.monotonic()
+        hits = self._hits.setdefault(key, deque())
+        while hits and now - hits[0] > self.window_seconds:
+            hits.popleft()
+        if len(hits) >= self.limit:
+            return False
+        hits.append(now)
+        return True
+```
+
+This is the same instinct as Tier 1's Specialization Taster Sampler, just pointed inward: there, you ran a real `nmap -sV` scan against a lab box and wrote up what an attacker could exploit. Here, instead of scanning someone else's service, you're defending your own against the single most common real-world abuse pattern an API like this actually gets hit with — scripted, high-volume requests from one source.
+
+For the data-engineering flavor, a min-heap keeps "top N" current without re-sorting everything on every click:
+
+```python
+import heapq
+
+class TopNTracker:
+    """Keeps the N highest-clicked codes without re-sorting on every click."""
+    def __init__(self, n: int):
+        self.n = n
+        self._heap: list[tuple[int, str]] = []  # (clicks, code), smallest first
+
+    def record_click(self, code: str, clicks: int):
+        for i, (c, k) in enumerate(self._heap):
+            if k == code:
+                self._heap[i] = (clicks, code)
+                heapq.heapify(self._heap)
+                return
+        if len(self._heap) < self.n:
+            heapq.heappush(self._heap, (clicks, code))
+        elif clicks > self._heap[0][0]:
+            heapq.heapreplace(self._heap, (clicks, code))
+```
+
+Be honest about what this first cut actually costs: finding an existing code is a linear scan over the heap, which is fine at N=10 and wrong at N=10,000. That tradeoff — and whether it's worth fixing with a second index — is a real design decision, not a bug to silently ignore.
+
+## Shipping it: real git hygiene, not an afterthought
+
+This isn't a single commit at the end. Build it in reviewable slices:
+
+```bash
+git init urlshrink && cd urlshrink
+git checkout -b feat/floor-api
+# ... floor endpoints + the five acceptance tests above, all passing ...
+git add app.py store.py test_floor_api.py
+git commit -m "Floor API: create, redirect, stats, base62 codes over SQLite"
+
+git checkout -b feat/security-lean
+# ... SlidingWindowLimiter wired into POST /links ...
+git add ratelimit.py app.py test_ratelimit.py
+git commit -m "Add per-IP sliding-window rate limit on POST /links (429 after burst)"
+
+git checkout main
+git merge feat/floor-api
+git merge feat/security-lean
+git tag v1.0
+git push origin main --tags
+```
+
+Your README's first screen and your commit messages should follow the exact pattern Tier 0's Open-Source Etiquette module already taught you — what it does, why it exists, how to run it, verified with real output. Don't re-derive that lesson from scratch; reuse it.
+
+## The bug you will plausibly hit — and the process to find it
+
+Say you write the concurrency case the floor spec implies and hammer it:
+
+```python
+# test_concurrency.py
+import threading
+import requests
+
+def test_concurrent_creates_produce_unique_codes():
+    codes, lock = [], threading.Lock()
+
+    def create_one():
+        r = requests.post("http://localhost:5000/links", json={"url": "https://example.com"})
+        with lock:
+            codes.append(r.json()["code"])
+
+    threads = [threading.Thread(target=create_one) for _ in range(50)]
+    for t in threads: t.start()
+    for t in threads: t.join()
+
+    assert len(codes) == len(set(codes)), f"duplicate codes: {codes}"
+```
+
+```text
+$ pytest test_concurrency.py -q
+F
+AssertionError: duplicate codes: ['b7F2x', 'b7F2x', 'b7F30', ...]
+```
+
+**Step 1 — confirm it's real, not flaky.** Run it ten times in a loop (`for i in $(seq 10); do pytest test_concurrency.py -q; done`). It fails maybe 2 or 3 times out of 10, never every time. Failing *sometimes* instead of *always* is the signature of a race condition, not a plain logic error — a logic error would be wrong on every run.
+
+**Step 2 — find the code that generates the id.** Somewhere you likely have something shaped like this:
+
+```python
+def next_code(db):
+    row = db.execute("SELECT MAX(id) AS max_id FROM links").fetchone()
+    next_id = (row["max_id"] or 0) + 1
+    return encode_base62(next_id)
+```
+
+There's a gap between reading the current max and the later `INSERT` that actually claims it — nothing stops a second thread from reading the same max before the first thread's insert lands.
+
+**Step 3 — instrument and confirm.** Log the thread name and the `max_id` each call reads, rerun with just two threads so the log is readable. You'll see it directly: Thread-1 reads `max_id=14`; Thread-2 reads `max_id=14` *before* Thread-1's insert commits. Both compute `next_id=15`. Both encode the identical code.
+
+**Step 4 — name the root cause.** This is a check-then-act race (sometimes called TOCTOU — time-of-check to time-of-use): reading a value and acting on it aren't one atomic operation, so two threads can both act on the same stale read.
+
+**Step 5 — weigh real fix directions, without picking one for you:**
+
+| Approach | How it closes the gap | Cost |
+|---|---|---|
+| Encode the database's own autoincrement primary key instead of computing one yourself | The database guarantees a fresh, unique id as part of the `INSERT` itself — no separate read step to race on | You only know the code *after* the insert returns (`cursor.lastrowid`), not before |
+| Wrap the read-then-insert in one transaction with an exclusive lock | Forces one writer at a time across the whole sequence | Serializes every create globally — hurts throughput under real concurrent load |
+| Catch the `UNIQUE` constraint violation and retry with a fresh code | Treats a collision as a rare, expected event instead of preventing it structurally | Needs a retry cap so a real bug can't loop forever |
+
+Pick one, implement it, and rerun the ten-loop from Step 1 — it should pass all ten, not just the one you happened to check.
+
+## Definition of done
+
+```text
+[ ] All five floor acceptance tests pass against your own implementation
+[ ] Short-code lookup is O(1) (hash map / indexed DB lookup), with a one-paragraph Big-O justification in the README
+[ ] One specialization flavor is built and wired into real request handling, not bolted on as a toy
+[ ] The concurrency test passes 10 runs in a row, not just once
+[ ] Killing and restarting the server doesn't lose existing links or their click counts
+[ ] Full pytest suite (floor + flavor + concurrency) is green on a clean clone
+[ ] README follows the Tier 0 Open-Source Etiquette structure: problem, solution, architecture, demo
+[ ] A short demo GIF or terminal recording in the README shows create -> redirect -> stats end to end
+[ ] Pushed to a public GitHub repo, tagged v1.0
+```
+
+## Exercise: add a cache, then prove it has a bug
+
+Add an in-memory cache in front of `GET /<code>` so hot links skip the database: capacity `N`, and when full it must evict the **least recently used** entry, not the oldest *inserted* one. Those two are easy to confuse and behave identically until something gets re-accessed — which is exactly what this test checks:
+
+```python
+def test_lru_evicts_least_recently_used_not_oldest_inserted():
+    cache = LinkCache(capacity=2)
+    cache.put("a", "https://a.example")
+    cache.put("b", "https://b.example")
+    cache.get("a")              # touching "a" makes it the most recently used
+    cache.put("c", "https://c.example")   # should evict "b" -- NOT "a"
+
+    assert cache.get("a") is not None
+    assert cache.get("b") is None
+    assert cache.get("c") is not None
+```
+
+Write a cache that evicts strictly by insertion order first (a plain dict, drop the first key ever inserted once full) and run this test against it — watch it fail on the `assert cache.get("b") is None` line because "a" gets evicted instead. That failure is the actual bug this exercise is about.
+
+**Hint, not a solution:** a hash map alone has no concept of order, and a plain list costs O(n) to move an item to the "most recent" end. The two-structure pairing from CS Foundations' Core Data Structures II — a hash map for O(1) lookup, paired with a doubly linked list for O(1) reordering — is built for exactly this. Python's own `OrderedDict`, with `move_to_end()` on every access, already implements that pairing if you want to confirm the target behavior before building it from the two pieces yourself.
+
+## Recap
+
+The project is simple to state and genuinely hard to get right: a hash-map-backed URL shortener, flavored visibly toward a specialization, persisted, and tested under real concurrency — not because the spec is long, but because every track's Tier 2 material has to actually show up in the same files at once. The brief told you what to build. Finding the race condition, choosing a fix, and catching your own cache's eviction bug before someone else does — that part was always going to be on you, in this project and in the real pull request you're about to go land.

@@ -1,0 +1,222 @@
+---
+trackId: capstones-career
+tier: 2
+title: "Specialization Deep-Dive Intro"
+order: 4
+estimatedHours: 8
+slug: specialization-deep-dive-intro
+---
+
+## The decision you already made
+
+Tier 1's Specialization Taster Sampler had you spend real hours in all six branches — security, data engineering, robotics/IoT, game dev, ML research, systems/compilers — and end with a ranked Specialization Interest Log. That ranking is not a suggestion, it's data. This module assumes you've already picked the branch you're leaning toward based on that evidence, not on which one sounded coolest in a course description.
+
+Whichever branch you picked, the next move is identical in structure across all six: find the branch's real foundational material, then build something slightly past a tutorial so you're producing original logic instead of transcribing someone else's. This module teaches that structure once, generically, then walks it fully for one branch — security, since this curriculum's dedicated Cybersecurity & Ethical Hacking track gives it the deepest supporting material of all six options. If you leaned a different direction, read the worked example anyway for the pattern, then apply the same four steps to your own branch using the table below and the exercise at the end.
+
+## The four-step pattern: pick, read, extend, ship
+
+**Step 1 — Lock in the branch, don't re-litigate it.** You already have Tier 1 evidence. Don't spend this module's 8 hours re-sampling branches you've already ranked lower; that's Tier 1's job, done.
+
+**Step 2 — Go to the primary foundational source, not a secondhand course about it.** Every branch has a canonical reference: an official docs site, a language/engine's own manual, a foundational paper, a project's own architecture page. A paid course that summarizes that source third-hand is slower and less accurate than reading the source directly for 60-90 minutes. Budget real time here — this is not skippable in favor of jumping straight to code.
+
+**Step 3 — Pick ONE small existing tutorial close to what you want, then design ONE deliberate extension past it.** The extension has to require logic you design yourself — a new axis of behavior, not a renamed variable or a slightly bigger input. "Following five more steps of the same tutorial" is not an extension. "Adding state that persists between runs," "adding a comparison the tutorial never does," "adding a check the tutorial assumes away" — those are extensions, because they force you to design something the tutorial's author didn't hand you.
+
+**Step 4 — Timebox it inside 8 hours.** A workable split: ~2 hours reading foundational docs, ~1 hour sketching the extension on paper or in comments before writing code, ~4 hours building, ~1 hour write-up. If you blow past 4 hours building and still aren't done, your extension was scoped too big — cut it, don't extend the deadline.
+
+Here's the pattern applied across all six branches, each extension explicitly built on top of the exact exercise you already did in Tier 1's taster:
+
+| Branch | Foundational primary source | Tutorial-plus-one-step extension (builds on your Tier 1 taster exercise) |
+|---|---|---|
+| Security | nmap Reference Guide; OWASP Top 10 project page; this curriculum's own Cybersecurity track Tier 1-2 material (OWASP Top 10 guided tour, Metasploit intro) | Turn the one-shot `nmap -sV` scan into a stateful tool that diffs scans over time and flags known-vulnerable banners — this module's full worked example below |
+| Data engineering | pandas/Polars docs' own user guide; a real orchestrator's concepts page (e.g. Airflow's) | Turn the single CSV-cleaning script into a small pipeline that validates a schema and fails loudly on a bad row instead of silently dropping or guessing it |
+| Robotics/IoT | Arduino/ESP32 reference docs; your simulator's own docs (Wokwi) | Turn the fixed-timer LED/servo sweep into closed-loop control: read a simulated sensor value and change the servo/LED behavior based on it, not a hardcoded delay |
+| Game dev | Your engine's official manual/class reference (not a YouTube series) | Turn the one-input sprite into a tiny state machine — idle/walk/jump states with real transition rules, instead of setting velocity directly from input every frame |
+| ML research | The model's own model card and the paper it links, not a blog post summarizing the paper | Turn the single-sentence classifier check into a batch evaluation script that runs 20+ labeled examples and reports accuracy and specific failure cases |
+| Systems/compilers | The language or VM's own spec/reference manual section relevant to your extension | Turn the flat add/subtract interpreter into one that correctly handles operator precedence (multiplication binding tighter than addition) |
+
+## Worked example: Security branch, full walkthrough
+
+### Foundational docs, in priority order
+
+Before writing a line of code, spend real time with:
+
+1. **The nmap Reference Guide** (`nmap.org/book/man.html`) — read the sections on scan types (`-sS`, `-sV`, `-sU`) and output formats (`-oN`, `-oX`, `-oG`) specifically. You used `-sV` and `-oN` in Tier 1's taster without reading what else was available; this time, read it.
+2. **The OWASP Top 10 project page** — the canonical primary source this curriculum's Cybersecurity track builds its whole Tier 1 "exploit and fix" module around. You don't need to re-walk that whole module here, but reading the actual OWASP page once, directly, beats any secondhand summary of it.
+3. **This curriculum's own Cybersecurity & Ethical Hacking track, Tier 1-2 material** — specifically the OWASP Top 10 guided tour and the Metasploit/Metasploitable2 section. That track is this curriculum's deepest supporting content for the security branch. Don't re-teach yourself pentesting from a random course when a dedicated track in this same curriculum already covers it in depth — go read (or work through) that material directly as your "foundational reading" for this module.
+
+### The extension: from a one-shot scan to a stateful monitoring tool
+
+Tier 1's taster had you run one scan and write one manual report. That's the floor, not a project. Real security tooling almost always needs to notice *change* — a newly opened port, a service that silently upgraded or downgraded, a service matching a known-vulnerable version. Here's `portwatch.py`: it runs an nmap scan, compares it against the last saved scan of the same target, and flags both diffs and known-vulnerable banners — including the exact vsftpd 2.3.4 finding from your Tier 1 taster report, now detected automatically instead of by eyeballing scan output.
+
+```python
+#!/usr/bin/env python3
+"""portwatch.py -- run an nmap scan against a lab target, diff it
+against the last saved scan, and flag known-vulnerable banners.
+
+Usage: python3 portwatch.py 192.168.56.102
+Run it twice against the same lab target (e.g. after stopping a
+service on Metasploitable2) to see the diff logic fire.
+"""
+import json
+import subprocess
+import sys
+import xml.etree.ElementTree as ET
+from datetime import datetime, timezone
+from pathlib import Path
+
+STATE_DIR = Path("portwatch_state")
+STATE_DIR.mkdir(exist_ok=True)
+
+# Known-vulnerable banner substrings -> what they mean. Real tools use
+# a full CVE feed; this is a small, honest starting table you extend
+# yourself in the exercise below.
+VULN_SIGNATURES = {
+    "vsftpd 2.3.4": "CVE-2011-2523 -- backdoored vsftpd, unauthenticated remote shell",
+    "Linux telnetd": "Telnet transmits credentials in plaintext -- disable in favor of SSH",
+}
+
+
+def run_scan(target: str) -> str:
+    """Run nmap -sV against target, all ports, return raw XML."""
+    result = subprocess.run(
+        ["nmap", "-sV", "-p-", "--open", "-oX", "-", target],
+        capture_output=True, text=True, check=True,
+    )
+    return result.stdout
+
+
+def parse_scan(xml_text: str) -> dict:
+    """Nmap XML -> {port: {"service": ..., "banner": ...}}."""
+    root = ET.fromstring(xml_text)
+    ports = {}
+    for host in root.findall("host"):
+        for port_el in host.findall("ports/port"):
+            portid = port_el.get("portid")
+            state = port_el.find("state").get("state")
+            if state != "open":
+                continue
+            svc = port_el.find("service")
+            service = svc.get("name", "unknown") if svc is not None else "unknown"
+            product = svc.get("product", "") if svc is not None else ""
+            version = svc.get("version", "") if svc is not None else ""
+            ports[portid] = {
+                "service": service,
+                "banner": f"{product} {version}".strip(),
+            }
+    return ports
+
+
+def state_path(target: str) -> Path:
+    safe_name = target.replace(".", "_").replace(":", "_")
+    return STATE_DIR / f"{safe_name}.json"
+
+
+def load_previous(target: str) -> dict:
+    path = state_path(target)
+    return json.loads(path.read_text()) if path.exists() else {}
+
+
+def save_current(target: str, ports: dict) -> None:
+    state_path(target).write_text(json.dumps(ports, indent=2))
+
+
+def diff_scans(old: dict, new: dict) -> dict:
+    old_ports, new_ports = set(old), set(new)
+    opened = sorted(new_ports - old_ports, key=int)
+    closed = sorted(old_ports - new_ports, key=int)
+    changed = sorted(
+        (p for p in old_ports & new_ports if old[p]["banner"] != new[p]["banner"]),
+        key=int,
+    )
+    return {"opened": opened, "closed": closed, "changed": changed}
+
+
+def flag_known_vulns(ports: dict) -> list:
+    hits = []
+    for port, info in ports.items():
+        for signature, meaning in VULN_SIGNATURES.items():
+            if signature in info["banner"] or signature in info["service"]:
+                hits.append((port, info["banner"] or info["service"], meaning))
+    return hits
+
+
+def report(target: str, old: dict, new: dict, diff: dict, vulns: list) -> None:
+    ts = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    print(f"=== portwatch report: {target} @ {ts} ===")
+
+    if not old:
+        print(f"No previous scan on file -- baseline captured ({len(new)} open ports).")
+    elif not any(diff.values()):
+        print("No changes since last scan.")
+    else:
+        for port in diff["opened"]:
+            print(f"  [NEW]     {port}/tcp now open -- {new[port]['service']} ({new[port]['banner']})")
+        for port in diff["closed"]:
+            print(f"  [CLOSED]  {port}/tcp no longer open (was {old[port]['service']})")
+        for port in diff["changed"]:
+            print(f"  [CHANGED] {port}/tcp banner: '{old[port]['banner']}' -> '{new[port]['banner']}'")
+
+    if vulns:
+        print("  --- known-vulnerable banners detected ---")
+        for port, banner, meaning in vulns:
+            print(f"  [VULN]    {port}/tcp '{banner}' -> {meaning}")
+
+
+def main():
+    if len(sys.argv) != 2:
+        print("usage: portwatch.py <target-ip>")
+        sys.exit(1)
+    target = sys.argv[1]
+
+    old_ports = load_previous(target)
+    new_ports = parse_scan(run_scan(target))
+    diff = diff_scans(old_ports, new_ports)
+    vulns = flag_known_vulns(new_ports)
+    report(target, old_ports, new_ports, diff, vulns)
+    save_current(target, new_ports)
+
+
+if __name__ == "__main__":
+    main()
+```
+
+Run it against your Tier 1 lab target twice. First run:
+
+```bash
+python3 portwatch.py 192.168.56.102
+```
+
+```text
+=== portwatch report: 192.168.56.102 @ 2026-10-03T14:02:11+00:00 ===
+No previous scan on file -- baseline captured (5 open ports).
+  --- known-vulnerable banners detected ---
+  [VULN]    21/tcp 'vsftpd 2.3.4' -> CVE-2011-2523 -- backdoored vsftpd, unauthenticated remote shell
+  [VULN]    23/tcp 'Linux telnetd' -> Telnet transmits credentials in plaintext -- disable in favor of SSH
+```
+
+Now stop one service on the lab VM (e.g. `service telnetd stop`) and run it again:
+
+```text
+=== portwatch report: 192.168.56.102 @ 2026-10-03T14:11:47+00:00 ===
+  [CLOSED]  23/tcp no longer open (was telnet)
+  --- known-vulnerable banners detected ---
+  [VULN]    21/tcp 'vsftpd 2.3.4' -> CVE-2011-2523 -- backdoored vsftpd, unauthenticated remote shell
+```
+
+That's the real deliverable difference from Tier 1: instead of a human eyeballing a scan once, the tool now tracks state across runs and automatically surfaces exactly the finding your Tier 1 report had to write out by hand. Push this to your Base Camp repo using Tier 0's Open-Source Etiquette module patterns directly: a README with the problem/why/quick-start structure from that lesson, an MIT or Apache-2.0 license (this is a utility you'd want adopted frictionlessly, so default to MIT unless you have a specific reason not to), and a `.gitignore` for `portwatch_state/` since scan state shouldn't ship with the repo.
+
+## Applying the same pattern if you picked a different branch
+
+Nothing above is security-specific in structure — only in content. If your Tier 1 ranking pointed somewhere else, repeat exactly the same four steps against your own row in the table above: read that branch's real primary docs for 60-90 minutes (not a course that summarizes them), pick one deliberate extension to your Tier 1 taster exercise that requires new logic, timebox the build to about 4 hours, and ship it to your Base Camp repo with the same README/license treatment. The security branch gets the full worked walkthrough here because this curriculum's Cybersecurity track backs it with the most depth — it is not a signal that security is the "default" or "correct" choice.
+
+## Exercise
+
+Do one of these two, depending on your branch:
+
+**If you're on the security lean:** Extend `VULN_SIGNATURES` with two more real entries pulled from your own Tier 1 scan output or from searching the actual service/version strings you found against the NVD (`nvd.nist.gov`). Then add one more diff category to the tool: a port whose `service` name changed but whose version string is blank both times (a reasonably common real signal that a service was swapped, worth a distinct flag from a pure version bump).
+
+**Hint, not a solution:** Your existing `changed` detection in `diff_scans` already compares `banner` strings — you need a second comparison that looks specifically at `info["service"]` instead of `info["banner"]`, and should fire even when `banner` is identical (e.g. both blank). Add it as a new key in the dict `diff_scans` returns, and give it its own print branch in `report`, mirroring how `changed` already works.
+
+**If you're on a different branch:** Write out, in a short markdown note in your own words, your branch's row from the pattern table filled in with specifics (which exact docs page or manual section you'll read, and what exact one-step extension you'll build on top of your Tier 1 taster exercise). Then build it, following the same 8-hour timebox split from Step 4.
+
+Either way, the output of this module is a small, shipped, slightly-past-tutorial project in your chosen branch, sitting in your Base Camp repo — the first concrete evidence, beyond a ranked list, that your Tier 1 lean was the right call. It feeds directly into this tier's DS&A Practice Sprint and Open Source 101 modules, and becomes raw material for Cross-Track Capstone #2.

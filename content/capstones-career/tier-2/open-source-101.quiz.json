@@ -1,0 +1,98 @@
+[
+  {
+    "id": "capstones-career/tier-2/open-source-101/q1",
+    "type": "multiple_choice",
+    "prompt": "A project's CONTRIBUTING.md says new feature requests must first be discussed on a community forum before any GitHub issue is opened. An issue titled 'Add per-model configurable caching' was opened directly on GitHub with no prior forum discussion. What does this tell you about that issue, even if it's labeled 'good first issue'?",
+    "choices": [
+      "Nothing \u2014 labels always override the general CONTRIBUTING.md process",
+      "It was filed against the project's own stated process, which is itself a red flag for whether it's actually ready to be worked on",
+      "It means the issue is higher priority than normal bug reports",
+      "It means the maintainers have already approved the feature design"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-2/open-source-101/q2",
+    "type": "multiple_choice",
+    "prompt": "A repo's CODE_OF_CONDUCT.md file is only three lines long and just links to an external page on the organization's website. What's the correct read of this?",
+    "choices": [
+      "The project doesn't really enforce a code of conduct",
+      "This is a common pattern on large projects \u2014 the real policy lives on an org-wide page so it can be updated once instead of per-repo, and it still functions as an enforced floor on behavior",
+      "The file is broken and should be reported as a bug",
+      "Code of conduct files are purely decorative and can be ignored either way"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-2/open-source-101/q3",
+    "type": "multiple_choice",
+    "prompt": "An issue template's config.yml contains `blank_issues_enabled: false`. What does this actually do?",
+    "choices": [
+      "It closes all currently open issues automatically",
+      "It removes the option to open a freeform/blank issue, forcing every new issue through one of the defined templates",
+      "It prevents maintainers from commenting on issues",
+      "It disables issue creation entirely until a maintainer re-enables it"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-2/open-source-101/q4",
+    "type": "multiple_choice",
+    "prompt": "In the fork -> branch -> PR workflow, what is the correct purpose of adding a remote named `upstream`?",
+    "choices": [
+      "`upstream` is where you push your own branches for review",
+      "`upstream` points at the original project so you can fetch its latest `main` and branch from it, while `origin` stays your own fork that you push to",
+      "`upstream` and `origin` are two names for the exact same remote and either can be used interchangeably",
+      "`upstream` is only needed after your PR has already been merged"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-2/open-source-101/q5",
+    "type": "multiple_choice",
+    "prompt": "A reviewer asks for a change on your open pull request. What's the correct way to respond in git, and why?",
+    "choices": [
+      "Force-push a rewritten, amended commit over the one they reviewed, since it keeps history clean",
+      "Close the PR and open a brand new one with the fix included from the start",
+      "Add a new commit addressing the feedback and push it normally \u2014 this keeps the reviewer's existing comments attached to the code they were made on, instead of orphaning them",
+      "Ask the reviewer to make the change themselves since they found the issue"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "capstones-career/tier-2/open-source-101/q6",
+    "type": "multiple_choice",
+    "prompt": "Which single signal is the strongest warning sign that a 'good first issue'-labeled issue is actually a trap?",
+    "choices": [
+      "The issue has a clear, specific file and line referenced",
+      "A maintainer commented within the last month confirming it's still valid",
+      "The issue has had no activity in over a year, or 15+ comments with unresolved disagreement about what the fix should even be",
+      "The issue is unassigned with no linked pull request"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "capstones-career/tier-2/open-source-101/q7",
+    "type": "multiple_choice",
+    "prompt": "A maintainer leaves a blunt review comment pointing out a missing regression test and an undocumented breaking change, with no softening language. What is the professional, non-defensive response?",
+    "choices": [
+      "Argue that the original code also had this problem, so it isn't really your fault",
+      "Go silent for a couple of weeks until the discomfort passes",
+      "Address each concrete point directly: add the test, document the breaking change, and say so clearly, citing what was actually changed",
+      "Close the pull request rather than deal with the feedback"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "capstones-career/tier-2/open-source-101/q8",
+    "type": "multiple_choice",
+    "prompt": "After a maintainer merges your pull request (commonly via squash merge), what should you do with your fork and local branch before starting new work?",
+    "choices": [
+      "Leave everything as-is indefinitely; it has no effect on future contributions",
+      "Delete your entire fork and re-fork the project from scratch",
+      "Pull the real project's updated main into your fork's main, push that to origin, and delete the now-merged feature branch both locally and on your fork",
+      "Force-push your feature branch's history onto the upstream project's main branch"
+    ],
+    "correctIndex": 2
+  }
+]

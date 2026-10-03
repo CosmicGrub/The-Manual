@@ -1,0 +1,98 @@
+[
+  {
+    "id": "capstones-career/tier-2/dsa-practice-sprint-1/q1",
+    "type": "multiple_choice",
+    "prompt": "Which sorting algorithm from the comparison table has a guaranteed O(n log n) time complexity even in the worst case?",
+    "choices": [
+      "Bubble sort",
+      "Quicksort",
+      "Merge sort",
+      "Insertion sort"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "capstones-career/tier-2/dsa-practice-sprint-1/q2",
+    "type": "multiple_choice",
+    "prompt": "Why can quicksort degrade to O(n^2) in the worst case?",
+    "choices": [
+      "It is not a stable sort",
+      "A poorly chosen pivot can split the array into one huge partition and one empty partition, over and over",
+      "It uses more memory than merge sort",
+      "It cannot be implemented recursively"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-2/dsa-practice-sprint-1/q3",
+    "type": "multiple_choice",
+    "prompt": "What does it mean for a sorting algorithm to be 'stable'?",
+    "choices": [
+      "It never uses more than O(1) extra memory",
+      "It always runs in O(n log n) regardless of input",
+      "Elements that compare as equal keep their original relative order after sorting",
+      "It sorts the array in place without creating new arrays"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "capstones-career/tier-2/dsa-practice-sprint-1/q4",
+    "type": "multiple_choice",
+    "prompt": "In the merge sort trace, merging the two sorted halves [2, 5] and [1, 4] produces which final result?",
+    "choices": [
+      "[1, 2, 4, 5]",
+      "[2, 5, 1, 4]",
+      "[1, 4, 2, 5]",
+      "[5, 4, 2, 1]"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "capstones-career/tier-2/dsa-practice-sprint-1/q5",
+    "type": "multiple_choice",
+    "prompt": "What precondition does binary search require that linear search does not?",
+    "choices": [
+      "The array must be sorted",
+      "The array must contain only unique values",
+      "The array must have an even number of elements",
+      "The array must be stored as a linked list"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "capstones-career/tier-2/dsa-practice-sprint-1/q6",
+    "type": "multiple_choice",
+    "prompt": "In the traced call `factorial(4)`, why can't `factorial(4)` compute its final return value before `factorial(3)` returns?",
+    "choices": [
+      "factorial(4)'s result is `4 * factorial(3)`, so the multiplication needs factorial(3)'s actual return value first",
+      "Python always executes the first line of a function before any recursive call",
+      "factorial(4) and factorial(3) run at the same time, so order doesn't matter",
+      "factorial(3) must finish first only because of how print statements are ordered"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "capstones-career/tier-2/dsa-practice-sprint-1/q7",
+    "type": "multiple_choice",
+    "prompt": "Why is a stack, not a queue, the natural data structure for checking whether brackets in an expression are balanced?",
+    "choices": [
+      "Stacks are implemented faster in most languages",
+      "A closing bracket must match the most recently opened, still-unmatched bracket, which is exactly what last-in-first-out gives you",
+      "Queues cannot store characters",
+      "Balanced-bracket checking requires sorting the brackets first"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-2/dsa-practice-sprint-1/q8",
+    "type": "multiple_choice",
+    "prompt": "Why does the Queue implementation use `collections.deque` instead of a plain Python list for dequeuing?",
+    "choices": [
+      "list.pop(0) is O(n) because every remaining element has to shift, while deque.popleft() is O(1)",
+      "Lists cannot store strings or custom objects",
+      "deque is the only type in Python that can be iterated over",
+      "list.pop(0) raises an error on a non-empty list but deque.popleft() never does"
+    ],
+    "correctIndex": 0
+  }
+]
