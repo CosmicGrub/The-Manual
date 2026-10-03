@@ -1,0 +1,98 @@
+[
+  {
+    "id": "capstones-career/tier-1/specialization-taster-sampler/q1",
+    "type": "multiple_choice",
+    "prompt": "In the nmap command `nmap -sV -p- --open -oN scan_results.txt 192.168.56.102`, what does the -sV flag specifically do?",
+    "choices": [
+      "Scans all 65535 ports instead of the top 1000",
+      "Probes open ports to detect the service and version running on each",
+      "Writes the scan output to a normal-format log file",
+      "Hides closed and filtered ports from the results"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-1/specialization-taster-sampler/q2",
+    "type": "multiple_choice",
+    "prompt": "In the messy-CSV exercise, why does the cleanup code use dateutil.parser.parse per cell instead of a single pd.to_datetime(format=...) call?",
+    "choices": [
+      "It runs faster on large files",
+      "The dates in the column appear in several different formats, so no single fixed format string would parse them all",
+      "pd.to_datetime cannot handle missing values",
+      "dateutil automatically fixes typos in dates"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-1/specialization-taster-sampler/q3",
+    "type": "multiple_choice",
+    "prompt": "In the Wokwi robotics example, what does myServo.attach(9) accomplish in the Arduino sketch?",
+    "choices": [
+      "It sets the servo's rotation speed to 9 degrees per second",
+      "It associates the Servo object with pin 9 so write() commands send PWM signals there",
+      "It wires pin 9 to the LED instead of the servo",
+      "It schedules the servo to move after a 9 millisecond delay"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-1/specialization-taster-sampler/q4",
+    "type": "multiple_choice",
+    "prompt": "In the Godot GDScript example, what directly causes the sprite to start moving?",
+    "choices": [
+      "The _ready() function runs once at scene load",
+      "Input.is_action_pressed(\"ui_right\") returning true inside _physics_process",
+      "The @export var speed changing at runtime",
+      "move_and_slide() being called with no velocity set"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-1/specialization-taster-sampler/q5",
+    "type": "multiple_choice",
+    "prompt": "When you call classifier(text) using the transformers sentiment-analysis pipeline, what does it return?",
+    "choices": [
+      "A single float representing the model's confidence",
+      "A list containing a dictionary with a 'label' and a 'score'",
+      "The raw token IDs fed into the model",
+      "A plain string, either \"positive\" or \"negative\""
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-1/specialization-taster-sampler/q6",
+    "type": "multiple_choice",
+    "prompt": "In the tiny bytecode interpreter's run() function, what data structure holds intermediate values while PUSH, ADD, and SUB instructions execute?",
+    "choices": [
+      "A queue, so instructions execute in first-in-first-out order",
+      "A binary tree built from the tokens",
+      "A stack, which the PUSH, ADD, and SUB opcodes push to and pop from",
+      "A hash map keyed by instruction index"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "capstones-career/tier-1/specialization-taster-sampler/q7",
+    "type": "multiple_choice",
+    "prompt": "Why can't you add a MUL opcode to the calculator interpreter the same simple way SUB was added next to ADD?",
+    "choices": [
+      "Python's re module cannot tokenize the '*' character",
+      "The stack-based run() VM has no opcode slot available for a third operation",
+      "Left-to-right compilation has no notion of operator precedence, so '2 + 3 * 4' would wrongly compile as (2 + 3) * 4",
+      "Multiplication requires floating-point numbers, which the tokenizer does not support"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "capstones-career/tier-1/specialization-taster-sampler/q8",
+    "type": "multiple_choice",
+    "prompt": "What is the actual purpose of the Specialization Taster Sampler module within this track?",
+    "choices": [
+      "To fully teach all six specializations in depth before Tier 2 begins",
+      "To replace the dedicated Cybersecurity, Data Engineering, and other specialization tracks entirely",
+      "To give hands-on, runnable experience in all six branches so the Tier 2 lean decision is based on real doing rather than guessing from descriptions",
+      "To test which branch the learner is worst at, so Tier 2 can assign remedial work"
+    ],
+    "correctIndex": 2
+  }
+]

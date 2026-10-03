@@ -1,0 +1,266 @@
+---
+trackId: capstones-career
+tier: 1
+title: "Cross-Track Capstone #1"
+order: 1
+estimatedHours: 6
+slug: cross-track-capstone-1
+---
+
+## What "capstone" means at this stage
+
+A capstone here does not mean a portfolio-grade masterpiece. It means: you picked a real idea, cut it down until it fit in the time you actually have, wrote real code against it, tested that code, and shipped something that runs from start to finish without you babysitting it. That's the whole skill this module is teaching — not habit trackers, not Python syntax. Scoping, building, testing, shipping, in one week, for real.
+
+This is also the first time in the curriculum you'll combine two different threads at once: the light DS&A intuition you're building in this track's own interview-prep thread, and the Tier 1 syntax of whatever language you picked first. If you want the deep, rigorous version of data structures and algorithms — asymptotic analysis, proofs, the classic 200-problem grind — that lives in the **CS Foundations track**. What you need here is much smaller: lists, dictionaries, loops, and enough comfort with them to write a program that does something useful to you personally.
+
+## Step 1: Scope it down (the part everyone skips)
+
+Here's the ambitious version of an idea, the kind you'd pitch if nothing constrained you:
+
+> "A habit tracker app with daily reminders, streak badges, a calendar heatmap, charts of your progress over time, multi-user accounts with login, cloud sync across devices, and a mobile app."
+
+That's a six-month team project, not a one-week solo v1. Scoping is the skill of finding the smallest slice of that idea that still does something real and finishing *that*. The process is mechanical: list every feature, then sort each one into "core" or "cut."
+
+| Feature | Core or cut? | Why |
+|---|---|---|
+| Mark a habit done today | Core | This is the entire point of the app |
+| See your current streak | Core | Without feedback, there's no reason to use it |
+| Store data between runs | Core | "Runs end to end" requires persistence |
+| Daily reminder notifications | Cut | Needs a scheduler/OS integration — a whole project on its own |
+| Charts / calendar heatmap | Cut | Needs a plotting or GUI library you haven't learned yet |
+| Multi-user accounts + login | Cut | Needs auth, which is its own multi-week topic later in this curriculum |
+| Cloud sync | Cut | Needs a backend and a database — not this week |
+| Mobile app | Cut | Wrong platform entirely for a week-one capstone |
+
+What's left after cutting: **a command-line program, for one user, that can add a habit, log it done for today, and show your current streak, with data saved to a local file so it survives between runs.** That's small enough to build in a week and big enough to actually be useful. Every capstone you scope — in this track or any other — should go through this exact table exercise before you write a line of code.
+
+If you haven't done the Tier 0 README module yet, go do that first. This capstone's definition of done assumes you can write a short, clear README; that skill isn't being re-taught here.
+
+## Step 2: Build it — a real CLI habit tracker
+
+Here's the full v1, in Python, roughly 70 lines, no pseudocode:
+
+```python
+#!/usr/bin/env python3
+"""habit.py -- a tiny CLI habit tracker. Data lives in habits.json next to this file."""
+import argparse
+import json
+import sys
+from datetime import date, timedelta
+from pathlib import Path
+
+DATA_FILE = Path(__file__).parent / "habits.json"
+
+
+def load_data():
+    if not DATA_FILE.exists():
+        return {}
+    with open(DATA_FILE, "r") as f:
+        return json.load(f)
+
+
+def save_data(data):
+    with open(DATA_FILE, "w") as f:
+        json.dump(data, f, indent=2)
+
+
+def cmd_add(args):
+    data = load_data()
+    if args.name in data:
+        print(f"'{args.name}' already exists.")
+        return
+    data[args.name] = []
+    save_data(data)
+    print(f"Added habit: {args.name}")
+
+
+def cmd_log(args):
+    data = load_data()
+    if args.name not in data:
+        print(f"No such habit: {args.name}. Add it first with 'add'.")
+        sys.exit(1)
+    today = date.today().isoformat()
+    if today in data[args.name]:
+        print(f"Already logged '{args.name}' today.")
+        return
+    data[args.name].append(today)
+    save_data(data)
+    print(f"Logged {args.name} for {today}")
+
+
+def current_streak(dates):
+    if not dates:
+        return 0
+    days = sorted(date.fromisoformat(d) for d in dates)
+    today = date.today()
+    if days[-1] not in (today, today - timedelta(days=1)):
+        return 0
+    streak = 1
+    for i in range(len(days) - 1, 0, -1):
+        if days[i] - days[i - 1] == timedelta(days=1):
+            streak += 1
+        else:
+            break
+    return streak
+
+
+def cmd_list(args):
+    data = load_data()
+    if not data:
+        print("No habits yet.")
+        return
+    for name, dates in data.items():
+        print(f"{name}: {len(dates)} check-ins, current streak = {current_streak(dates)}")
+
+
+def main():
+    parser = argparse.ArgumentParser(prog="habit")
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    p_add = sub.add_parser("add")
+    p_add.add_argument("name")
+    p_add.set_defaults(func=cmd_add)
+
+    p_log = sub.add_parser("log")
+    p_log.add_argument("name")
+    p_log.set_defaults(func=cmd_log)
+
+    p_list = sub.add_parser("list")
+    p_list.set_defaults(func=cmd_list)
+
+    args = parser.parse_args()
+    args.func(args)
+
+
+if __name__ == "__main__":
+    main()
+```
+
+A sample session:
+
+```bash
+$ python habit.py add reading
+Added habit: reading
+$ python habit.py log reading
+Logged reading for 2026-10-03
+$ python habit.py log reading
+Already logged 'reading' today.
+$ python habit.py list
+reading: 1 check-ins, current streak = 1
+```
+
+Notice where the CS Foundations Tier 1 intuition actually shows up: `data` is a dictionary (hash map) keyed by habit name, each value is a list (dynamic array) of date strings, and `current_streak` is a plain linear scan — sort once, then walk backward comparing adjacent elements. That's the whole algorithm: no recursion, no tree, no graph. If you've done this track's light DS&A primer, this is exactly the "arrays, hash maps, and a single pass" category of problem it's preparing you for. If this felt shaky, that's a sign to slow down on the primer before layering harder material on top — and if you want to go deeper into *why* a hash map lookup is O(1) or how sorting algorithms differ, that rigor lives in CS Foundations, not here.
+
+## Step 3: Test what you built
+
+You don't need a testing framework's full feature set this week — you need proof that the two things most likely to silently break (duplicate same-day logging, and the streak math) actually work. Using `pytest`:
+
+```python
+# test_habit.py
+from datetime import date, timedelta
+import pytest
+import habit
+
+
+class Args:
+    def __init__(self, name):
+        self.name = name
+
+
+def test_add_then_load_roundtrips(tmp_path, monkeypatch):
+    monkeypatch.setattr(habit, "DATA_FILE", tmp_path / "habits.json")
+    data = habit.load_data()
+    assert data == {}
+    data["reading"] = []
+    habit.save_data(data)
+    assert habit.load_data() == {"reading": []}
+
+
+def test_log_does_not_duplicate_same_day(tmp_path, monkeypatch):
+    monkeypatch.setattr(habit, "DATA_FILE", tmp_path / "habits.json")
+    habit.save_data({"reading": []})
+    habit.cmd_log(Args("reading"))
+    habit.cmd_log(Args("reading"))  # called twice on purpose
+    assert len(habit.load_data()["reading"]) == 1
+
+
+def test_log_unknown_habit_exits(tmp_path, monkeypatch):
+    monkeypatch.setattr(habit, "DATA_FILE", tmp_path / "habits.json")
+    habit.save_data({})
+    with pytest.raises(SystemExit):
+        habit.cmd_log(Args("nonexistent"))
+
+
+def test_streak_counts_consecutive_days():
+    today = date.today()
+    dates = [(today - timedelta(days=i)).isoformat() for i in range(3)]
+    assert habit.current_streak(dates) == 3
+
+
+def test_streak_is_zero_once_broken():
+    today = date.today()
+    dates = [(today - timedelta(days=5)).isoformat()]
+    assert habit.current_streak(dates) == 0
+```
+
+Run it:
+
+```bash
+$ pytest -q
+5 passed in 0.03s
+```
+
+Two things to notice. First, `monkeypatch.setattr(habit, "DATA_FILE", ...)` is what makes these tests safe — each test writes to a throwaway file in `tmp_path`, never your real `habits.json`, so tests can't corrupt your actual data and don't depend on leftover state from a previous run. Second, the tests aren't exhaustive — they target the two spots where a naive implementation is most likely to lie to you: "did logging twice break anything?" and "does the streak math actually reset when a day is missed?" That targeted instinct — test the thing most likely to be wrong, not every possible input — is the right amount of testing for a one-week v1.
+
+## Step 4: Ship it — a real definition of done
+
+"Done" for a small v1 is not a feeling, it's a checklist you can run through literally:
+
+```text
+[ ] `python habit.py add X` creates a new habit and is a no-op if it already exists
+[ ] `python habit.py log X` records today once, and running it twice in a day doesn't duplicate
+[ ] `python habit.py log X` on a habit that doesn't exist fails with a clear message, not a crash trace
+[ ] `python habit.py list` shows every habit's check-in count and current streak
+[ ] `pytest` passes, zero failures, on a clean checkout
+[ ] Deleting habits.json and re-running from scratch doesn't error
+[ ] The project runs on a fresh clone with no hardcoded absolute paths
+[ ] A README exists with: what it does, how to install/run it, and one real sample session
+[ ] Code is pushed to a public GitHub repo
+```
+
+That last two matter more than they look like they should. "Finished" means someone else — or you, in six months — can clone the repo cold and get it running without asking you anything. A real README excerpt for this project looks like this:
+
+```text
+# habit-cli
+
+A command-line habit tracker. Data is stored locally in habits.json.
+
+## Usage
+
+    python habit.py add <name>      # create a new habit
+    python habit.py log <name>      # mark it done for today
+    python habit.py list            # show all habits and current streaks
+
+## Example
+
+    $ python habit.py add reading
+    Added habit: reading
+    $ python habit.py log reading
+    Logged reading for 2026-10-03
+    $ python habit.py list
+    reading: 1 check-ins, current streak = 1
+
+## Tests
+
+    pytest
+```
+
+Nothing fancy. It just has to be true and complete.
+
+## Exercise
+
+Extend `habit.py` with a `stats` command: `python habit.py stats reading` should print the **longest streak ever achieved**, not just the current one (so a habit you kept for 10 days, broke, then restarted for 2 days should report a best streak of 10, even though the current streak is only 2).
+
+Hint: you already have the hard part. Sort the dates once, then do a single forward pass keeping two running numbers — the current run length and the best run length seen so far. Every time the gap between consecutive sorted days is exactly one day, extend the current run and update the best if it's bigger; every time the gap is more than one day, the run has broken, so reset the current run back to 1 and keep going. No new data structure needed — it's the same linear-scan pattern as `current_streak`, just tracking a maximum instead of only the tail end.
+
+Add at least one test for it before you call it done — reuse the same `monkeypatch` pattern from the test suite above.

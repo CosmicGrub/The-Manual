@@ -1,0 +1,159 @@
+---
+trackId: capstones-career
+tier: 1
+title: "DS&A Foundations Primer"
+order: 2
+estimatedHours: 6
+slug: dsa-foundations-primer
+---
+
+## Not a re-teach — a primer for this track's interview thread
+
+This curriculum has a separate **CS Foundations** track with a full data-structures-and-algorithms module: real proofs, amortized analysis, the works. If you want the deep version — recurrence relations, formal complexity proofs, a tour of every classic structure — go do that track. This module is not that.
+
+This is a 6-hour primer with one job: give you enough intuition about *why* some code is fast and some is slow that you can (a) reason about performance in the capstone project you're about to ship, and (b) survive the screening-level "what's the Big-O of this" questions that show up in this track's own interview-prep thread later. No proofs. Just mechanism and real numbers.
+
+## Arrays: indexing is free, inserting at the front isn't
+
+An array (a Python `list`, under the hood) stores its elements back-to-back in memory. To read `arr[i]`, the computer doesn't search for anything — it computes an address directly:
+
+```
+address_of(arr[i]) = base_address + i * element_size
+```
+
+That's one multiplication and one addition, every time, regardless of whether the array has 10 elements or 10 million. That's what "O(1)" means here: constant work, independent of size.
+
+Now insert an element at the *front* of that same array. Every single existing element has to shift one slot to the right first, to make room. If there are `n` elements, that's `n` moves.
+
+```python
+import time
+
+n = 2_000_000
+arr = list(range(n))
+
+start = time.perf_counter()
+arr.append(-1)              # cheap: O(1), just writes to the next free slot
+print(f"append:    {time.perf_counter() - start:.6f}s")
+
+start = time.perf_counter()
+arr.insert(0, -1)           # expensive: O(n), shifts all 2,000,000 elements
+print(f"insert(0):  {time.perf_counter() - start:.6f}s")
+```
+
+On a typical laptop this prints something like `append: 0.000001s` and `insert(0): 0.011000s` — roughly four orders of magnitude slower, and that gap only widens as `n` grows, because `append` stays flat while `insert(0)` scales linearly with array size.
+
+Strings behave the same way, because they're also contiguous and (in Python, Java, and most languages) *immutable*. Each `+=` on a string doesn't modify it in place — it allocates a brand-new string and copies everything into it:
+
+```python
+# O(n^2) total: each += copies the ENTIRE string built so far
+def build_expensive(n):
+    s = ""
+    for i in range(n):
+        s += "x"
+    return s
+
+# O(n) total: list append is O(1), join happens once at the end
+def build_cheap(n):
+    parts = []
+    for i in range(n):
+        parts.append("x")
+    return "".join(parts)
+```
+
+For `n = 100,000`, `build_expensive` copies roughly `1 + 2 + 3 + ... + 100,000 ≈ 5 billion` characters in total, because each of the 100,000 iterations re-copies a string that's gotten a little longer. `build_cheap` does 100,000 constant-time appends plus one final join. On a real machine, `build_expensive(100_000)` takes seconds; `build_cheap(100_000)` takes single-digit milliseconds.
+
+## Hash maps: why they're fast
+
+Say you have 1,000,000 user records and need to find the one with `id == 999_999`.
+
+```python
+users = [{"id": i, "name": f"user{i}"} for i in range(1_000_000)]
+
+def find_linear(users, target_id):
+    for u in users:                 # checks records one by one
+        if u["id"] == target_id:
+            return u
+    return None
+
+users_by_id = {u["id"]: u for u in users}
+
+def find_hash(users_by_id, target_id):
+    return users_by_id.get(target_id)
+```
+
+`find_linear` on a target near the end checks close to all 1,000,000 records — that's O(n). `find_hash` does the same lookup in roughly constant time no matter how many users there are. Timed on a real list of this size, `find_linear` takes tens of milliseconds while `find_hash` takes microseconds — a 100x-plus gap that gets *worse*, not better, as the dataset grows.
+
+The mechanism, concretely: a dict runs your key through a **hash function**, which turns it into a big integer (`hash(999_999)` in Python). That integer gets reduced (typically with a modulo) to an index into a fixed-size internal array of buckets. The dict then jumps straight to that bucket and looks there — no scanning the other 999,999 entries at all. (If two keys land in the same bucket — a "collision" — the dict checks the handful of entries in that one bucket, which is still effectively constant work as long as the table isn't overloaded.) That's the whole trick: trade a cheap arithmetic computation for an expensive linear scan.
+
+## Big-O intuition, not proofs yet
+
+Here's the same task written two ways — check whether a list has any duplicate value:
+
+```python
+# O(n^2): every element is compared against every other element
+def has_duplicate_slow(nums):
+    for i in range(len(nums)):
+        for j in range(len(nums)):
+            if i != j and nums[i] == nums[j]:
+                return True
+    return False
+
+# O(n): one pass, a set remembers what's already been seen
+def has_duplicate_fast(nums):
+    seen = set()
+    for num in nums:
+        if num in seen:          # O(1) hash lookup, from the section above
+            return True
+        seen.add(num)
+    return False
+```
+
+At `n = 1,000`, `has_duplicate_slow` does about 1,000,000 comparisons and `has_duplicate_fast` does about 1,000 operations. Both finish instantly — the difference is invisible on small input, which is exactly why this bug hides in code that "works fine" in testing.
+
+At `n = 100,000`, `has_duplicate_slow` does roughly `100,000 * 100,000 = 10,000,000,000` comparisons. On a laptop doing on the order of 100 million simple operations per second, that's close to two minutes. `has_duplicate_fast` still does about 100,000 operations — still effectively instant. Multiplying the input by 100x multiplied the slow version's work by 10,000x (100x squared), while the fast version's work only multiplied by 100x. That squared-versus-linear gap is the entire reason Big-O matters in practice: it's invisible at demo scale and catastrophic at production scale.
+
+## Reading a function and estimating its complexity
+
+You don't need a formal proof to size up a function — you need to spot which loops scale with the input and how they're nested. Walk through this one:
+
+```python
+def count_pairs_with_sum(nums, target):
+    count = 0
+    for i in range(len(nums)):              # runs n times
+        for j in range(i + 1, len(nums)):   # runs up to n times, for each i
+            if nums[i] + nums[j] == target:
+                count += 1
+    return count
+```
+
+- The outer loop runs `n` times, once per index `i`.
+- For each of those `n` outer iterations, the inner loop runs up to `n` more times (slightly fewer each time, since it starts at `i + 1`, but still proportional to `n`).
+- Total work is on the order of `n * n / 2`, which is `n^2` once you drop the constant factor of `1/2` — Big-O only cares about how work *grows*, not the exact count.
+- **Estimate: O(n^2).**
+
+The general heuristic: count how many loops are nested *and* each scale with the input size. One loop over `n` elements → O(n). A loop inside a loop, both scaling with `n` → O(n^2). A loop that keeps cutting the remaining work in half each pass (like binary search) → O(log n). A single pass that does a constant amount of work per element, like `has_duplicate_fast` above, → O(n) even though it has an `if` and a `.add()` call inside — those are O(1) each, so they don't change the growth rate.
+
+## Exercise: find and fix the hidden O(n^2)
+
+This function removes duplicates from a list while keeping the original order:
+
+```python
+def dedupe(nums):
+    result = []
+    for num in nums:
+        if num not in result:   # <-- look closely at this line
+            result.append(num)
+    return result
+```
+
+It's correct. It's also quietly O(n^2) in the worst case (e.g., a list that's already all-unique, like `list(range(50_000))`).
+
+**Your task:** explain why the `num not in result` check is the problem (walk through what `in` has to do on a list, the same way `find_linear` worked above), then rewrite `dedupe` so it runs in O(n).
+
+**Hint:** you need two things tracking state as you go — the `result` list (to preserve order) and something that answers "have I seen this value before?" in O(1) instead of O(n). You already met the data structure that does that earlier in this module.
+
+Try it before moving on — the interview-prep thread later in this track will assume you can spot this pattern on sight, not just recognize it after being shown.
+
+## Where this intuition goes next
+
+Nothing here was proven — it was demonstrated with real timings and real growth numbers, which is enough to catch the obvious performance traps in your own code and to talk through a whiteboard question without freezing. When a capstone or an interview needs the real machinery — proving tight bounds, amortized analysis across a sequence of operations, picking the right structure for a graph or tree problem — that's the CS Foundations track's job, not this one's. Come back to *this* primer's intuition when this track's interview-prep thread asks you to turn it into actual rehearsed answers.

@@ -1,0 +1,157 @@
+---
+trackId: capstones-career
+tier: 1
+title: "Writing Project Narratives"
+order: 4
+estimatedHours: 3
+slug: writing-project-narratives
+---
+
+## Why this module exists
+
+You've now got a project worth showing someone. That's the easy part. The hard part: a stranger — a hiring manager skimming forty tabs, a maintainer deciding whether to star your repo, a teammate deciding whether to trust your PR — gives your README somewhere between 15 and 30 seconds before deciding whether you built something real. CS Foundations doesn't teach this; it's not a data structure. This track's own Tier 0 module (`open-source-etiquette-and-licensing`) already showed you the first move — the "one screen to sell the project" rewrite, from a vague `rowcheck` README to a specific one. This module builds on that directly, extends it into a full project writeup, and adds the two things a single screen can't carry: proof the thing actually runs, and the discipline to stop short of oversell.
+
+## The four-part structure: Problem, Solution, Architecture, Demo
+
+A README that only states what a project does reads like a tutorial. A README that also states the problem, the architecture, and proof it runs reads like an engineer's work. Here's the structure, applied to a real small project you could build this tier: `prune-branches`, a CLI that finds git branches already merged into `main` and safe to delete.
+
+```markdown
+# prune-branches
+
+## Problem
+
+A repo that's six months old accumulates branches nobody deletes.
+`git branch -a` on a mid-size team repo easily returns 80+ branches,
+and maybe four of them are still active. Finding the dead ones means
+opening each one and checking manually — tedious enough that most
+people just never do it, and `git branch -a` stops meaning anything.
+
+## Solution
+
+`prune-branches` walks every local and remote branch, checks whether
+it's fully merged into `main`, and flags it as a deletion candidate if
+it's merged AND its last commit is older than `--days` (default 30).
+You review one printed list and confirm once; it deletes everything
+you approved in a single pass.
+
+    pip install prune-branches
+    prune-branches scan --days 30
+
+## Architecture
+
+Three pieces, no dependencies beyond the `git` CLI:
+
+- `scan.py` — shells out to `git for-each-ref`, builds a list of
+  (branch, last-commit-date, is-merged-into-main) tuples.
+- `rules.py` — pure function: given that list and a `--days` threshold,
+  returns which branches are safe to delete. No side effects, so it's
+  unit-tested without touching a real repo.
+- `cli.py` — prints the candidate list, prompts y/n once, then calls
+  `git branch -d` (or `-D` with `--force`) for each approved branch.
+
+      scan.py --> rules.py --> cli.py --> git branch -d
+
+## Demo
+
+![prune-branches finding and deleting 6 stale branches](demo.gif)
+
+## License
+
+MIT
+```
+
+Notice what each section is *for*. Problem earns the reader's attention by naming a pain they recognize. Solution states the mechanism in one paragraph, not a feature list. Architecture is not the source code — it's the shape: three files, one direction of data flow, each with a one-line reason to exist. Demo is proof, which section 3 below covers. Four sections, each doing one job, none repeating another.
+
+Here's the actual logic behind that "pure function" claim in `rules.py`, because "architecture" promises should be checkable:
+
+```python
+# rules.py
+from datetime import datetime, timedelta
+
+def find_candidates(branches, days=30, now=None):
+    """branches: list of dicts with 'name', 'last_commit', 'merged' keys.
+    Returns names of branches merged into main AND stale past `days`."""
+    now = now or datetime.now()
+    cutoff = now - timedelta(days=days)
+    return [
+        b["name"] for b in branches
+        if b["merged"] and b["last_commit"] < cutoff
+    ]
+```
+
+A reader who doubts your architecture section can check it against this in ten seconds. That agreement between the prose and the code is what makes the Architecture section trustworthy instead of decorative.
+
+## Writing for a stranger who has 30 seconds
+
+Tier 0 already walked through this exact move on `rowcheck`: a vague first screen ("A tool for doing things with data") versus a specific one that states what, why, and how to run it, all before any scrolling. The lesson generalizes: **no matter how good your full README is, if the first screen fails the 30-second test, nobody reaches the rest of it.**
+
+The four-part README above is good — but its *top* still needs the Tier 0 treatment, because "Problem / Solution / Architecture / Demo" as four full sections is a 90-second read, not a 30-second one. The fix isn't to cut the sections; it's to put a compressed version of Problem+Solution above all four, exactly like `rowcheck` did:
+
+```markdown
+# prune-branches
+
+Finds git branches already merged into `main` and safe to delete, so
+`git branch -a` stops returning 80 names where only 4 are still alive.
+
+    pip install prune-branches
+    prune-branches scan --days 30
+```
+
+That's the entire 30-second skim: name, problem+solution collapsed into one sentence, and the two commands needed to try it. Everything from the full example above — the detailed Architecture walkthrough, the Demo GIF — still exists, just scrolled below this. The stranger who only has 30 seconds gets to decide "yes, keep reading" or "no, close the tab" from these four lines alone. The stranger who's actually evaluating the project for real gets the full four-part structure underneath. You're not choosing between the compressed version and the full structure — the compressed version is the first screen *of* the full structure, same as Tier 0 taught, just now sitting on top of more content instead of being the whole document.
+
+## Screenshots and GIFs are proof; a code listing is not
+
+A code listing, however clean, tells a reader what you *intended* the program to do. It cannot tell them the program actually ran. Three concrete ways intention and reality diverge, each invisible from reading source alone:
+
+- The code imports a package that isn't in `requirements.txt`, so it fails on a machine that isn't yours.
+- The happy path works, but the actual demo input (a real CSV, a real repo with real stale branches) hits an edge case — an empty file, a branch name with a slash in it — that silently breaks something you never tested.
+- The output described in prose ("prints a row-level diff") doesn't match what the code genuinely prints, because the README was written aspirationally before the feature was finished.
+
+None of these show up in a syntax-highlighted code block. All three show up immediately in a terminal transcript of a real run:
+
+```text
+$ prune-branches scan --days 30
+Scanning 83 branches against main...
+
+Found 6 candidates (merged, no commits in 30+ days):
+  fix/login-redirect        merged 2026-07-02   (93 days ago)
+  feature/old-search-ui     merged 2026-06-14   (111 days ago)
+  chore/bump-deps-june      merged 2026-06-28   (97 days ago)
+  wip/payment-retry-v1      merged 2026-05-30   (126 days ago)
+  test/flaky-ci-debug       merged 2026-07-20   (75 days ago)
+  hotfix/cors-header        merged 2026-08-01   (63 days ago)
+
+Delete all 6? [y/N]: y
+Deleted 6 branches. 77 branches remain.
+```
+
+That block is evidence, not decoration. It shows the exact command invoked, real branch names with real dates, and the exact final count — a number a reader could go verify against the actual repo if they wanted to. A GIF of the same session is stronger still, because it proves the pause-and-confirm prompt is real interaction, not a hardcoded print statement dressed up as one. Capturing it needs no special tooling: `asciinema rec` for a terminal recording that converts to GIF with `agg`, or a plain screen recording trimmed to under 10 seconds, embedded with standard Markdown image syntax (`![alt text](demo.gif)`). The bar is low. The point isn't production quality — it's that the pixels on screen came from your program actually executing, which a syntax-highlighted block of source code can never show.
+
+## Documentation vs. marketing — and why oversell costs you with a technical reader
+
+Documentation states a verifiable fact about behavior. Marketing states an unverifiable claim about quality. Put side by side, on the exact same feature:
+
+```text
+Documentation:
+"Validates each row against the schema in `schema.py`; on the first
+failing row, exits with code 1 and prints the row number, column, and
+the rule that failed."
+
+Marketing:
+"Blazing-fast, enterprise-grade validation trusted by developers
+everywhere."
+```
+
+The documentation sentence is falsifiable — you can run the tool, feed it a bad row, and check whether the exit code and message match the claim. If it's true, you've just earned trust with zero risk, because the reader did the verifying themselves and it held up. The marketing sentence is not falsifiable in the same way: "blazing-fast" compared to what, measured how; "trusted by developers everywhere" by which developers, how many. A technical reader — the exact audience a README for a coding project has — reads an unfalsifiable superlative as a signal to start fact-checking, not a signal to trust. The moment one claim in your README can't be verified, a careful reader starts wondering which *other* claims also can't be verified, including the ones that were true. That's the actual cost: oversell doesn't just fail to add credibility, it taxes the credibility of every true sentence sitting next to it.
+
+This doesn't mean your README has to be modest to the point of underselling real work. "Deletes stale branches in one confirmed pass instead of one `git branch -d` at a time" is a strong, specific claim about real value — and it's still documentation, because it's exactly what the Demo transcript above proves happened. The line isn't confidence vs. humility. It's "can a reader check this is true" vs. "can they only take your word for it."
+
+## Exercise
+
+Take the actual capstone you're building this tier (or any real project you've already shipped). Do three things:
+
+1. Write a full four-part README for it — Problem, Solution, Architecture, Demo — following the `prune-branches` structure above. Keep Architecture to the actual files/modules and how data flows between them; do not paste full source.
+2. Compress your Problem + Solution into a 3-4 line "first screen" that sits above the four sections, the same move this module made on top of the Tier 0 `rowcheck` example. Time yourself reading only those 3-4 lines — if it takes you more than 30 seconds, cut further.
+3. Find one sentence in your current README (or write one you'd be tempted to write) that leans toward marketing, and rewrite it as a falsifiable documentation sentence. Then describe, in one line, what screenshot or terminal transcript would prove that rewritten sentence true.
+
+**Hint:** if you're stuck on step 3, look for superlatives with no attached number or method — "fast," "powerful," "robust," "production-ready" — and ask "compared to what, measured how?" If you can't answer that question about your own sentence, a stranger reading it won't be able to either, and that's exactly the sentence to rewrite.

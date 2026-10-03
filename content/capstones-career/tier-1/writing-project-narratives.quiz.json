@@ -1,0 +1,98 @@
+[
+  {
+    "id": "capstones-career/tier-1/writing-project-narratives/q1",
+    "type": "multiple_choice",
+    "prompt": "What does the problem/solution/architecture/demo README structure stand for?",
+    "choices": [
+      "Problem, Solution, Architecture, Demo",
+      "Intro, Install, Usage, License",
+      "Title, Badges, Table of Contents, Contributing",
+      "Overview, API Reference, FAQ, Changelog"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "capstones-career/tier-1/writing-project-narratives/q2",
+    "type": "multiple_choice",
+    "prompt": "Building on the Tier 0 'rowcheck' example, what should a README's first screen let a stranger do within about 30 seconds?",
+    "choices": [
+      "Understand what the project does, why it exists, and how to run it",
+      "Read the entire Architecture section in detail",
+      "Review the full git commit history",
+      "Memorize every CLI flag the tool supports"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "capstones-career/tier-1/writing-project-narratives/q3",
+    "type": "multiple_choice",
+    "prompt": "Why doesn't a static code listing prove a project actually works?",
+    "choices": [
+      "Code that reads correctly can still fail to run, mishandle real input, or not produce the claimed output -- nothing about reading source demonstrates execution",
+      "Code listings are always too long for a README",
+      "Markdown doesn't support code blocks",
+      "Reviewers never read source code at all"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "capstones-career/tier-1/writing-project-narratives/q4",
+    "type": "multiple_choice",
+    "prompt": "Which piece of evidence most directly proves a CLI tool runs and produces real output?",
+    "choices": [
+      "A screenshot or GIF of an actual terminal session showing the command invoked and its real output",
+      "A UML diagram of the project's classes",
+      "A bulleted list of planned features",
+      "A badge claiming '100% tested'"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "capstones-career/tier-1/writing-project-narratives/q5",
+    "type": "multiple_choice",
+    "prompt": "Which sentence is documentation rather than marketing?",
+    "choices": [
+      "Exits with code 1 and prints the row number, column, and failing rule when validation fails.",
+      "Blazing-fast, enterprise-grade validation trusted by developers everywhere.",
+      "The most powerful CSV validator ever built.",
+      "A revolutionary, best-in-class data tool."
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "capstones-career/tier-1/writing-project-narratives/q6",
+    "type": "multiple_choice",
+    "prompt": "A README claims a tool 'handles millions of rows in milliseconds' with no benchmark numbers or methodology attached. What does this module say is the likely effect on a technical reader?",
+    "choices": [
+      "They start distrusting the README's other claims too, because an unverifiable superlative reads as marketing rather than documentation",
+      "They immediately deploy the tool to production",
+      "They assume the real number must be even higher",
+      "They skip evaluation and download it right away"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "capstones-career/tier-1/writing-project-narratives/q7",
+    "type": "multiple_choice",
+    "prompt": "In the problem/solution/architecture/demo structure, what belongs in the Architecture section?",
+    "choices": [
+      "A short explanation of the key files or modules and how data flows between them, not the full source code",
+      "The complete source code of every file in the project",
+      "A list of every past contributor",
+      "The project's elevator pitch for investors"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "capstones-career/tier-1/writing-project-narratives/q8",
+    "type": "multiple_choice",
+    "prompt": "Why does this module say even a full four-part README still needs a short 'first screen' at the very top?",
+    "choices": [
+      "Because most readers decide whether to keep reading within the first screen, the same lesson as the Tier 0 rowcheck rewrite -- the full structure serves the reader who keeps going, but the top still has to survive a 30-second skim",
+      "Because GitHub enforces a minimum README length",
+      "Because a license section is legally required to appear first",
+      "Because Architecture sections cannot be written without a summary above them"
+    ],
+    "correctIndex": 0
+  }
+]

@@ -1,0 +1,98 @@
+[
+  {
+    "id": "capstones-career/tier-1/cross-track-capstone-1/q1",
+    "type": "multiple_choice",
+    "prompt": "What's the real reason to scope a capstone idea down to a one-week v1 instead of building the full ambitious vision right away?",
+    "choices": [
+      "Smaller projects look more impressive on a resume",
+      "A finished small thing teaches you more than an unfinished ambitious one, and finishing is the actual skill being practiced",
+      "Big projects can't be tested with pytest",
+      "Employers only evaluate line count"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-1/cross-track-capstone-1/q2",
+    "type": "multiple_choice",
+    "prompt": "In the habit tracker's scoping table, which feature gets cut first from the one-week v1?",
+    "choices": [
+      "Marking a habit done for today",
+      "Multi-user accounts with login and cloud sync",
+      "Saving data so it survives between runs",
+      "Printing results to the terminal"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-1/cross-track-capstone-1/q3",
+    "type": "multiple_choice",
+    "prompt": "Why does `cmd_log` check whether today's date is already in the habit's list before appending it?",
+    "choices": [
+      "To prevent running the command twice in one day from creating a duplicate, inflated check-in count",
+      "To make the JSON file load faster",
+      "Because argparse requires a uniqueness check",
+      "To satisfy a Python syntax rule about lists"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "capstones-career/tier-1/cross-track-capstone-1/q4",
+    "type": "multiple_choice",
+    "prompt": "How should you think about this track's own DS&A content during this tier?",
+    "choices": [
+      "It fully replaces the need to ever study algorithms in depth",
+      "It's a fast, light, intuition-first primer for this track's own interview-prep thread -- real depth on data structures and algorithms lives in the CS Foundations track",
+      "It's optional busywork that doesn't connect to the capstones",
+      "It only covers Big-O notation and nothing else"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-1/cross-track-capstone-1/q5",
+    "type": "multiple_choice",
+    "prompt": "What data structure holds the list of check-in dates for a single habit in `habit.py`, and why does it fit?",
+    "choices": [
+      "A single boolean, because you only need to know if today was logged",
+      "A list of ISO date strings, because you need an ordered, appendable, sortable collection of simple values",
+      "A nested class hierarchy, because habits need object-oriented modeling",
+      "A set of integers, because dates are best represented as numbers"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-1/cross-track-capstone-1/q6",
+    "type": "multiple_choice",
+    "prompt": "In `test_log_does_not_duplicate_same_day`, why does the test call `habit.cmd_log(Args(\"reading\"))` twice before asserting?",
+    "choices": [
+      "To verify idempotency: logging the same habit twice in one day should not create two entries",
+      "To measure how fast the function runs",
+      "To simulate two different users logging the same habit",
+      "Because pytest requires every function to be called at least twice"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "capstones-career/tier-1/cross-track-capstone-1/q7",
+    "type": "multiple_choice",
+    "prompt": "According to the lesson's definition of done, what must be true for the v1 to count as genuinely finished?",
+    "choices": [
+      "It must have at least 90% unit test coverage measured by a coverage tool",
+      "It must run end to end on a fresh clone, with a README, not just work on your own machine with leftover state",
+      "It must use a database instead of a flat file",
+      "It must include a graphical user interface"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-1/cross-track-capstone-1/q8",
+    "type": "multiple_choice",
+    "prompt": "Why do the tests use `monkeypatch.setattr(habit, \"DATA_FILE\", tmp_path / \"habits.json\")` instead of letting tests write to the real habits.json?",
+    "choices": [
+      "So each test starts from a clean, isolated file and can't corrupt or depend on your real data",
+      "Because JSON files can only be opened once per program run",
+      "To make the test suite run in a separate process",
+      "Because argparse requires all file paths to be set with monkeypatch"
+    ],
+    "correctIndex": 0
+  }
+]

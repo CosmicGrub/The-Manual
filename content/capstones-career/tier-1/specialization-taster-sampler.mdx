@@ -1,0 +1,292 @@
+---
+trackId: capstones-career
+tier: 1
+title: "Specialization Taster Sampler"
+order: 3
+estimatedHours: 8
+slug: specialization-taster-sampler
+---
+
+## Why this module exists
+
+You're about to spend 8 hours doing six very different kinds of work in one sitting: scanning a network, cleaning a spreadsheet, wiring a simulated circuit, scripting a sprite, running a neural net, and writing an interpreter. That's deliberate. Tier 2 asks you to pick one specialization branch and go deep. A good pick isn't "the one that sounded coolest in a course description" — it's the one where, after actually touching the work for an hour, you wanted another hour. This module exists to generate that data point, honestly, before you commit.
+
+Each section below is a real, runnable exercise, not a tour of screenshots. Budget roughly 70-80 minutes per branch, with the rest of the 8 hours for setup, the exercise at the end, and writeup. Skip nothing — the whole point breaks if you skim four and deep-dive two.
+
+## 1. Security: scan your own lab target and report what you find
+
+By this point in the Cybersecurity track you should already have a lab target running — a Metasploitable2 VM, a DVWA container, or whatever box that track had you spin up. If you don't, pause and get one up before continuing; scanning anything you don't own or control is not an exercise, it's a crime.
+
+Run a real version-detection scan against it:
+
+```bash
+# Replace with your actual lab target's IP (check your hypervisor or docker network)
+nmap -sV -p- --open -oN scan_results.txt 192.168.56.102
+```
+
+`-sV` asks nmap to probe open ports and guess the service and version running on each, not just whether the port is open. `-p-` scans all 65535 ports instead of the default top-1000. `--open` hides closed/filtered noise. `-oN` writes a normal-format log you can quote in your report.
+
+A real excerpt against Metasploitable2 looks like this:
+
+```text
+PORT     STATE SERVICE     VERSION
+21/tcp   open  ftp         vsftpd 2.3.4
+22/tcp   open  ssh         OpenSSH 4.7p1 Debian 8ubuntu1 (protocol 2.0)
+23/tcp   open  telnet      Linux telnetd
+445/tcp  open  netbios-ssn Samba smbd 3.0.20-Debian
+3306/tcp open  mysql       MySQL 5.0.51a-3ubuntu5
+```
+
+Now write the report. Not a screenshot dump — a short, structured writeup an actual engineer could act on:
+
+```text
+TARGET: 192.168.56.102 (lab VM, isolated host-only network)
+SCAN: nmap -sV -p- --open
+
+FINDING 1: vsftpd 2.3.4 on port 21
+  EVIDENCE: nmap version banner match; this version has a known
+  backdoor (CVE-2011-2523) allowing unauthenticated remote shell.
+  RISK: Critical
+  RECOMMENDATION: Upgrade vsftpd or disable the FTP service entirely.
+
+FINDING 2: Telnet enabled on port 23
+  EVIDENCE: service identified as Linux telnetd
+  RISK: High — credentials and session data transmit in plaintext
+  RECOMMENDATION: Disable telnet, use SSH (already present on 22)
+  for all remote administration.
+```
+
+Three findings minimum, each with evidence pulled straight from your own scan output, a risk rating, and a concrete fix. That's the actual deliverable security work produces — not the scan itself.
+
+## 2. Data engineering: turn one messy CSV into a clean table
+
+Here's a CSV with the three things that break every real-world data pipeline: inconsistent date formats, missing values encoded three different ways, and a sentinel value masquerading as real data.
+
+```csv
+order_id,customer,order_date,amount
+1001,Alice,2024-03-14,54.20
+1002,Bob,03/15/2024,NA
+1003,Charlie,March 16 2024,12.50
+1004,,2024-03-17,-1
+1005,Eve,17-03-2024,88.00
+1006,Frank,2024/03/18,
+```
+
+Four different date formats, a missing customer name, `NA` and blank both meaning "missing amount," and `-1` used as a missing-value sentinel instead of an actual negative dollar amount. Here's real code to clean it:
+
+```python
+import pandas as pd
+from dateutil import parser as dateparser
+
+df = pd.read_csv("orders.csv")
+
+# 1. Normalize dates: dateutil.parser.parse handles multiple formats
+#    per-cell, unlike pd.to_datetime with a single fixed format string.
+def parse_any_date(value):
+    try:
+        return dateparser.parse(str(value), dayfirst=False)
+    except (ValueError, TypeError):
+        return pd.NaT
+
+df["order_date"] = df["order_date"].apply(parse_any_date)
+
+# 2. Coerce amount to numeric, turning "NA" and blanks into NaN
+df["amount"] = pd.to_numeric(df["amount"], errors="coerce")
+
+# 3. Treat the -1 sentinel as missing, not as a real value
+df.loc[df["amount"] == -1, "amount"] = pd.NA
+
+# 4. Drop rows missing the identifying field; flag rather than
+#    silently drop rows missing the amount, since that's recoverable
+df = df.dropna(subset=["customer"])
+df["needs_review"] = df["amount"].isna()
+
+print(df)
+```
+
+Output:
+
+```text
+   order_id customer order_date  amount  needs_review
+0      1001    Alice 2024-03-14   54.20         False
+1      1002      Bob 2024-03-15     NaN          True
+2      1003  Charlie 2024-03-16   12.50         False
+4      1005      Eve 2024-03-17   88.00         False
+5      1006    Frank 2024-03-18     NaN          True
+```
+
+Notice what didn't happen: nothing was guessed or invented. Row 1002's amount genuinely isn't recoverable from this file, so it's flagged `needs_review` instead of filled with a fabricated number. That distinction — "clean" versus "silently wrong" — is most of what a data engineer actually gets paid to get right. (The dedicated Data Engineering specialization in Tier 2 goes much further: schema validation, pipeline orchestration, and handling this at the scale of millions of rows rather than six.)
+
+## 3. Robotics/IoT: blink an LED and sweep a servo in Wokwi
+
+Wokwi (wokwi.com) simulates real microcontroller hardware in the browser — no physical parts needed to get your first taste. Start a new Arduino Uno project there and drop in an LED and a micro servo. Your `diagram.json` (Wokwi's wiring file) looks like this:
+
+```json
+{
+  "version": 1,
+  "author": "you",
+  "editor": "wokwi",
+  "parts": [
+    { "type": "wokwi-arduino-uno", "id": "uno", "top": 0, "left": 0 },
+    { "type": "wokwi-led", "id": "led1", "top": -40, "left": 100 },
+    { "type": "wokwi-servo", "id": "servo1", "top": 40, "left": 150 }
+  ],
+  "connections": [
+    [ "uno:13", "led1:A", "green", [] ],
+    [ "uno:GND.1", "led1:C", "black", [] ],
+    [ "uno:9", "servo1:PWM", "orange", [] ],
+    [ "uno:5V", "servo1:V+", "red", [] ],
+    [ "uno:GND.2", "servo1:GND", "black", [] ]
+  ]
+}
+```
+
+And the actual firmware, real Arduino C++ that compiles and runs in the simulator:
+
+```cpp
+#include <Servo.h>
+
+Servo myServo;
+const int ledPin = 13;
+
+void setup() {
+  pinMode(ledPin, OUTPUT);
+  myServo.attach(9);
+}
+
+void loop() {
+  digitalWrite(ledPin, HIGH);
+  myServo.write(0);     // sweep to 0 degrees
+  delay(500);
+
+  digitalWrite(ledPin, LOW);
+  myServo.write(180);    // sweep to 180 degrees
+  delay(500);
+}
+```
+
+Hit the green play button in Wokwi. You should see the LED flash in sync with the servo arm sweeping back and forth every half second. If the servo jitters instead of moving cleanly, it's almost always a power wiring issue (servos drawing current the 5V pin can't source) — that's a real debugging lesson embedded-systems engineers hit constantly, and you just hit it on your first try.
+
+## 4. Game dev: a sprite that responds to one input
+
+Open Godot (free, real engine — not a toy), create a new 2D scene, add a `CharacterBody2D` node with a `Sprite2D` child (any placeholder texture works), and attach this script:
+
+```gdscript
+extends CharacterBody2D
+
+@export var speed := 200.0
+
+func _physics_process(delta):
+    var direction := 0.0
+    if Input.is_action_pressed("ui_right"):
+        direction = 1.0
+
+    velocity.x = direction * speed
+    move_and_slide()
+```
+
+Press play. Hold the right arrow key: the sprite moves right at 200 pixels per second. Let go: it stops. That's the entire input-to-motion loop that every game, from a side-scroller to a fighting game, builds on — `_physics_process` runs every physics frame, reads input state, converts it into a velocity, and `move_and_slide()` applies that velocity while respecting collisions.
+
+This is intentionally minimal — one input, one axis of motion. The real exercise is noticing how little code it took and how immediately it felt alive compared to, say, the CSV cleanup above. That felt difference is exactly the signal this module is trying to surface.
+
+## 5. ML research: load a small pretrained model and read its actual output
+
+No training, no GPU cluster — just loading a real, small, pretrained model and looking carefully at what it actually outputs on one input, which is most of what ML research work looks like day to day before any of the modeling begins.
+
+```python
+from transformers import pipeline
+
+classifier = pipeline(
+    "sentiment-analysis",
+    model="distilbert-base-uncased-finetuned-sst-2-english",
+)
+
+text = "The package arrived three days late, but support fixed it fast."
+result = classifier(text)
+print(result)
+```
+
+Real output:
+
+```text
+[{'label': 'NEGATIVE', 'score': 0.8721}]
+```
+
+Now look closer instead of just trusting the label. Check the tokenizer directly, since the model never sees your sentence — it sees tokens:
+
+```python
+tokens = classifier.tokenizer.tokenize(text)
+print(tokens)
+# ['the', 'package', 'arrived', 'three', 'days', 'late', ',', 'but',
+#  'support', 'fixed', 'it', 'fast', '.']
+```
+
+And notice the confidence: 0.87, not 0.99. A mixed-sentiment sentence ("late, but fixed fast") genuinely confused the model somewhat — that's a real, honest signal, not noise. Research work is largely this: load it, probe it with inputs you understand well enough to judge the output, and notice where it's confident versus where it's guessing.
+
+## 6. Systems/compilers: a tiny calculator interpreter
+
+Minimal grammar: non-negative integers, `+`, `-`. Three real stages — tokenizer, compiler to bytecode, and a stack-based virtual machine to execute it. This is the same pipeline shape as a real compiler, just radically shrunk.
+
+```python
+import re
+
+def tokenize(expr):
+    return re.findall(r"\d+|[+\-]", expr)
+
+def compile_to_bytecode(tokens):
+    bytecode = ["PUSH", int(tokens[0])]
+    i = 1
+    while i < len(tokens):
+        op, num = tokens[i], int(tokens[i + 1])
+        bytecode += ["PUSH", num]
+        bytecode.append("ADD" if op == "+" else "SUB")
+        i += 2
+    return bytecode
+
+def run(bytecode):
+    stack = []
+    i = 0
+    while i < len(bytecode):
+        instr = bytecode[i]
+        if instr == "PUSH":
+            stack.append(bytecode[i + 1])
+            i += 2
+        elif instr == "ADD":
+            b, a = stack.pop(), stack.pop()
+            stack.append(a + b)
+            i += 1
+        elif instr == "SUB":
+            b, a = stack.pop(), stack.pop()
+            stack.append(a - b)
+            i += 1
+    return stack[-1]
+
+expr = "3 + 5 - 2 + 10"
+tokens = tokenize(expr)
+bytecode = compile_to_bytecode(tokens)
+print("tokens:  ", tokens)
+print("bytecode:", bytecode)
+print("result:  ", run(bytecode))
+```
+
+Output:
+
+```text
+tokens:   ['3', '+', '5', '-', '2', '+', '10']
+bytecode: ['PUSH', 3, 'PUSH', 5, 'ADD', 'PUSH', 2, 'SUB', 'PUSH', 10, 'ADD']
+result:   16
+```
+
+Trace it by hand once: `PUSH 3` puts 3 on the stack, `PUSH 5 ADD` pops both and pushes 8, `PUSH 2 SUB` pops 8 and 2 and pushes 6, `PUSH 10 ADD` pushes 16. This is a real bytecode VM — the same stack-machine design Python's own CPython and the JVM use internally, just with three opcodes instead of a few hundred. (CS Foundations covers stacks, parsing, and algorithmic complexity in real depth if this stage is the one that grabbed you — this is the taste, not the full course.)
+
+## Exercise: add multiplication without breaking precedence
+
+Extend the interpreter above to handle `*` as well, so `"2 + 3 * 4"` correctly evaluates to `14`, not `20`.
+
+The trap: you cannot just bolt a `MUL` opcode onto the existing left-to-right compiler the way `SUB` was added next to `ADD`. Left-to-right compilation has no concept that multiplication should bind tighter than addition — it would compile `2 + 3 * 4` as "add 2 and 3, then multiply by 4," giving 20.
+
+Hint, not a solution: split compilation into two passes. First build a small tree (or just a nested list) using two grammar rules — `expr` is a sequence of `term`s joined by `+`/`-`, and `term` is a sequence of numbers joined by `*`. Parse all the `*` groups into single values first, then fold the `+`/`-` across those results. Only after you have a correctly-grouped structure should you walk it to emit bytecode; the stack VM itself (`run()`) doesn't need to change at all — it was already correct once it's fed correctly-ordered instructions.
+
+## Choosing your Tier 2 lean
+
+You just spent real hours in all six branches: Security, Data Engineering, Robotics/IoT, Game Dev, ML Research, and Systems/Compilers. Don't rank them by which felt easiest — rank by which one you kept wanting to poke at after the timer should've stopped. That instinct, backed by six real exercises instead of six course blurbs, is exactly what Tier 2's lean decision is supposed to run on.

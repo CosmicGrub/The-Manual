@@ -667,3 +667,14 @@ All notable changes to The Manual (curriculum + app) are logged here. This file 
 **Result:** `npm run build` passed clean — 282 unique slugs verified repo-wide.
 
 **Status:** Capstones Tier 0 started (11h, 4 lessons) — the ninth and final track in The Manual to get real lesson content. Tiers 1-5 remain.
+
+## [0.54.0] — 2026-10-03 — Capstones & Career Tier 1: complete (first real capstone, all six branches tasted)
+
+**Context:** Continuing the tier-by-tier pattern. The DS&A module is deliberately a fast intuition primer for this track's own interview-prep thread, not a re-teach of CS Foundations' deeper DS&A material, and explicitly says so. The Specialization Taster Sampler is the heaviest lift in this tier: six distinct, genuinely runnable code examples — one per branch — so the Tier 2 "pick a lean" decision rests on real doing, not guessing.
+
+**Added**
+- `content/capstones-career/tier-1/*.mdx` (4 files) + matching quizzes: Cross-Track Capstone #1 (a real ~70-line CLI habit tracker scoped down from an ambitious feature list via a real core-vs-cut table, with a real pytest suite), DS&A Foundations Primer, Specialization Taster Sampler (a real Nmap-style lab scan writeup, a real messy-CSV cleanup, a real Wokwi-simulator LED/servo snippet, a real one-screen Godot/Pygame script, a real pretrained-model inspection, and a real tiny calculator bytecode interpreter — one working example per specialization branch), Writing Project Narratives (building directly on Tier 0's README module).
+
+**Result:** `npm run build` passed clean — 286 unique slugs verified repo-wide.
+
+**Status:** Capstones Tier 1 complete (23h, 4 lessons). Capstones is now 2/6 tiers content-complete (Tiers 0-1, 34h); Tiers 2-5 remain.

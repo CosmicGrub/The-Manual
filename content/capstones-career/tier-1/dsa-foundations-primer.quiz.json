@@ -1,0 +1,98 @@
+[
+  {
+    "id": "capstones-career/tier-1/dsa-foundations-primer/q1",
+    "type": "multiple_choice",
+    "prompt": "Why is arr[i] an O(1) operation on an array?",
+    "choices": [
+      "Because arrays are always kept sorted",
+      "Because the element's address is computed directly as base_address + i * element_size",
+      "Because the whole array is cached in the CPU",
+      "Because Python special-cases small arrays"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-1/dsa-foundations-primer/q2",
+    "type": "multiple_choice",
+    "prompt": "Why does inserting an element at the front of an array-backed list cost O(n)?",
+    "choices": [
+      "Because the array has to be re-sorted afterward",
+      "Because every existing element has to shift one position to make room",
+      "Because arrays don't support insertion and must be rebuilt from scratch",
+      "Because front-insertion triggers a hash recomputation"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-1/dsa-foundations-primer/q3",
+    "type": "multiple_choice",
+    "prompt": "In the string-building example, why does calling s += \"x\" inside a loop n times cost O(n^2) overall?",
+    "choices": [
+      "Because strings are stored as linked lists in memory",
+      "Because strings are immutable, so each += allocates and copies the entire string built so far",
+      "Because += always runs the loop twice internally",
+      "Because string comparison is slower than integer comparison"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-1/dsa-foundations-primer/q4",
+    "type": "multiple_choice",
+    "prompt": "What is the actual mechanism that makes a hash map lookup fast compared to scanning a list?",
+    "choices": [
+      "It keeps a secretly sorted copy of all the keys and binary searches it",
+      "It hashes the key to a number, reduces that to a bucket index, and jumps straight there instead of scanning",
+      "It caches whichever key was looked up most recently",
+      "It compresses every key-value pair into one combined key"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-1/dsa-foundations-primer/q5",
+    "type": "multiple_choice",
+    "prompt": "You have 1,000,000 user records and need to find one by ID. Which is faster, a linear scan through a list or a dict lookup, and why?",
+    "choices": [
+      "Linear scan, because dicts have too much memory overhead to be fast",
+      "They're equally fast, since both eventually touch all 1,000,000 records",
+      "Dict lookup, because it jumps directly to the right bucket instead of checking records one by one",
+      "Linear scan, because lists are read faster than dicts at the hardware level"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "capstones-career/tier-1/dsa-foundations-primer/q6",
+    "type": "multiple_choice",
+    "prompt": "An O(n^2) function and an O(n) function both 'feel instant' at n = 1,000 but the O(n^2) one becomes unusable at n = 100,000. Why?",
+    "choices": [
+      "O(n^2) work grows with the square of n, so a 100x bigger input means roughly 10,000x more work",
+      "Python enforces a hard iteration limit at exactly 100,000",
+      "The computer runs out of RAM at that exact input size",
+      "O(n) and O(n^2) actually perform identically; the slowdown must be a measurement error"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "capstones-career/tier-1/dsa-foundations-primer/q7",
+    "type": "multiple_choice",
+    "prompt": "What is the Big-O of this function?\n\ndef f(nums):\n    total = 0\n    for i in range(len(nums)):\n        for j in range(len(nums)):\n            total += nums[i] * nums[j]\n    return total",
+    "choices": [
+      "O(n)",
+      "O(n log n)",
+      "O(n^2)",
+      "O(2n)"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "capstones-career/tier-1/dsa-foundations-primer/q8",
+    "type": "multiple_choice",
+    "prompt": "You're reading unfamiliar code and see two loops, each iterating over the full input of size n, with one nested inside the other. What's the right first estimate?",
+    "choices": [
+      "O(n), since it's still just one function",
+      "O(n^2), because the nested loops' growth multiplies together",
+      "O(log n), because nesting usually implies a halving pattern",
+      "There's no way to estimate without running it first"
+    ],
+    "correctIndex": 1
+  }
+]
