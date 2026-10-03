@@ -1,0 +1,299 @@
+---
+trackId: platforms
+tier: 2
+title: "Backend Basics & REST APIs (Node/Express or Python/Flask)"
+order: 2
+estimatedHours: 25
+slug: backend-basics-and-rest-apis
+---
+
+## What you're actually building
+
+Every app you've built so far (the React/Express pairing from the previous module, or whatever got you comfortable with components and state) has been talking to *something* on a server. This module is where you become the person who builds that something.
+
+A backend, stripped to its essentials, is three things: it listens for HTTP requests, it reads or writes data somewhere durable, and it sends back a response. That's it. No magic. You will build exactly that, twice if you're doing the Python track too, against a single resource: a list of tasks.
+
+This module is deliberately narrow. It does not cover REST design tradeoffs — resource naming conventions, versioning strategies, pagination, HATEOAS, idempotency keys. That's real, deep material, and it belongs to the Software Engineering track's API Design module. Go there when you want the "why" behind REST conventions. Here, you're getting your hands dirty building a backend that actually runs, end to end, tonight.
+
+## The resource: a tasks API
+
+Pick one resource and build all four CRUD operations against it before moving on to anything else. We'll use `tasks`: each task has an `id`, a `title`, and a `done` flag. Simple enough that the HTTP and database mechanics don't get lost in domain complexity.
+
+## Routes and HTTP methods: the full route table
+
+Here is the complete route table for the tasks resource. Five routes, five jobs:
+
+| Method | Path | Job |
+|---|---|---|
+| GET | `/tasks` | list every task |
+| GET | `/tasks/:id` | get one task |
+| POST | `/tasks` | create a task |
+| PUT | `/tasks/:id` | update a task |
+| DELETE | `/tasks/:id` | delete a task |
+
+In Express, that table becomes real code almost line for line:
+
+```js
+const express = require('express');
+const Database = require('better-sqlite3');
+
+const app = express();
+app.use(express.json());
+
+const db = new Database('tasks.db');
+db.exec(`
+  CREATE TABLE IF NOT EXISTS tasks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    done INTEGER NOT NULL DEFAULT 0
+  )
+`);
+
+app.get('/tasks', (req, res) => {
+  const tasks = db.prepare('SELECT * FROM tasks ORDER BY id').all();
+  res.json(tasks);
+});
+
+app.get('/tasks/:id', (req, res) => {
+  const task = db.prepare('SELECT * FROM tasks WHERE id = ?').get(req.params.id);
+  if (!task) return res.status(404).json({ error: 'task not found' });
+  res.json(task);
+});
+
+app.post('/tasks', (req, res) => {
+  // validation goes here — see below
+});
+
+app.put('/tasks/:id', (req, res) => {
+  // validation goes here — see below
+});
+
+app.delete('/tasks/:id', (req, res) => {
+  const result = db.prepare('DELETE FROM tasks WHERE id = ?').run(req.params.id);
+  if (result.changes === 0) return res.status(404).json({ error: 'task not found' });
+  res.status(204).send();
+});
+
+app.listen(3000, () => console.log('listening on http://localhost:3000'));
+```
+
+Install the two dependencies first: `npm install express better-sqlite3`.
+
+If you're on the Flask track, the same table maps onto decorators instead of HTTP-verb methods on an `app` object:
+
+```python
+from flask import Flask, request, jsonify
+import sqlite3
+
+app = Flask(__name__)
+
+@app.route('/tasks', methods=['GET'])
+def list_tasks():
+    ...
+
+@app.route('/tasks/<int:task_id>', methods=['GET'])
+def get_task(task_id):
+    ...
+
+@app.route('/tasks', methods=['POST'])
+def create_task():
+    ...
+
+@app.route('/tasks/<int:task_id>', methods=['PUT'])
+def update_task(task_id):
+    ...
+
+@app.route('/tasks/<int:task_id>', methods=['DELETE'])
+def delete_task(task_id):
+    ...
+```
+
+Notice the URL pattern is identical in both frameworks: the collection (`/tasks`) gets GET and POST, a single item (`/tasks/:id` or `/tasks/<int:task_id>`) gets GET, PUT, and DELETE. That pattern is the one piece of "REST design" you need memorized cold before the deeper module makes it formal.
+
+## JSON in, JSON out
+
+Your backend speaks JSON on both sides of every request. A client sends a JSON body, you send a JSON body back. There's no ambiguity to guess at — here's exactly what crosses the wire for creating a task:
+
+Request:
+```http
+POST /tasks
+Content-Type: application/json
+
+{
+  "title": "Buy milk"
+}
+```
+
+Response:
+```http
+201 Created
+Content-Type: application/json
+
+{
+  "id": 1,
+  "title": "Buy milk",
+  "done": 0
+}
+```
+
+In Express, `app.use(express.json())` is what makes `req.body` exist as a parsed JavaScript object instead of raw bytes — skip that middleware and `req.body` is `undefined`, a classic first-timer bug. In Flask, `request.get_json()` does the equivalent parsing on demand, which is why every Flask handler below calls it explicitly.
+
+## Talking to SQLite
+
+SQLite is a single file on disk, no server process to run, which makes it the right first database to learn on. You open a connection, you run SQL through it with parameter placeholders, you get rows back.
+
+Node, with `better-sqlite3` (synchronous, which keeps the code readable while you're learning):
+
+```js
+const Database = require('better-sqlite3');
+const db = new Database('tasks.db');
+
+// a query with a parameter — never string-concatenate values into SQL
+const task = db.prepare('SELECT * FROM tasks WHERE id = ?').get(42);
+console.log(task); // { id: 42, title: 'Buy milk', done: 0 }
+```
+
+Python's `sqlite3` is in the standard library — no install needed:
+
+```python
+import sqlite3
+
+conn = sqlite3.connect('tasks.db')
+conn.row_factory = sqlite3.Row  # lets you access columns by name
+
+row = conn.execute('SELECT * FROM tasks WHERE id = ?', (42,)).fetchone()
+print(dict(row))  # {'id': 42, 'title': 'Buy milk', 'done': 0}
+```
+
+The `?` placeholder in both languages is not a style preference — it's how the database library escapes your values for you. Build that query string with `+` or an f-string instead and you've written a SQL injection vulnerability, full stop. Always pass values as parameters, never interpolate them into the SQL text.
+
+## Full CRUD, request by request
+
+Here's the complete Express implementation, all four operations working against the same `tasks` table:
+
+```js
+app.post('/tasks', (req, res) => {
+  const { title } = req.body;
+  if (typeof title !== 'string' || title.trim() === '') {
+    return res.status(400).json({ error: 'title is required and must be a non-empty string' });
+  }
+  const result = db.prepare('INSERT INTO tasks (title, done) VALUES (?, 0)').run(title.trim());
+  const newTask = db.prepare('SELECT * FROM tasks WHERE id = ?').get(result.lastInsertRowid);
+  res.status(201).json(newTask);
+});
+
+app.put('/tasks/:id', (req, res) => {
+  const existing = db.prepare('SELECT * FROM tasks WHERE id = ?').get(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'task not found' });
+
+  const { title, done } = req.body;
+  if (title !== undefined && (typeof title !== 'string' || title.trim() === '')) {
+    return res.status(400).json({ error: 'title must be a non-empty string' });
+  }
+  if (done !== undefined && typeof done !== 'boolean') {
+    return res.status(400).json({ error: 'done must be true or false' });
+  }
+
+  db.prepare('UPDATE tasks SET title = ?, done = ? WHERE id = ?').run(
+    title !== undefined ? title.trim() : existing.title,
+    done !== undefined ? (done ? 1 : 0) : existing.done,
+    req.params.id
+  );
+  res.json(db.prepare('SELECT * FROM tasks WHERE id = ?').get(req.params.id));
+});
+```
+
+Run the server (`node server.js`) and exercise every operation with curl:
+
+```bash
+# CREATE
+curl -X POST localhost:3000/tasks -H "Content-Type: application/json" \
+  -d '{"title":"Buy milk"}'
+# -> 201 { "id": 1, "title": "Buy milk", "done": 0 }
+
+# READ (list)
+curl localhost:3000/tasks
+# -> 200 [ { "id": 1, "title": "Buy milk", "done": 0 } ]
+
+# READ (one)
+curl localhost:3000/tasks/1
+# -> 200 { "id": 1, "title": "Buy milk", "done": 0 }
+
+# UPDATE
+curl -X PUT localhost:3000/tasks/1 -H "Content-Type: application/json" \
+  -d '{"done":true}'
+# -> 200 { "id": 1, "title": "Buy milk", "done": 1 }
+
+# DELETE
+curl -X DELETE localhost:3000/tasks/1 -i
+# -> 204, empty body
+```
+
+The Flask equivalent, same shape, same four operations:
+
+```python
+@app.route('/tasks', methods=['POST'])
+def create_task():
+    data = request.get_json(silent=True) or {}
+    title = data.get('title')
+    if not isinstance(title, str) or title.strip() == '':
+        return jsonify({'error': 'title is required and must be a non-empty string'}), 400
+    conn = sqlite3.connect('tasks.db')
+    cur = conn.execute('INSERT INTO tasks (title, done) VALUES (?, 0)', (title.strip(),))
+    conn.commit()
+    row = conn.execute('SELECT * FROM tasks WHERE id = ?', (cur.lastrowid,)).fetchone()
+    conn.close()
+    return jsonify({'id': row[0], 'title': row[1], 'done': row[2]}), 201
+
+@app.route('/tasks/<int:task_id>', methods=['PUT'])
+def update_task(task_id):
+    conn = sqlite3.connect('tasks.db')
+    existing = conn.execute('SELECT * FROM tasks WHERE id = ?', (task_id,)).fetchone()
+    if existing is None:
+        conn.close()
+        return jsonify({'error': 'task not found'}), 404
+
+    data = request.get_json(silent=True) or {}
+    title = data.get('title', existing[1])
+    done = data.get('done', bool(existing[2]))
+    if not isinstance(title, str) or title.strip() == '':
+        conn.close()
+        return jsonify({'error': 'title must be a non-empty string'}), 400
+    if not isinstance(done, bool):
+        conn.close()
+        return jsonify({'error': 'done must be true or false'}), 400
+
+    conn.execute('UPDATE tasks SET title = ?, done = ? WHERE id = ?', (title.strip(), int(done), task_id))
+    conn.commit()
+    row = conn.execute('SELECT * FROM tasks WHERE id = ?', (task_id,)).fetchone()
+    conn.close()
+    return jsonify({'id': row[0], 'title': row[1], 'done': row[2]})
+```
+
+Both languages, same curl commands, same responses. That's the point: the HTTP contract is language-agnostic, only the handler code differs.
+
+## Validating input: rejecting garbage with the right status code
+
+Look again at the top of `create_task`. If the client sends `{"title": 123}` or `{}` with no `title` at all, that `typeof title !== 'string'` check catches it before any SQL runs, and the server replies:
+
+```http
+HTTP/1.1 400 Bad Request
+Content-Type: application/json
+
+{ "error": "title is required and must be a non-empty string" }
+```
+
+400, not 500. A 500 means *your server* broke. A 400 means *the client* sent something your server correctly refused. Getting this distinction right is the difference between an API that fails loudly and clearly, and one that 500s on bad input and leaves whoever's calling it guessing why. Validate before you touch the database, every time, on every write route — `POST` and `PUT` both need it; `GET` and `DELETE` generally don't need body validation because they don't carry a body that creates or changes data (ID validation in the URL is a separate, smaller check).
+
+This is as far as validation goes in this module: type-check the fields you require, reject with 400 and a message when they fail. Full schema validation libraries (Zod, Joi, Pydantic) and the deeper question of *what* a well-designed error envelope looks like across an entire API surface — that's Software Engineering-track territory. What you've built here is the floor every one of those libraries sits on top of.
+
+## Exercise: add filtering and a toggle endpoint
+
+Extend the API you just built with two things:
+
+1. A query-string filter on the list route: `GET /tasks?done=true` should return only completed tasks, `GET /tasks?done=false` only incomplete ones, and `GET /tasks` with no query param should return everything.
+2. A new route, `PATCH /tasks/:id/toggle`, that flips a task's `done` value without the caller needing to know or send its current state.
+
+Hint: for part 1, read `req.query.done` (Express) or `request.args.get('done')` (Flask) — it arrives as a string, not a boolean, so `"true"` and `"false"` need explicit comparison, and build your SQL `WHERE` clause conditionally based on whether the param was supplied at all. For part 2, you don't need a request body — read the existing row, compute the opposite of its current `done` value, and write that back in one `UPDATE`.
+
+Test both against a real running server with curl before you consider it done. If `GET /tasks?done=nonsense` 500s instead of either ignoring the bad value or 400ing, you've found a gap worth closing.

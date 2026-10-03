@@ -1,0 +1,98 @@
+[
+  {
+    "id": "platforms/tier-2/intro-game-dev-with-a-2d-framework/q1",
+    "type": "multiple_choice",
+    "prompt": "What problem does multiplying movement by delta time solve?",
+    "choices": [
+      "It makes 2D sprites render as 3D models",
+      "It keeps movement speed consistent regardless of how fast or slow frames are being drawn",
+      "It prevents two sprites from ever overlapping",
+      "It reduces the file size of sprite sheets"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-2/intro-game-dev-with-a-2d-framework/q2",
+    "type": "multiple_choice",
+    "prompt": "In the naive loop that moves a square by `x += 2` every frame, what happens on a 144Hz display compared to a 60Hz display?",
+    "choices": [
+      "The square moves at exactly the same speed on both",
+      "The square moves slower on the 144Hz display",
+      "The square moves faster on the 144Hz display, because more frames run per second",
+      "The game crashes on any display above 60Hz"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "platforms/tier-2/intro-game-dev-with-a-2d-framework/q3",
+    "type": "multiple_choice",
+    "prompt": "An AABB (axis-aligned bounding box) collision check between two rectangles returns true when:",
+    "choices": [
+      "The rectangles' centers are within 10 pixels of each other",
+      "Either rectangle fully contains the other",
+      "The rectangles overlap on both the x-axis and the y-axis at the same time",
+      "The rectangles have identical width and height"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "platforms/tier-2/intro-game-dev-with-a-2d-framework/q4",
+    "type": "multiple_choice",
+    "prompt": "Using the rectsOverlap check from the lesson, do a player at {x:0, y:0, width:20, height:20} and an enemy at {x:25, y:5, width:10, height:10} collide?",
+    "choices": [
+      "Yes, because their y-ranges overlap",
+      "No, because the player's right edge (20) never reaches the enemy's left edge (25)",
+      "Yes, because both rectangles are roughly the same size",
+      "It cannot be determined without pixel-level image data"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-2/intro-game-dev-with-a-2d-framework/q5",
+    "type": "multiple_choice",
+    "prompt": "In Phaser, what does a sprite sheet's frameWidth/frameHeight config tell the loader?",
+    "choices": [
+      "The final on-screen size the sprite will be scaled to",
+      "How to slice one image file into a grid of equally sized animation frames",
+      "How many times the animation should repeat",
+      "The collision box dimensions used by the physics engine"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-2/intro-game-dev-with-a-2d-framework/q6",
+    "type": "multiple_choice",
+    "prompt": "Why use this.physics.add.overlap(hero, coins, callback) instead of writing your own AABB check inside update()?",
+    "choices": [
+      "overlap() is less accurate than a manual AABB check",
+      "Arcade Physics already runs the AABB check every frame for every registered body pair, so you only write what should happen on a hit",
+      "Manual AABB checks don't work on sprites, only on plain rectangles",
+      "overlap() disables delta-time-based movement for that sprite"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-2/intro-game-dev-with-a-2d-framework/q7",
+    "type": "multiple_choice",
+    "prompt": "In the Coin Dash example, what is the purpose of the this.gameOver boolean checked at the top of update()?",
+    "choices": [
+      "It toggles background music on and off",
+      "It tracks how many coins remain uncollected",
+      "It stops the hero from responding to input once the game has been won or lost",
+      "It controls the frame rate of the run animation"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "platforms/tier-2/intro-game-dev-with-a-2d-framework/q8",
+    "type": "multiple_choice",
+    "prompt": "Keyboard input (cursors.left.isDown) and the touch pointer example in the lesson both ultimately do what with the result?",
+    "choices": [
+      "Directly move the sprite's x position by a fixed number of pixels that frame",
+      "Set a velocity on the physics body, which Arcade Physics then applies using its own delta time each frame",
+      "Pause the physics engine while the key or touch is held",
+      "Change which sprite sheet frame is currently displayed"
+    ],
+    "correctIndex": 1
+  }
+]

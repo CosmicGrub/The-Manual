@@ -1,0 +1,98 @@
+[
+  {
+    "id": "platforms/tier-2/first-cross-platform-mobile-app/q1",
+    "type": "multiple_choice",
+    "prompt": "Which command creates a new blank Expo project (no file-based router) named FirstMobileApp?",
+    "choices": [
+      "npx create-expo-app@latest FirstMobileApp --template blank",
+      "npx create-react-app FirstMobileApp --mobile",
+      "flutter create FirstMobileApp",
+      "npm init expo-cli FirstMobileApp"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-2/first-cross-platform-mobile-app/q2",
+    "type": "multiple_choice",
+    "prompt": "After running `npx expo start`, what does pressing the `i` key in the terminal do?",
+    "choices": [
+      "Installs the app's native dependencies",
+      "Opens the app in the iOS Simulator",
+      "Initializes a new git repository for the project",
+      "Opens the Expo Go app settings"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-2/first-cross-platform-mobile-app/q3",
+    "type": "multiple_choice",
+    "prompt": "Why does an Image component in React Native usually need explicit width and height set in its style, unlike a plain web <img> tag?",
+    "choices": [
+      "React Native images are always square, so dimensions must be forced manually",
+      "The layout engine (Yoga) needs to know a box's size upfront and doesn't read the image file's intrinsic dimensions the way a browser does by default",
+      "Images are not supported natively and are rendered as text placeholders without explicit sizing",
+      "Expo requires all images to be pre-compiled into the app binary at a fixed pixel size"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-2/first-cross-platform-mobile-app/q4",
+    "type": "multiple_choice",
+    "prompt": "In the React Navigation example, how does the DetailsScreen receive the userId value passed from ProfileScreen?",
+    "choices": [
+      "Through a global variable shared between screens",
+      "Via route.params.userId, after ProfileScreen calls navigation.navigate('Details', { userId: 42 })",
+      "By importing ProfileScreen's state directly into DetailsScreen",
+      "Through a URL query string parsed by the browser"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-2/first-cross-platform-mobile-app/q5",
+    "type": "multiple_choice",
+    "prompt": "What is the real, non-superficial similarity between useState in a web React component and useState in a React Native component?",
+    "choices": [
+      "Both compile down to the same native machine code",
+      "Both are the exact same hook from the same 'react' package, following the same 'UI is a function of state, re-rendered when state changes' model and the same rules about call order",
+      "They share a name but behave completely differently under the hood with no real overlap",
+      "React Native's useState only works inside class components, unlike the web version"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-2/first-cross-platform-mobile-app/q6",
+    "type": "multiple_choice",
+    "prompt": "Why does a React Native component use onPress on a Pressable instead of onClick on a DOM element?",
+    "choices": [
+      "onClick is deprecated in all modern JavaScript and was replaced everywhere by onPress",
+      "There is no DOM in React Native; a tap is a touch gesture interpreted by the native gesture responder system and reported as a synthetic event, not a browser MouseEvent",
+      "onPress only works with Flutter widgets, not React Native ones",
+      "Pressable cannot detect touches, so onPress is purely decorative"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-2/first-cross-platform-mobile-app/q7",
+    "type": "multiple_choice",
+    "prompt": "Which statement about testing an app in the iOS Simulator is FALSE?",
+    "choices": [
+      "The simulator cannot receive real remote push notifications sent through Apple's APNs service",
+      "The simulator runs on your development machine's CPU, not real phone hardware, so performance is not representative",
+      "The simulator can fully and accurately test real push notifications exactly as a physical device would",
+      "The simulator fakes the camera feed rather than using a real camera"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "platforms/tier-2/first-cross-platform-mobile-app/q8",
+    "type": "multiple_choice",
+    "prompt": "What are the concrete steps to load your Expo app onto a real phone over Wi-Fi during development?",
+    "choices": [
+      "Install Expo Go on the phone, put the phone and computer on the same Wi-Fi network, run npx expo start, then scan the printed QR code with the phone",
+      "Email the App.js file to the phone and open it in a text editor",
+      "Compile an .ipa file manually and email it as an attachment before any testing can begin",
+      "Push the project to GitHub and have the phone browser load the raw source files directly"
+    ],
+    "correctIndex": 0
+  }
+]

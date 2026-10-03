@@ -1,0 +1,248 @@
+---
+trackId: platforms
+tier: 2
+title: "First Cross-Platform Mobile App (React Native via Expo, or Flutter)"
+order: 3
+estimatedHours: 20
+slug: first-cross-platform-mobile-app
+---
+
+## Where this lands
+
+By this point in Tier 2 you've built a React app for the browser (components, `useState`, `useEffect`, fetching from an API) and you're building a real Express or Flask backend to go with it — including a full CRUD API. (Deeper REST design tradeoffs — versioning, pagination strategy, idempotency — belong to the Software Engineering track's API-design material; here you're just getting a first real API hit from a phone, not re-deriving REST theory.) This module is where that same product idea gets its second surface: a real phone screen, built with React Native through Expo.
+
+The good news, and the thing most tutorials undersell: if you know React, you already know most of React Native. Components, props, `useState`, one-way data flow — all identical. What's different is what you're rendering *to*. There's no DOM, no browser, no CSS cascade. There's a native view tree (real `UIView`s on iOS, real `View`s on Android) that React Native's bridge/JSI layer updates on your behalf, the same architecture you read about — but didn't build with — back in Tier 1's "How Native, Mobile, and Desktop Differ From Web." Now you build with it.
+
+Everything below uses Expo, which wraps React Native with a managed build system, an instant dev client (Expo Go), and a CLI that removes almost all of the native-tooling pain (Xcode project files, Gradle configuration) until you actually need it. If you're doing this module in Flutter instead, the "If you chose Flutter" box near the end maps every Expo concept to its Flutter equivalent.
+
+## Project setup and dev workflow
+
+Install nothing globally yet — `npx` fetches the Expo CLI fresh each time:
+
+```bash
+npx create-expo-app@latest FirstMobileApp --template blank
+cd FirstMobileApp
+npx expo start
+```
+
+The `blank` template skips the file-based router Expo installs by default, so you start from one real file, `App.js`, the same way your first React app started from one `App.jsx`. The project folder now has:
+
+```
+FirstMobileApp/
+  App.js
+  app.json       # app name, icon, splash screen, bundle identifiers
+  package.json
+  assets/
+  node_modules/
+```
+
+`npx expo start` boots the **Metro bundler** (React Native's equivalent of Vite/webpack) and prints a QR code plus a menu of single-key commands right in the terminal:
+
+```
+› Metro waiting on exp://192.168.1.42:8081
+› Scan the QR code above with Expo Go (Android) or the Camera app (iOS)
+
+› Press a │ open Android emulator
+› Press i │ open iOS simulator
+› Press w │ open in web browser
+› Press r │ reload app
+```
+
+Press `i` (on a Mac with Xcode installed) and the iOS Simulator launches with your app already running inside Expo Go. Now open `App.js`, change the text, hit save. The screen updates in under a second *without losing component state* — this is **Fast Refresh**, React Native's version of React's Fast Refresh in the browser. It's not a full reload; React reconciles the new component tree in place. If you edit something Fast Refresh can't safely patch (e.g. you change a hook's call order), it falls back to a full reload automatically and tells you why in the terminal.
+
+## Core components: building a real screen
+
+React Native doesn't give you `<div>`, `<span>`, or `<img>`. It gives you a small set of primitives that map to real native views: `View` (a box, like a non-semantic `div`), `Text` (the *only* thing that can contain raw text — you cannot put a string directly inside a `View`), `Image`, `ScrollView`, and `Pressable` for touch. Here's a real profile screen:
+
+```jsx
+// screens/ProfileScreen.js
+import { View, Text, Image, StyleSheet } from 'react-native';
+
+export default function ProfileScreen() {
+  return (
+    <View style={styles.container}>
+      <Image
+        source={{ uri: 'https://i.pravatar.cc/150?img=12' }}
+        style={styles.avatar}
+      />
+      <Text style={styles.name}>Dana Reyes</Text>
+      <Text style={styles.bio}>Builds small apps. Drinks too much coffee.</Text>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+    padding: 16,
+  },
+  avatar: { width: 120, height: 120, borderRadius: 60, marginBottom: 16 },
+  name: { fontSize: 22, fontWeight: '600' },
+  bio: { fontSize: 14, color: '#666', textAlign: 'center', marginTop: 4 },
+});
+```
+
+Three things that trip up people coming from web CSS:
+
+- **`StyleSheet.create` is just a plain JS object** — camelCase properties (`backgroundColor`, not `background-color`), numbers instead of `px` (React Native's layout engine, Yoga, treats a bare number as a density-independent pixel), no units needed, no cascade, no global stylesheet leaking into other screens.
+- **`View` defaults to `flexDirection: 'column'`**, the opposite of web's CSS default (`row` is the web default for... actually neither — the point is web has no default flex container at all; here *everything* is laid out with Flexbox by default, always). You get Flexbox everywhere for free, with no `display: flex` needed.
+- **`Image` needs explicit `width`/`height`.** On the web, an `<img>` sizes itself from the file's intrinsic dimensions the moment it loads. Yoga can't do that — it needs to know every box's size *before* it asks the native image to draw, so you supply it.
+
+## Navigation: a real multi-screen app
+
+A single screen isn't an app. Install React Navigation's native-stack navigator — it wraps real platform navigation controllers (`UINavigationController` on iOS, a `Fragment`-backed stack on Android), which is why the back-swipe gesture and push/pop animation feel exactly like every other app on the phone:
+
+```bash
+npx expo install @react-navigation/native @react-navigation/native-stack \
+  react-native-screens react-native-safe-area-context
+```
+
+```jsx
+// App.js
+import { NavigationContainer } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import ProfileScreen from './screens/ProfileScreen';
+import DetailsScreen from './screens/DetailsScreen';
+
+const Stack = createNativeStackNavigator();
+
+export default function App() {
+  return (
+    <NavigationContainer>
+      <Stack.Navigator initialRouteName="Profile">
+        <Stack.Screen name="Profile" component={ProfileScreen} />
+        <Stack.Screen name="Details" component={DetailsScreen} />
+      </Stack.Navigator>
+    </NavigationContainer>
+  );
+}
+```
+
+```jsx
+// screens/ProfileScreen.js (updated)
+import { View, Text, Pressable, StyleSheet } from 'react-native';
+
+export default function ProfileScreen({ navigation }) {
+  return (
+    <View style={styles.container}>
+      <Text style={styles.name}>Dana Reyes</Text>
+      <Pressable onPress={() => navigation.navigate('Details', { userId: 42 })}>
+        <Text style={styles.link}>View details →</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  name: { fontSize: 22, fontWeight: '600' },
+  link: { color: '#2563eb', marginTop: 12 },
+});
+```
+
+```jsx
+// screens/DetailsScreen.js
+import { View, Text } from 'react-native';
+
+export default function DetailsScreen({ route }) {
+  const { userId } = route.params;
+  return (
+    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+      <Text>Details for user #{userId}</Text>
+    </View>
+  );
+}
+```
+
+`Stack.Navigator` injects a `navigation` prop into every screen it renders, and a `route` prop carrying whatever params you passed. This is the React Native equivalent of `react-router`'s `useNavigate()` and `useParams()` — same idea (declare routes, navigate imperatively, read params), different API surface because there's no URL bar and no browser history object underneath; the "history" is the native navigation stack itself.
+
+## Local state — and the contrast with web `useState`
+
+Here's the part worth slowing down on, because it's the whole point of this section: **the hook is identical.**
+
+```jsx
+import { useState } from 'react';
+import { Pressable, Text, StyleSheet } from 'react-native';
+
+export default function LikeButton() {
+  const [liked, setLiked] = useState(false);
+  const [count, setCount] = useState(0);
+
+  function handlePress() {
+    setLiked((prev) => !prev);
+    setCount((prev) => prev + (liked ? -1 : 1));
+  }
+
+  return (
+    <Pressable onPress={handlePress} style={styles.button}>
+      <Text style={styles.label}>{liked ? '♥' : '♡'} {count}</Text>
+    </Pressable>
+  );
+}
+
+const styles = StyleSheet.create({
+  button: { padding: 12 },
+  label: { fontSize: 20 },
+});
+```
+
+What transfers exactly from your earlier React module, no asterisks:
+
+- `import { useState } from 'react'` — the same package, the same function.
+- The same rule: call it unconditionally, in the same order, every render. No hooks inside `if` blocks or loops here either.
+- The same mental model: **UI = f(state)**. Calling `setCount` doesn't paint anything itself — it schedules a re-render, and the new JSX your component returns is what actually changes what's on screen.
+
+What's genuinely different, and why:
+
+- **There's no `onClick` because there's no DOM.** You use `onPress` on `Pressable` (or `TouchableOpacity`, or `Button`) because a tap isn't a mouse click — it's a touch gesture that React Native's native gesture responder system interprets and reports up as a synthetic event. The event object you get is not a browser `MouseEvent`.
+- **The re-render doesn't diff an HTML tree.** On the web, React reconciles against the DOM and patches real `<div>`/`<span>` nodes. In React Native, React reconciles against a tree of *native view descriptors*, and the bridge (or, on the New Architecture, JSI directly) sends only the minimal set of native UI-update commands to real `UIView`/Android `View` instances. Same algorithm, different paint target — which is exactly the "UI = f(state), rendered to different backends" pattern you first read about with SwiftUI and Compose.
+- **No `:hover`, no `:active` pseudo-classes.** There's no mouse hovering a touchscreen. If you want a pressed-state style, you do it explicitly: `Pressable` accepts a function for `style` — `style={({ pressed }) => [styles.button, pressed && styles.pressed]}` — because the framework can't infer "pressed" the way CSS infers "hovered."
+
+If you did this module in Flutter, the equivalent swap is `setState(() { count++; })` inside a `StatefulWidget` — conceptually the same "mutate state, framework schedules a rebuild" idea, just via an explicit method call instead of a setter function returned by a hook.
+
+## Simulator vs. real device: what actually differs
+
+The iOS Simulator (via Xcode) and the Android Emulator (via Android Studio's AVD Manager) are software — they run on your development machine, not on phone hardware, and that gap is concrete, not theoretical:
+
+- **No real camera, GPS, or sensors.** The simulator fakes a camera feed (usually a static test pattern) and lets you spoof a GPS location manually; it cannot test real accelerometer/gyroscope behavior at all.
+- **No real push notifications.** The iOS Simulator cannot receive actual remote push notifications from Apple's servers (APNs) — only local notifications your app schedules itself. If push is a feature, you *must* test on a real device.
+- **Performance is not representative.** Your Mac's CPU is almost certainly faster than the phone your users own, so "smooth in the simulator" is not evidence it'll be smooth on a three-year-old Android phone. Animation jank and real memory pressure only show up on-device.
+- **No haptics, no real battery/thermal behavior**, and touch is actually a mouse click standing in for a touch — multi-touch gestures and force/long-press timing feel subtly different.
+
+Getting your Expo app onto an actual phone, concretely:
+
+1. Install **Expo Go** from the App Store or Play Store on the phone.
+2. Make sure the phone and your computer are on the **same Wi-Fi network**.
+3. Run `npx expo start` on your computer.
+4. Scan the QR code it prints — with the iPhone Camera app (which hands off to Expo Go), or directly inside Expo Go's scanner on Android.
+5. Metro serves the JS bundle to the phone over the LAN; the app launches inside Expo Go, and Fast Refresh keeps working exactly as it did in the simulator.
+
+If the phone is on a different network (common on locked-down office Wi-Fi), run `npx expo start --tunnel` instead, which relays the connection through a public tunnel so the network boundary stops mattering.
+
+Expo Go only bundles a fixed set of native modules. The moment you add a library with custom native code that Expo Go doesn't include, you need a **development build**: `npx expo prebuild` generates real `ios/` and `android/` native projects, and `npx expo run:ios` / `npx expo run:android` build and install a custom dev client on the simulator or a connected device — at that point you're building and signing an actual native binary, just still with live reload. For a distributable build you'd actually hand to someone else (or eventually submit to TestFlight/Play Console, which is Tier 3 territory), you run `eas build --platform ios` or `--platform android` through Expo's cloud build service (EAS), which produces a real signed `.ipa`/`.apk`/`.aab`.
+
+## If you chose Flutter instead
+
+Everything above has a direct Flutter equivalent, worth knowing even if you built the React Native version:
+
+- **Setup:** `flutter create first_mobile_app`, then `flutter run` — it auto-detects a connected device or booted emulator and launches with hot reload.
+- **Core components:** Flutter's widgets (`Container`, `Text`, `Image`, `Column`, `Row`) instead of RN's `View`/`Text`/`Image` — conceptually identical, syntactically Dart instead of JSX.
+- **Navigation:** `Navigator.push(context, MaterialPageRoute(builder: (_) => DetailsScreen(userId: 42)))` instead of `navigation.navigate(...)` — same push-a-screen-onto-a-stack idea.
+- **State:** `setState(() { ... })` inside a `StatefulWidget`, instead of a `useState` setter — same "mutate, framework schedules rebuild" contract.
+- **Device testing:** identical simulator/emulator caveats (no real push, no real camera) apply; run on a real device with `flutter run -d <device-id>` after enabling USB debugging (Android) or trusting the computer (iOS), and ship a real binary with `flutter build apk` or `flutter build ipa`.
+
+## Exercise
+
+Build a two-screen "Workout Log" app with Expo:
+
+- **Home screen:** a hardcoded array of three exercises (`{ name: 'Push-ups', targetSets: 3 }`, etc.), rendered as a list of `Pressable` rows. Tapping a row navigates to a Details screen, passing the exercise's `name` and `targetSets` as route params.
+- **Details screen:** shows the exercise name, and a "Sets completed: N / target" counter with a button that increments `N` using local `useState`, capped so it can't go above `targetSets`.
+
+**Hint:** render the hardcoded array with `.map()` inside a `ScrollView` (not `FlatList` yet — that's a later optimization, not a correctness requirement for three items), and remember that capping the counter means your updater function needs to check the *previous* state before incrementing: `setCompleted((prev) => Math.min(prev + 1, targetSets))`.
+
+## What to actually retain
+
+The hook you already know (`useState`) and the mental model you already know (UI = f(state)) both transfer completely. What you had to actually learn here is what's underneath them on this surface: no DOM, a small fixed set of native-view primitives instead of HTML tags, Flexbox-by-default layout, touch gestures instead of mouse events, and a navigation stack backed by real native view controllers instead of a browser history object. Everything you build on a third surface later in this tier (Electron) will, by contrast, feel like coming home to the DOM.

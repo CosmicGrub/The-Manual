@@ -1,0 +1,98 @@
+[
+  {
+    "id": "platforms/tier-2/front-end-framework-basics-react/q1",
+    "type": "multiple_choice",
+    "prompt": "In the ProductList/ProductCard/Price example, how does data move between components?",
+    "choices": [
+      "One direction, top to bottom: a parent passes data down to children as props, and a child cannot reach back up to change a prop it was given",
+      "Bidirectionally: a child component can freely reassign a prop it receives, and the change flows back up to the parent automatically",
+      "Siblings share data directly with each other without going through any parent component",
+      "Props are only used for styling; actual data must always go through useState in every component"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-2/front-end-framework-basics-react/q2",
+    "type": "multiple_choice",
+    "prompt": "A component has `let countDirect = 0;` declared outside the component function, and a button's onClick does `countDirect += 1; console.log(countDirect);`. The console shows the number climbing on each click, but the number displayed in the button's label never changes. Why?",
+    "choices": [
+      "Only calls to a useState setter schedule a re-render; mutating a plain variable outside React's state gives React no signal that anything changed, so it never re-renders to show the new value",
+      "React automatically re-renders every component once per second regardless of state changes, so the label will eventually update on its own",
+      "console.log calls secretly block React from re-rendering until the page is refreshed",
+      "Button elements in React cannot display dynamic text, only static strings written directly in JSX"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-2/front-end-framework-basics-react/q3",
+    "type": "multiple_choice",
+    "prompt": "Given `const [items, setItems] = useState(['a', 'b']);`, why does `items.push('c'); setItems(items);` fail to trigger a re-render, while `setItems([...items, 'c'])` works correctly?",
+    "choices": [
+      "push() only works on arrays of numbers, never on arrays of strings",
+      "setItems(items) passes the same array reference as before (since push mutates in place), so React sees no change and skips re-rendering; the spread version creates a new array reference, which React detects as a real change",
+      "React re-renders on every setItems call regardless of the argument, so both versions behave identically",
+      "setItems can only accept arrays with exactly two elements"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-2/front-end-framework-basics-react/q4",
+    "type": "multiple_choice",
+    "prompt": "A useEffect with an empty dependency array (`[]`) sets up a setInterval that calls `setCount(count + 1)` every second, reading `count` from the surrounding component. The displayed count jumps from 0 to 1 and then never changes again. What's the root cause?",
+    "choices": [
+      "setInterval is broken in React and should never be used inside useEffect",
+      "The effect runs once at mount, and the interval's callback closes over the `count` value from that single run (0) forever, so it always computes setCount(0 + 1); it never sees any later count",
+      "Empty dependency arrays are invalid syntax and silently stop the effect from running at all",
+      "setCount can only be called once per component's lifetime"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-2/front-end-framework-basics-react/q5",
+    "type": "multiple_choice",
+    "prompt": "What fixes the stale-closure interval bug from the previous question, while keeping the effect's dependency array empty?",
+    "choices": [
+      "Replacing setCount(count + 1) with the functional updater form, setCount((prevCount) => prevCount + 1), so React supplies the actual current state when the update runs instead of relying on the closure's captured value",
+      "Adding a second, identical setInterval call right after the first one",
+      "Removing the cleanup function that calls clearInterval",
+      "Switching from useState to a plain global variable declared outside the component"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-2/front-end-framework-basics-react/q6",
+    "type": "multiple_choice",
+    "prompt": "In the UserProfile fetch-on-mount example, the effect's cleanup function sets a local `ignore` flag to true. What problem does this solve?",
+    "choices": [
+      "It prevents the component from ever fetching data a second time, no matter what",
+      "It stops a slow response for an old userId from overwriting the component's state after userId has already changed to something newer, by having the old effect's callbacks check `ignore` before calling setState",
+      "It is required by JavaScript syntax any time fetch() is used inside useEffect, regardless of behavior",
+      "It makes the fetch request complete faster by canceling unrelated network traffic"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-2/front-end-framework-basics-react/q7",
+    "type": "multiple_choice",
+    "prompt": "In the GithubLookup component, why does the catch block check `if (err.name === 'AbortError') return;` before setting an error message?",
+    "choices": [
+      "Because AbortError means the GitHub API itself returned a 500 server error",
+      "Because that check is only there for logging purposes and has no effect on behavior",
+      "Because an AbortError happens when the component's own cleanup function deliberately cancelled the request (e.g., the user typed a new username before the old request finished), so it isn't a real failure and shouldn't be shown to the user as one",
+      "Because fetch() throws an AbortError every time a request succeeds, so it must be filtered out"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "platforms/tier-2/front-end-framework-basics-react/q8",
+    "type": "multiple_choice",
+    "prompt": "In the React Router example, what does the `end` prop on `<NavLink to=\"/\" end>` do?",
+    "choices": [
+      "It deletes the route once the user navigates away from it",
+      "It makes the link require two clicks to navigate instead of one",
+      "Without it, '/' would match as a prefix of every other path (like '/about'), so the Home link would stay visually marked as active even while viewing other pages; `end` restricts the match to the exact path",
+      "It disables client-side navigation for that specific link, forcing a full page reload"
+    ],
+    "correctIndex": 2
+  }
+]

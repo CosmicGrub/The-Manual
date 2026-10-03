@@ -1,0 +1,196 @@
+---
+trackId: platforms
+tier: 2
+title: "First Desktop App with Electron"
+order: 4
+estimatedHours: 12
+slug: first-desktop-app-with-electron
+---
+
+## Why wrap a web app in a native shell
+
+You already know how to build a web app. Electron's whole pitch is: take that web app — HTML, CSS, JS, maybe a build step — and ship it as a double-clickable desktop application with its own icon, its own window, access to the native file system, and an installer your users can run without knowing what Node.js is.
+
+Under the hood Electron is two things glued together: **Chromium** (the browser engine that renders your HTML/CSS/JS) and **Node.js** (which gives you filesystem, process, and OS access). A plain web page in a browser tab can't touch your hard drive. An Electron app can — but only in specific, controlled places, and understanding where that boundary sits is the whole point of this lesson.
+
+## Main process vs. renderer process: why the split exists
+
+Every Electron app has exactly one **main process** and one or more **renderer processes**.
+
+- The **main process** runs in Node.js. It has no DOM, no `window`, no `document`. It can read files, spawn child processes, talk to the OS, create native menus, and — critically — it's the only place with full Node access by default.
+- Each **renderer process** is a Chromium window running your web page. It has the DOM and all your familiar browser APIs. Historically Electron let renderers run Node too, but that turned out to be a security disaster: your renderer loads a web page, and if that page ever includes untrusted content (an ad, a remote script, user-generated HTML), full Node access means that content could read your filesystem or run arbitrary shell commands. So modern Electron isolates renderers from Node and OS access entirely, and the main process acts as the gatekeeper.
+
+This split mirrors a server/client relationship inside a single app: the renderer is like a browser tab (sandboxed, UI-only), the main process is like a backend (trusted, privileged). They talk to each other over **IPC** (inter-process communication) — message passing, not shared memory or direct function calls.
+
+## A real main.js
+
+Here's a minimal but production-shaped main process for a notes-taking app:
+
+```js
+// main.js
+const { app, BrowserWindow, Menu, ipcMain } = require('electron')
+const path = require('node:path')
+const fs = require('node:fs/promises')
+
+let mainWindow
+
+function createWindow() {
+  mainWindow = new BrowserWindow({
+    width: 900,
+    height: 650,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,   // keep renderer JS and Electron internals separate
+      nodeIntegration: false,   // renderer gets NO direct Node access
+    },
+  })
+
+  mainWindow.loadFile('index.html')
+}
+
+app.whenReady().then(() => {
+  createWindow()
+
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+  })
+})
+
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') app.quit()
+})
+```
+
+Two `webPreferences` flags matter most: `contextIsolation: true` keeps the page's JavaScript world separate from Electron's internal APIs, and `nodeIntegration: false` means `require()` simply doesn't exist inside the renderer's JavaScript. Both are the default in modern Electron, but set them explicitly — a security setting you can't see is a security setting someone will accidentally remove.
+
+## preload.js: the bridge, not the door
+
+If the renderer can't `require('fs')`, how does it ever save a note? Through a **preload script** — a file that runs in a special context with access to a *limited* set of Node/Electron APIs, before your page's own JS loads. It uses `contextBridge` to hand the renderer a small, explicit, read-only API object — not a blank check to Node itself.
+
+```js
+// preload.js
+const { contextBridge, ipcRenderer } = require('electron')
+
+contextBridge.exposeInMainWorld('notesAPI', {
+  readNote: () => ipcRenderer.invoke('notes:read'),
+  saveNote: (text) => ipcRenderer.invoke('notes:save', text),
+})
+```
+
+Now, and only now, your renderer's plain browser JavaScript can call `window.notesAPI.saveNote(...)`. It cannot call `fs.writeFile` directly — that function was never exposed to it. This is the actual security mechanism, not a formality: a malicious or compromised web page loaded in that window can call exactly the two functions you chose to expose, with exactly the arguments you chose to accept, and nothing else. It can't read `~/.ssh/id_rsa`, it can't shell out, it can't `require('child_process')`.
+
+## Handling the IPC call in the main process
+
+The main process defines what `'notes:read'` and `'notes:save'` actually do, using `ipcMain.handle`:
+
+```js
+// main.js (continued)
+const NOTE_PATH = path.join(app.getPath('userData'), 'note.txt')
+
+ipcMain.handle('notes:read', async () => {
+  try {
+    return await fs.readFile(NOTE_PATH, 'utf-8')
+  } catch {
+    return ''
+  }
+})
+
+ipcMain.handle('notes:save', async (event, text) => {
+  await fs.writeFile(NOTE_PATH, text, 'utf-8')
+  return true
+})
+```
+
+`app.getPath('userData')` gives you the correct per-OS location for app data (`~/Library/Application Support/YourApp` on macOS, `%APPDATA%/YourApp` on Windows) — never hardcode a path. The renderer-side code, in your actual HTML/JS, looks exactly like calling any async function:
+
+```js
+// renderer.js — loaded by index.html, has NO node require()
+const textarea = document.getElementById('editor')
+
+window.notesAPI.readNote().then((text) => {
+  textarea.value = text
+})
+
+document.getElementById('saveBtn').addEventListener('click', () => {
+  window.notesAPI.saveNote(textarea.value)
+})
+```
+
+That `textarea` and `addEventListener` code is indistinguishable from ordinary browser JavaScript — because it is ordinary browser JavaScript. The only new thing is `window.notesAPI`, and it exists solely because `preload.js` chose to put it there.
+
+## Native menus
+
+A web app has no menu bar. A desktop app usually does. Electron's `Menu` and `MenuItem` build a real, OS-native menu — on macOS it sits at the top of the screen; on Windows/Linux it sits inside the window:
+
+```js
+// main.js (continued)
+const menuTemplate = [
+  {
+    label: 'File',
+    submenu: [
+      {
+        label: 'Save Note',
+        accelerator: 'CmdOrCtrl+S',
+        click: () => mainWindow.webContents.send('menu:save-requested'),
+      },
+      { type: 'separator' },
+      { role: 'quit' },
+    ],
+  },
+  {
+    label: 'Edit',
+    submenu: [{ role: 'undo' }, { role: 'redo' }, { type: 'separator' }, { role: 'cut' }, { role: 'copy' }, { role: 'paste' }],
+  },
+]
+
+const menu = Menu.buildFromTemplate(menuTemplate)
+Menu.setApplicationMenu(menu)
+```
+
+Notice the click handler doesn't call `saveNote` directly — the main process doesn't own your editor's text, the renderer does. So it sends a message *into* the renderer (`webContents.send`), which the renderer listens for via a preload-exposed subscription, and the renderer then calls `saveNote` itself. Same main/renderer boundary, just traveling the other direction.
+
+## Packaging a real installer
+
+A folder of JS files isn't something you hand a user. `electron-builder` turns your app into a signed, double-clickable installer. Install it (`npm i -D electron-builder`), then configure it in `package.json`:
+
+```json
+{
+  "name": "notes-app",
+  "version": "1.0.0",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder"
+  },
+  "build": {
+    "appId": "com.example.notesapp",
+    "productName": "Notes",
+    "directories": { "output": "dist" },
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.productivity"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "files": ["main.js", "preload.js", "index.html", "renderer.js"]
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.0.0"
+  }
+}
+```
+
+Run `npm run dist` and electron-builder produces a `.dmg` on macOS or an NSIS `.exe` installer on Windows in your `dist/` folder — something you could actually send a friend. `files` matters: anything not listed doesn't get bundled, which is also how you keep your `node_modules` dev-only tooling out of the shipped app.
+
+## Exercise
+
+Extend the notes app above into a tiny **To-Do list** desktop app:
+
+1. Store todos as a JSON array (`[{ id, text, done }]`) instead of a plain string, using the same `userData` path pattern.
+2. Add two IPC channels: `todos:getAll` and `todos:toggle(id)`. `toggle` should read the file, flip that item's `done`, write it back, and return the updated list.
+3. Add a File menu item "Clear Completed" that sends a message into the renderer, which then calls a new `todos:clearCompleted` handler.
+4. Add a `linux` target block (`AppImage`) to your electron-builder config alongside `mac` and `win`.
+
+**Hint:** your renderer never touches the JSON file. It only ever calls functions on `window.todoAPI` that your `preload.js` exposed — if you find yourself wanting to `require('fs')` in your renderer-side `.js` file, that's the signal you're about to break the security boundary, and the fix is always "add a new IPC channel," never "loosen `nodeIntegration`."

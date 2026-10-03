@@ -1,0 +1,98 @@
+[
+  {
+    "id": "platforms/tier-2/first-desktop-app-with-electron/q1",
+    "type": "multiple_choice",
+    "prompt": "In an Electron app, which process has direct access to Node.js APIs like the file system by default?",
+    "choices": [
+      "The renderer process",
+      "The main process",
+      "Both processes equally",
+      "Neither \u2014 only electron-builder has file access"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-2/first-desktop-app-with-electron/q2",
+    "type": "multiple_choice",
+    "prompt": "Why can't the renderer process just call Node's fs module directly to read or write files?",
+    "choices": [
+      "fs is only available on Linux, not macOS or Windows",
+      "Chromium does not support asynchronous functions",
+      "With contextIsolation and nodeIntegration disabled, the renderer has no Node access, so a compromised or malicious page can't reach the filesystem directly",
+      "fs calls are too slow to run inside a BrowserWindow"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "platforms/tier-2/first-desktop-app-with-electron/q3",
+    "type": "multiple_choice",
+    "prompt": "What is the primary job of preload.js in the setup shown in this lesson?",
+    "choices": [
+      "It replaces main.js as the app's entry point",
+      "It compiles the renderer's HTML before the window opens",
+      "It uses contextBridge to expose a small, explicit set of functions to the renderer's window object, bridging main and renderer without giving the renderer full Node access",
+      "It stores the app's packaging configuration for electron-builder"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "platforms/tier-2/first-desktop-app-with-electron/q4",
+    "type": "multiple_choice",
+    "prompt": "In the IPC flow ipcRenderer.invoke('notes:save', text) paired with ipcMain.handle('notes:save', ...), where does the actual fs.writeFile call happen?",
+    "choices": [
+      "In the renderer process, right after invoke is called",
+      "In the main process, inside the handle callback",
+      "In preload.js, before the renderer ever runs",
+      "In electron-builder, at packaging time"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-2/first-desktop-app-with-electron/q5",
+    "type": "multiple_choice",
+    "prompt": "What does setting nodeIntegration: false and contextIsolation: true in webPreferences accomplish?",
+    "choices": [
+      "It disables JavaScript entirely in the renderer",
+      "It prevents the renderer's page JavaScript from accessing Node/Electron internals directly, forcing all privileged work through the preload bridge and IPC",
+      "It makes the app load faster by skipping Chromium's rendering engine",
+      "It is required only for Linux builds and has no effect on macOS or Windows"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-2/first-desktop-app-with-electron/q6",
+    "type": "multiple_choice",
+    "prompt": "In the Menu.buildFromTemplate example, the 'Save Note' menu item's click handler calls mainWindow.webContents.send('menu:save-requested') instead of saving the file itself. Why?",
+    "choices": [
+      "webContents.send is required syntax and has no real purpose",
+      "The main process doesn't hold the current editor text \u2014 that lives in the renderer \u2014 so it messages the renderer, which then calls its own save function with the text it has",
+      "Menu click handlers are not allowed to call ipcMain.handle functions",
+      "It's a performance optimization to avoid writing to disk twice"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-2/first-desktop-app-with-electron/q7",
+    "type": "multiple_choice",
+    "prompt": "What does app.getPath('userData') give you, and why use it instead of a hardcoded path?",
+    "choices": [
+      "The path to the Electron binary itself, useful for auto-updates",
+      "A temporary folder that is wiped every time the app closes",
+      "The correct, OS-specific location for storing this app's data (e.g. Application Support on macOS, AppData on Windows), so your code works correctly across platforms",
+      "The path to the renderer's compiled HTML bundle"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "platforms/tier-2/first-desktop-app-with-electron/q8",
+    "type": "multiple_choice",
+    "prompt": "In the electron-builder 'build' config, what does the 'files' array control?",
+    "choices": [
+      "Which files get opened automatically when the app launches",
+      "Which files are permitted to use Node APIs",
+      "Which files from your project are actually bundled into the packaged installer, keeping unrelated files (like dev tooling) out of the shipped app",
+      "The order in which IPC handlers are registered"
+    ],
+    "correctIndex": 2
+  }
+]

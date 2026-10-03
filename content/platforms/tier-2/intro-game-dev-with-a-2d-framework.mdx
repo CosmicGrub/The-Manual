@@ -1,0 +1,273 @@
+---
+trackId: platforms
+tier: 2
+title: "Intro Game Dev with a 2D Framework (Phaser/JS Canvas or Pygame)"
+order: 5
+estimatedHours: 15
+slug: intro-game-dev-with-a-2d-framework
+---
+
+## From Request/Response to Real Time
+
+Every module before this one ran on the same rhythm: a request comes in, you compute a response, you're done until the next request shows up. An Express route handler sits idle between calls. A React component re-renders when state changes and then goes quiet.
+
+Games don't get that luxury. A game draws roughly 60 frames every second whether or not anything "happened," and it owns the clock instead of waiting for one. That's the entire shift in this module: you're going to write and reason about a loop that never stops, and you're going to see why "just move the player 2 pixels" is a bug waiting to happen.
+
+We'll build this up in raw JavaScript first so the mechanics are visible, then move to Phaser 3 (a real, widely used 2D framework) once you've seen what it's automating for you. The same ideas apply nearly line-for-line in Pygame if that's your stack — a short comparison is included below.
+
+## The Game Loop and Why Delta Time Matters
+
+Here's a loop that looks reasonable and is quietly broken:
+
+```js
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+let x = 0;
+
+function loop() {
+  x += 2; // move 2px every frame -- this is the bug
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(x, 100, 20, 20);
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+```
+
+`requestAnimationFrame` calls `loop` once per display refresh. On a 60Hz monitor that's 60 calls per second, so the square moves 120px/sec. On a 144Hz gaming monitor, it's 144 calls per second, so the exact same code moves the square 288px/sec — 2.4x faster, on the same hardware class, with zero code changes. Your game's physics would literally depend on what monitor someone owns.
+
+The fix is to stop counting frames and start counting real elapsed time:
+
+```js
+let x = 0;
+let lastTime = performance.now();
+const SPEED = 120; // pixels per SECOND, not per frame
+
+function loop(now) {
+  const deltaSeconds = (now - lastTime) / 1000;
+  lastTime = now;
+
+  x += SPEED * deltaSeconds;
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(x, 100, 20, 20);
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+```
+
+`requestAnimationFrame` passes a high-resolution timestamp into your callback. Subtract the last timestamp from this one, divide by 1000, and you get `deltaSeconds` — the actual slice of real time this frame represents. Multiply your speed (defined in units per second, a constant that never changes) by that slice, and the square now moves 120px every second on any display, at any frame rate, forever. This is called frame-rate-independent movement, and it's non-negotiable for anything you ship.
+
+Phaser does this for you automatically: every scene's `update(time, delta)` method receives `delta` as milliseconds elapsed since the last frame, pre-computed. You'll see it used below.
+
+## Sprites and Sprite-Sheet Animation
+
+A sprite sheet is one image file containing every animation frame of a character laid out in a grid, instead of dozens of separate image files. Here's a minimal Phaser scene that loads one and plays it:
+
+```js
+class MainScene extends Phaser.Scene {
+  preload() {
+    // hero.png is a strip of 6 frames, each 32x32 pixels
+    this.load.spritesheet('hero', 'assets/hero.png', {
+      frameWidth: 32,
+      frameHeight: 32
+    });
+  }
+
+  create() {
+    this.anims.create({
+      key: 'run',
+      frames: this.anims.generateFrameNumbers('hero', { start: 0, end: 5 }),
+      frameRate: 10,   // how many of these frames play per second
+      repeat: -1       // loop forever
+    });
+
+    this.hero = this.physics.add.sprite(100, 300, 'hero');
+    this.hero.play('run');
+  }
+
+  update(time, delta) {
+    // movement goes here, added below
+  }
+}
+
+const config = {
+  type: Phaser.AUTO,
+  width: 800,
+  height: 450,
+  physics: { default: 'arcade', arcade: { gravity: { y: 0 } } },
+  scene: MainScene
+};
+
+new Phaser.Game(config);
+```
+
+`frameWidth`/`frameHeight` tell Phaser how to slice the strip into individual frames (indices 0 through 5). `frameRate: 10` is the animation's own playback speed, separate from how fast the hero actually moves across the screen — a character can run in place at 10 frames per second while sprinting at 400 pixels per second, or stand still playing an idle animation at 2 frames per second. Note that Phaser's animation system is also driven by delta time internally, for exactly the reason covered above.
+
+## Collision Detection: AABB With Real Numbers
+
+AABB stands for axis-aligned bounding box — the simplest practical collision check, and the one almost every 2D framework uses by default. Two rectangles overlap only if they overlap on the x-axis *and* the y-axis at the same time:
+
+```js
+function rectsOverlap(a, b) {
+  return (
+    a.x < b.x + b.width &&
+    a.x + a.width > b.x &&
+    a.y < b.y + b.height &&
+    a.y + a.height > b.y
+  );
+}
+
+const player = { x: 50, y: 50, width: 32, height: 32 };
+const coin   = { x: 70, y: 60, width: 16, height: 16 };
+
+rectsOverlap(player, coin); // true
+```
+
+Walk through the actual numbers: the player's box spans x: 50 to 82 and y: 50 to 82. The coin's box spans x: 70 to 86 and y: 60 to 76. Is `50 < 86`? Yes. Is `82 > 70`? Yes. Is `50 < 76`? Yes. Is `82 > 60`? Yes. All four conditions hold, so the boxes intersect — the function correctly returns `true`. Change the coin's `x` to 90 and the second condition (`82 > 90`) fails, correctly reporting no collision even though the y-ranges still overlap. Both axes have to agree.
+
+In Phaser you don't write this by hand — Arcade Physics runs this exact check every frame for every pair of bodies you register, and calls your function only when it hits:
+
+```js
+this.physics.add.overlap(this.hero, this.coin, collectCoin, null, this);
+
+function collectCoin(hero, coin) {
+  coin.destroy();
+  score += 10;
+}
+```
+
+Knowing the math underneath matters because it's also what you reach for the moment you need something a framework doesn't provide — a custom hitbox smaller than the sprite, or a collision check against a shape the engine doesn't model.
+
+## Input Handling: Keyboard and Touch
+
+Movement in response to input follows the same velocity-plus-delta-time pattern as everything above — you set a velocity, the physics engine applies it per frame using its own delta:
+
+```js
+create() {
+  // ...
+  this.cursors = this.input.keyboard.createCursorKeys();
+
+  // touch: tap the left or right half of the screen
+  this.input.on('pointerdown', (pointer) => {
+    this.touchDirection = pointer.x < this.cameras.main.width / 2 ? -1 : 1;
+  });
+  this.input.on('pointerup', () => { this.touchDirection = 0; });
+}
+
+update() {
+  const SPEED = 200;
+  let direction = 0;
+
+  if (this.cursors.left.isDown) direction = -1;
+  else if (this.cursors.right.isDown) direction = 1;
+  else if (this.touchDirection) direction = this.touchDirection;
+
+  this.hero.setVelocityX(direction * SPEED);
+}
+```
+
+`setVelocityX(200)` means "move at 200 pixels per second," not "move 200 pixels this frame." Arcade Physics multiplies that velocity by its own delta every frame internally — it's the framework doing, automatically, the exact multiplication you wrote by hand in the first section. Keyboard and touch both just decide *which direction*; the engine handles *how far this frame*.
+
+## Tying It Together: Score and Win/Loss State
+
+A playable game is the four pieces above plus a small amount of state: a score number and a flag for whether the game has ended. Here's a complete "Coin Dash" — move left/right, collect every coin, avoid the patrolling enemy:
+
+```js
+class MainScene extends Phaser.Scene {
+  preload() {
+    this.load.spritesheet('hero', 'assets/hero.png', { frameWidth: 32, frameHeight: 32 });
+    this.load.image('coin', 'assets/coin.png');
+    this.load.image('enemy', 'assets/enemy.png');
+  }
+
+  create() {
+    this.score = 0;
+    this.gameOver = false;
+    this.scoreText = this.add.text(16, 16, 'Score: 0', { fontSize: '20px', fill: '#fff' });
+
+    this.hero = this.physics.add.sprite(400, 380, 'hero');
+    this.hero.setCollideWorldBounds(true);
+
+    this.coins = this.physics.add.group({
+      key: 'coin',
+      repeat: 7,
+      setXY: { x: 40, y: 80, stepX: 90 }
+    });
+
+    this.enemy = this.physics.add.sprite(400, 80, 'enemy');
+    this.enemy.setVelocityX(150);
+    this.enemy.setBounce(1, 0);
+    this.enemy.setCollideWorldBounds(true);
+
+    this.cursors = this.input.keyboard.createCursorKeys();
+
+    this.physics.add.overlap(this.hero, this.coins, this.collectCoin, null, this);
+    this.physics.add.overlap(this.hero, this.enemy, this.loseGame, null, this);
+  }
+
+  collectCoin(hero, coin) {
+    coin.disableBody(true, true);
+    this.score += 10;
+    this.scoreText.setText('Score: ' + this.score);
+
+    if (this.coins.countActive(true) === 0) this.winGame();
+  }
+
+  winGame() {
+    this.gameOver = true;
+    this.physics.pause();
+    this.add.text(250, 200, 'YOU WIN', { fontSize: '48px', fill: '#0f0' });
+  }
+
+  loseGame() {
+    this.gameOver = true;
+    this.physics.pause();
+    this.hero.setTint(0xff0000);
+    this.add.text(250, 200, 'GAME OVER', { fontSize: '48px', fill: '#f00' });
+  }
+
+  update() {
+    if (this.gameOver) return;
+
+    const SPEED = 200;
+    if (this.cursors.left.isDown) this.hero.setVelocityX(-SPEED);
+    else if (this.cursors.right.isDown) this.hero.setVelocityX(SPEED);
+    else this.hero.setVelocityX(0);
+  }
+}
+```
+
+Every section above shows up here: the coin `group` plus `overlap` is the collision-detection section; `cursors.left.isDown` driving `setVelocityX` is the input section; `this.anims` from the sprite section would plug into `this.hero.play(...)` the same way. The only genuinely new piece is `this.gameOver` — a single boolean that, checked at the top of `update()`, freezes player control the instant the game ends. That's the whole "game state machine" for this tier: a number for score, a boolean for whether the game is still running, and some text objects reacting to both.
+
+## The Same Loop in Pygame
+
+If you're working in Python instead, the loop structure is identical — only the syntax changes:
+
+```python
+import pygame
+
+pygame.init()
+screen = pygame.display.set_mode((800, 450))
+clock = pygame.time.Clock()
+x, SPEED = 0, 120  # pixels per second
+
+running = True
+while running:
+    dt = clock.tick(60) / 1000  # seconds since last frame, capped at 60fps
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+
+    x += SPEED * dt
+    screen.fill((0, 0, 0))
+    pygame.draw.rect(screen, (255, 255, 255), (x, 100, 20, 20))
+    pygame.display.flip()
+```
+
+`clock.tick(60)` returns milliseconds elapsed and caps the loop near 60fps; dividing by 1000 gives you the same `dt` you computed by hand in raw JavaScript. Sprite sheets, AABB collision via `Rect.colliderect()`, and keyboard state via `pygame.key.get_pressed()` all map directly onto what you just built — the concepts in this module are framework-agnostic, Phaser and Pygame just give you different names for the same four ideas.
+
+## Exercise
+
+Extend the Coin Dash game above with a 20-second countdown timer. If the player hasn't collected all 8 coins before time runs out, show "GAME OVER" the same way `loseGame()` does.
+
+Hint: don't reach for `setInterval` or `setTimeout` — they keep running even while `this.physics.pause()` has frozen everything else, and they don't know about the game's own clock. Instead, accumulate elapsed time the same way the raw canvas example did: add the `delta` argument of `update(time, delta)` to a running total (converting milliseconds to seconds), and check that total against 20 each frame.

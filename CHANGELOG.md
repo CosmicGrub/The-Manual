@@ -476,3 +476,14 @@ All notable changes to The Manual (curriculum + app) are logged here. This file 
 **Result:** `npm run build` passed clean — 203 pages, 186 unique slugs verified repo-wide.
 
 **Status:** Platforms Tier 1 complete (76h, 4 lessons). Platforms is now 2/6 tiers content-complete (Tiers 0-1, 92h); Tiers 2-5 remain.
+
+## [0.37.0] — 2026-10-03 — Platforms Tier 2: complete (shipping on three real surfaces)
+
+**Context:** Continuing the tier-by-tier pattern. This tier's checkpoint is the same product idea shipped to web, mobile, and desktop, and the content matches that ambition — real runnable React/Express/React-Native/Electron/game-loop code throughout, not pseudocode. The backend module stays scoped to hands-on building rather than API-design theory, which stays Software Engineering's job.
+
+**Added**
+- `content/platforms/tier-2/*.mdx` (5 files) + matching quizzes: Front-End Framework Basics (React) (a real reference-equality bug with array state shown broken then fixed, a real stale-closure useEffect example), Backend Basics & REST APIs (a full CRUD API against SQLite with real request/response bodies), First Cross-Platform Mobile App (React Native/Expo or Flutter, with local state explicitly contrasted against this tier's own React module), First Desktop App with Electron (the main-process/renderer-process split and why the renderer can't touch Node's `fs` directly), Intro Game Dev with a 2D Framework (delta-time movement, AABB collision math).
+
+**Result:** `npm run build` passed clean — 208 pages, 191 unique slugs verified repo-wide.
+
+**Status:** Platforms Tier 2 complete (97h, 5 lessons). Platforms is now 3/6 tiers content-complete (Tiers 0-2, 189h); Tiers 3-5 remain.

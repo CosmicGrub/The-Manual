@@ -1,0 +1,334 @@
+---
+trackId: platforms
+tier: 2
+title: "Front-End Framework Basics (React)"
+order: 1
+estimatedHours: 25
+slug: front-end-framework-basics-react
+---
+
+## Where this module picks up
+
+Tier 1 had you manipulating the DOM directly: `document.querySelector`, `addEventListener`, manually setting `.textContent` whenever something changed. That works, but it falls apart fast once a page has more than a handful of moving parts — you end up writing imperative "when X happens, go find this element and change that attribute" code everywhere, and keeping all of it in sync by hand becomes the actual bug source.
+
+React's pitch is the opposite direction: you describe what the UI *should look like* given the current data, and React figures out which parts of the real DOM need to change to match. You stop writing "find the button and change its text" and start writing "here is what this piece of UI looks like when `count` is 3." This module is about the five things you need to build that kind of UI: components and props, `useState`, `useEffect`, fetching data properly, and moving between pages without a server round trip.
+
+## Components and props: breaking a page into pieces
+
+A component is a JavaScript function that returns JSX (that HTML-looking syntax that compiles to `React.createElement` calls). Props are just the arguments to that function, passed down from whoever renders it. Here's a product list broken into three components instead of one blob:
+
+```jsx
+function Price({ amount }) {
+  return <span className="price">${amount.toFixed(2)}</span>;
+}
+
+function StockBadge({ inStock }) {
+  return (
+    <span className={inStock ? 'badge in-stock' : 'badge out-of-stock'}>
+      {inStock ? 'In stock' : 'Out of stock'}
+    </span>
+  );
+}
+
+function ProductCard({ name, price, inStock }) {
+  return (
+    <div className="product-card">
+      <h3>{name}</h3>
+      <Price amount={price} />
+      <StockBadge inStock={inStock} />
+    </div>
+  );
+}
+
+function ProductList({ products }) {
+  return (
+    <div className="product-list">
+      {products.map((p) => (
+        <ProductCard key={p.id} name={p.name} price={p.price} inStock={p.inStock} />
+      ))}
+    </div>
+  );
+}
+```
+
+```jsx
+const products = [
+  { id: 1, name: 'Desk Lamp', price: 24.99, inStock: true },
+  { id: 2, name: 'Monitor Arm', price: 89.0, inStock: false },
+];
+
+function App() {
+  return <ProductList products={products} />;
+}
+```
+
+Notice the shape: `ProductList` doesn't know how a price is formatted or how a stock badge is styled — it just hands each `ProductCard` a slice of data, and `ProductCard` hands even smaller slices down to `Price` and `StockBadge`. Data flows one direction, top to bottom, through props. A child can never reach up and change a prop it was given — props are read-only from the receiving component's point of view. If `StockBadge` needs to change, you change it in one place and every card using it updates. The `key={p.id}` on each `ProductCard` isn't decoration — it's how React tells one list item apart from another across re-renders, and leaving it off (or using the array index when items can be reordered) causes React to misattribute state to the wrong item.
+
+## State with `useState`: what actually triggers a re-render
+
+Props come from outside; state is data a component owns and manages itself, and it is the only thing in React that automatically causes a re-render when it changes.
+
+```jsx
+import { useState } from 'react';
+
+function Counter() {
+  const [count, setCount] = useState(0);
+  const [isVisible, setIsVisible] = useState(true);
+
+  console.log('Counter rendered, count is', count);
+
+  return (
+    <div>
+      <button onClick={() => setCount(count + 1)}>Count: {count}</button>
+      <button onClick={() => setIsVisible(!isVisible)}>
+        {isVisible ? 'Hide' : 'Show'} details
+      </button>
+      {isVisible && <p>Current count is {count}</p>}
+    </div>
+  );
+}
+```
+
+Click the first button and the console line reprints, with a new number each time. That log line is proof the whole function reran — `setCount` doesn't just update a value somewhere, it tells React "this component's output may now be different," and React calls the function again to get the new JSX, diffs it against what's on screen, and patches only what changed.
+
+Now the part that trips people up: what does *not* trigger a re-render.
+
+```jsx
+let countDirect = 0;
+
+function BrokenCounter() {
+  return (
+    <button
+      onClick={() => {
+        countDirect += 1;
+        console.log(countDirect); // climbs: 1, 2, 3...
+      }}
+    >
+      Count: {countDirect}
+    </button>
+  );
+}
+```
+
+The console proves the variable is changing. The button label never does. `countDirect` is a plain JavaScript variable sitting outside any component's state — React has no idea it exists and no reason to re-render anything when it changes. Only `setState` calls schedule a re-render; mutating a regular variable, even one that a component reads, does nothing.
+
+The same trap shows up with objects and arrays, in a sneakier form:
+
+```jsx
+const [items, setItems] = useState(['a', 'b']);
+
+function addBroken() {
+  items.push('c');   // mutates the existing array in place
+  setItems(items);    // same array reference as before — React sees "no change"
+}
+
+function addFixed() {
+  setItems([...items, 'c']); // a brand-new array reference
+}
+```
+
+React decides whether to re-render partly by checking if the new state is the *same reference* as the old state. `items.push('c')` mutates the array in place — `items` still points at the exact same array object it did a moment ago, so when you call `setItems(items)`, React compares the new value to the old one, sees they're reference-equal, and skips the re-render entirely, even though the array's contents did change. `addFixed` spreads into a new array (`[...items, 'c']`), producing a new reference, which is what tells React something actually changed. The rule: never mutate state directly (no `.push`, `.sort`, direct property assignment on state objects) — always produce a new array or object and pass that to the setter.
+
+## Side effects with `useEffect`: fetching on mount, cleanup, and the stale-closure trap
+
+Rendering should be pure — given the same props and state, a component should produce the same JSX, with no side effects like network calls or timers fired directly in the function body. `useEffect` is where those side effects live instead, and it runs *after* React has updated the screen.
+
+Fetch-on-mount, with the dependency array and a cleanup function doing real work:
+
+```jsx
+import { useState, useEffect } from 'react';
+
+function UserProfile({ userId }) {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let ignore = false;
+    setLoading(true);
+    setError(null);
+
+    fetch(`https://jsonplaceholder.typicode.com/users/${userId}`)
+      .then((res) => {
+        if (!res.ok) throw new Error(`Request failed: ${res.status}`);
+        return res.json();
+      })
+      .then((data) => {
+        if (!ignore) setUser(data);
+      })
+      .catch((err) => {
+        if (!ignore) setError(err.message);
+      })
+      .finally(() => {
+        if (!ignore) setLoading(false);
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [userId]);
+
+  if (loading) return <p>Loading...</p>;
+  if (error) return <p>Error: {error}</p>;
+  return <h2>{user.name}</h2>;
+}
+```
+
+The dependency array `[userId]` means: run this effect after the first render, and again any time `userId` changes between renders — never on every render for no reason. The returned function is the cleanup, and React calls it right before the effect runs again (when `userId` changes) and once more when the component unmounts. Here the cleanup sets `ignore = true`, so if `userId` changes again before a slow request finishes, the stale response is thrown away instead of overwriting newer state with old data — a real race condition you will hit the first time a user clicks between two profiles quickly.
+
+Now the stale-closure bug itself, the single most common `useEffect` mistake:
+
+```jsx
+function Clock() {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      console.log('tick, count is', count); // always logs 0
+      setCount(count + 1);                   // always sets to 1
+    }, 1000);
+
+    return () => clearInterval(id);
+  }, []); // empty array: this effect runs exactly once, at mount
+
+  return <p>Count: {count}</p>;
+}
+```
+
+Run this and the displayed count flips from 0 to 1 once, then freezes there forever — it never climbs to 2, 3, 4. Here's why: the empty dependency array means the effect body runs exactly once, when the component first mounts. The function passed to `setInterval` is created during that single run, and like any closure, it captures a live reference to the variables in scope *at that moment* — `count`, which was `0`. That interval callback keeps using the same `count` it closed over at creation time, forever, no matter how many renders happen afterward with a different `count` in them. Every tick calls `setCount(0 + 1)`, which is `setCount(1)` every single time — setting state to the same value it's already at, which is why it sticks.
+
+The fix is the functional updater form of `setCount`, which React calls with the actual current state at the moment the update runs, bypassing the closure entirely:
+
+```jsx
+useEffect(() => {
+  const id = setInterval(() => {
+    setCount((prevCount) => prevCount + 1); // reads live state, not the closure's snapshot
+  }, 1000);
+
+  return () => clearInterval(id);
+}, []);
+```
+
+Now it counts correctly, up through 1, 2, 3, 4... forever, with the same empty dependency array and the same interval created once. This pattern — a closure inside an effect holding a stale value from the render it was born in — is the thing to check first any time a value inside a `useEffect` callback seems "stuck" at an old number.
+
+## Fetching data from an API: loading and error states, not glossed over
+
+A real fetch needs three states tracked explicitly — loading, error, success — or your UI either shows nothing while waiting or silently breaks when the network fails. Here's a GitHub user lookup that handles all three, plus cancellation of in-flight requests:
+
+```jsx
+import { useState, useEffect } from 'react';
+
+function GithubLookup() {
+  const [username, setUsername] = useState('octocat');
+  const [profile, setProfile] = useState(null);
+  const [status, setStatus] = useState('idle'); // 'idle' | 'loading' | 'success' | 'error'
+  const [errorMessage, setErrorMessage] = useState('');
+
+  useEffect(() => {
+    if (!username) return;
+
+    const controller = new AbortController();
+
+    async function loadProfile() {
+      setStatus('loading');
+      try {
+        const res = await fetch(`https://api.github.com/users/${username}`, {
+          signal: controller.signal,
+        });
+        if (res.status === 404) throw new Error(`No GitHub user named "${username}"`);
+        if (!res.ok) throw new Error(`GitHub API error: ${res.status}`);
+        const data = await res.json();
+        setProfile(data);
+        setStatus('success');
+      } catch (err) {
+        if (err.name === 'AbortError') return; // cancelled on purpose, not a real failure
+        setErrorMessage(err.message);
+        setStatus('error');
+      }
+    }
+
+    loadProfile();
+
+    return () => controller.abort();
+  }, [username]);
+
+  return (
+    <div>
+      <input value={username} onChange={(e) => setUsername(e.target.value)} />
+      {status === 'loading' && <p>Loading...</p>}
+      {status === 'error' && <p role="alert">{errorMessage}</p>}
+      {status === 'success' && profile && (
+        <div>
+          <img src={profile.avatar_url} alt={profile.login} width={60} />
+          <p>{profile.name ?? profile.login}</p>
+          <p>{profile.public_repos} public repos</p>
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+`AbortController` is the cleanup story for fetches specifically: if the user types a new username before the previous request resolves, the cleanup function fires first and calls `controller.abort()`, which rejects the in-flight fetch with an `AbortError`. The `catch` block checks for that error name and bails out quietly instead of showing a bogus error message for a request you cancelled on purpose. Without this, a slow response for an old username could land *after* a faster response for a new one and overwrite the correct data on screen with stale data — the same race condition from the `UserProfile` example, just caused by the network instead of by `userId` changing.
+
+Note this lesson is only about *consuming* an API correctly from the client — handling the three states, cancelling stale requests, parsing errors. How to design the API itself (status codes, pagination, versioning, resource shapes) is its own deep subject, covered properly in the Software Engineering track's "API Design Deep Dive" module. You don't need that yet; you need your fetch calls to not silently break.
+
+## Basic client-side routing with React Router
+
+Without a router, a React app is one page — you'd have to re-implement "show different content depending on the URL" by hand. `react-router-dom` does that properly:
+
+```bash
+npm install react-router-dom
+```
+
+```jsx
+import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom';
+
+function Home() {
+  return <h2>Home</h2>;
+}
+
+function About() {
+  return <h2>About this app</h2>;
+}
+
+function Nav() {
+  return (
+    <nav>
+      <NavLink to="/" end className={({ isActive }) => (isActive ? 'active' : '')}>
+        Home
+      </NavLink>
+      <NavLink to="/about" className={({ isActive }) => (isActive ? 'active' : '')}>
+        About
+      </NavLink>
+    </nav>
+  );
+}
+
+function App() {
+  return (
+    <BrowserRouter>
+      <Nav />
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/about" element={<About />} />
+      </Routes>
+    </BrowserRouter>
+  );
+}
+```
+
+`BrowserRouter` wraps your app and hooks into the browser's URL (using the History API's `pushState` under the hood, so navigating never triggers a full page reload). `Routes` looks at the current URL and renders exactly one matching `Route`'s `element`. `NavLink` renders a real `<a>` tag — so right-click, "open in new tab," and screen readers all still work — but intercepts the click to navigate without a server round trip, and it hands your `className` function an `isActive` flag so you can highlight whichever link matches the current URL. The `end` prop on the Home link matters: without it, `/` would match as a "partial" prefix of every other path too, so it would stay highlighted even while you're on `/about`.
+
+If a route needs a dynamic segment — say `/products/:id` for a product detail page — you'd add `<Route path="/products/:id" element={<ProductDetail />} />` and read the `id` inside `ProductDetail` with `useParams()`. That's beyond what this module requires, but it's the same mental model: the path in the `Route` is a pattern, and the matching piece of the URL becomes available inside the component that pattern renders.
+
+## Exercise: build a bookmarks app
+
+Build a small app with these pieces, without a tutorial to copy from:
+
+1. On mount, fetch a list of "bookmarks" from `https://jsonplaceholder.typicode.com/posts?_limit=8` (treat each post's `title` as a bookmark title and make up a fake `url` for display). Handle loading and error states — don't just assume the fetch succeeds.
+2. Render the list through a `BookmarkCard` component that receives `title` and `url` as props, not through one giant inline block.
+3. Add a form with `useState` that lets the user add a new bookmark to the list on submit, in front-end-only state (no need to persist it to a server).
+4. Add two routes with `react-router-dom`: `/` shows all bookmarks, `/starred` shows only ones the user has marked as starred (another piece of `useState`, a star button on each `BookmarkCard` that toggles it). Add a nav with links between the two.
+
+Hint, if you get stuck on the "adding a bookmark doesn't show up" step: check whether you're mutating the existing bookmarks array (`bookmarks.push(newBookmark)`) versus building a new array with `setBookmarks([...bookmarks, newBookmark])`. That's the reference-equality trap from earlier in this module, and it is exactly where people lose an hour on this exercise.

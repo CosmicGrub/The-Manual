@@ -1,0 +1,98 @@
+[
+  {
+    "id": "platforms/tier-2/backend-basics-and-rest-apis/q1",
+    "type": "multiple_choice",
+    "prompt": "In the tasks API's route table, which HTTP method is used to update an existing task at /tasks/:id?",
+    "choices": [
+      "GET",
+      "POST",
+      "PUT",
+      "DELETE"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "platforms/tier-2/backend-basics-and-rest-apis/q2",
+    "type": "multiple_choice",
+    "prompt": "A client successfully creates a new task via POST /tasks. What HTTP status code should the server return?",
+    "choices": [
+      "200",
+      "201",
+      "204",
+      "202"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-2/backend-basics-and-rest-apis/q3",
+    "type": "multiple_choice",
+    "prompt": "A client sends POST /tasks with a body of {} (no title field at all). What should the server respond with?",
+    "choices": [
+      "500 Internal Server Error, because the database insert failed",
+      "400 Bad Request, with an error message explaining title is required",
+      "201 Created, with title set to null",
+      "404 Not Found"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-2/backend-basics-and-rest-apis/q4",
+    "type": "multiple_choice",
+    "prompt": "A client requests GET /tasks/999 and no task with id 999 exists. What is the correct status code?",
+    "choices": [
+      "404",
+      "400",
+      "204",
+      "500"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-2/backend-basics-and-rest-apis/q5",
+    "type": "multiple_choice",
+    "prompt": "After a successful DELETE /tasks/1, which response is correct for this API?",
+    "choices": [
+      "200 with the deleted task's data in the body",
+      "204 with an empty body",
+      "202 with a confirmation message",
+      "201 with an empty body"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-2/backend-basics-and-rest-apis/q6",
+    "type": "multiple_choice",
+    "prompt": "Why does the SQLite example use db.prepare('SELECT * FROM tasks WHERE id = ?').get(id) instead of building the query with string concatenation like `'SELECT * FROM tasks WHERE id = ' + id`?",
+    "choices": [
+      "Parameter placeholders run faster in every case",
+      "String concatenation only works with better-sqlite3, not Python's sqlite3 module",
+      "Placeholders let the database library safely escape the value, preventing SQL injection",
+      "It is required syntax in SQLite and concatenated queries will not execute"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "platforms/tier-2/backend-basics-and-rest-apis/q7",
+    "type": "multiple_choice",
+    "prompt": "In the Express server, what does app.use(express.json()) do?",
+    "choices": [
+      "It connects the app to the SQLite database",
+      "It parses incoming JSON request bodies so they are available as a plain object on req.body",
+      "It converts every response into JSON automatically, including HTML routes",
+      "It validates that incoming JSON matches a defined schema"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-2/backend-basics-and-rest-apis/q8",
+    "type": "multiple_choice",
+    "prompt": "This module deliberately does not cover REST API versioning, pagination, or HATEOAS. Where does that material belong?",
+    "choices": [
+      "It isn't covered anywhere in this curriculum",
+      "The Software Engineering track's API Design module",
+      "A later module in this same Platform track",
+      "It should be inferred from the Express and Flask documentation directly"
+    ],
+    "correctIndex": 1
+  }
+]
