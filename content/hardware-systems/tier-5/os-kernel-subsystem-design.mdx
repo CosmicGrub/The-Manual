@@ -1,0 +1,234 @@
+---
+trackId: hardware-systems
+tier: 5
+title: "OS/Kernel Subsystem Design"
+order: 3
+estimatedHours: 30
+slug: os-kernel-subsystem-design
+---
+
+## Where this module sits
+
+In Tiers 2 and 4 you wrote interrupt-driven firmware and fought the same race condition over and over: a shared variable touched by both an ISR and the main loop, fixed with a disabled-interrupt critical section or a lock-free ring buffer. Kernel subsystem design is that exact discipline at a different scale. A Linux scheduler's runqueue is a shared data structure touched by the local CPU's own interrupt handler (the tick), by remote CPUs (load balancing), and by the task itself (voluntary yield) — the tools change from `cli()`/`sti()` to spinlocks, RCU, and per-CPU data, but the reasoning about *what can race with what* is the same reasoning you already built. This module assumes you can read C comfortably at the level of a device driver and that you've already got a kernel building and booting (bare metal or QEMU) from earlier work in this tier.
+
+The skill this module teaches is not "write a patch." It's the much rarer skill of **designing before coding**, writing that design down in a form strangers will actually read, and surviving the fact that the first qualified reader will try to take your design apart.
+
+## Part 1 — Designing a subsystem component before writing code
+
+### The exercise: a new scheduler class
+
+**Requirement, stated by a hypothetical pro-audio vendor:** their JACK-based audio graph needs worst-case wakeup latency under ~200 microseconds when the system is under general-purpose load (browser, compiler, etc. running concurrently). `SCHED_OTHER` (CFS/EEVDF) gives no latency bound — a thread can wait a full scheduling period behind other runnable tasks. `SCHED_FIFO`/`SCHED_RR` give a bound but require the application to pick a static priority with no isolation from a buggy or malicious FIFO task elsewhere on the box, and can starve housekeeping threads. `SCHED_DEADLINE` gives a real bound via admission control, but admission control requires declaring a runtime/period up front, and this workload's runtime varies by audio buffer size and plugin load in a way the app can't predict at thread-creation time.
+
+**Non-goals**, stated explicitly (a real design doc always has these — they fence off scope creep): no hard real-time guarantee, no interaction with `cpuset` isolation, no SMP load-balancing redesign. This is a *soft* bound, best-effort, revocable by the kernel under memory pressure or RT throttling.
+
+**Design, top-down, before any code:**
+
+1. A new scheduling class sits in priority order between `SCHED_DEADLINE` and `SCHED_FIFO`/`RR`, call it `SCHED_BLBE` (Bounded-Latency Best-Effort).
+2. Each BLBE task gets a *soft deadline* computed as `now + requested_latency_bound`, recomputed on every wakeup — not reserved bandwidth, just a priority key.
+3. Ready BLBE tasks are ordered by that soft deadline in a per-CPU red-black tree, same shape as `SCHED_DEADLINE`'s rq, so `pick_next_task` is O(log n) leftmost-node lookup.
+4. If a BLBE task overruns some multiple of its bound (it's being greedy, not latency-sensitive), it's demoted for one scheduling period back into CFS — this is the safety valve that keeps BLBE from becoming "FIFO with better PR."
+
+That demotion rule is the kind of decision that *has* to happen before code, because it determines which fields the per-task struct needs (you need a running overrun counter) and which hook functions must exist (you need `task_tick_blbe` to check it, not just `pick_next_task`).
+
+**Data structures**, now that the shape is settled:
+
+```c
+/* kernel/sched/blbe.h — new per-task scheduling entity */
+struct sched_blbe_entity {
+    struct rb_node   rb_node;      /* keyed by soft_deadline */
+    u64              soft_deadline;
+    u64              latency_bound_ns;   /* from sched_setattr() */
+    u32              overrun_count;
+    unsigned int     blbe_throttled:1;
+};
+
+/* embedded in struct task_struct, alongside the existing
+ * se (CFS), rt (RT), dl (DEADLINE) entities: */
+struct task_struct {
+    ...
+    struct sched_entity      se;
+    struct sched_rt_entity   rt;
+    struct sched_dl_entity   dl;
+    struct sched_blbe_entity blbe;   /* NEW */
+    ...
+};
+```
+
+And the class itself plugs into the existing `sched_class` vtable pattern — this is the part that makes it a genuine *subsystem component* rather than a patch to an existing one, because it has to implement the full contract every other class implements:
+
+```c
+/* kernel/sched/blbe.c */
+const struct sched_class blbe_sched_class = {
+    .enqueue_task   = enqueue_task_blbe,
+    .dequeue_task   = dequeue_task_blbe,
+    .pick_next_task = pick_next_task_blbe,
+    .put_prev_task  = put_prev_task_blbe,
+    .task_tick      = task_tick_blbe,     /* checks overrun, demotes */
+    .switched_to    = switched_to_blbe,
+    .switched_from  = switched_from_blbe,
+    .prio_changed   = prio_changed_blbe,
+};
+```
+
+Notice what you did *not* write: `pick_next_task_blbe`'s body. At the design stage you commit to the shape of the contract and the invariant ("leftmost rb-tree node wins, ties broken by vruntime of the losing class"), not the implementation. That ordering — contract and invariant first, loop bodies last — is what separates a design review from a code review, and it's why the RFC in Part 2 contains zero full function bodies.
+
+### The filesystem-feature version of the same exercise
+
+If scheduler internals aren't your angle, run the identical process on a filesystem feature: "add a `FALLOC_FL_WRITE_ZEROES_RANGE` flag to `fallocate()` that zeroes a byte range without deallocating it, for database engines that need deterministic zero-fill without the hole-punch-then-refill race." Requirements (atomicity w.r.t. concurrent readers, interaction with extent-based allocation, behavior on a sparse file), then data structures (does this need a new on-disk extent flag, or is it purely a VFS-level + `->fallocate()` callback change with no on-disk format impact — answering that question *is* the design), then the interface. Same discipline, different subsystem.
+
+## Part 2 — Writing the RFC
+
+A kernel RFC is not a prose essay. It is a cover letter (patch 0 of a series) with a fixed shape, because maintainers read hundreds of these and need to find the same section in the same place every time. Modeled directly on how real `sched`/`mm` RFCs are structured on the Linux kernel mailing list:
+
+```
+Subject: [RFC PATCH 0/4] sched: introduce SCHED_BLBE scheduling class
+
+Problem
+-------
+Pro-audio and low-latency media workloads need a soft wakeup-latency
+bound under general-purpose system load. SCHED_OTHER gives none.
+SCHED_FIFO/RR require a static priority and give no protection from
+starving other FIFO/RR tasks or housekeeping. SCHED_DEADLINE requires
+admission-control parameters (runtime/period) the application cannot
+predict, since actual CPU demand varies with buffer size and plugin
+graph complexity frame to frame.
+
+Non-goals
+---------
+Not a hard real-time guarantee. Not a replacement for SCHED_DEADLINE.
+No change to SMP load-balancing or cpuset isolation semantics.
+
+Design
+------
+New sched_class, SCHED_BLBE, priority-ordered between DEADLINE and
+FIFO/RR. Each runnable BLBE task carries a soft deadline = wakeup
+time + requested latency bound (new sched_attr field, see Patch 2/4).
+Per-CPU rq gets an rb-tree keyed by soft deadline, same shape as the
+existing dl rq. A task that overruns 4x its bound in a rolling window
+is throttled back to CFS for one period (Patch 3/4) as a starvation
+safety valve.
+
+Alternatives considered and rejected
+-------------------------------------
+1. Extend SCHED_FIFO with a "soft" priority subrange.
+   Rejected: changes the meaning of the existing 1-99 RT priority
+   space that userspace already depends on for priority math
+   (chrt, pthread_setschedparam callers assume linear RT priority).
+
+2. Express this purely via cgroup cpu.weight boosting.
+   Rejected: weight is a *throughput* share, not a *latency* bound;
+   this gives no wakeup-latency guarantee at all under contention,
+   it only shifts the ratio of CPU time.
+
+3. Add a "non-admission-controlled" mode flag to SCHED_DEADLINE.
+   Rejected: SCHED_DEADLINE's bandwidth-accounting code (rq->dl.
+   running_bw) assumes every task in the dl class is admission
+   controlled; a non-reserving task in that class breaks the
+   invariant that total admitted bandwidth <= configured bandwidth
+   and corrupts the accounting other DEADLINE tasks rely on.
+
+Interface / ABI impact
+-----------------------
+- New policy value SCHED_BLBE = 7 for sched_setattr()/sched_getattr()
+  (uapi/linux/sched.h), appended after existing values — no renumbering.
+- New sched_attr field sched_latency_bound_ns, placed in existing
+  reserved padding so sizeof(struct sched_attr) and old callers
+  that memset-zero the struct are unaffected.
+- task_struct grows by sizeof(struct sched_blbe_entity) (~40 bytes)
+  whether or not BLBE is used — flagged for review, may want
+  CONFIG_SCHED_CLASS_BLBE to make this conditional.
+
+Benchmarks
+----------
+cyclictest -p 80 -m -n -i 1000 -D 5m under `stress-ng --cpu $(nproc)`:
+  SCHED_OTHER:  max latency 4800us, mean 210us
+  SCHED_FIFO99: max latency 95us,  mean 40us  (but: housekeeping
+                threads measured 12ms max latency, starved)
+  SCHED_BLBE:   max latency 180us, mean 60us, housekeeping max 410us
+
+Patches
+-------
+1/4 sched: add SCHED_BLBE uapi policy value and sched_attr field
+2/4 sched: implement blbe sched_class skeleton and rq data structures
+3/4 sched: implement overrun detection and demotion to CFS
+4/4 selftests/sched: add BLBE latency regression test
+```
+
+The sections that matter most to a reviewer skimming thirty RFCs that week are **"Alternatives considered and rejected"** and **"Interface / ABI impact."** If you omit the first, the first reply you get *is* "why not just do X" for every X you already rejected — you've made the reviewer do your design work over again in public. If you omit the second, the patch gets bounced on sight, because ABI is close to immutable once merged.
+
+## Part 3 — Upstream submission and review, RFC specifically
+
+The mechanical workflow:
+
+```bash
+# Generate the series with an explicit RFC marker — this changes
+# nothing about the diff, only the Subject: line reviewers see.
+git format-patch -4 --cover-letter --rfc \
+    --subject-prefix="RFC PATCH" -o outgoing/
+
+# Find who actually owns this code — never guess.
+./scripts/get_maintainer.pl outgoing/*.patch
+
+# Send to the maintainers it names AND the subsystem list
+# (for sched: linux-kernel@vger.kernel.org, peterz@infradead.org,
+# mingo@redhat.com — whatever get_maintainer.pl actually prints).
+git send-email --to=peterz@infradead.org --cc=mingo@redhat.com \
+    --cc=linux-kernel@vger.kernel.org outgoing/*.patch
+```
+
+**What differs from final-patch review:**
+
+| | RFC review | Final-patch review |
+|---|---|---|
+| Unit of concern | Does this concept belong in the kernel at all, in this shape? | Is this diff correct and mergeable? |
+| Typical first reply | "Why not use/extend existing mechanism X" | `checkpatch.pl` nits, missing `kerneldoc`, lock ordering |
+| Code quality | Often explicitly not reviewed line-by-line | Reviewed line-by-line, including comment wording |
+| What kills it | A structural objection — wrong primitive, breaks an invariant, duplicates another in-flight effort | A correctness bug, missing test, or unexplained corner case |
+| Maintainer's real question | "What do I have to maintain for the next 10 years if I take this?" | "Does this particular diff do what it says?" |
+
+A maintainer who skips code-quality remarks on your RFC is not approving your code — they're telling you code quality is not yet the bottleneck. Treat silence on style as "irrelevant until the shape is settled," not as approval.
+
+## Part 4 — A structural objection, and revising around it
+
+This is a real pattern from the `sched_ext` (BPF scheduler) era of the Linux scheduler, compressed into a worked example. After the RFC above goes out, the reply that actually arrives:
+
+> "This duplicates what `sched_ext` is for. We now have a mechanism for exactly this kind of experimental, latency-shaped policy, as a loadable BPF scheduler, with none of the forever-ABI commitment of a new in-tree `sched_class`. Why does BLBE need to be a permanent kernel class instead of a `scx` scheduler you load for this workload?"
+
+This is a **structural** objection, not a style one: it says the chosen primitive is wrong, not that the code implementing it is wrong. It can't be answered by rewriting `pick_next_task_blbe` — it has to be answered by going back to the design doc and either (a) conceding and reimplementing the whole thing as a BPF `scx` scheduler, or (b) producing a reasoned case for why in-tree is still correct here. The worked revision, as a real v2 cover-letter addition:
+
+```
+v2: added "Why not sched_ext" section in response to review.
+
+Why not sched_ext
+------------------
+Agreed that for experimentation and for systems that can run BPF,
+scx is the right tool and we'd recommend it. BLBE targets a
+narrower case scx doesn't cover today: embedded audio/media
+appliances that ship with CONFIG_BPF_SYSCALL=n (reduced attack
+surface, reduced image size requirement — see arch/arm/configs/
+multi_v7_defconfig derivatives used by [vendor]) and therefore
+cannot load any BPF scheduler, including scx, at all. These systems
+need the latency behavior to exist in the default, non-BPF kernel.
+
+Given that, we're narrowing scope in this v2:
+- BLBE is now gated behind CONFIG_SCHED_CLASS_BLBE, default N,
+  so it has zero cost (zero task_struct growth, zero code) on any
+  kernel that doesn't select it.
+- Added an explicit statement in Documentation/scheduler/sched-blbe.rst
+  recommending scx over BLBE wherever BPF is available, positioning
+  BLBE as the no-BPF-available fallback, not a general replacement.
+- If scx's BPF verifier overhead/footprint later becomes acceptable
+  for these embedded configs, BLBE can be deprecated; it is designed
+  to not be a dependency of anything else in the scheduler.
+```
+
+Notice what changed and what didn't. The core data structure (Part 1) is untouched — the rb-tree-keyed soft deadline design survives. What changed is scope and the Kconfig surface: the revision makes the feature's cost provably zero when unused, and it pre-empts the next round of the same objection by documenting, in the kernel tree itself, when a reviewer should tell a future submitter to use `scx` instead. That's what "revising after a structural objection" looks like in practice — you rarely rewrite the mechanism, you almost always rewrite the boundary around it.
+
+## Exercise
+
+Pick one and carry it through every stage above, in writing, before touching a kernel tree:
+
+1. Take the BLBE design in this lesson. Build a Linux kernel under QEMU (from your earlier work this tier), add a stub `kernel/sched/blbe.c` where `pick_next_task_blbe` just returns the oldest-enqueued task (ignore the rb-tree for now — that's fine for a prototype), wire it into `kernel/sched/core.c`'s class list ahead of `fair_sched_class`, and get a trivial `SCHED_BLBE` thread to actually run. Measure wakeup latency with `cyclictest -p 80 -m -i 1000 -D 60` under `stress-ng --cpu $(nproc)` and compare against `SCHED_OTHER`. Then write the full RFC cover letter, including a real "alternatives rejected" section with your own reasoning, not the one above.
+2. Do the equivalent for a filesystem feature of your choosing (a new `fallocate()` flag, a new `ioctl` on an existing filesystem) — requirements, data structures, on-disk/ABI impact section, RFC cover letter.
+
+**Hint, not a solution:** the hardest part of step 1 is almost never the scheduling logic — it's getting the build to boot at all with a new class registered, because `core.c` asserts invariants about class ordering and about every class implementing every vtable entry (a `NULL` function pointer where the core expects one will panic at the first context switch, not at compile time). Get an empty, no-op class registered and booting *first*, with every hook a one-line stub that just calls through to CFS's equivalent, before you add any real BLBE logic.

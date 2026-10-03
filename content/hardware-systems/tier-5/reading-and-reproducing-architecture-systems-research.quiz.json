@@ -1,0 +1,98 @@
+[
+  {
+    "id": "hardware-systems/tier-5/reading-and-reproducing-architecture-systems-research/q1",
+    "type": "multiple_choice",
+    "prompt": "What does the ACM \"Artifacts Evaluated - Functional\" badge actually certify?",
+    "choices": [
+      "That the artifact exists, is documented, and runs as described -- not that it reproduces the paper's numeric results",
+      "That an independent team got the same quantitative results as the paper",
+      "That the paper's claims are correct",
+      "That the code has no bugs"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-5/reading-and-reproducing-architecture-systems-research/q2",
+    "type": "multiple_choice",
+    "prompt": "A paper proposes a new cache replacement policy and evaluates it only against LRU on SPEC CPU2006, with no comparison to SRRIP or Hawkeye-class predictors published years earlier. What should this missing baseline make you suspicious of?",
+    "choices": [
+      "The authors may be comparing against the easiest target to beat rather than the real state of the art, inflating the apparent gain",
+      "Nothing; LRU is always the correct baseline for cache papers",
+      "The paper must predate RRIP, so the comparison is irrelevant regardless of publication date",
+      "SPEC CPU2006 is the wrong benchmark suite, so the comparison is moot regardless of baseline"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-5/reading-and-reproducing-architecture-systems-research/q3",
+    "type": "multiple_choice",
+    "prompt": "In a bar chart of \"speedup over baseline\" normalized to 1.0, the y-axis starts at 0.9 instead of 0. What effect does this have on how the chart reads?",
+    "choices": [
+      "It visually exaggerates small differences between policies, even though the underlying numbers are unchanged",
+      "It is mathematically required for any normalized speedup chart",
+      "It has no effect on interpretation as long as the numbers are labeled",
+      "It proves the underlying result was fabricated"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-5/reading-and-reproducing-architecture-systems-research/q4",
+    "type": "multiple_choice",
+    "prompt": "A reproduction run reports 1,500,000 LLC misses over a 50,000,000-instruction simulation window. What is the MPKI (misses per kilo-instruction)?",
+    "choices": [
+      "30",
+      "0.03",
+      "3.0",
+      "300"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-5/reading-and-reproducing-architecture-systems-research/q5",
+    "type": "multiple_choice",
+    "prompt": "Your reproduction of a cache-replacement comparison preserves the paper's ranking (new policy < SRRIP < LRU in misses) but your absolute MPKI values are consistently about 15% lower than the paper's. What is the most defensible first hypothesis?",
+    "choices": [
+      "Differences in warmup length, trace sampling, or simulator version likely shifted absolute miss rates while preserving relative ordering -- check those before concluding anything is broken",
+      "The paper's result is fabricated",
+      "Your baseline policy implementation must be broken, since any gap means an error",
+      "A 15% gap invalidates the reproduction and the claim should be rejected"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-5/reading-and-reproducing-architecture-systems-research/q6",
+    "type": "multiple_choice",
+    "prompt": "A paper's venue page shows no AE badge and the PDF has no repository link. What is the most productive immediate next step for finding its artifact?",
+    "choices": [
+      "Check the methodology/acknowledgments for a named simulator infrastructure (e.g. gem5, ChampSim), search that project's own repo for a matching fork or branch, and only then send the authors a specific, narrow question",
+      "Assume the paper cannot be reproduced and switch to a different paper",
+      "Re-derive the entire simulator from the paper's prose with no further research into existing infrastructure",
+      "Post a public message tagging the authors and asking them to respond"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-5/reading-and-reproducing-architecture-systems-research/q7",
+    "type": "multiple_choice",
+    "prompt": "In a recency-based replacement policy, update_replacement_state is supposed to run on every access, including hits. If an implementation only updates state on misses and silently skips hits, what is the likely effect?",
+    "choices": [
+      "The policy loses its ability to protect recently-reused lines from eviction, degrading toward a miss-driven approximation of FIFO rather than true recency tracking",
+      "Nothing changes, because a hit means the line is already present and its position doesn't matter",
+      "The simulator will necessarily crash from undefined state",
+      "The policy becomes strictly better than the published version"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-5/reading-and-reproducing-architecture-systems-research/q8",
+    "type": "multiple_choice",
+    "prompt": "A full paper evaluates 20 cache replacement policies across 4-core and 8-core configurations on 40+ SPEC CPU2017 workloads plus server traces -- tens of thousands of simulated core-hours. Which is the most reasonable scoped-down reproduction target for a learner with a laptop and a few evenings?",
+    "choices": [
+      "Single-core runs on 2-3 representative provided traces, comparing 3 policies (the paper's baseline, one well-known prior policy, and the paper's proposed policy) on a shared metric like MPKI",
+      "The full 8-core, 40-workload sweep, since anything less isn't a valid reproduction",
+      "Only re-reading the abstract and trusting the reported geomean number",
+      "Modifying the paper's proposed algorithm before attempting any baseline comparison"
+    ],
+    "correctIndex": 0
+  }
+]

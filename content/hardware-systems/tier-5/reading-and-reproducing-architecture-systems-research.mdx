@@ -1,0 +1,146 @@
+---
+trackId: hardware-systems
+tier: 5
+title: "Reading & Reproducing Architecture/Systems Research"
+order: 2
+estimatedHours: 25
+slug: reading-and-reproducing-architecture-systems-research
+---
+
+Architecture and systems papers are not textbooks. They are adversarial documents: someone is trying to convince you their idea is good, using an evaluation section they fully controlled. At Tier 5, "read critically" is not a soft skill — it's the same skill you'll need to evaluate a colleague's PR that claims a 2x speedup, or your own RTL that "passes timing." This module gives you a concrete procedure for reading a paper's results section like a reviewer, finding what the authors actually released, and scoping a claim down into something you can run on a laptop in an evening — with a real worked example using cache replacement policies, ChampSim, and public Cache Replacement Championship (CRC2) traces.
+
+## Why this isn't new ground, just a new instrument
+
+You already have the two mental models this module needs. In Tier 1, NAND2Tetris/Logisim took you from NAND gates to a working CPU — fetch, decode, execute, a memory hierarchy, all built by hand. A paper's architecture simulator (gem5, ChampSim, a custom trace-driven model) is the same skeleton, just written in C++ by someone else and run a billion times instead of ten. You're not learning what a cache or a pipeline *is* here; you're learning to read someone else's implementation of one critically.
+
+In Tiers 2 and 4, reading microcontroller datasheets and register maps taught you that a peripheral's behavior is fully specified by a table of bit fields, and that getting the config register wrong is a silent, specific bug. A paper's "Table 1: Simulated System Configuration" is a register map in prose:
+
+```
+Core:          4-wide OoO, 256-entry ROB, 8 MSHRs
+L1D/L1I:       32KB, 8-way, 4-cycle latency
+L2 (private):  256KB, 8-way, 10-cycle latency
+LLC (shared):  2MB/core, 16-way, 20-cycle latency, inclusive
+DRAM:          1 channel, 2400 MT/s, tRCD/tRP/tCAS = 13/13/13 cycles
+```
+
+Treat every number in that table the way you'd treat an SPI peripheral's control register — get the associativity, latency, or inclusion policy wrong and your "reproduction" is measuring a different machine, and you won't know it until your numbers diverge for no reason you can explain.
+
+And in Tier 3, the deep networking module already forced you to interrogate a graph: is this throughput under *offered* load or *accepted* load? Does this latency number include queueing delay? Is the "line rate" claim measured at the NIC or after the kernel stack? That exact skepticism is what you now apply to a cache-miss-rate bar chart or a tail-latency CDF.
+
+## Reading an evaluation section like an AE committee member
+
+Systems papers at ISCA, MICRO, ASPLOS, and OSDI follow a predictable skeleton: motivation (a graph showing the problem exists), design, then an evaluation section that is 80% of what you should actually trust or distrust. Here is the concrete checklist, applied to a graph, not in the abstract:
+
+**Check the axis before the data.** A bar chart of "normalized speedup" with the y-axis starting at 0.9 instead of 0 turns a real-but-modest 4% gain into a chart where the bars look twice as tall as the baseline. This isn't necessarily dishonest — it's standard practice for small-delta comparisons — but it means you must read the axis labels and the raw numbers in the text, not the visual height of the bars.
+
+**Check what "normalized to baseline" is hiding.** If every bar is divided by the baseline's own number, a policy that's bad on workload A and great on workload B can produce the same mean-normalized-bar as a policy that's mediocre everywhere. Look for the geometric mean (common in architecture papers, because it's less sensitive to outliers than the arithmetic mean) and then check whether any individual workload is a huge outlier driving the mean — that's often disclosed in a per-benchmark table in the appendix, if there is one.
+
+**Check for the missing baseline.** This is the single highest-value habit in this module. If a 2023 cache replacement paper compares only against LRU, and LRU has been known to be beatable by SRRIP (Jaleel et al., ISCA 2010) and by Hawkeye-class predictors (Jain & Lin, ISCA 2016) for years, ask: why isn't RRIP or Hawkeye in this graph? Three honest possibilities exist — the new policy only matters in a regime those don't address (e.g., multi-core interference), the comparison was deliberately left out because the new policy loses to it, or the authors didn't realize it existed (rare, but happens in fast-moving subfields). A missing *obvious* baseline is not proof of a weak paper, but it is your cue to go find that comparison yourself before you believe the magnitude of the claimed gain.
+
+**Check for the oracle.** Good cache/scheduling papers include Belady's MIN (the clairvoyant, non-causal optimal replacement policy) as an upper bound. If a paper claims to close "80% of the gap to optimal" — find out what they're calling optimal, and whether that oracle was computed correctly (OPT is non-trivial to compute exactly; sloppy approximations understate the real gap).
+
+**Check variance and sample count.** A single run per data point with no error bars, on a cycle-accurate simulator with any stochastic element (randomized cache way selection, warmup noise), is a yellow flag. Trace-driven simulation of SPEC-style single-threaded workloads is usually deterministic, so the absence of error bars there is normal — but for anything involving a multi-core interconnect, a DRAM refresh scheduler, or an OS scheduler, variance across runs matters and its absence is worth noting.
+
+## Finding what was actually released
+
+Artifact Evaluation (AE) badges exist precisely because "reproducible" became a marketing word. Know what each ACM badge actually certifies, because none of them certify that the paper's claims are *true*:
+
+- **Artifacts Available** — the code/data exists at a permanent, citable location (usually a Zenodo DOI, sometimes just a GitHub link). Nobody checked that it runs.
+- **Artifacts Evaluated – Functional** — an AE committee got it to build and run, documented, usable. Still not a claim about matching numbers.
+- **Artifacts Evaluated – Reusable** — functional, plus well-documented and structured enough to extend.
+- **Results Reproduced** — the AE committee (often using the authors' own hardware/scripts) got numbers consistent with the paper.
+- **Results Replicated** — an independent party, on independent infrastructure, got consistent numbers. This is the strong one, and it's rare.
+
+Where to actually look, in order of yield: (1) the paper's own first page or footnote, which increasingly has a direct artifact link; (2) the venue's AE appendix page (ISCA/MICRO/ASPLOS/OSDI now publish a per-year AE results page listing badge, link, and committee notes); (3) a Zenodo or figshare DOI cited in the bibliography — venues are increasingly requiring permanent archival there, not just a GitHub link that can disappear; (4) the paper's "infrastructure" — if it says it modified gem5, ChampSim, DynamoRIO, or another named open simulator, go to that project's own repo and search for a branch, fork, or tag matching the paper's name or year, because many groups upstream their modifications as a fork rather than a standalone repo.
+
+When nothing exists — and for a meaningful fraction of older or industry-adjacent papers, nothing will — you have three fallback moves, in this order: reimplement the described algorithm from the paper's pseudocode/prose directly (this is legitimate and is itself a reproducibility contribution, with the caveat clearly stated in your write-up); check whether the paper's described baseline infrastructure is a known public one even if the paper's own modifications aren't released (you can often reproduce the *baseline* numbers exactly and only approximate the delta); and only then, email the authors — narrowly. "Can you share your artifact" gets ignored. "I'm trying to reproduce Figure 7's SRRIP baseline using ChampSim and CRC2 traces; your paper reports an MPKI of 18.3 for astar but I'm getting 21.1 — can you confirm your warmup instruction count?" gets answered.
+
+## Scoping a claim down: a real worked example
+
+The Cache Replacement Championship (CRC2, run alongside ISCA 2017) is an ideal reproduction target: it released ChampSim as a common trace-driven simulator, a fixed set of memory-access traces sampled from SPEC CPU2006/2017 and server workloads, and a fixed evaluation harness, specifically so entrants' policies would be comparable. Hawkeye (Jain & Lin, ISCA 2016) — which predicts, per instruction address, whether Belady's OPT would have cached a given access, using a PC-indexed history table — won CRC2 and is a legitimate "core result" to target. The full paper evaluates dozens of traces across single- and multi-core configurations. That is not your reproduction target. Your reproduction target is:
+
+> Single-core, 3 CRC2 traces (one memory-bound, one compute-bound, one mixed), 3 policies — LRU, SRRIP, Hawkeye — same metric the paper uses (MPKI), same LLC configuration the paper specifies.
+
+That's an evening of compute on a laptop, and it directly tests the paper's central ordering claim: Hawkeye < SRRIP < LRU in LLC misses.
+
+LRU and SRRIP are each about 20 lines in ChampSim's replacement-policy interface (the exact function names and signatures drift between ChampSim versions — always check the repo's README for the version you pulled — but the shape is stable):
+
+```c
+// lru_repl.c -- baseline LRU, called once per set on every cache access
+uint32_t find_victim(uint32_t set, const uint32_t *lru_stack, uint32_t num_ways) {
+    // evict the way currently at the oldest (highest) stack position
+    for (uint32_t way = 0; way < num_ways; way++)
+        if (lru_stack[set * num_ways + way] == num_ways - 1)
+            return way;
+    return 0; // unreachable if stack is well-formed
+}
+
+void update_replacement_state(uint32_t set, uint32_t way, uint32_t *lru_stack,
+                               uint32_t num_ways, uint8_t hit) {
+    uint32_t old_pos = lru_stack[set * num_ways + way];
+    for (uint32_t w = 0; w < num_ways; w++)
+        if (lru_stack[set * num_ways + w] < old_pos)
+            lru_stack[set * num_ways + w]++;
+    lru_stack[set * num_ways + way] = 0; // promote to MRU
+}
+```
+
+```c
+// srrip_repl.c -- Static RRIP, Jaleel et al. ISCA 2010, 2-bit RRPV per line
+#define MAXRRPV 3
+
+uint32_t find_victim(uint32_t set, uint8_t *rrpv, uint32_t num_ways) {
+    while (1) {
+        for (uint32_t way = 0; way < num_ways; way++)
+            if (rrpv[set * num_ways + way] == MAXRRPV)
+                return way;
+        for (uint32_t way = 0; way < num_ways; way++)
+            rrpv[set * num_ways + way]++;   // age everyone, then retry
+    }
+}
+
+void update_replacement_state(uint32_t set, uint32_t way, uint8_t *rrpv, uint8_t hit) {
+    if (hit) { rrpv[set * /*num_ways*/ + way] = 0; return; } // reset on reuse
+    rrpv[set * /*num_ways*/ + way] = MAXRRPV - 1; // insert "long re-reference"
+}
+```
+
+Hawkeye is meaningfully more involved — it runs an OPTgen module that retroactively computes what Belady's OPT would have done for each PC's access history, then trains a per-PC predictor from that oracle label, and finally uses the predictor's output to bias insertion the way SRRIP's RRPV does. Don't reimplement it from scratch for this exercise; get it from the CRC2 submissions archive or the ChampSim repo's example policies directory, read it against the paper's Section 4 pseudocode line by line, and treat understanding *why* each piece exists (OPTgen's interval tracking, the predictor's PC-hashing, the "cold line" fallback to SRRIP) as the actual learning target.
+
+Running it looks roughly like this (flags vary across ChampSim versions — check `--help` or the README of the specific commit you cloned):
+
+```bash
+git clone https://github.com/ChampSim/ChampSim
+cd ChampSim
+./build_champsim.sh hawkeye no no no no 1   # or your version's build invocation
+
+./bin/champsim --warmup_instructions 50000000 \
+               --simulation_instructions 200000000 \
+               --traces traces/astar_313B.champsimtrace.xz \
+             > results/hawkeye_astar.txt
+
+grep "LLC AVERAGE MISS LATENCY\|LLC TOTAL" results/hawkeye_astar.txt
+```
+
+Compute MPKI from the printed miss and instruction counts yourself rather than trusting a summary line blindly — it's one division, and it's the number you'll be comparing against the paper's Figure. For a run that reports 1,500,000 LLC misses over the 50,000,000-instruction simulation window: MPKI = 1,500,000 / (50,000,000 / 1000) = 30.
+
+## Where your numbers will diverge, and why that's the useful part
+
+Run all three policies on all three traces and you should see the ordering Hawkeye < SRRIP < LRU hold in MPKI. Your *absolute* numbers will almost certainly not match the paper's published numbers, for reasons that are themselves worth writing down rather than apologizing for:
+
+- **Warmup length.** The paper's methodology section specifies an exact warmup instruction count to let the cache state stabilize before measurement starts; if you use a different one, your steady-state miss rate shifts even with identical traces and policy code.
+- **Trace sampling.** Papers usually use SimPoint-selected intervals of the full SPEC run, not the whole program. If your traces were sampled at a different interval or length than the paper's, you're measuring a genuinely different (though related) slice of program behavior.
+- **Simulator version drift.** ChampSim has had multiple major revisions since CRC2; a tie-breaking rule in `find_victim` (which way wins when multiple ways share the max RRPV) that's unspecified in the paper's prose can differ between versions and shift results by a few percent without being "wrong."
+- **Finite-trace noise.** Shorter traces have higher variance in measured MPKI simply from having fewer samples; a 200M-instruction window versus the paper's 1B-instruction window will show more run-to-run spread even with everything else held constant.
+
+The right conclusion when your ordering matches but your magnitudes don't is: **the paper's central claim reproduced** — the relative ranking of policies holds — **and the magnitude gap is explained by named, specific methodological differences**, not "my numbers are wrong." The wrong conclusion is either silently reporting magnitudes as if they matched, or treating any gap as a failed reproduction. If the *ordering* flips — your LRU baseline somehow beats SRRIP — that's a real bug to hunt (check: did you forget to update replacement state on a cache hit? That alone will make any recency-based policy degrade toward FIFO, since hits are exactly the signal that distinguishes "hot" lines from cold ones).
+
+## Writing it up
+
+A reproduction write-up that would survive an AE committee's read has four parts: the exact commit hash or release tag of the simulator and traces you used; the exact commands, including every flag, not a paraphrase; a table with your numbers next to the paper's reported numbers, explicitly labeled as such; and a short, specific paragraph on divergence — not "results were similar" but "our LLC miss rate for astar was 12% higher than Figure 6's reported value, which we attribute to using the publicly released 200M-instruction CRC2 trace rather than the paper's internal 1B-instruction trace; the policy ordering (Hawkeye < SRRIP < LRU) matched in all three traces tested."
+
+## Exercise
+
+Pick one of: (a) the Hawkeye-vs-SRRIP-vs-LRU reproduction described above, using three CRC2 traces of your choice, or (b) a different systems paper from the last three years in your area of interest that has an AE badge and a public artifact. For (b), find its artifact, identify one figure with a clear quantitative claim, and scope it down to a sub-experiment you can run in under an hour of compute. Either way, produce the four-part write-up above, including at least one specific, falsifiable hypothesis for why your numbers diverge from the paper's — not a vague "simulator differences."
+
+*Hint:* if you're stuck on where divergence is coming from, check the paper's methodology section for the exact warmup and simulation instruction counts before suspecting your policy code — mismatched warmup length is the single most common cause of "my ordering is right but my magnitudes are off," and it's the first thing an AE reviewer checks.

@@ -443,3 +443,14 @@ All notable changes to The Manual (curriculum + app) are logged here. This file 
 **Result:** `npm run build` passed clean — 189 pages, 173 unique slugs verified repo-wide.
 
 **Status:** Hardware & Computer Systems Tier 4 complete (118h, 6 lessons). Hardware & Computer Systems is now 5/6 tiers content-complete (Tiers 0-4, 396h); only Tier 5 (Expert/Innovator) remains to finish the track.
+
+## [0.34.0] — 2026-10-03 — Hardware & Computer Systems Tier 5: track is now fully content-complete
+
+**Context:** The final tier of the fifth track. Per The Manual's uniform Tier-5 policy (MASTERFILE.md §4.5), the tier's real checkpoint assessment is portfolio/peer/maintainer review rather than quizzes, scoped deliberately to what a self-learner can actually reach in 2026 without a chip fab: FPGA-realized cores, reproduced published research, and real OS/RTOS subsystem design — each module still ships its usual comprehension-check quiz, consistent with every other tier's lesson format.
+
+**Added**
+- `content/hardware-systems/tier-5/*.mdx` (5 files) + matching quizzes: Design Your Own ISA/CPU on FPGA (a real custom `cpop` instruction added to an RV32I core's decoder using RISC-V's reserved custom-0 opcode space, a full Yosys/nextpnr/IceStorm command-by-command synthesis walkthrough), Reading & Reproducing Architecture/Systems Research, OS/Kernel Subsystem Design (a real kernel-RFC document structure), Novel Embedded/Hardware Systems Project (KiCad PCB design through DRC constraints), Teaching, Mentoring & Technical Writing.
+
+**Result:** `npm run build` passed clean — 195 pages, 178 unique slugs verified repo-wide.
+
+**Status:** Hardware & Computer Systems complete (all 6 tiers, 526h, 31 lessons). This is the fifth fully content-complete track in The Manual, alongside CS Foundations, Language Mastery, Software Engineering, and AI/ML & Prompt Engineering. Remaining tracks: Platforms, DevOps, Cybersecurity & Ethical Hacking, Capstones & Career.

@@ -1,0 +1,98 @@
+[
+  {
+    "id": "hardware-systems/tier-5/novel-embedded-hardware-systems-project/q1",
+    "type": "multiple_choice",
+    "prompt": "In the AS5048A's 16-bit SPI response frame, what does bit 14 indicate?",
+    "choices": [
+      "The even-parity bit over the other 15 bits",
+      "The error flag (EF) for the preceding transaction",
+      "The read/write direction of the command",
+      "The register address being accessed"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "hardware-systems/tier-5/novel-embedded-hardware-systems-project/q2",
+    "type": "multiple_choice",
+    "prompt": "Per the lesson's IPC-2221-style calculation, a 0.6 A continuous trace on 1 oz external copper with a 10\u00b0C allowed temperature rise computes to a minimum width of roughly:",
+    "choices": [
+      "1 mil",
+      "6 mil",
+      "25 mil",
+      "100 mil"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "hardware-systems/tier-5/novel-embedded-hardware-systems-project/q3",
+    "type": "multiple_choice",
+    "prompt": "Why define a KiCad net class (e.g. 'HighCurrent') and assign the solenoid net to it, rather than manually widening individual trace segments by hand?",
+    "choices": [
+      "It is required syntax before KiCad will export Gerbers",
+      "It makes the resulting Gerber files smaller",
+      "It makes the width/clearance constraint enforced by DRC on every segment of that net automatically, including after later edits",
+      "It is purely cosmetic and has no effect on manufacturing"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "hardware-systems/tier-5/novel-embedded-hardware-systems-project/q4",
+    "type": "multiple_choice",
+    "prompt": "On the STM32F103, which register must be configured before SPI1's own registers will have any real electrical effect?",
+    "choices": [
+      "GPIOC_CRH",
+      "RCC_APB2ENR (gating SPI1's peripheral bus clock on)",
+      "SYST_CSR (SysTick control register)",
+      "EXTI_IMR (interrupt mask register)"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "hardware-systems/tier-5/novel-embedded-hardware-systems-project/q5",
+    "type": "multiple_choice",
+    "prompt": "What is the correct sequence to read the AS5048A's ANGLE register (0x3FFF) over SPI?",
+    "choices": [
+      "Send one 16-bit frame addressing ANGLE; the angle data returns in that same frame",
+      "Send a 16-bit command frame addressing ANGLE, then send a second frame (e.g. a NOP); the second frame's response contains the angle data",
+      "Send only 8 bits, since the angle fits in a byte",
+      "Toggle chip-select twice per bit transferred"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "hardware-systems/tier-5/novel-embedded-hardware-systems-project/q6",
+    "type": "multiple_choice",
+    "prompt": "A rotary joint's single-turn absolute encoder is sampled once every 50 ms. For the firmware's wrap-detection logic to reliably tell a forward wrap (360\u00b0\u21920\u00b0) apart from a backward wrap (0\u00b0\u2192360\u00b0), the per-sample angle change must stay safely below 180\u00b0. What is the resulting ceiling on the angular velocity this sampling rate can track without ambiguity?",
+    "choices": [
+      "~0.5 rev/s",
+      "~10 rev/s",
+      "~100 rev/s",
+      "~1000 rev/s"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "hardware-systems/tier-5/novel-embedded-hardware-systems-project/q7",
+    "type": "multiple_choice",
+    "prompt": "A naive design erases and rewrites a single STM32 flash page (rated for 10,000 erase cycles) every time a turn counter changes. In an application where the joint completes 5 full rotations per second continuously, roughly how long until that page reaches its rated erase-cycle limit?",
+    "choices": [
+      "~33 minutes",
+      "~33 hours",
+      "~33 days",
+      "~33 years"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-5/novel-embedded-hardware-systems-project/q8",
+    "type": "multiple_choice",
+    "prompt": "A KiCad board passes its automated DRC check with zero violations. What does that actually guarantee?",
+    "choices": [
+      "The board is guaranteed to work correctly, including its thermal and EMI performance",
+      "Only that the electrical rules you configured (clearance, net-class trace width, drill/annular ring, connectivity) are satisfied \u2014 thermal budget and EMI are not DRC-checked and still require manual engineering judgment",
+      "The firmware for the board will compile without errors",
+      "The bill of materials is complete and every part is in stock"
+    ],
+    "correctIndex": 1
+  }
+]

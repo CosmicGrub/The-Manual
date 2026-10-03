@@ -1,0 +1,292 @@
+---
+trackId: hardware-systems
+tier: 5
+title: "Design Your Own ISA/CPU on FPGA"
+order: 1
+estimatedHours: 30
+slug: design-your-own-isa-cpu-on-fpga
+---
+
+## Where this picks up
+
+Tier 1 gave you a CPU you built from NAND gates up in a HDL simulator, with a golden `.cmp` comparison file telling you exactly when a chip was wrong before you trusted it in the next chip. Tiers 2 and 4 gave you register-level C against real microcontroller datasheets — memory-mapped peripherals, interrupt vectors, the works. This module fuses both habits and points them at real, unreachable-without-an-FPGA territory: extending an actual RV32I core's instruction decoder, running it through an open synthesis toolchain, and verifying it with the same "simulate before you trust it" discipline NAND2Tetris drilled into you — except now the thing you're protecting is a synthesis-and-place-and-route loop that costs real minutes per iteration, not a free re-run of a software simulator.
+
+We are not touching a fab. The ceiling here is FPGA-realized cores: you write synthesizable Verilog, a real open toolchain (Yosys + nextpnr) turns it into a bitstream, and real silicon — an iCE40 or ECP5 FPGA — executes it. That's the frontier this tier can actually reach.
+
+## Picking a real opcode space
+
+RISC-V's unprivileged ISA manual reserves four 7-bit opcode encodings explicitly for non-standard extensions, so your custom instructions never collide with a future standard extension:
+
+| name | `inst[6:0]` | hex |
+|---|---|---|
+| custom-0 | `0001011` | `0x0B` |
+| custom-1 | `0101011` | `0x2B` |
+| custom-2/rv128 | `1011011` | `0x5B` |
+| custom-3/rv128 | `1111011` | `0x7B` |
+
+This matters because it's tempting to just hijack an unused `funct7` pattern under `OP` (`0110011`) — but that opcode space is the one standard extensions (M, B, …) keep growing into. `custom-0` is permanently yours. We'll use it to add a single-cycle population-count instruction, `cpop`, to a minimal single-cycle RV32I core, keeping the R-type shape (`rd`, `rs1`, `rs2`, `funct3`, `funct7`) so the register file and immediate-generation logic don't change at all — only the decoder and the ALU do.
+
+## The decode-stage change, concretely
+
+Here is the controller of a representative single-cycle RV32I core (the same shape you'll find in most from-scratch university designs). The new instruction adds exactly one `case` arm:
+
+```verilog
+module decoder (
+    input  [6:0] opcode,   // instr[6:0]
+    input  [2:0] funct3,   // instr[14:12]
+    input  [6:0] funct7,   // instr[31:25]
+    output reg   reg_write,
+    output reg   mem_write,
+    output reg   mem_to_reg,
+    output reg   alu_src,     // 0 = rs2, 1 = immediate
+    output reg   branch,
+    output reg [3:0] alu_op
+);
+    localparam OP_RTYPE   = 7'b0110011;
+    localparam OP_ITYPE   = 7'b0010011;
+    localparam OP_LOAD    = 7'b0000011;
+    localparam OP_STORE   = 7'b0100011;
+    localparam OP_BRANCH  = 7'b1100011;
+    localparam OP_CUSTOM0 = 7'b0001011;   // reserved custom-0, RISC-V spec
+
+    always @(*) begin
+        reg_write = 0; mem_write = 0; mem_to_reg = 0;
+        alu_src = 0; branch = 0; alu_op = 4'b0000;
+
+        case (opcode)
+            OP_RTYPE: begin
+                reg_write = 1;
+                case ({funct7, funct3})
+                    10'b0000000_000: alu_op = 4'b0000; // ADD
+                    10'b0100000_000: alu_op = 4'b0001; // SUB
+                    10'b0000000_111: alu_op = 4'b0010; // AND
+                    10'b0000000_110: alu_op = 4'b0011; // OR
+                    default:         alu_op = 4'b0000;
+                endcase
+            end
+            OP_ITYPE: begin reg_write = 1; alu_src = 1; end
+            OP_LOAD:  begin reg_write = 1; alu_src = 1; mem_to_reg = 1; end
+            OP_STORE: begin mem_write = 1; alu_src = 1; end
+            OP_BRANCH:begin branch = 1; alu_op = 4'b0001; end
+
+            OP_CUSTOM0: begin                 // <-- the actual decode-stage change
+                reg_write = 1;
+                alu_src   = 0;                // operand is rs1 only; rs2 ignored for cpop
+                case (funct3)
+                    3'b000: alu_op = 4'b1000;  // cpop  — new ALU opcode
+                    3'b001: alu_op = 4'b1001;  // reserved for crc.step, below
+                    default: reg_write = 0;    // unrecognized custom0 -> illegal instruction
+                endcase
+            end
+        endcase
+    end
+endmodule
+```
+
+That's the whole decode-stage edit: one new `case` branch, two new control-signal values, zero changes to register-file wiring, immediate generation, or the load/store path. The ALU gets one new arm:
+
+```verilog
+function [31:0] count_ones;
+    input [31:0] x;
+    integer i;
+    begin
+        count_ones = 0;
+        for (i = 0; i < 32; i = i + 1)
+            count_ones = count_ones + x[i];
+    end
+endfunction
+
+// inside the ALU case statement
+4'b1000: alu_result = count_ones(operand_a);  // cpop
+```
+
+Yosys synthesizes that unrolled loop into a balanced adder tree (32 single-bit inputs collapse in ⌈log2 32⌉ = 5 levels), not 32 sequential additions — it's pure combinational logic, same cost class as a carry-select adder, trivial for single-cycle timing on an iCE40 at tens of MHz.
+
+To actually emit this instruction before your toolchain's assembler knows the mnemonic, use GNU `as`'s raw-encoding directive:
+
+```asm
+# cpop a0, a1   --  a0 = popcount(a1)
+.insn r 0x0B, 0, 0, a0, a1, zero
+```
+
+`.insn r opcode, func3, func7, rd, rs1, rs2` assembles exactly the bit pattern your decoder's new `case` arm is watching for — `opcode=0001011`, `funct3=000`, `rd=a0`, `rs1=a1`. This is the real mechanism the Linux kernel used for years to emit RISC-V vector/crypto instructions before upstream binutils shipped mnemonics for them.
+
+If you were extending an existing production core like PicoRV32 instead of a from-scratch design, you'd skip the decoder edit entirely — PicoRV32 already routes any `custom-0..3` opcode to its Pico Co-Processor Interface (`pcpi_valid`, `pcpi_insn`, `pcpi_rs1`, `pcpi_rs2`, `pcpi_wr`, `pcpi_rd`, `pcpi_wait`, `pcpi_ready`) and you'd write a separate PCPI peripheral module (this is literally how `picorv32_pcpi_fast_mul.v` implements hardware multiply). Both patterns are real; know which one you're doing before you start editing.
+
+## Open FPGA toolchain, command by command
+
+Targeting a Lattice iCE40 (e.g. an iCEBreaker board) via the fully open Yosys/nextpnr/IceStorm flow:
+
+```bash
+# 1. SYNTHESIS: Verilog -> technology-mapped gate netlist (JSON),
+#    using iCE40 primitives (SB_LUT4, SB_DFF, SB_CARRY)
+yosys -p "synth_ice40 -top top -json soc.json" \
+      decoder.v alu.v regfile.v cpu.v top.v
+
+# 2. PLACE AND ROUTE: netlist -> physical layout on a specific die,
+#    timing-driven placement (simulated annealing) + routing-mux config
+nextpnr-ice40 --hx8k --package ct256 \
+      --json soc.json --pcf icebreaker.pcf --asc soc.asc
+
+# 3. BITSTREAM PACKING: ASCII placement/routing description ->
+#    binary bit layout matching the FPGA's configuration SRAM
+icepack soc.asc soc.bin
+
+# 4. PROGRAM: push the bitstream over USB-JTAG/SPI to real silicon
+iceprog soc.bin
+```
+
+What each stage actually hands you:
+
+- `synth_ice40` runs `proc; opt; memory; techmap; abc` internally, collapsing your RTL's `always` blocks and `case` statements into the iCE40's actual LUT4/DFF/carry-chain cell library. Run `yosys -p "synth_ice40 -top top; stat" *.v` to see the exact LUT/FF/carry count your new `cpop` arm added — this is how you answer "what did this instruction cost."
+- `nextpnr-ice40` reads a `.pcf` (physical constraints file) binding your top-level ports to real package pins:
+
+```
+set_io clk       35
+set_io uart_rx    6
+set_io uart_tx    9
+```
+
+  Its output, `soc.asc`, is a human-readable description of which LUT/FF went in which physical tile and how every routing multiplexer on the die is configured — this is the step where timing closure actually happens; pass `--freq 48` to get a slack report.
+- `icepack` is a pure format conversion: `.asc` text to the packed binary layout the iCE40's configuration SRAM expects.
+- `iceprog` streams that binary over the board's FTDI chip into either the FPGA's SRAM directly (volatile) or the onboard SPI flash (persists across power cycles).
+
+ECP5 and Lattice Nexus parts follow the identical shape with `nextpnr-ecp5` / `nextpnr-nexus`; Xilinx 7-series has an analogous open path through Project X-Ray and F4PGA, but IceStorm is the most mature and the one worth learning the flow on first.
+
+## Wiring in an accelerator with real control-signal changes
+
+`cpop` was combinational — it fits inside one clock, so no new control signal besides the opcode decode was needed. A CRC-32 step is a better teaching example precisely because a serial, area-efficient implementation does *not* fit in one cycle, which forces you to add a stall path into a datapath that previously assumed every instruction retires in exactly one clock.
+
+```verilog
+module crc32_accel (
+    input         clk, rst,
+    input         start,
+    input  [31:0] crc_in,
+    input  [31:0] data_in,
+    output [31:0] crc_out,
+    output        busy,
+    output        done
+);
+    localparam POLY = 32'hEDB88320; // reflected CRC-32 (Ethernet/zlib) polynomial
+
+    reg [31:0] crc_reg, data_reg;
+    reg [5:0]  bit_cnt;
+    reg        running;
+
+    assign busy    = running;
+    assign done    = running && (bit_cnt == 6'd32);
+    assign crc_out = crc_reg;
+
+    always @(posedge clk) begin
+        if (rst) begin
+            running <= 0; bit_cnt <= 0;
+        end else if (start && !running) begin
+            crc_reg  <= crc_in;
+            data_reg <= data_in;
+            bit_cnt  <= 0;
+            running  <= 1;
+        end else if (running && bit_cnt < 6'd32) begin
+            crc_reg  <= (crc_reg[0] ^ data_reg[0]) ? ((crc_reg >> 1) ^ POLY)
+                                                     : (crc_reg >> 1);
+            data_reg <= data_reg >> 1;
+            bit_cnt  <= bit_cnt + 1;
+        end else begin
+            running <= 0; // drop busy the cycle after done
+        end
+    end
+endmodule
+```
+
+One shift-XOR unit, reused 32 times, instead of 32 copies unrolled combinationally — a deliberate area/latency trade. Wiring it in forces two control-signal changes the single-cycle core never needed:
+
+```verilog
+wire crc_busy, crc_done;
+wire stall = crc_busy;              // NEW: freeze fetch/PC while accelerator runs
+
+always @(posedge clk)
+    if (!stall) pc <= pc_next;      // PC only advances when not stalled
+
+// RegWrite must wait for the accelerator's own completion, not the
+// decoder's single-cycle assumption
+assign reg_write_final = (reg_write & ~stall) | (is_crc_instr & crc_done);
+```
+
+Without `stall`, the core would fetch and execute the next instruction — or re-trigger `start` — 31 cycles before the CRC result is valid. This is the same category of bug a pipelined core solves with hazard detection; here, on a single-cycle core, it shows up as "the instruction count advanced but the register never got written."
+
+## Simulate before you burn a bitstream
+
+Your Tier 1 habit — never trust a chip until it passes its `.cmp` comparison file — has a direct, higher-stakes analog here: a synth → PnR → pack → program loop takes real wall-clock minutes and gives you LEDs or a UART line to debug with. A Verilog testbench against a known-good value catches the bug in seconds with full signal visibility.
+
+```verilog
+`timescale 1ns/1ps
+module tb_crc32;
+    reg clk = 0, rst = 1, start = 0;
+    reg  [31:0] crc_in, data_in;
+    wire [31:0] crc_out;
+    wire busy, done;
+
+    crc32_accel dut(.clk(clk), .rst(rst), .start(start),
+                     .crc_in(crc_in), .data_in(data_in),
+                     .crc_out(crc_out), .busy(busy), .done(done));
+
+    always #5 clk = ~clk;
+
+    initial begin
+        #12 rst = 0;
+        crc_in  = 32'hFFFFFFFF;        // standard CRC-32 init value
+        data_in = "4321";              // ASCII, LSB-first per the LFSR's bit order
+        start = 1; #10 start = 0;
+        wait (done);
+        // CRC-32 of ASCII "123456789" is the published check value 0xCBF43926;
+        // this testbench feeds a 4-byte slice as a worked, checkable example
+        $display("crc_out = %h", crc_out);
+        $finish;
+    end
+endmodule
+```
+
+Run it with `iverilog -o tb tb_crc32.v crc32_accel.v && vvp tb` — if `bit_cnt == 6'd32` in the `done` expression were off by one (a classic fencepost bug: checking before the last shift lands instead of after), the simulation catches a wrong `crc_out` immediately. Discovering the same bug after programming real hardware means reading it back off an 8-character hex dump on a 7-segment display or UART terminal, with no visibility into `bit_cnt` or `crc_reg` at all.
+
+The modern complement to a hand-written Verilog testbench is cocotb — a Python coroutine-based framework that drives the same DUT through a real simulator (Icarus Verilog or Verilator) via VPI, letting you check against a software reference instead of a single hardcoded constant:
+
+```python
+import cocotb
+from cocotb.clock import Clock
+from cocotb.triggers import RisingEdge, ClockCycles
+
+def sw_crc32(data: bytes) -> int:
+    crc = 0xFFFFFFFF
+    for byte in data:
+        crc ^= byte
+        for _ in range(8):
+            crc = (crc >> 1) ^ 0xEDB88320 if (crc & 1) else (crc >> 1)
+    return crc ^ 0xFFFFFFFF
+
+@cocotb.test()
+async def test_crc32_matches_software(dut):
+    cocotb.start_soon(Clock(dut.clk, 10, units="ns").start())
+    dut.rst.value = 1
+    await ClockCycles(dut.clk, 2)
+    dut.rst.value = 0
+
+    dut.crc_in.value = 0xFFFFFFFF
+    dut.data_in.value = int.from_bytes(b"1234", "little")
+    dut.start.value = 1
+    await RisingEdge(dut.clk)
+    dut.start.value = 0
+
+    while not dut.done.value:
+        await RisingEdge(dut.clk)
+
+    expected = sw_crc32(b"1234") ^ 0xFFFFFFFF  # accel's crc_out is pre-final-XOR
+    assert dut.crc_out.value == expected, \
+        f"got {dut.crc_out.value:#x}, want {expected:#x}"
+```
+
+run via a Makefile (`make SIM=icarus TOPLEVEL=crc32_accel MODULE=test_crc32`). This is the exact discipline your NAND2Tetris ALU-vs-`.cmp` workflow enforced, except the golden model is now executable Python instead of a vendor truth table, and the DUT answers to real synthesis constraints — LUT budget, timing closure — that the Hack CPU never had.
+
+## Exercise
+
+Add a `clz` (count leading zeros) instruction under `custom-1` (opcode `0101011`, `funct3 = 000`) to the core above. Write the decoder arm, the ALU function, and a cocotb test with directed vectors for `0x00000000`, `0x80000000`, and `0x00000001`, plus one randomized check against Python's `(32 - x.bit_length())` idiom. Then run the whole core through `synth_ice40 -top top; stat` before and after, and report the LUT delta your instruction cost.
+
+Hint: `clz(0)` is mathematically undefined — RISC-V's own Zbb extension defines it as 32 for a 32-bit zero input. Decide your convention explicitly and assert it in the test, don't leave it as whatever the unrolled loop happens to produce.

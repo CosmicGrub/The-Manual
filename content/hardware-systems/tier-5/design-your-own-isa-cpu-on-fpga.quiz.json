@@ -1,0 +1,98 @@
+[
+  {
+    "id": "hardware-systems/tier-5/design-your-own-isa-cpu-on-fpga/q1",
+    "type": "multiple_choice",
+    "prompt": "Why does the RISC-V spec reserve dedicated opcode values like custom-0 (0001011) for user-defined instructions instead of extending into an existing opcode such as OP-IMM?",
+    "choices": [
+      "Custom-0/1/2/3 are permanently carved out for non-standard extensions, so they can never collide with a current or future standard extension",
+      "OP-IMM instructions cannot have a funct7 field, so new opcodes are mechanically required for any instruction with one",
+      "The RISC-V decoder hardware physically cannot route instructions with opcode 0010011 to a custom ALU operation",
+      "Custom-0 opcodes execute in fewer clock cycles than instructions under the OP-IMM opcode"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-5/design-your-own-isa-cpu-on-fpga/q2",
+    "type": "multiple_choice",
+    "prompt": "In the decoder shown, which 7-bit opcode value routes an instruction into the new custom-0 case arm (where cpop and crc.step live)?",
+    "choices": [
+      "7'b0110011",
+      "7'b0001011",
+      "7'b0010011",
+      "7'b1100011"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "hardware-systems/tier-5/design-your-own-isa-cpu-on-fpga/q3",
+    "type": "multiple_choice",
+    "prompt": "What does cpop (population count) return for the 32-bit value 0x00FF00FF?",
+    "choices": [
+      "8",
+      "16",
+      "24",
+      "32"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "hardware-systems/tier-5/design-your-own-isa-cpu-on-fpga/q4",
+    "type": "multiple_choice",
+    "prompt": "In the Yosys/nextpnr flow, what is the key difference between what yosys's synth_ice40 pass outputs and what nextpnr-ice40 outputs?",
+    "choices": [
+      "yosys outputs a binary bitstream ready to flash; nextpnr only verifies timing and produces no file",
+      "yosys outputs a technology-mapped gate-level netlist (JSON); nextpnr outputs a physical placement-and-routing description (.asc) with LUTs assigned to real tiles and routing configured",
+      "yosys and nextpnr both produce the same JSON netlist, just at different optimization levels",
+      "yosys handles pin assignment via the .pcf file; nextpnr handles RTL synthesis"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "hardware-systems/tier-5/design-your-own-isa-cpu-on-fpga/q5",
+    "type": "multiple_choice",
+    "prompt": "Why does wiring the serial CRC-32 accelerator into the single-cycle core require adding a new 'stall' signal that gates the PC update, when the cpop instruction needed no such signal?",
+    "choices": [
+      "cpop does not use the ALU, so no control signal is needed for it at all",
+      "The single-cycle core assumes every instruction completes in one clock; the CRC accelerator takes 32 cycles, so without a stall the core would fetch/execute subsequent instructions before the result is valid",
+      "Verilog requires any module with an internal always @(posedge clk) block to expose a stall output",
+      "The stall signal is only needed to satisfy nextpnr's timing closure, not for functional correctness"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "hardware-systems/tier-5/design-your-own-isa-cpu-on-fpga/q6",
+    "type": "multiple_choice",
+    "prompt": "A GNU assembler line reads: .insn r 0x0B, 0, 0, a0, a1, zero. Which fields does this set in the resulting instruction?",
+    "choices": [
+      "opcode=0x0B, funct3=0, funct7=0, rd=a0, rs1=a1, rs2=x0",
+      "opcode=0, funct3=0x0B, rd=a0, rs1=a1, rs2=x0",
+      "opcode=0x0B, immediate=0, rd=a0, rs1=a1",
+      "opcode=0x0B, funct3=0, funct7=0, rd=a1, rs1=a0, rs2=x0"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-5/design-your-own-isa-cpu-on-fpga/q7",
+    "type": "multiple_choice",
+    "prompt": "What is the main practical reason to catch a bug like an off-by-one in the CRC FSM's bit_cnt comparison in RTL simulation rather than after programming a real FPGA?",
+    "choices": [
+      "RTL simulators automatically fix off-by-one errors in sequential logic before synthesis",
+      "Real FPGAs cannot run sequential (clocked) logic at all, only combinational logic",
+      "The synth/place-route/pack/program loop costs real wall-clock minutes per iteration and limits debugging to whatever the board exposes (LEDs, UART), whereas simulation is fast and gives full signal visibility",
+      "Yosys refuses to synthesize any design containing an FSM with more than 16 states"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "hardware-systems/tier-5/design-your-own-isa-cpu-on-fpga/q8",
+    "type": "multiple_choice",
+    "prompt": "The CRC-32 accelerator shown reuses one shift-XOR unit across 32 clock cycles instead of unrolling 32 copies combinationally. What is the main engineering trade-off between these two choices on an FPGA?",
+    "choices": [
+      "There is no real trade-off; both approaches always produce an identical bitstream after synthesis",
+      "The serial version is always faster in wall-clock time regardless of clock frequency",
+      "The serial version trades latency (32 extra stall cycles) for lower LUT/area cost; full combinational unrolling removes the stall entirely at the cost of roughly 32x more logic",
+      "Combinational unrolling is impossible for CRC because XOR cannot be expressed as combinational logic"
+    ],
+    "correctIndex": 2
+  }
+]

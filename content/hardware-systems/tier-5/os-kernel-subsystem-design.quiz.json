@@ -1,0 +1,98 @@
+[
+  {
+    "id": "hardware-systems/tier-5/os-kernel-subsystem-design/q1",
+    "type": "multiple_choice",
+    "prompt": "A per-CPU scheduler runqueue uses a red-black tree keyed by soft deadline. Task A has soft deadline 120ms, B has 95ms, C has 110ms. All three are runnable. Which task does pick_next_task return?",
+    "choices": [
+      "Task A, because it was enqueued first",
+      "Task B, because it has the lowest key",
+      "Task C, because it is the median value",
+      "Whichever task last called task_tick"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "hardware-systems/tier-5/os-kernel-subsystem-design/q2",
+    "type": "multiple_choice",
+    "prompt": "A maintainer rejects folding a new best-effort, non-admission-controlled policy into the existing SCHED_DEADLINE class. What is the structural reason this would actually break?",
+    "choices": [
+      "It would require a new syscall",
+      "It would make checkpatch.pl fail on style",
+      "It would corrupt the bandwidth-accounting invariant that assumes every task in that class is admission-controlled",
+      "It would exceed the maximum number of scheduling classes the kernel allows"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "hardware-systems/tier-5/os-kernel-subsystem-design/q3",
+    "type": "multiple_choice",
+    "prompt": "In the RFC-review process, what does it mean when a maintainer replies to an RFC with zero comments on code style or variable naming?",
+    "choices": [
+      "The code is approved for merge as-is",
+      "Style is not yet the bottleneck -- the design's shape hasn't been settled, so line-level review is premature",
+      "The maintainer did not read the patch",
+      "RFC patches are exempt from checkpatch.pl forever"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "hardware-systems/tier-5/os-kernel-subsystem-design/q4",
+    "type": "multiple_choice",
+    "prompt": "You embed a new 40-byte struct sched_blbe_entity directly inside task_struct, unconditionally. On a system running 50,000 threads, how much additional kernel memory does this cost, and what review note from this lesson addresses it?",
+    "choices": [
+      "0 bytes, since task_struct is reference counted; no note needed",
+      "About 2,000,000 bytes (~1.9 MiB); flagged in the RFC's Interface/ABI section as a candidate for a Kconfig gate",
+      "About 2,000 bytes total, since the struct is shared across threads",
+      "40 bytes total, since only one instance exists per CPU"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "hardware-systems/tier-5/os-kernel-subsystem-design/q5",
+    "type": "multiple_choice",
+    "prompt": "What does passing --rfc to git format-patch actually change?",
+    "choices": [
+      "It compiles the patch against a test kernel before sending",
+      "It marks the patch so get_maintainer.pl skips it",
+      "It prefixes the email subject with RFC so reviewers know it is a request for comments, not a final submission for merge",
+      "It automatically CCs every subsystem maintainer"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "hardware-systems/tier-5/os-kernel-subsystem-design/q6",
+    "type": "multiple_choice",
+    "prompt": "A new scheduling policy constant is being added for sched_setattr()/sched_getattr(). Why must it be appended after the existing SCHED_* values rather than inserted in logical order among them?",
+    "choices": [
+      "Enum insertion order affects performance",
+      "Existing compiled userspace binaries depend on the numeric value of existing policy constants; renumbering breaks their ABI",
+      "The kernel build system requires policy values to be added in alphabetical order",
+      "sched_setattr() ignores the numeric value entirely"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "hardware-systems/tier-5/os-kernel-subsystem-design/q7",
+    "type": "multiple_choice",
+    "prompt": "A maintainer objects to a new in-tree sched_class on the grounds that sched_ext (a loadable BPF scheduler mechanism) already covers this use case. Which revision actually answers that objection, rather than just resubmitting the same code?",
+    "choices": [
+      "Rewriting pick_next_task to be more efficient",
+      "Adding more inline comments to the existing functions",
+      "Gating the feature behind a default-off Kconfig option and adding a documented rationale for why BPF-based scheduling isn't available on the target (e.g. CONFIG_BPF_SYSCALL=n) embedded systems",
+      "Renaming the scheduling class to avoid confusion with sched_ext"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "hardware-systems/tier-5/os-kernel-subsystem-design/q8",
+    "type": "multiple_choice",
+    "prompt": "In a kernel RFC cover letter, what is the specific purpose of the \"Alternatives considered and rejected\" section?",
+    "choices": [
+      "To list every possible future extension of the feature",
+      "To preemptively address the obvious 'why not just use existing mechanism X' responses, so reviewers don't have to redo that design analysis for you in public",
+      "To satisfy a formatting requirement with no technical content",
+      "To list which other operating systems implement similar features"
+    ],
+    "correctIndex": 1
+  }
+]

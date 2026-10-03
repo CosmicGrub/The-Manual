@@ -1,0 +1,119 @@
+---
+trackId: hardware-systems
+tier: 5
+title: "Novel Embedded/Hardware Systems Project"
+order: 4
+estimatedHours: 30
+slug: novel-embedded-hardware-systems-project
+---
+
+At Tier 4 you wrote bare-metal firmware for a part the vendor already fully documented — an STM32F103's GPIO and SysTick, straight from RM0008's register tables, no HAL. At Tier 2 you breadboarded and Ohm's-law-sized real components. At Tier 3 (the networking module and the FreeRTOS/MQTT module) you wired a real transport stack and a real scheduler underneath real I/O. This module puts all three under one roof: you lay out an original PCB in KiCad, write a bare-metal driver for a sensor that has no Arduino library worth trusting, and then hit a problem that no part number, library, or Stack Overflow answer solves — because the solution has to be invented, not looked up.
+
+The worked project running through this whole module is a **smart joint-angle sensor board** for a robotics application: an STM32F103C8T6 (the exact chip from Tier 4 — same RCC, same no-HAL philosophy, extended to a new peripheral), an AMS AS5048A 14-bit SPI magnetic absolute encoder for position sensing, and a MOSFET-switched 12 V solenoid brake for holding the joint in place when powered off. Small, real, and — as section 4 shows — missing a part that does the one thing the application actually needs.
+
+## 1. Schematic capture: capturing intent before geometry
+
+KiCad's schematic editor is not a drawing tool, it's a netlist compiler with a picture attached. Every wire and label you draw becomes an edge in a graph; footprints and copper come later and must match that graph exactly. Three things matter in this phase that a button-clicking tutorial skips:
+
+**Power as a signal, not a decoration.** Every IC's VDD/VSS pins get a `PWR_FLAG`-anchored power symbol, not a bare wire to a label — KiCad's Electrical Rules Check (ERC) treats an undriven power pin as an error for exactly the reason you'd want it to: a `3V3` label with nothing actually driving that net is a schematic that *looks* powered and isn't, and ERC catches it before you've committed to copper.
+
+**Decoupling lives in the schematic, not as an afterthought in layout.** The AS5048A's datasheet specifies a 100 nF ceramic across VDD/VSS, placed as close to the package as layout allows; you draw that capacitor directly off the IC's power pins in the schematic (not off a shared power rail symbol three sheets away) so the netlist itself records "this cap belongs to this IC," which is what lets you find it fast during placement.
+
+**Net names carry constraints forward.** Label the solenoid driver's high-current path `VBAT_SW` and the SPI lines `SPI1_SCK`/`SPI1_MOSI`/`SPI1_MISO`/`ENC_CS` — not `Net-(U1-Pad3)` — because KiCad's net classes (section 2) match on exactly these names, and a correctly named net is the difference between "the DRC rule I set up actually applies" and "it silently doesn't."
+
+Run ERC before you ever open the PCB editor. On this board it will legitimately catch two things worth seeing once: an encoder `CS` pin left floating with no default-high pull-up (undefined logic level on reset, before firmware ever configures the pin — the same floating-input failure mode from the Tier 2 pushbutton lesson, now on a chip-select line instead of a button), and the solenoid MOSFET's gate with no path to ground when the GPIO driving it is in reset/high-impedance (a gate with no defined pull means the MOSFET's on/off state during the STM32's own boot window is undefined — on a board switching 12 V into an inductor, "undefined during boot" is not an acceptable answer).
+
+## 2. Footprint placement and routing: DRC as physics, not a checkbox
+
+Placement first, by function: the 3.3 V regulation cluster near the barrel/JST power input, the MCU and its SWD header together, the AS5048A positioned so the magnet-on-shaft airgap is unobstructed by copper or components (magnetic sensing — the mechanical constraint drives placement before any electrical one does), the solenoid MOSFET and flyback diode near the `VBAT_SW` connector, away from the 3.3 V logic. Decoupling caps land within 2-3 mm of the pin they serve, not "somewhere on the same net" — trace inductance between a cap and the pin it's decoupling grows with distance, and at the switching edges this board actually produces (MOSFET gate transitions, SPI clock edges), a cap one centimeter away is measurably worse than one two millimeters away.
+
+Then two DRC constraints that are physics, not software opinion:
+
+**Trace width for current.** The solenoid's 12 V coil draws 0.6 A continuous. Using the IPC-2221 external-layer formula `I = 0.048 × ΔT^0.44 × A^0.725` (I in amps, A in mil², ΔT the allowed temperature rise in °C), solving for area at a 10°C rise:
+
+```
+A = (I / (0.048 × ΔT^0.44))^(1/0.725)
+A = (0.6 / (0.048 × 10^0.44))^(1/0.725)
+A = (0.6 / 0.132)^1.379
+A ≈ 8.06 mil²
+```
+
+On 1 oz copper (≈1.38 mil thick), that's a minimum width of 8.06 / 1.38 ≈ 5.85 mil — right at the edge of what a standard fab process can even reliably etch (6 mil / 6 mil is the common standard-tier minimum). A competent designer doesn't route at the computed minimum; the formula gives the thermal floor, not the design target, so you route this net at 20-25 mil for margin against supply-voltage sag, connector contact resistance, and the fact that ΔT=10°C is a soft comfort number, not a hard safety limit. The mechanism to make that stick: define a KiCad **net class** named `HighCurrent`, assign `VBAT_SW` and its return path to it, and set that class's minimum track width to 20 mil. Now DRC enforces your calculation on every segment of that net, forever — including after a later edit where you might otherwise forget and route a 6 mil jumper around an obstacle without thinking about current at all. A clearance or width violation DRC flags on this board is never "software being picky" — it's "this segment will heat past your stated budget, or two nets at this spacing can bridge under real fab registration tolerance."
+
+**Via sizing.** A via's current capacity is set by its *plated barrel* cross-section, not its drilled hole diameter — the copper that actually carries current is the thin plating on the barrel wall, roughly the same thickness as the layer copper. A single standard 0.3 mm/12 mil signal via (KiCad's usual default) is thermally adequate for roughly 1 A at a 10°C rise, close to this board's load, with no margin. Rather than drilling one oversized via (which wastes routing area disproportionately to the current gain, since area scales with the square of diameter while thermal capacity only scales near the 0.44-0.725 exponents above), the standard move is **via stitching**: two or three standard vias in parallel on the `VBAT_SW` net, sharing the current and halving or thirding the effective resistance and temperature rise per via. Minimum via count isn't something DRC enforces directly, but minimum annular ring and minimum via-to-via clearance are, and getting those wrong (an annular ring under your fab's minimum, commonly 5-6 mil) produces vias that *look* fine in the 3D viewer and fail electrically after one thermal cycle when drill-wall plating cracks at an undersized annular ring.
+
+One thing DRC will never tell you: whether the board works thermally or survives EMI from the solenoid's switching edges. DRC checks the rules you gave it — clearance, width, drill, connectivity — not physics it wasn't told about. Passing DRC is necessary; it is not the same claim as "this board works."
+
+## 3. A driver for a part with no vendor library: AS5048A over bare SPI
+
+There is no STMicro HAL call for "read an AMS encoder." You get the AS5048A datasheet's register map and nothing else:
+
+| Register | Address | Contents |
+|---|---|---|
+| CLEAR_ERROR_FLAG | `0x0001` | clears latched error flags on read |
+| PROGRAMMING_CONTROL | `0x0003` | OTP programming (not used here) |
+| DIAG_AGC | `0x3FFD` | diagnostic flags + automatic gain control value |
+| MAGNITUDE | `0x3FFE` | CORDIC magnitude of the magnetic field |
+| ANGLE | `0x3FFF` | 14-bit absolute angle, 0-16383 over 0-360° |
+
+Every transfer is a 16-bit frame: bit 15 is an even-parity bit over the other 15 bits, bit 14 is R/W (1 = read) on a command frame or an error flag (EF) on a response frame, and bits 13:0 carry the address (command) or data (response). The gotcha that will cost you an hour if you don't read the datasheet closely: **reads are pipelined by one frame.** Sending a command frame addressing `ANGLE` returns, on that same transfer, the *previous* transfer's response — not the angle. You must send the command frame, then clock a second frame (a NOP works) to retrieve the angle data that the first frame's command requested.
+
+Configuring SPI1 with no HAL is a direct extension of Tier 4's register-pointer style, one peripheral further than GPIO:
+
+```c
+#define RCC_APB2ENR  (*(volatile uint32_t *)0x40021018)
+#define SPI1_CR1     (*(volatile uint32_t *)0x40013000)
+#define SPI1_SR      (*(volatile uint32_t *)0x40013008)
+#define SPI1_DR      (*(volatile uint32_t *)0x4001300C)
+
+void spi1_init(void) {
+    RCC_APB2ENR |= (1u << 12);           /* SPI1EN: gate SPI1's bus clock on */
+    /* GPIO setup for SCK/MOSI/MISO (alt-function push-pull / floating input) omitted */
+    SPI1_CR1 = (1u << 2)                 /* MSTR: master mode */
+             | (2u << 3)                /* BR=010: fPCLK/8 = 8MHz/8 = 1MHz, near AS5048A's recommended rate */
+             | (1u << 9) | (1u << 8)    /* SSM=1, SSI=1: software CS management */
+             | (1u << 11);              /* DFF=1: 16-bit data frames, matching the sensor's frame size */
+    SPI1_CR1 |= (1u << 6);               /* SPE: enable */
+}
+
+static uint16_t spi1_xfer16(uint16_t word) {
+    while (!(SPI1_SR & (1u << 1))) {}    /* TXE: wait for TX buffer empty */
+    SPI1_DR = word;
+    while (!(SPI1_SR & (1u << 0))) {}    /* RXNE: wait for RX buffer full */
+    return (uint16_t)SPI1_DR;
+}
+
+#define AS5048A_ANGLE 0x3FFFu
+
+static uint16_t as5048a_even_parity(uint16_t v) {
+    v ^= v >> 8; v ^= v >> 4; v ^= v >> 2; v ^= v >> 1;
+    return v & 1u;
+}
+
+int16_t as5048a_read_angle(void) {
+    uint16_t cmd = (1u << 14) | AS5048A_ANGLE;       /* R/W=1, address=ANGLE */
+    cmd |= (as5048a_even_parity(cmd) << 15);
+    ENC_CS_LOW();  spi1_xfer16(cmd);        ENC_CS_HIGH();  /* frame 1: issue the command */
+    ENC_CS_LOW();  uint16_t rsp = spi1_xfer16(0x0000); ENC_CS_HIGH(); /* frame 2: clock out the data */
+    if (rsp & (1u << 14)) return -1;        /* EF set: a real transaction error, not just a stale read */
+    return (int16_t)(rsp & 0x3FFFu);        /* 14-bit angle, 0-16383 */
+}
+```
+
+`BR=010` divides SPI1's clock, which inherits the 8 MHz HSI with no PLL touched (Tier 4's default), by 8 to land at 1 MHz — inside the AS5048A's recommended range and well under its 10 MHz absolute maximum, leaving margin against the ringing a hand-routed (not impedance-controlled) SPI bus on a two-layer board will have. Checking `EF` on every read, not just trusting the data, is the difference between a sensor driver and a sensor driver that silently reports garbage through a magnetic dropout or a parity-corrupted transfer and never tells you.
+
+## 4. The problem with no off-the-shelf answer: multi-turn tracking from a single-turn sensor
+
+The AS5048A is explicitly single-turn: it reports where the magnet is *right now* within one revolution, with zero memory of how many full turns have happened. The joint this board serves needs multi-turn absolute position — it can rotate several turns past zero and the controller needs to know the real, unwrapped angle on every power-up. Off-the-shelf multi-turn absolute encoder ICs exist, but they solve a different budget: they need a backup battery or supercapacitor to keep an internal revolution counter alive through power loss, cost many times a bare AS5048A, and come in module form factors that don't fit this board's footprint or BOM target. Nothing sold as a part does "cheap single-turn sensor plus firmware that remembers turns, survives power loss, and doesn't wear out" — that's the thing you have to design.
+
+**Tradeoff 1: sample rate versus missed wraps.** Wrap detection means noticing the raw angle jump from near 16383 to near 0 (or the reverse) between samples. That detection is unambiguous only while the per-sample angle change stays well under half the full range (8192 counts / 180°) — above that, a fast forward rotation and a fast backward rotation produce the same raw delta and the firmware cannot tell which actually happened. This is a hard, physics-set floor on sample rate tied to the joint's maximum real angular velocity, independent of whatever rate your control loop would otherwise be happy with — a control loop that only needs 20 Hz position updates still has to sample the encoder fast enough that no single interval lets the joint cross more than ~180° unseen.
+
+**Tradeoff 2: persistence versus flash endurance.** The STM32F103's flash is rated for roughly 10,000 erase cycles per page. A naive design — erase and rewrite one page every time the turn counter changes, so the count survives power loss — exhausts that budget fast: at even a modest 5 revolutions per second of continuous motion, 10,000 cycles / 5 Hz = 2000 seconds, about 33 minutes, before that page is worn past its rated life. The fix is a wear-leveled log, not a single stored value: dedicate several flash pages as a circular buffer, write each turn-count update as a small new record at the next blank word in the current page (flash can write to an already-erased word repeatedly without re-erasing, as long as you're only ever clearing bits, never setting them back to 1), and only erase a page once it's completely full of records, then move on to the next page in the rotation. A 1 KB page holding 8-byte records gives 128 writes per single erase cycle — multiplying the usable endurance by 128x over the naive design before flash wear becomes a real concern again, for the cost of a small amount of extra flash and a bit of bookkeeping logic to find the next free slot and recover the latest valid record after a reset.
+
+Neither tradeoff has a "right" universal answer — the correct sample rate depends on this joint's real maximum velocity, and the correct wear-leveling depth depends on this application's duty cycle and the flash budget you're willing to spend. That is exactly what "no off-the-shelf answer" means at this tier: not that the problem is exotic, but that solving it correctly requires reasoning from your own system's numbers, not from a datasheet's recommended application circuit.
+
+## Exercise
+
+Extend the wear-leveled turn-counter design above into working code: implement `turncounter_init()` (scan the dedicated flash region on boot, find the highest-sequence-number valid record by checking a stored checksum, and recover the last known turn count into RAM) and `turncounter_persist(int32_t turns)` (write a new record — sequence number, turn count, checksum — to the next blank word slot in the current page, erasing and advancing to the next page in the rotation only when the current page is full). Decide, and justify in one paragraph, how often `turncounter_persist()` actually gets called in normal operation: on every wrap event, on a fixed timer, or only when a brown-out/low-voltage interrupt fires warning of imminent power loss — each choice trades immediacy of persistence against flash wear and code complexity differently.
+
+Hint: you don't need real flash unlock/erase register sequences to design this correctly first — sketch the record layout and the "find the next free word" and "find the latest valid record" logic against a plain byte array standing in for flash, get that logic provably correct (including the page-wraparound case), and only then map it onto the STM32's actual `FLASH_KEYR`/`FLASH_CR` unlock-and-erase sequence from RM0008.

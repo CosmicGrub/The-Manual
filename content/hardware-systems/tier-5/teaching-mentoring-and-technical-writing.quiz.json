@@ -1,0 +1,98 @@
+[
+  {
+    "id": "hardware-systems/tier-5/teaching-mentoring-and-technical-writing/q1",
+    "type": "multiple_choice",
+    "prompt": "In the virtual-memory worked example, why is Tier 1's RAM4K address-decode logic (not an everyday analogy like hotel room keys) chosen as the anchor for explaining paging to a Tier 1 learner?",
+    "choices": [
+      "It already uses a two-stage address decode -- some bits select a sub-structure, the rest are forwarded down unchanged -- which is structurally the same shape a page table reuses, so the new idea extends a working model instead of replacing it",
+      "RAM4K already contains a hardware page table, so no new concept needs to be introduced at all",
+      "NAND2Tetris's Project 5 CPU implements a real memory management unit that the learner has already built",
+      "Analogies are always pedagogically invalid and must never be used at any tier"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-5/teaching-mentoring-and-technical-writing/q2",
+    "type": "multiple_choice",
+    "prompt": "Using the lesson's toy paging scheme (1024-word pages, page number = top 4 bits of a 14-bit address), a process's page table maps virtual page 2 to physical page 6. The process issues a virtual address with page number 2 and offset 100. What physical address does the translation produce?",
+    "choices": [
+      "6244",
+      "2100",
+      "6144",
+      "100"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-5/teaching-mentoring-and-technical-writing/q3",
+    "type": "multiple_choice",
+    "prompt": "A mentee, working through Tier 1's number-representation material, claims: \"The ALU must check if a number is negative first, then flip the sign and subtract instead of adding.\" What is the single best next move for a mentor responding to this reasoned-but-wrong claim?",
+    "choices": [
+      "Validate that sign does need accounting for somehow, then have the mentee hand-trace a real two's-complement addition (e.g. 5 + (-3)) through a plain unsigned adder, bit by bit, to see for themselves that no special case runs",
+      "Immediately state the correct rule about two's complement and move on to the next question",
+      "Tell the mentee to re-read the number-representation module from the beginning before continuing",
+      "Mark the answer wrong with no further comment and proceed"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-5/teaching-mentoring-and-technical-writing/q4",
+    "type": "multiple_choice",
+    "prompt": "Walking 5 + (-3) through an 8-bit two's-complement adder as plain unsigned binary addition (00000101 + 11111101), then discarding the carry-out beyond bit 7, what result does the mentee actually get?",
+    "choices": [
+      "00000010 (decimal 2) -- correct, with no sign-check logic involved",
+      "11111000 (decimal -8), because the adder must special-case the negative operand",
+      "An invalid result, because unsigned addition cannot be used on signed values",
+      "00000101 (decimal 5), because the negative operand is ignored"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-5/teaching-mentoring-and-technical-writing/q5",
+    "type": "multiple_choice",
+    "prompt": "In the reviewed UART ring-buffer code, `head` and `tail` are single bytes masked with `& (BUF_SIZE - 1)`, but `bytes_available` is a 16-bit counter incremented in the ISR and decremented in the main loop. What specifically makes `bytes_available` unsafe on the ATmega328P despite being declared `volatile`?",
+    "choices": [
+      "A 16-bit value requires two separate 8-bit load/store instructions on this 8-bit core, so the ISR can interrupt the main loop's access between those two instructions and produce a torn (part-old, part-new) value -- volatile prevents compiler caching, not this",
+      "volatile variables are automatically stored in a dedicated atomic hardware register on AVR, so this code is actually safe as written",
+      "The compiler silently ignores the volatile qualifier for any type wider than 8 bits",
+      "ISRs on AVR cannot modify any variable also read by the main loop, volatile or not"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-5/teaching-mentoring-and-technical-writing/q6",
+    "type": "multiple_choice",
+    "prompt": "`bytes_available` holds 0x00FF (255). `uart_read()` reads its low byte first, getting 0xFF. Before it reads the high byte, the ISR fires and executes `bytes_available++`, turning 0x00FF into 0x0100. `uart_read()` then reads the high byte, getting the new value. What torn 16-bit value does `uart_read()` end up composing, and as a decimal number?",
+    "choices": [
+      "0x01FF, which is 511",
+      "0x0100, which is 256",
+      "0x00FF, which is 255",
+      "0x0000, which is 0"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-5/teaching-mentoring-and-technical-writing/q7",
+    "type": "multiple_choice",
+    "prompt": "Which of the following is a correct fix for the bytes_available race in the reviewed ring-buffer code?",
+    "choices": [
+      "Drop the stored 16-bit counter entirely and compute the count on demand as (uint8_t)(head - tail), which needs no multi-byte read-modify-write; or, if a stored counter is kept, wrap the main loop's access in cli()/sei() or ATOMIC_BLOCK",
+      "Change bytes_available from uint16_t to int32_t to give it more headroom",
+      "Add a second volatile qualifier to the declaration for extra safety",
+      "Move the bytes_available++ line from the ISR into the main loop instead"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-5/teaching-mentoring-and-technical-writing/q8",
+    "type": "multiple_choice",
+    "prompt": "This module argues that a thorough systems code review names not just the bug itself but also what else about it?",
+    "choices": [
+      "The underlying misconception that produced the bug, so the same category of mistake doesn't ship again in a different form",
+      "The exact line number only, with no further explanation needed",
+      "The git blame author of the original commit",
+      "A severity label chosen from a fixed set of categories, with no further explanation"
+    ],
+    "correctIndex": 0
+  }
+]

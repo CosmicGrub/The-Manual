@@ -1,0 +1,124 @@
+---
+trackId: hardware-systems
+tier: 5
+title: "Teaching, Mentoring & Technical Writing"
+order: 5
+estimatedHours: 15
+slug: teaching-mentoring-and-technical-writing
+---
+
+## Teaching Is a Systems Skill Too
+
+At Tier 5 the checkpoint for this track stops being a quiz you pass and becomes a portfolio: a novel component you designed, a patch a maintainer merged, a paper you reproduced. None of that happens in isolation. You get FPGA-core design reviewed by people who weren't in your head while you wrote it, you onboard the next contributor to a project you now help maintain, and you read other people's RTL and C and have to say precisely what's wrong without just rewriting it yourself. Teaching, mentoring, and code review are not soft skills bolted onto the technical ones — they are the mechanism by which your technical judgment becomes visible and checkable by anyone besides you. This module is about doing all three with the same rigor you'd apply to a timing closure report.
+
+## Part 1 — Writing a Technical Explanation for a Specific Audience: Virtual Memory, for a Tier 1 Learner
+
+The hardest part of writing a tutorial is not the writing. It's figuring out exactly what the audience already has wired into their head, and building the new idea out of *that*, not out of whatever vocabulary happens to be convenient for you. Here is a real worked case: explain virtual memory — the real version lives in Tier 3's operating-systems-memory-management module, with page tables, TLBs, and four-level x86-64 walks — to someone who has only finished Tier 1.
+
+**Step 1: inventory what the audience actually has.** A Tier 1 graduate has built, in NAND2Tetris, exactly this stack: `Bit` → `Register` → `RAM8` → `RAM64` → `RAM512` → `RAM4K` → `RAM16K`, where each level is eight of the previous level plus address-decoding logic that uses a few address bits to pick *which* sub-chip to defer to and forwards the remaining bits down unchanged. They've written Hack assembly against a flat 14-bit `RAM16K` data address space and watched the fetch-decode-execute cycle move bits off a PC register onto an address bus. Critically, they believe — correctly, for Hack — that an address *is* a physical location. There is no OS in their model, no process, no indirection. That belief is the thing the lesson has to dismantle, carefully, because they didn't believe something stupid; they believed something true about the machine they actually built.
+
+**Step 2: find the anchor, don't invent an analogy.** The tempting move is a "hotel room keys" or "library call numbers" analogy. Resist it — an analogy with no structural correspondence to the real mechanism teaches a feeling, not a transferable model, and it will fall apart the moment the learner hits TLB misses or page faults later. The right anchor is already sitting in their own completed project: `RAM4K` already splits a 12-bit address into 2 bits that select *which* `RAM1K`-equivalent sub-chip to use, and 10 bits that get forwarded down unchanged. That's a two-stage address decode. Virtual memory is the same two-stage shape, with one change: the thing doing the "which sub-chip" selection is not a hardwired `Mux4Way`, it's a lookup table the operating system can rewrite per-process.
+
+**Step 3: build the toy mechanism with real, small numbers.** Scale Hack's own 14-bit, 16384-word `RAM16K` address space down into a toy paging scheme instead of jumping straight to real 4 KB pages and 48-bit addresses:
+
+- Split the 14-bit address into a 4-bit **page number** (bits 13–10, selecting one of 16 pages) and a 10-bit **offset** (bits 9–0, one of 1024 words per page).
+- Give each "process" its own 16-entry **page table**: virtual page number → physical page number, in that same physical `RAM16K`.
+- Process A's page table maps virtual page 1 → physical page 5. Process A touches virtual address `page 1, offset 33` — numerically, `1*1024 + 33 = 1057`. Translate: physical page 5, offset 33 → `5*1024 + 33 = 5153`.
+- Process B's page table maps virtual page 1 → physical page 9. Process B touches the *exact same-looking* virtual address, `1057`. Translate: `9*1024 + 33 = 9249`.
+
+Same virtual address, two completely different physical words, no collision, no shared wiring changed — only the table differs. That's the whole idea. Everything else (TLBs caching this lookup, hardware page-walkers, four-level tables on real CPUs) is this mechanism made faster and scaled up, which is exactly how you'd frame the handoff to the real Tier 3 material afterward.
+
+**Step 4: a real transcript, not a summary of one.** Here's roughly what you'd actually say, in order:
+
+> "You built `RAM4K` out of four `RAM1K`-sized pieces, using the top 2 of its 12 address bits to pick which piece, and forwarding the other 10 bits down. Hold that shape in your head — I'm about to show you the exact same shape solving a completely different problem.
+>
+> Two programs are running on one machine, sharing one real `RAM16K`. Both think they own address 1057. If address 1057 always meant 'the same physical word,' the second program would stomp the first program's data the instant it wrote there. So we add one more decode stage in front of the one you already know: before an address bit pattern reaches the real RAM4K selector, it first goes through a *table* — one table per running program, swappable by the OS — that rewrites the top bits. Program A's table turns 'virtual page 1' into 'physical page 5.' Program B's table, consulted only when B is running, turns the identical 'virtual page 1' into 'physical page 9.' Same input bits, different table, different answer, zero collision.
+>
+> Quick check: if Program A's table instead mapped virtual page 1 to physical page 5, and Program A tried to read virtual address `page 1, offset 2000` — what happens, and why is that number suspicious?"
+
+That check question is deliberately not recall. The honest answer is "offset 2000 doesn't fit in 10 bits (max 1023), so this address doesn't even belong to page 1 anymore" — which forces the learner to notice the encoding's boundaries instead of just restating what you said. A tutorial that ends on a question the learner has to *compute* through is doing real pedagogical work; one that ends on "does that make sense?" is not.
+
+## Part 2 — Mentoring Through Tier 0–2: Responding to a Wrong-but-Reasoned Answer
+
+Mentoring a Tier 0–2 learner is mostly not about having the answer — it's about resisting the urge to hand it over. A wrong-but-reasoned answer almost always has a correct premise attached to one bad inferential leap. Your job is to isolate that leap, not patch the whole thing.
+
+Concrete scenario, straight out of Tier 1's number-representation-deep-dive module. You ask a mentee: "Why does an 8-bit adder correctly compute `5 + (-3)` using two's complement, with zero special-case logic for sign?" The mentee answers:
+
+> "Because the ALU checks if a number is negative first, and if it is, it flips the sign and subtracts instead of adding."
+
+That's wrong. It's also *reasoned* — the mentee correctly intuited that negative numbers need to be handled differently somehow (true for sign-magnitude representation), and wrongly assumed two's complement works the same way (it doesn't — that's the entire point of choosing two's complement: no special case, ever). Don't say "no, it's actually..." — that teaches them this one fact and nothing about how to catch the next wrong inference themselves. Instead:
+
+1. **Validate the true part out loud.** "You're right that *something* has to account for sign — that part of your instinct is correct." This matters; dismissing the whole answer teaches the mentee to stop reasoning out loud with you, which is the opposite of what you want.
+2. **Hand them a concrete trace, not a correction.** "Walk me through `5 + (-3)` as 8-bit two's complement, bit by bit, through a plain unsigned adder — no sign check, no special case. `00000101 + 11111101`. What do you get?" Let them do the binary addition themselves: `00000101 + 11111101 = 100000010`, truncate the carry-out of the 8-bit register, left with `00000010` = 2. It's correct, and no sign logic ran.
+3. **Then make them find why their model breaks.** "Now do the same plain-adder trick with sign-magnitude instead — `5` is `0000 0101`, `-3` in sign-magnitude is `1000 0011`. Add them as plain unsigned binary. What do you get, and is it 2?" They'll get garbage (`1000 1000` = -8 in that encoding), because sign-magnitude's whole bit pattern doesn't survive ordinary addition. That contrast is the actual lesson: two's complement was *chosen* specifically so plain addition always works; sign-magnitude needs exactly the special-case hardware the mentee assumed every representation needs.
+
+The mentee now has the real mechanism *and* the reason two's complement exists, derived from their own hands, not handed to them. That's the difference between correcting an answer and growing a reasoner. The general move — validate the true premise, hand over a concrete trace they execute themselves, let their own model collide with a counterexample — works identically whether the wrong-but-reasoned claim is about two's complement, about why a `RAM8` chip doesn't need eight parallel comparators (it needs one 3-bit decoder, because exactly one chip-select line can be high at a time), or about why a floating GPIO input reads unpredictably without a pull-up.
+
+## Part 3 — Reviewing Systems Code: A Real Bug Hunt
+
+A good code review does two things a compiler and a test suite can't: it names the bug *and* the misconception that produced it, so the same mistake doesn't ship again in different clothes. This is exactly the discipline the Tier 4 open-source-contribution module expects from the other side — once you're the one a maintainer trusts with merge rights, this is the review you'll be writing on other people's patches.
+
+Here's real, flawed AVR C — a UART receive ring buffer shared between an ISR and the main loop on an ATmega328P:
+
+```c
+#define BUF_SIZE 64  // power of 2, so masking works
+
+volatile uint8_t  buf[BUF_SIZE];
+volatile uint8_t  head = 0;
+volatile uint8_t  tail = 0;
+volatile uint16_t bytes_available = 0;
+
+ISR(USART_RX_vect) {
+    buf[head] = UDR0;
+    head = (head + 1) & (BUF_SIZE - 1);
+    bytes_available++;
+}
+
+uint8_t uart_read(uint8_t *dest) {
+    if (bytes_available == 0) {
+        return 0;                 // nothing to read
+    }
+    *dest = buf[tail];
+    tail = (tail + 1) & (BUF_SIZE - 1);
+    bytes_available--;
+    return 1;
+}
+```
+
+**What's right.** `head` and `tail` are masked with `& (BUF_SIZE - 1)` instead of `% BUF_SIZE` — correct and fast, since `BUF_SIZE` is a power of two. All three shared variables are `volatile`, so the author clearly already internalized the buses module's lesson: without it, the compiler could cache `bytes_available` in a register across loop iterations and never notice the ISR changed it in memory.
+
+**The bug.** `volatile` stops the *compiler* from caching or reordering accesses. It says nothing about whether the *hardware* can perform a multi-byte access atomically. `bytes_available` is a `uint16_t` on an 8-bit core, which means `bytes_available++` in the ISR and `bytes_available--`/`== 0` in `uart_read()` each compile to two separate 8-bit load or store instructions. The AVR core executing `uart_read()` can be interrupted by `USART_RX_vect` between those two instructions.
+
+Concrete failure: `bytes_available` holds `0x00FF` (255). `uart_read()` reads the low byte first — gets `0xFF`. Before it reads the high byte, the ISR fires: `bytes_available++` turns `0x00FF` into `0x0100`, which flips both bytes (low byte `0xFF`→`0x00`, high byte `0x00`→`0x01`, via carry). `uart_read()` resumes and reads the high byte — gets the *new* `0x01`. It has now composed `0x01FF` = 511 out of one old byte and one new byte — a torn value that was never the true count at any instant, and it's wrong in the dangerous direction: `uart_read()` now believes there's far more data queued than actually exists, and will walk `tail` forward into slots the ISR hasn't written yet.
+
+**The underlying misconception.** Conflating "safe from compiler optimization" with "safe from interleaving with an interrupt." They're different guarantees. `volatile` buys you the first. On an 8-bit core, anything wider than one byte that's touched by both interrupt and mainline code needs the second guarantee bought separately — by disabling interrupts around the access (`cli()`/`sei()`, or `ATOMIC_BLOCK(ATOMIC_RESTORESTATE)` from `<avr/atomic.h>`), or by avoiding the wide shared variable entirely. Here, the cleanest fix removes the stored counter altogether: `head` and `tail` are each single bytes, so `(uint8_t)(head - tail)` computed on demand is a single atomic read of each plus one atomic subtraction — no multi-byte state to tear, and one less piece of redundant state to keep in sync with `head`/`tail` in the first place.
+
+A review comment on this patch, in the same format the open-source module's PR workflow expects, reads: *"`bytes_available` is `volatile` but not atomic on this 8-bit core — a 16-bit RMW can be interrupted mid-access by `USART_RX_vect`, producing a torn count (walk `0x00FF` → ISR fires between byte reads → `uart_read()` observes `0x01FF`). Suggest dropping the stored counter and computing `(uint8_t)(head - tail)` on demand instead."*
+
+## Exercise: Find the Bug, Then Explain It to Someone Who Hasn't Met It Yet
+
+Here's a different flawed snippet — a button-debounce routine on the same ATmega328P class of target:
+
+```c
+#define DEBOUNCE_DELAY 50u  // ms
+
+uint32_t lastDebounceTime = 0;
+uint8_t  lastButtonState   = 0;
+
+void checkButton(void) {
+    uint8_t current = digitalRead(BUTTON_PIN);
+    if (current != lastButtonState) {
+        if (millis() > lastDebounceTime + DEBOUNCE_DELAY) {
+            lastButtonState  = current;
+            lastDebounceTime = millis();
+        }
+    }
+}
+```
+
+Do two things, in writing, as if this were a real review:
+
+1. Identify the bug and state the underlying misconception in one or two sentences — the same way Part 3's review comment named "volatile vs. atomic," not just "this breaks sometimes."
+2. Write the one-line fix, and then write three sentences explaining *why* the original logic was reasonable but wrong, pitched at a Tier 0–2 learner who has just met `millis()` for the first time — apply Part 1's rule: anchor the explanation in something they already have (unsigned integer wraparound, which Tier 1's number-representation module covered), don't invent an analogy for it.
+
+**Hint, not a solution:** `millis()` returns a `uint32_t` that wraps back to `0` roughly every 49.7 days. Pick `lastDebounceTime = 4294967290` (six ticks before the wraparound point, i.e. six ticks before `2^32`) and a `millis()` reading of `4294967293` — three ticks later, so only 3 ms of real time has passed and `millis()` has *not* wrapped yet. Hand-trace `millis() > lastDebounceTime + DEBOUNCE_DELAY` against `(uint32_t)(millis() - lastDebounceTime) > DEBOUNCE_DELAY` for those exact numbers. Watch what `lastDebounceTime + DEBOUNCE_DELAY` itself does arithmetically before you even get to the comparison. One of the two forms fires immediately on only 3 ms of real elapsed time; the other correctly waits for the full 50 ms. Work out which is which, and why.
