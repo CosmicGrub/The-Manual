@@ -1,0 +1,74 @@
+[
+  {
+    "id": "capstones-career/tier-0/building-your-learning-os/q1",
+    "type": "multiple_choice",
+    "prompt": "According to the lesson, why is a plain-markdown-plus-git knowledge base a legitimate choice for a Learning OS, instead of requiring an app like Obsidian?",
+    "choices": [
+      "It's the only option that works offline",
+      "It stores notes as plain files you version, search, and back up with git, a tool you already know, with no new app lock-in",
+      "It automatically generates backlinks between notes",
+      "It's required by most employers before hiring"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-0/building-your-learning-os/q2",
+    "type": "multiple_choice",
+    "prompt": "In the dev journal format shown in the lesson, what is the specific purpose of the \"What I'll remember\" line?",
+    "choices": [
+      "It restates the error message verbatim so it's easier to search for",
+      "It lists which files were changed in the fix",
+      "It summarizes the one takeaway that would have saved time if you'd known it before debugging",
+      "It's optional filler that's rarely filled in"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "capstones-career/tier-0/building-your-learning-os/q3",
+    "type": "multiple_choice",
+    "prompt": "In the lesson's example, a January note about a CORS preflight fix and a June note about a missing WebSocket cookie are both tagged #cors. What actually made that shared tag valuable five months later?",
+    "choices": [
+      "The tag automatically fixed the June bug without any reading required",
+      "Searching the tag surfaced the January note, which already explained the Access-Control-Allow-Credentials requirement, cutting debugging time",
+      "It let the note-taking tool auto-delete the duplicate note",
+      "It proved the January note's root cause was wrong"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-0/building-your-learning-os/q4",
+    "type": "multiple_choice",
+    "prompt": "What is the core argument in the lesson's before/after scenario comparing re-debugging from scratch to reusing an old note?",
+    "choices": [
+      "Re-debugging from scratch is always faster because you double-check your own reasoning",
+      "Writing notes is wasted time since most bugs never recur",
+      "The small time spent writing a note once is repaid every time the same class of bug resurfaces, because searching beats re-deriving",
+      "Notes should be deleted as soon as the bug they describe is fixed"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "capstones-career/tier-0/building-your-learning-os/q5",
+    "type": "multiple_choice",
+    "prompt": "Why does the lesson stress using a consistent tag spelling (e.g., always #cors) instead of inventing a new variant each time (#corsissue, #cors-bug, #corsstuff)?",
+    "choices": [
+      "Note-taking tools require a fixed tag list to be registered in advance",
+      "Inconsistent tags fragment your search, so a future matching problem won't surface your past notes",
+      "Git rejects commits containing more than one tag spelling",
+      "Tags longer than 10 characters break markdown rendering"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-0/building-your-learning-os/q6",
+    "type": "multiple_choice",
+    "prompt": "The journal format records \"Context\" and \"Symptom\" as separate fields from \"Root cause.\" What is the stated reason for that separation?",
+    "choices": [
+      "So future-you, or a search, can match a new bug to an old one by what was observed, even before knowing the cause is related",
+      "Markdown requires distinct headers for each paragraph for grammatical correctness",
+      "Context is meant for an employer to read; root cause is meant to stay private",
+      "They are interchangeable, so only one of the two ever needs to be filled in"
+    ],
+    "correctIndex": 0
+  }
+]

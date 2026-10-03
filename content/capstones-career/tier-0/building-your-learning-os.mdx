@@ -1,0 +1,133 @@
+---
+trackId: capstones-career
+tier: 0
+title: "Building Your \"Learning OS\""
+order: 2
+estimatedHours: 3
+slug: building-your-learning-os
+---
+
+## Why this exists
+
+By the end of CS Foundations Tier 0 you can commit, branch, and merge. That's mechanics. What this module adds is the layer most self-taught developers skip: a system for **not losing what you already figured out**. Six months from now you will hit a bug you've already solved once. Without a system, you solve it again from zero. With one, you find your own note and you're done in five minutes.
+
+This is infrastructure, not busywork. Build it now, in Tier 0, because every tier after this one generates raw material for it.
+
+## Two systems that actually work
+
+You don't need a fancy tool. You need two things: notes are plain text, and they're backed up. Two setups satisfy that.
+
+**Option 1: Markdown + git (zero new tools).** A folder, committed like any other repo:
+
+```text
+learning-os/
+  journal/
+    2026-01-15-cors-preflight-fail.md
+    2026-06-20-websocket-cookie-missing.md
+  notes/
+    cors.md
+    http-caching.md
+  index.md
+```
+
+You already know `git add`, `git commit`, `git push` from Foundations. That's the entire tool. A GitHub repo named `learning-os` is a portfolio artifact *and* your personal wiki at once.
+
+**Option 2: Obsidian.** Same plain-markdown-files-on-disk model, but with a graph view and automatic backlinks. Two linked notes look like this:
+
+```markdown
+# notes/cors.md
+Tags: #cors #http
+
+## Preflight
+Browser sends OPTIONS before PATCH/PUT/DELETE or any request with
+custom headers. Server must answer OPTIONS itself with
+Access-Control-Allow-Headers / -Methods / -Origin — see [[cors-preflight-fail]].
+
+## Credentials
+fetch() with cookies needs `credentials: 'include'` on the client AND
+`Access-Control-Allow-Credentials: true` on the server AND the server's
+`Access-Control-Allow-Origin` can't be `*`.
+```
+
+```markdown
+# notes/cors-preflight-fail.md
+Tags: #cors #express
+
+Full trace of the Jan 2026 preflight bug. See [[cors]] for the general rule.
+```
+
+Either system is fine. The failure mode is picking neither and keeping notes in your head, where they decay in weeks.
+
+## The dev journal: one entry, real format
+
+A journal entry isn't "notes" — it's a fixed shape you fill in every time, so six-months-later-you can scan it fast. Here's a real one, from an actual CORS bug:
+
+```markdown
+## 2026-01-15 — CORS preflight failing on PATCH request
+
+**Context:** Adding inline-edit to the user profile page.
+PATCH /api/users/:id works from Postman, fails from the browser.
+
+**Symptom:** Console error: "Response to preflight request doesn't pass
+access control check: No 'Access-Control-Allow-Headers' header is present."
+
+**What I tried:**
+- Added `Access-Control-Allow-Origin: *` to the Express PATCH handler's
+  response. No change — the browser never gets that far.
+- Opened Network tab, filtered to OPTIONS: it returns 204 but with no
+  CORS headers at all.
+- Added `app.options('*', cors())` before the route registrations. Fixed.
+
+**Root cause:** `cors()` was only wired onto the PATCH route. A preflight
+is a *separate* OPTIONS request that Express routes independently — it
+never touches middleware attached only to PATCH.
+
+**What I'll remember:** Any custom header or non-GET/POST verb triggers a
+preflight. `cors()` has to handle OPTIONS explicitly, not just the real verb.
+
+Tags: #cors #express #http
+```
+
+Notice what each field is *for*: Context and Symptom let future-you match a *new* bug to this one by what you observed, before you know the cause is related. Root cause is the explanation. "What I'll remember" is the one sentence that would have saved you the hour if you'd read it first. That line is the whole point of the entry — write it last, write it sharp.
+
+## Tags: the payoff is deferred, not immediate
+
+A tag is only valuable the second time it's used. Here's the actual payoff, five months apart:
+
+**January** — the CORS entry above, tagged `#cors #http`, notes the `Access-Control-Allow-Credentials` requirement in passing while fixing preflight.
+
+**June** — different project, a WebSocket handshake silently drops the session cookie:
+
+```markdown
+## 2026-06-20 — WS handshake missing session cookie
+
+**Symptom:** `ws.onopen` fires but server-side session is empty.
+**What I tried:** searched my notes for #cors (cookies + cross-origin
+always smells like CORS). Found notes/cors.md — "Credentials" section:
+Access-Control-Allow-Credentials must be true, AND Origin can't be '*'.
+That was it: the WS upgrade endpoint still had Origin set to '*' from
+a copy-pasted config.
+
+Tags: #cors #websocket
+```
+
+Thirty seconds of searching `#cors` beat re-deriving the entire credentials rule from the MDN docs again. That's the entire argument for tagging: not organization for its own sake, but a future search hitting a past answer. This only works if the tag spelling is consistent — `#cors` every time, not `#cors-bug` in January and `#corsissue` in June. Inconsistent tags fragment your own search and the system quietly stops paying off.
+
+## Before/after: the thing this actually saves
+
+**Before (no system):** You hit the WebSocket cookie bug in June. You don't remember solving something adjacent in January. You re-read MDN's CORS credentials page, try `credentials: 'include'` first (doesn't help, that's client-side only), try adding headers to the wrong response, eventually land back on `Access-Control-Allow-Credentials`. Call it 60–90 minutes, and you've re-derived a fact you already knew in January.
+
+**After (with the system):** Symptom smells familiar → search `#cors` → read your own three-sentence note → confirm → fix. Call it 10 minutes, most of it reading your own words.
+
+The time you "waste" writing the January note (two minutes) is repaid with interest the first time a related bug resurfaces — and in a multi-year curriculum, it will.
+
+## Exercise
+
+Set up your Learning OS now, using whichever of the two options you prefer:
+
+1. Create the `journal/` and `notes/` structure (markdown+git or an Obsidian vault — your choice).
+2. Write one **real** journal entry, using the exact five-field format above, about something you actually debugged in Foundations (a failed merge, a broken test, a confusing error message — it doesn't need to be impressive).
+3. Pull out one fact from that entry into a short note in `notes/`, and tag both the journal entry and the note with the same tag.
+4. Commit it (markdown+git) or save it (Obsidian), and note the tag you picked somewhere you'll see it again — e.g. a line in your Learning OS's own `index.md` listing tags in use so far.
+
+**Hint:** if nothing from Foundations feels worth recording, pick the single error message that took you longest to understand at the time — that's exactly the kind of thing you'll hit again and won't remember solving.

@@ -1,0 +1,86 @@
+[
+  {
+    "id": "capstones-career/tier-0/the-specialization-map/q1",
+    "type": "multiple_choice",
+    "prompt": "What kind of thinking does security (red team / blue team) work most reward on a day-to-day basis?",
+    "choices": [
+      "Adversarial thinking -- habitually asking how a system could be abused, not just how it's used",
+      "Aesthetic thinking -- judging whether an interface feels pleasant to use",
+      "Statistical thinking -- interpreting the significance of experimental results",
+      "Spatial thinking -- reasoning about physical sensor placement"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "capstones-career/tier-0/the-specialization-map/q2",
+    "type": "multiple_choice",
+    "prompt": "A nightly pipeline silently drops 2% of rows because an upstream API renamed a field. Which habit, central to data engineering, would have caught this earlier?",
+    "choices": [
+      "Writing more unit tests for the UI layer",
+      "Adding a data quality / schema check so the failure is loud instead of silent",
+      "Switching to a faster database engine",
+      "Increasing the server's memory allocation"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-0/the-specialization-map/q3",
+    "type": "multiple_choice",
+    "prompt": "Why does game development specifically reward tight iteration loops (tweak-play-tweak) rather than upfront design or formal proof?",
+    "choices": [
+      "Because game engines are too slow to compile code any other way",
+      "Because whether a mechanic feels fun is a subjective judgment that only emerges from repeated playtesting, not from specification",
+      "Because players refuse to test anything that hasn't been proven correct",
+      "Because game studios require daily code reviews by law"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-0/the-specialization-map/q4",
+    "type": "multiple_choice",
+    "prompt": "Compared to a fast domain like game dev, what makes ML research's feedback loop distinct?",
+    "choices": [
+      "It's equally fast, just with different tools",
+      "It has no feedback loop at all -- results are purely theoretical",
+      "It's long (hours to days per experiment) and frequently ends in a negative result that still has to be treated as useful signal",
+      "It only provides feedback once a product has shipped to real users"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "capstones-career/tier-0/the-specialization-map/q5",
+    "type": "multiple_choice",
+    "prompt": "What makes debugging in robotics/IoT distinct from debugging pure software?",
+    "choices": [
+      "Robotics code never has bugs, only hardware failures",
+      "Sensors can drift or give noisy/false readings, and reproducing a bug may require physically observing hardware, with slower feedback loops than rerunning a test",
+      "Robotics debugging only happens in simulation, never on real hardware",
+      "IoT firmware cannot be debugged with a debugger at all"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-0/the-specialization-map/q6",
+    "type": "multiple_choice",
+    "prompt": "In the worked example, Maya ranks Robotics/IoT low and explicitly writes 'no evidence' next to it instead of inventing a reason. Why does the lesson treat this as doing the ranking correctly?",
+    "choices": [
+      "Because every branch must be ranked in alphabetical order regardless of evidence",
+      "Because an honest ranking should distinguish real evidence from guesses rather than dressing up a guess as a reasoned judgment",
+      "Because Robotics/IoT should always be ranked last for every learner",
+      "Because admitting a lack of evidence disqualifies a learner from ever trying that branch"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-0/the-specialization-map/q7",
+    "type": "multiple_choice",
+    "prompt": "How should a learner treat the first-pass specialization ranking built in this module?",
+    "choices": [
+      "As a binding career commitment that determines which jobs they can apply for later",
+      "As a fixed result that should never be revisited once written down",
+      "As a revisable starting bet, meant to be updated once each branch is actually sampled in Tier 1",
+      "As a formal requirement that must be submitted for grading before Tier 1 can begin"
+    ],
+    "correctIndex": 2
+  }
+]

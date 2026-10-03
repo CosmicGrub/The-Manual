@@ -1,0 +1,148 @@
+---
+trackId: capstones-career
+tier: 0
+title: "Career Literacy 101"
+order: 4
+estimatedHours: 3
+slug: career-literacy-101
+---
+
+## Why This Module Exists
+
+You've been writing code. Nobody outside your own terminal knows that yet. This module is about the gap between "I did the work" and "a stranger can tell I did the work" — the difference between a learner and a hireable one. No capstone project yet; you don't have the fundamentals for that. What you can start now is the paper trail: how to talk about what you build, how to read what companies actually want, and how to tell the difference between a tutorial you followed and a project you own.
+
+## What a Portfolio Is and Isn't
+
+A portfolio is not a trophy case of finished tutorials. It's evidence that you made decisions under constraints.
+
+**Not a portfolio** (common first attempt):
+
+```markdown
+## My Projects
+
+- Todo App (React) — followed a Udemy course
+- Weather App (JavaScript) — followed freeCodeCamp
+- Calculator (HTML/CSS/JS) — followed a YouTube tutorial
+- Portfolio Site (this one) — followed a template
+```
+
+Every line here answers "did you complete something." None of them answer "can you solve a problem I haven't seen before." A reviewer skimming this sees four checkmarks and zero signal about how you think.
+
+**A portfolio** (same learner, same raw skill level, different framing):
+
+```markdown
+## Expense Splitter
+
+A tool for splitting shared costs unevenly (not just /n people) — built
+because Splitwise's free tier capped group size and I wanted to understand
+the math myself.
+
+**The problem I didn't expect:** rounding. If three people split $10.00
+evenly, that's $3.333... each. Naive rounding means someone pays $3.33
+twice and the group is $0.01 short, which breaks trust in a money tool
+even at trivial amounts.
+
+**What I did:** gave the remainder to whoever's cumulative share has
+drifted furthest from their "fair" fractional amount, recalculated each
+time someone's split changes. Wrote a test suite of ~15 edge cases
+(2-way splits, 7-way splits, splits where one person owes $0) before
+touching the UI, because getting this wrong silently is worse than it
+crashing loudly.
+
+**Stack:** vanilla JS + localStorage, no framework — deliberately, so I
+could see the DOM updates I was actually writing.
+
+[Live demo] [Repo] [Tests]
+```
+
+Same difficulty level as a todo app. Completely different signal. The second one names a real constraint (rounding), a real decision (remainder allocation + test-first), and a real reason (not "the tutorial said to," but "silent money bugs are worse than loud crashes"). That's what a reviewer is actually scanning for in the eight seconds they spend on your README.
+
+## Reading Job Postings Like a Spec, Not an Essay
+
+Job postings are badly written on purpose — half marketing, half wishlist, half copy-pasted from the last posting. Your job is to extract the actual requirements. Take this (realistic, composited) junior-level posting:
+
+```text
+Junior Software Engineer — Platform Team
+
+We're looking for someone early in their career to join our platform
+team. You'll work on internal tooling used by ~40 engineers.
+
+What you'll do:
+- Fix bugs and ship small features in our Python/Django monorepo
+- Write and review pull requests; we do mandatory code review on everything
+- Participate in an on-call rotation (business hours only, after 3 months)
+- Improve test coverage on legacy modules as you touch them
+
+What we're looking for:
+- Comfortable with git workflows (branching, PRs, resolving merge conflicts)
+- Some exposure to SQL and relational data modeling
+- Can read someone else's code and ask clarifying questions in a PR
+- Bonus: contributed to an open-source project, even a small one
+- Bonus: experience with CI/CD (we use GitHub Actions)
+```
+
+Turn that into a checklist of what to actually demonstrate, not just what to claim:
+
+```markdown
+- [x] git workflows beyond solo commits — PRs on a repo with other
+      contributors, at least one real merge conflict resolved
+- [ ] SQL / relational modeling — need a project with an actual schema,
+      not just an ORM I never looked under
+- [x] code review literacy — can point to a PR where I left or received
+      a substantive review comment (not "LGTM")
+- [ ] OSS contribution — even a one-line docs fix to a real public repo
+      counts; need at least one merged PR somewhere I don't own
+- [ ] CI/CD exposure — a repo with a GitHub Actions workflow I set up
+      or modified myself
+```
+
+Notice what this is NOT: a list of buzzwords to drop into a resume. It's a gap analysis. Two boxes are already checked from skills you have; three are concrete, buildable gaps. That's the whole point of reading postings this early — not to apply yet, but to know what to build toward over the next several tiers.
+
+## Resume Bullets: Structure Before Polish
+
+Don't touch word choice or formatting yet. Get the structure right first. The formula:
+
+**Action verb + what you built/did + a concrete or measurable result.**
+
+```text
+VAGUE:
+"Worked on a web application using React and Node.js."
+
+STRUCTURED:
+"Built a CLI tool in Python that batch-renamed 2,000+ misnamed photo
+files by parsing EXIF metadata, replacing a manual process that took
+a volunteer ~3 hours per month."
+```
+
+The vague version tells a reviewer you were present. The structured one tells them what existed before you (a manual 3-hour process), what you built (a CLI tool with a specific technique — EXIF parsing), and the result (eliminated the manual process). "Measurable" doesn't have to mean a dashboard metric — "2,000+ files," "3 hours per month," "cut build time from 40s to 12s" all count. If you genuinely have no number yet, name the before/after state instead of inventing a statistic.
+
+LinkedIn, at this stage, is the same discipline applied to a headline and an About section — not a different skill. Structure now, polish (and real project bullets) once you have capstones to put in it.
+
+## Tutorial-Follower vs. Portfolio Project, Side by Side
+
+```text
+TUTORIAL-CLONED TODO APP
+- Add task, delete task, mark complete
+- Stored in localStorage
+- Styled to match the tutorial's screenshots
+- Every decision was already made by the instructor
+
+SAME IDEA, ONE OWNED DECISION
+- Add task, delete task, mark complete (same base)
+- PLUS: tasks have soft deadlines, and the sort order is "most urgent
+  first" where urgency = a weighted function of (time until deadline)
+  and (how many times you've snoozed it) — because a plain due-date
+  sort kept burying tasks you kept dodging
+- Had to decide: snoozing resets or just decays the weight? (decided:
+  decays, so chronic avoidance surfaces the task instead of hiding it)
+- That decision required actually thinking about the problem, not
+  looking up an answer
+```
+
+The second version took maybe two extra hours. The entire value is in one sentence: "a plain due-date sort kept burying tasks you kept dodging." That's a problem the learner noticed themselves and solved with a real (if small) design tradeoff. That sentence is the whole difference between a tutorial completion and a portfolio piece.
+
+## Exercise
+
+Pick any tutorial project you've already built (from this curriculum or elsewhere) — it doesn't matter how simple. Write a 100–150 word README section with three parts: (1) the base idea, (2) one constraint or problem the tutorial didn't cover that you ran into anyway, (3) the decision you made to handle it and why you chose that over the obvious alternative.
+
+**Hint:** if you can't find a "problem the tutorial didn't cover," try breaking your own app on purpose — empty input, a negative number, two items with the same name, clicking a button twice fast — and write up the first one that actually breaks something. That's your real constraint.

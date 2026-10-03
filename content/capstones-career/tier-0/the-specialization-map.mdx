@@ -1,0 +1,102 @@
+---
+trackId: capstones-career
+tier: 0
+title: "The Specialization Map"
+order: 3
+estimatedHours: 3
+slug: the-specialization-map
+---
+
+## Why This Map Exists
+
+Starting in Tier 1, this track stops being generic and starts branching. You'll sample six specializations — security, data engineering, robotics/IoT, game dev, ML research, and systems/compilers — through small projects, not lectures. Before any of that, you need an honest, concrete picture of what each branch actually *is* as a day of work, not as a buzzword. This module builds that picture, then has you make a first-pass bet on where to spend your sampling time first.
+
+This is not a personality quiz. It's six descriptions of real work, written at the level of "what's open on the screen at 2pm," plus one worked example of someone reasoning through a ranking honestly — including the parts where they have no evidence yet.
+
+## The Six Branches
+
+### 1. Security — Red Team / Blue Team
+
+A real day: triage a queue of SIEM alerts, most of which are noise. Write a quick script to pull auth logs and flag "impossible travel" (same account, two countries, nine minutes apart). Read a CVE advisory for a library your company runs in production and decide if it's actually exploitable in your config. Some days: spend an afternoon trying to escalate privileges on a staging box through a chained misconfiguration, then write up exactly how you did it so someone else can fix it.
+
+What it rewards: adversarial thinking — habitually asking "how would I abuse this, not just use it" — plus the patience to stare at logs for an hour to find one real anomaly among thousands of false ones. You also need to write clearly for people who aren't technical; an incident report that panics executives is a failure even if the finding is correct.
+
+### 2. Data Engineering
+
+A real day: an Airflow DAG failed at 3am because an upstream API silently renamed a field from `user_id` to `userId`. You add a schema check so this fails loudly next time instead of silently corrupting a table. You write a dbt model that turns raw event rows into a clean fact table, then argue with a data scientist about whether a column should be nullable. You add a row-count assertion because "quietly drops 2% of rows" is worse than "crashes."
+
+What it rewards: pipeline and reliability thinking. You assume things will break and design so failure is visible and recoverable, not silent. People who do this well find boring correctness more satisfying than clever one-off solutions — a job well done here is invisible.
+
+### 3. Robotics / IoT
+
+A real day: a distance sensor drifts in cold weather and you have to decide whether to recalibrate in software or swap the part. You write firmware for an ESP32 that has to handle the WiFi dropping mid-transmission without corrupting state. A bug only reproduces when the actual robot physically bumps into a wall — you can't just rerun a unit test, you have to walk over and watch it happen. You spend twenty minutes with a datasheet figuring out why a pin isn't reading voltage.
+
+What it rewards: tolerance for a world that lies to you — sensors are noisy, hardware fails in ways software never does — and patience with feedback loops that are physically slow (flash firmware, wait, walk to the robot, observe, repeat) instead of instant.
+
+### 4. Game Development
+
+A real day: you implement a dash mechanic and play it 200 times adjusting one number (dash distance, cooldown, screen shake duration) until it *feels* right — not until it's provably correct, because there's no proof for "fun." You profile a frame drop that only happens with 40+ enemies on screen. A playtester says "it doesn't feel good" with no further explanation, and your job is to figure out what they mean.
+
+What it rewards: tight iteration loops and tolerance for subjective judgment calls under time pressure. There's no unit test for "satisfying." You need to enjoy the loop of tweak-play-tweak itself, because that loop is most of the job.
+
+### 5. ML Research
+
+A real day: you read two or three papers to understand a technique before trying it. You kick off a training run, it plateaus at epoch 40 for reasons that aren't obvious, and you spend the afternoon writing an ablation to find out why. The ablation shows the technique doesn't help — you add it to a running doc of "things that didn't work" and move on. One in five ideas you try produces a result worth reporting.
+
+What it rewards: statistical thinking and genuine comfort with negative results, because most experiments fail. Feedback loops are long (hours to days per run) and uncertain. If failed experiments feel like wasted time rather than normal signal, this branch will wear you down.
+
+### 6. Systems / Compilers
+
+A real day: a program segfaults only when compiled with `-O2`, never with `-O0`. You read the disassembly to find out what the optimizer changed. You write a parser for a new syntax feature in a toy language and have to decide how to handle an ambiguous grammar case. You benchmark a lock-free queue and discover the "faster" version is slower because of cache-line contention you didn't account for.
+
+What it rewards: precision and a drive to understand mechanisms that most people treat as a black box. You're often one layer below the people who use what you build, which means fewer visible wins and more satisfaction from "I finally understand why this is slow."
+
+## A Worked Example: Ranking the Six, Honestly
+
+Here's how one learner, Maya, built her first-pass ranking after finishing CS Foundations Tier 0:
+
+```text
+1. Data Engineering
+   Evidence: I built a script in Tier 0 that re-ran my budget
+   categorization automatically instead of me re-doing it by hand
+   every week. The moment it worked unattended felt like a real win.
+   I don't love this work, but I don't dread it either.
+
+2. Game Development
+   Evidence: I kept replaying my own tic-tac-toe AI just to tune how
+   long the computer "thinks" before moving, purely for feel. Nobody
+   asked me to do that. That's a real signal, not a guess.
+
+3. Security
+   Evidence: I like the logic-puzzle framing of "how would someone
+   break this," but the one time I had to read raw auth logs for an
+   hour looking for one bad entry, I was bored out of my mind.
+   Ranked above the bottom three, but with a real doubt attached.
+
+4. ML Research
+   Evidence: thin. I read one paper on gradient descent out of
+   curiosity and didn't hate it, but I can't tell if that was
+   interest in ML or just interest in something new.
+
+5. Robotics / IoT
+   Evidence: none. I have never touched hardware. This is ranked
+   here by default, not because I have a reason to rank it low.
+
+6. Systems / Compilers
+   Evidence: the one time I had to debug a segfault in C, I wanted
+   to throw my laptop. Honest, not flattering, but real.
+```
+
+Notice what Maya did right: positions 1 and 2 are backed by specific things she did and noticed about herself. Positions 4 and 5 are honestly labeled as guesses, not dressed up with fake reasoning. Position 6 is a real data point, not a vibe. This ranking is a compass for *where to sample first in Tier 1*, not a contract — it will change the moment she actually tries robotics and either loves the hardware debugging or can't stand it.
+
+## Exercise: Build Your First-Pass Ranking
+
+Rank the six branches 1–6 for yourself. For each one, write one or two sentences of actual evidence — a specific thing you did, debugged, enjoyed, or hated — not a general impression like "security sounds cool." If you genuinely have no evidence for a branch, write "no evidence" instead of inventing a reason. That's useful information, not a failure.
+
+**Hint:** Look for moments across your life (not just coding) where you noticed yourself doing something the branch rewards without being told to — debugging something out of stubbornness, tuning a detail no one asked you to tune, reading the fine print on a receipt, taking apart a broken appliance. Those are better signal than which branch *sounds* most impressive to say out loud.
+
+Keep this ranking somewhere you'll see it again — you'll revisit it after sampling each branch in Tier 1, and it should move.
+
+## What This Ranking Is Not
+
+It is not a major declaration, a job application, or a promise to anyone. It's a starting bet made with the evidence you have today, which is intentionally incomplete — you haven't sampled five of these six branches yet. Treat a confident-sounding ranking with thin evidence as a hypothesis to test, not a conclusion to defend.

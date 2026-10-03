@@ -656,3 +656,14 @@ All notable changes to The Manual (curriculum + app) are logged here. This file 
 **Result:** `npm run build` passed clean — 278 unique slugs verified repo-wide.
 
 **Status:** Cybersecurity & Ethical Hacking complete (all 6 tiers, 516h, 31 lessons). This is the eighth fully content-complete track in The Manual, alongside CS Foundations, Language Mastery, Software Engineering, AI/ML & Prompt Engineering, Hardware & Computer Systems, Platforms, and DevOps. Only Capstones, Specializations & Career Launch remains.
+
+## [0.53.0] — 2026-10-03 — Capstones, Specializations & Career Launch Tier 0: the ninth and final track begins
+
+**Context:** The synthesis track's Tier 0 is deliberately light — no real capstone is honest to assign before any domain fundamentals exist, so this tier builds the meta-infrastructure everything later depends on: OSS collaboration etiquette on top of git mechanics already owned by CS Foundations, a documentation habit, an honest first look at the six specialization branches, and career literacy.
+
+**Added**
+- `content/capstones-career/tier-0/*.mdx` (4 files) + matching quizzes: Open-Source Etiquette & Licensing (a real terse-vs-full PR description contrast, a real vague-vs-selling README rewrite, MIT vs. Apache-2.0 vs. GPL-3.0's actual practical differences), Building Your "Learning OS", The Specialization Map (security/red-blue, data engineering, robotics/IoT, game dev, ML research, systems/compilers — each described concretely, explicitly revisable), Career Literacy 101 (tutorial-follower vs. portfolio-project contrasted concretely).
+
+**Result:** `npm run build` passed clean — 282 unique slugs verified repo-wide.
+
+**Status:** Capstones Tier 0 started (11h, 4 lessons) — the ninth and final track in The Manual to get real lesson content. Tiers 1-5 remain.

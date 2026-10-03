@@ -1,0 +1,131 @@
+---
+trackId: capstones-career
+tier: 0
+title: "Open-Source Etiquette & Licensing"
+order: 1
+estimatedHours: 2
+slug: open-source-etiquette-and-licensing
+---
+
+## Why This Isn't Just "Being Nice"
+
+You already know how to commit, branch, and merge from CS Foundations Tier 0. That's mechanics. This lesson is about the layer on top: how you communicate when a human — not a compiler — is on the other end of your pull request, issue, or README. Get this wrong and technically correct code gets ignored, rejected, or merged by someone who resents you for it. Get it right and strangers start trusting you with their codebases.
+
+## Pull Requests and Issues Are Conversations, Not Diffs
+
+A pull request is a request for someone else's time, attention, and trust. The diff is the "what." Nobody but you knows the "why" unless you write it down.
+
+Here's a real PR description pattern that gets ignored or bounced with "can you add more context?":
+
+```text
+Title: Fix bug
+
+Changed the retry logic in client.py. Tested locally.
+```
+
+Technically true. Useless to a reviewer. They now have to reverse-engineer: what bug? how did you reproduce it? what did "tested" mean — a script, a test suite, clicking around? Is this safe to merge during a release freeze?
+
+Compare it to this, for the exact same diff:
+
+```markdown
+## What
+Fixes requests silently dropping retries when the server returns a 429
+instead of a 5xx. Our retry logic only checked for 5xx, so rate-limited
+requests just failed once and gave up.
+
+## Why
+Issue #88 — users on the free tier hit this constantly because our own
+rate limiter returns 429. This has probably been costing us support
+tickets we never connected to this root cause.
+
+## How
+Added 429 to the retryable status set, with the same exponential backoff
+we already use for 503. Did not touch the backoff timing itself.
+
+## Testing
+Added a unit test that mocks a 429 response. Also ran it against staging
+for an hour with artificial rate-limiting — no dropped requests.
+
+## Open question
+Should 429s respect a `Retry-After` header if the server sends one, or is
+that a separate PR? Leaning toward separate, but open to doing it here if
+you think it's small enough.
+```
+
+The second version does three things the first doesn't: it states intent so the reviewer isn't guessing, it shows verification so they don't have to re-derive trust from scratch, and it invites a decision instead of presenting the PR as finished and above discussion. That last line — the open question — is what turns a PR into a conversation. Maintainers merge things faster when you've clearly already thought about the edges.
+
+The same logic applies to issues. "It doesn't work" gets closed as "needs more info" and you wait a week. "Running `build.sh` on Ubuntu 22.04 with Node 20 throws `EACCES` on line 4 of `scripts/install.sh`; expected it to complete like it does on macOS; full log attached" gets a fix the same day, because you've done the triage the maintainer would otherwise have to do themselves.
+
+## A README Has One Screen to Sell the Project
+
+Nobody reads your whole README before deciding whether to care about your project. They read the first screen. Here's a real pattern — vague, assumes you already care:
+
+```markdown
+# project-name
+
+A tool for doing things with data.
+
+## Installation
+
+pip install project-name
+
+## Usage
+
+See the docs folder for examples.
+
+## License
+
+MIT
+```
+
+This tells a stranger nothing. What kind of data? What "things"? Why would they use this instead of the ten other tools named similarly? Now the rewrite, same project, first screen only:
+
+```markdown
+# rowcheck
+
+Catch bad rows before they hit your database, not after. `rowcheck`
+validates CSV and JSON data against a schema you write in plain Python,
+and fails loudly (exit code 1, readable diff) instead of letting a
+malformed row corrupt a downstream table.
+
+Built because we kept finding `NULL` revenue values three dashboards
+downstream of the actual CSV upload, with no way to tell which row caused it.
+
+## Quick start
+
+    pip install rowcheck
+    rowcheck check data.csv --schema schema.py
+
+If a row fails, you get the row number, the column, and what rule it
+broke — not a stack trace.
+```
+
+Same project, same license, same installation command underneath — but the second version states what it does, why it exists (a real, specific pain), and how to run it, all before the fold. A stranger can decide in fifteen seconds whether this solves their problem. That's the bar: assume nobody will scroll unless the first screen earns it.
+
+## Choosing a License: Permissive vs. Copyleft
+
+A license isn't legal decoration — it's the one piece of your repo that determines what strangers and companies are legally allowed to do with your code. Three come up constantly, and they fall into two families.
+
+**MIT** — permissive. Anyone can use, modify, sell, or embed your code in a closed-source product. The only obligation: keep the copyright notice. That's it. No requirement to share their changes, no requirement to open-source what they build with it.
+
+**Apache-2.0** — also permissive, with one practical addition: an explicit patent grant. If a contributor's code reads on a patent they hold, using Apache-2.0 means they can't later sue users of the project for patent infringement on that contribution. This matters a lot once companies — not just individuals — are contributing, which is why large corporate-backed projects (Kubernetes, Android's core libraries) default to it.
+
+**GPL-3.0** — copyleft. If you distribute software that incorporates GPL-3.0 code, your software must also be released under GPL-3.0, source included. This is the "viral" property people mean when they call something copyleft: it's designed so that improvements can't be taken private.
+
+A real decision: say you write a small, genuinely useful JSON-schema validator and put it on GitHub.
+
+- If your goal is maximum adoption — you want a company's legal team to approve using it in five minutes with no risk assessment — pick **MIT**. This is why most JavaScript tooling (React, lodash) is MIT: friction-free adoption is the point.
+- If you expect meaningful code contributions from companies and want everyone protected if a patent dispute ever surfaces, pick **Apache-2.0**.
+- If your actual goal is "I don't want a company to take my code, improve it, and sell a closed-source product back to the community without sharing those improvements" — pick **GPL-3.0**. This is why WordPress and the Linux kernel use GPL variants: the ecosystem benefit of forced openness matters more to them than frictionless corporate adoption.
+
+There's no universally "correct" license — it's a tradeoff you pick based on whether you value adoption or enforced openness more.
+
+## Exercise
+
+Take a real project you've already written (a CS Foundations exercise repo is fine) and do three things:
+
+1. Rewrite its README's first screen so a stranger who has never heard of it understands what it does, why it exists, and how to run it — in under 10 lines, before any scrolling.
+2. Write two versions of a PR description for one real change you made to it: a terse one-liner, and a full version with What/Why/How/Testing sections, including at least one genuine open question for a reviewer.
+3. Pick a license for it (MIT, Apache-2.0, or GPL-3.0) and write one sentence justifying the choice based on who you want to be able to use it and how.
+
+**Hint:** if you're stuck on the README, write the "why" sentence first by finishing "I built this because ___ kept happening and nothing else fixed it" — even if the honest answer is "I wanted to practice X," a specific, honest reason beats a vague feature list every time.
