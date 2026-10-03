@@ -1,0 +1,86 @@
+[
+  {
+    "id": "devops-tooling/tier-0/environment-setup-for-ops-work/q1",
+    "type": "multiple_choice",
+    "prompt": "On a fresh Ubuntu container, `apt-get install -y curl` fails with \"Unable to locate package curl\" until you first run `apt-get update`. What does that update step actually do?",
+    "choices": [
+      "It downloads and applies security patches to the OS automatically",
+      "It refreshes apt's local index of available packages and versions from the configured repositories, which a fresh system doesn't have yet",
+      "It upgrades every already-installed package to its newest version",
+      "It accepts the package manager's license agreement for this session"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-0/environment-setup-for-ops-work/q2",
+    "type": "multiple_choice",
+    "prompt": "Why do unattended provisioning scripts for Ubuntu set `export DEBIAN_FRONTEND=noninteractive` before calling `apt-get install`?",
+    "choices": [
+      "It makes package downloads transfer faster",
+      "It suppresses interactive configuration prompts that would otherwise hang the script forever waiting for input no one is there to give",
+      "It disables GPG signature verification for downloaded packages",
+      "It allows apt to install packages without specifying their names"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-0/environment-setup-for-ops-work/q3",
+    "type": "multiple_choice",
+    "prompt": "You're writing a Dockerfile that starts `FROM alpine:3.19` and need to install curl. Which command is correct for that base image?",
+    "choices": [
+      "apt-get install -y curl",
+      "brew install curl",
+      "apk add --no-cache curl",
+      "winget install curl"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "devops-tooling/tier-0/environment-setup-for-ops-work/q4",
+    "type": "multiple_choice",
+    "prompt": "Which statement correctly describes Homebrew and winget in an ops/provisioning context?",
+    "choices": [
+      "Both are the standard tools for provisioning production Linux servers",
+      "Homebrew is the default package manager on Amazon Linux and RHEL",
+      "They are primarily personal-workstation tools (macOS and Windows client, respectively); a fresh Linux server or container typically uses apt, dnf/yum, or apk instead",
+      "Installing winget on a Linux server replaces apt entirely"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "devops-tooling/tier-0/environment-setup-for-ops-work/q5",
+    "type": "multiple_choice",
+    "prompt": "A teammate runs your setup script on a brand-new VM and it fails with \"python3.11: command not found,\" even though the exact same script works on your laptop. What's the most likely root cause?",
+    "choices": [
+      "The VM's filesystem is corrupted",
+      "The script quietly depended on something already present on your machine (a repo, package, or PATH entry you set up manually at some point) that was never captured in the script itself",
+      "VMs are generally unable to run Python",
+      "The teammate's VM needs more CPU cores to run apt"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-0/environment-setup-for-ops-work/q6",
+    "type": "multiple_choice",
+    "prompt": "What's the most reliable way to verify a provisioning script is genuinely reproducible, not just \"works on my machine\"?",
+    "choices": [
+      "Read through the script carefully one more time",
+      "Ask a senior engineer whether it looks correct",
+      "Run it a second time on your own machine",
+      "Run it from scratch inside a fresh, disposable environment (a new container or VM) that shares none of your machine's prior state"
+    ],
+    "correctIndex": 3
+  },
+  {
+    "id": "devops-tooling/tier-0/environment-setup-for-ops-work/q7",
+    "type": "multiple_choice",
+    "prompt": "Why pin exact package versions (e.g., `curl=7.81.0-1ubuntu1.15`) in a provisioning script instead of just naming the package?",
+    "choices": [
+      "Pinned versions always download faster",
+      "Without pinning, \"latest\" drifts over time, so the identical script can produce a different, potentially broken environment weeks or months later",
+      "Package managers require a version number to run at all",
+      "Pinning only matters for Python packages installed with pip, not for apt packages"
+    ],
+    "correctIndex": 1
+  }
+]

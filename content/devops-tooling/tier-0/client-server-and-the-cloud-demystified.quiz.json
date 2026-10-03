@@ -1,0 +1,86 @@
+[
+  {
+    "id": "devops-tooling/tier-0/client-server-and-the-cloud-demystified/q1",
+    "type": "multiple_choice",
+    "prompt": "When your browser loads a webpage, which statement correctly describes the client-server roles?",
+    "choices": [
+      "The client sends the request first; the server responds",
+      "The server sends the request first; the client responds",
+      "Both machines send requests to each other simultaneously and merge the results",
+      "There is no client/server distinction once HTTPS encryption is used"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "devops-tooling/tier-0/client-server-and-the-cloud-demystified/q2",
+    "type": "multiple_choice",
+    "prompt": "Most accurately, \"the cloud\" refers to:",
+    "choices": [
+      "A virtualized abstraction with no underlying physical hardware",
+      "Someone else's real, physical computers in a data center, that you access over a network",
+      "A specific brand of server hardware sold by Amazon and Google",
+      "A type of software license for always-on applications"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-0/client-server-and-the-cloud-demystified/q3",
+    "type": "multiple_choice",
+    "prompt": "On a raw IaaS instance (e.g., an AWS EC2 box with nothing installed), who is responsible for installing OS security patches and the application runtime (like Python or Node)?",
+    "choices": [
+      "The cloud provider, automatically",
+      "You, the customer",
+      "Nobody \u2014 IaaS instances don't need runtimes installed",
+      "Only applies to PaaS, not IaaS"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-0/client-server-and-the-cloud-demystified/q4",
+    "type": "multiple_choice",
+    "prompt": "Compared to IaaS, what does a PaaS platform like Render or Heroku additionally manage on your behalf?",
+    "choices": [
+      "Only the physical data center hardware",
+      "The OS, runtime, and process supervision, so you just push code",
+      "Your application's business logic and database schema",
+      "Registering your domain name with a registrar"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-0/client-server-and-the-cloud-demystified/q5",
+    "type": "multiple_choice",
+    "prompt": "You sign up for Trello to manage your team's task list instead of writing and hosting your own to-do app. Which service model are you using?",
+    "choices": [
+      "IaaS",
+      "PaaS",
+      "SaaS",
+      "On-premises hosting"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "devops-tooling/tier-0/client-server-and-the-cloud-demystified/q6",
+    "type": "multiple_choice",
+    "prompt": "A Flask app on a cloud VM responds fine to `curl http://127.0.0.1:5000` when run from inside the VM itself, but nobody outside the VM can reach it \u2014 even after the cloud firewall/security group is opened on port 5000. What's the most likely remaining cause?",
+    "choices": [
+      "The app is bound to 127.0.0.1 instead of 0.0.0.0, so it only accepts connections originating from inside the machine",
+      "DNS hasn't propagated yet",
+      "The VM doesn't have enough RAM to serve external traffic",
+      "HTTPS certificates are missing"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "devops-tooling/tier-0/client-server-and-the-cloud-demystified/q7",
+    "type": "multiple_choice",
+    "prompt": "Which of these is NOT one of the real steps required to take code from \"running on my laptop\" to \"live at a public URL\"?",
+    "choices": [
+      "Running the app on a machine with a public IP",
+      "Opening the relevant port in the firewall or cloud security group",
+      "Pointing a DNS A record at the server's IP address",
+      "Recompiling the code into a different programming language"
+    ],
+    "correctIndex": 3
+  }
+]

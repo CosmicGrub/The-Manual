@@ -1,0 +1,158 @@
+---
+trackId: devops-tooling
+tier: 0
+title: "Client-Server and 'The Cloud,' Demystified"
+order: 2
+estimatedHours: 3
+slug: client-server-and-the-cloud-demystified
+---
+
+## Client vs. Server, Traced Through One Request
+
+You already know curl and HTTP exist (CS Foundations Tier 0). Here's what actually happens, side by side, when you load a page — because "client-server" stops being an abstraction the moment you watch it happen.
+
+Run this:
+
+```bash
+$ curl -v https://api.github.com/users/octocat
+```
+
+Real output, annotated:
+
+```text
+*   Trying 140.82.112.6:443...                          # CLIENT: opening a TCP connection
+* Connected to api.github.com (140.82.112.6) port 443    # CLIENT: connection established
+* ALPN: curl offers h2,http/1.1
+* TLSv1.3 (OUT), TLS handshake, Client hello (1):        # CLIENT: negotiating encryption
+* TLSv1.3 (IN), TLS handshake, Server hello (2):         # SERVER: responding to handshake
+* SSL connection using TLSv1.3
+> GET /users/octocat HTTP/2                              # CLIENT: the actual request
+> Host: api.github.com
+> User-Agent: curl/8.4.0
+> Accept: */*
+>
+< HTTP/2 200                                              # SERVER: the response
+< content-type: application/json; charset=utf-8
+< x-ratelimit-remaining: 59
+<
+{
+  "login": "octocat",
+  "id": 583231,
+  "type": "User",
+  "public_repos": 8
+}
+```
+
+Every line starting with `>` is the client (your machine, running curl) *sending*. Every line starting with `<` is the server (some machine at `140.82.112.6`, owned by GitHub) *responding*. The client's job: resolve a name to an address, open a connection, send a well-formed request, render or use whatever comes back. The server's job: listen on a port, parse the request, run code or query a database, produce a response, send it back. Your browser does exactly this when you type a URL — it just hides the verbose output and renders HTML instead of printing JSON. `curl -v` is the X-ray.
+
+Note what the client does *not* do: it doesn't know or care how `api.github.com` generated that JSON — whether it queried Postgres, read a file, or called another service. That boundary is the whole point of the model. Each side only needs to agree on the protocol (HTTP) and the data format (JSON here), not on implementation.
+
+## What a Server Actually Is
+
+Not a metaphor. A specific, physical computer, plugged in, running an OS, sitting in a building somewhere, that does not turn off when you close your laptop. Here's one:
+
+```bash
+$ ssh deploy@203.0.113.42
+Welcome to Ubuntu 22.04.3 LTS (GNU/Linux 5.15.0-91-generic x86_64)
+Last login: Thu Oct  1 09:14:02 2026 from 71.12.44.9
+
+deploy@web-01:~$ uptime
+ 09:16:40 up 182 days,  4:11,  1 user,  load average: 0.08, 0.03, 0.01
+
+deploy@web-01:~$ uname -a
+Linux web-01 5.15.0-91-generic #101-Ubuntu SMP x86_64 GNU/Linux
+```
+
+182 days of uptime means that machine has been powered on, continuously, for six months, in a data center owned by some cloud provider, drawing electricity, being cooled, with a network cable running to it. "The cloud" is not a different *kind* of thing from the laptop in front of you — it's someone else's computer, in someone else's building, that they keep running 24/7 and rent out to you by the hour or month. When your app is "in the cloud," there is a `uname -a` you could run somewhere that would print a real kernel version, a real hostname, a real uptime. AWS, Google Cloud, and Azure are, physically, enormous warehouses full of machines like `web-01`.
+
+## IaaS / PaaS / SaaS: The Same To-Do App, Three Ways
+
+Say you're shipping a simple to-do-list web app. Here's exactly what you touch at each service level.
+
+**IaaS (Infrastructure as a Service)** — e.g., a raw AWS EC2 instance or DigitalOcean Droplet. The provider gives you a blank Linux box with a public IP. You do everything above "electricity and a network cable":
+
+```bash
+$ ssh root@your-new-droplet-ip
+# apt-get update && apt-get install -y python3-pip nginx
+# pip install flask gunicorn
+# systemctl enable --now your-todo-app.service   # you write this unit file yourself
+# ufw allow 443
+```
+
+You manage: OS patches, runtime installs, process supervision, the reverse proxy, TLS certs, scaling. The provider manages: power, cooling, the physical box, the network link.
+
+**PaaS (Platform as a Service)** — e.g., Render, Fly.io, Heroku. You hand over code; the platform owns the OS and runtime:
+
+```bash
+$ git push render main
+remote: Building from Dockerfile...
+remote: Deploy live at https://your-todo-app.onrender.com
+```
+
+No `apt-get`, no `systemctl`, no `ufw`. They patch the OS, run your container, issue the HTTPS cert, restart it if it crashes. You manage: your application code and its configuration. They manage: everything underneath it.
+
+**SaaS (Software as a Service)** — you don't write a to-do app at all. You go to `todoist.com`, make an account, and start adding tasks. There is no `git push`, no server you think about, no code you own. You manage: your data and your account settings, full stop. Someone else wrote, deployed, and operates the entire thing.
+
+Same feature (manage a list of tasks), wildly different amount of infrastructure in your hands — that's the whole axis these three letters measure.
+
+## What "Deploying" Actually Means
+
+**Before:** a five-line Flask app on your laptop.
+
+```python
+# app.py
+from flask import Flask
+app = Flask(__name__)
+
+@app.route("/")
+def hello():
+    return "hello from my laptop"
+
+app.run(host="127.0.0.1", port=5000)
+```
+
+```bash
+$ python3 app.py
+$ curl http://127.0.0.1:5000
+hello from my laptop
+```
+
+It works — for you, on that machine, right now. Your phone on cellular data cannot reach it. Nobody else can `curl` it. That's the gap "deploying" closes.
+
+**The real steps, not hand-waving:**
+
+1. Get a machine with a public IP (rent a VM, or use a PaaS that provides one for you).
+2. Put the code there (`git push`, `scp`, or a build pipeline).
+3. Bind to `0.0.0.0`, not `127.0.0.1` — binding to localhost on the server means even that server's own public IP can't reach the app, because `127.0.0.1` only accepts connections originating from inside the machine itself.
+4. Keep it running as a managed process (`systemd`, not a terminal tab you'll eventually close).
+5. Open the firewall / cloud security group for that port.
+6. Point a domain's DNS A record at the server's public IP.
+7. Usually, get a TLS certificate (e.g., via `certbot`) so it's `https://`, not `http://`.
+
+Watch steps 3 and 5 fail realistically:
+
+```bash
+deploy@web-01:~$ curl http://127.0.0.1:5000
+hello from my laptop          # works — you're on the box itself
+
+deploy@web-01:~$ curl http://203.0.113.42:5000
+curl: (28) Failed to connect to 203.0.113.42 port 5000: Connection timed out
+# firewall is blocking it — fix:
+deploy@web-01:~$ sudo ufw allow 5000
+```
+
+```bash
+$ dig myapp.example.com +short
+203.0.113.42                  # DNS now resolves the name to the server's IP
+
+$ curl https://myapp.example.com
+hello from my laptop          # reachable from anywhere on the internet, by name
+```
+
+**After:** the exact same five lines of Python, now resolvable by a domain name, from any network on earth, over HTTPS. Nothing about the code changed — everything about its reachability did.
+
+## Exercise
+
+Write (or reuse) a trivial HTTP server in any language that prints a short string on `/`. Get a free-tier or trial cloud VM (AWS, Oracle Cloud, DigitalOcean, Fly.io all have free tiers as of this writing). Make the app reachable at `http://<server-public-ip>:<port>` from your phone **on cellular data, not your home WiFi** — that's the real test, since WiFi can fool you into thinking something is public when it's only reachable on your LAN.
+
+*Hint:* if `curl` works when you SSH into the VM and run it locally, but times out from your phone, the bug is almost never your code — check, in order: is the app bound to `0.0.0.0`? Is the port open in the cloud provider's security group/firewall panel (a separate setting from the OS firewall)? Those two account for nearly every "it works on my machine but not on the internet" case.

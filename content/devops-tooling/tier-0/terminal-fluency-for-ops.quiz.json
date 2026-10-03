@@ -1,0 +1,86 @@
+[
+  {
+    "id": "devops-tooling/tier-0/terminal-fluency-for-ops/q1",
+    "type": "multiple_choice",
+    "prompt": "In the pipeline `grep ' 404 ' access.log | cut -d' ' -f1 | sort | uniq -c`, what is actually on `uniq -c`'s stdin?",
+    "choices": [
+      "The raw, unfiltered lines of access.log",
+      "The sorted output of the `sort` stage",
+      "The unsorted IP addresses straight from `cut`",
+      "A line count produced by `wc -l`"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-0/terminal-fluency-for-ops/q2",
+    "type": "multiple_choice",
+    "prompt": "Why does `uniq -c` typically need its input piped through `sort` first?",
+    "choices": [
+      "sort reduces the file size so uniq runs faster",
+      "uniq only collapses consecutive duplicate lines, so duplicates must already be adjacent",
+      "uniq requires numerically sorted input or it errors out",
+      "uniq cannot read from a pipe at all, only from a sorted file on disk"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-0/terminal-fluency-for-ops/q3",
+    "type": "multiple_choice",
+    "prompt": "You need to know which `sort` flag makes it compare a column as a number (so 9 sorts before 10) instead of as text. What's the right move?",
+    "choices": [
+      "Try random single-letter flags until one happens to work",
+      "Check `man sort` or `sort --help` for a numeric-comparison option",
+      "Pre-sort the data manually before piping it into sort",
+      "Skip sort entirely and write a script instead"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-0/terminal-fluency-for-ops/q4",
+    "type": "multiple_choice",
+    "prompt": "In bash, which keystroke starts an incremental reverse search through your command history?",
+    "choices": [
+      "Ctrl+E",
+      "Ctrl+A",
+      "Ctrl+R",
+      "Ctrl+L"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "devops-tooling/tier-0/terminal-fluency-for-ops/q5",
+    "type": "multiple_choice",
+    "prompt": "You're midway through typing a long command and need to jump straight to the start of the line to fix a typo, without deleting anything. Which shortcut does that?",
+    "choices": [
+      "Ctrl+A",
+      "Ctrl+E",
+      "Ctrl+W",
+      "Ctrl+U"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "devops-tooling/tier-0/terminal-fluency-for-ops/q6",
+    "type": "multiple_choice",
+    "prompt": "What's the most reliable way to confirm a given WSL distro is actually running on WSL2, not WSL1?",
+    "choices": [
+      "Check whether Git Bash happens to be installed too",
+      "Run `wsl --list --verbose` from PowerShell and check that VERSION reads 2",
+      "Open the distro and see if `ls` produces output",
+      "Check the Windows edition name alone"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-0/terminal-fluency-for-ops/q7",
+    "type": "multiple_choice",
+    "prompt": "What is the core practical difference between Git Bash and WSL2 for ops-style work (package managers, Docker, systemd-style services)?",
+    "choices": [
+      "Git Bash just runs git commands slightly slower",
+      "WSL2 runs an actual Linux kernel with a real package manager and a working Docker daemon; Git Bash is a POSIX-style shell layer on top of the Windows NT kernel with no Linux kernel underneath",
+      "They are functionally identical aside from the terminal's color scheme",
+      "Git Bash can run Linux containers natively while WSL2 cannot"
+    ],
+    "correctIndex": 1
+  }
+]

@@ -1,0 +1,86 @@
+[
+  {
+    "id": "devops-tooling/tier-0/files-permissions-and-processes-the-ops-angle/q1",
+    "type": "multiple_choice",
+    "prompt": "A file on a shared server has mode 777 (rwxrwxrwx). What's the actual security problem with this?",
+    "choices": [
+      "Nothing, as long as the owner is correct",
+      "Any user on the system, not just the owner or group, can read, write, and execute it",
+      "It means the file is executable, which is always dangerous",
+      "It only affects performance, not security"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-0/files-permissions-and-processes-the-ops-angle/q2",
+    "type": "multiple_choice",
+    "prompt": "You run `chmod 644 ~/.ssh/id_ed25519` and then try to SSH with that key. What happens?",
+    "choices": [
+      "SSH connects normally; the mode doesn't matter for keys",
+      "SSH refuses to use the key and prints an 'UNPROTECTED PRIVATE KEY FILE' warning",
+      "SSH automatically fixes the permissions for you",
+      "The key is deleted for security reasons"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-0/files-permissions-and-processes-the-ops-angle/q3",
+    "type": "multiple_choice",
+    "prompt": "What permission mode should a private SSH key file have?",
+    "choices": [
+      "777",
+      "644",
+      "600",
+      "750"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "devops-tooling/tier-0/files-permissions-and-processes-the-ops-angle/q4",
+    "type": "multiple_choice",
+    "prompt": "In `ps aux` output, a process shows `%CPU` of 97.8 and `%MEM` of 44.1. What do these columns tell you?",
+    "choices": [
+      "The process has used 97.8 total CPU seconds and has 44.1 files open",
+      "The process is currently consuming about 97.8% of a CPU core and 44.1% of total system memory",
+      "The process will finish in 97.8 seconds and needs 44.1MB of disk space",
+      "These are process priority and nice values"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-0/files-permissions-and-processes-the-ops-angle/q5",
+    "type": "multiple_choice",
+    "prompt": "You send `kill -15 9902` to a runaway process and it keeps running after several seconds. What should you do next, and why?",
+    "choices": [
+      "Send `kill -15` again with more force",
+      "Send `kill -9 9902` (SIGKILL), since SIGTERM can be ignored but SIGKILL cannot",
+      "Reboot the entire server immediately",
+      "Nothing further can be done short of a reboot"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-0/files-permissions-and-processes-the-ops-angle/q6",
+    "type": "multiple_choice",
+    "prompt": "When you open a GitHub Codespace or a Google Cloud Shell in your browser, what is actually happening?",
+    "choices": [
+      "Your browser is emulating a Linux terminal locally using JavaScript",
+      "You're connected to a real remote Linux machine/container running on that provider's infrastructure, with your browser acting as a thin client",
+      "The commands run on your own laptop but are displayed with a cloud-themed UI",
+      "It's a video recording of a pre-run terminal session"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-0/files-permissions-and-processes-the-ops-angle/q7",
+    "type": "multiple_choice",
+    "prompt": "A directory of static assets needs to be readable by the `www-data` group (for nginx to serve) but should never be writable by that group. Which mode fits?",
+    "choices": [
+      "777",
+      "600",
+      "750",
+      "444"
+    ],
+    "correctIndex": 2
+  }
+]

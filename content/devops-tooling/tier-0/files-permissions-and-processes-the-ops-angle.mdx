@@ -1,0 +1,145 @@
+---
+trackId: devops-tooling
+tier: 0
+title: "Files, Permissions & Processes, the Ops Angle"
+order: 3
+estimatedHours: 4
+slug: files-permissions-and-processes-the-ops-angle
+---
+
+## Why This Tier Exists
+
+CS Foundations Tier 0 already covered `cd`, `ls`, `pwd`, `mkdir`, and basic `git`. This module assumes all of that is muscle memory. What it adds is the stuff that only matters once your code leaves your laptop and starts running on a machine other people (or other processes, or the internet) can touch: who owns what, who can read or write it, what's actually executing right now, and how to get a terminal open on a remote machine you don't physically own.
+
+## Permissions on a Shared Server: A Real Scenario
+
+On your laptop, permissions rarely bite you — you're the only user, so everything you own is readable and writable by you. On a server with multiple users, a CI pipeline, and a web server process, permissions are a security boundary. Here's a real one.
+
+You SSH into a server where a Node app is deployed under `/var/www/app`, run by a `deploy` user, and served by `nginx` running as `www-data`:
+
+```bash
+$ ls -l /var/www/app/config.js
+-rwxrwxrwx 1 deploy deploy 412 Oct  2 14:03 /var/www/app/config.js
+```
+
+That `rwxrwxrwx` (mode `777`) means every single user on this box — including any other tenant, any compromised cron job, any service account — can read, write, and execute this file. `config.js` holds a database password. Anyone with a shell on this server, even an unprivileged one, can do:
+
+```bash
+$ cat /var/www/app/config.js
+module.exports = { dbPassword: "Tr0ub4dor&3" };
+```
+
+or quietly rewrite it to point at a database they control. This is not a theoretical quiz scenario — world-writable config and credential files are one of the most common real-world privilege-escalation paths on shared Linux boxes. The fix is to tighten ownership and mode so only the app's own user can read it:
+
+```bash
+$ sudo chown deploy:deploy /var/www/app/config.js
+$ chmod 600 /var/www/app/config.js
+$ ls -l /var/www/app/config.js
+-rw------- 1 deploy deploy 412 Oct  2 14:05 /var/www/app/config.js
+```
+
+Now only `deploy` can read or write it — not other users, not "group," not "world." For a directory of static assets `nginx` needs to *serve* but never write, you'd instead give the `www-data` group read access without write:
+
+```bash
+$ sudo chown -R deploy:www-data /var/www/app/public
+$ sudo chmod -R 750 /var/www/app/public
+```
+
+`750` = owner rwx, group r-x, world nothing. That's the pattern to internalize: on a server, every file's permission bits are a conscious security decision, not a default you ignore.
+
+## The SSH Key That Gets You Locked Out On Purpose
+
+SSH enforces this itself. If your private key is group- or world-readable, OpenSSH refuses to use it — because a readable private key means anyone who can read your home directory can impersonate you on every server that trusts that key:
+
+```bash
+$ chmod 644 ~/.ssh/id_ed25519
+$ ssh deploy@203.0.113.10
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@         WARNING: UNPROTECTED PRIVATE KEY FILE!          @
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+Permissions 0644 for '/home/you/.ssh/id_ed25519' are too open.
+It is required that your private key files are NOT accessible by others.
+This private key will be ignored.
+```
+
+The fix is one command, and it's the one permission you should have memorized by the end of this module:
+
+```bash
+$ chmod 600 ~/.ssh/id_ed25519
+$ ssh deploy@203.0.113.10
+Welcome to Ubuntu 22.04.3 LTS
+deploy@app-server-01:~$
+```
+
+Same logic as the config file: `600` means owner-only, nobody else gets a byte of access.
+
+## Processes, the Ops Angle
+
+A "process" isn't abstract once you're responsible for a server that's slow or out of memory. `ps` and `top` are how you see what's actually happening right now.
+
+```bash
+$ ps aux | grep node
+deploy    8841  0.3  1.2 1123456 98304 ?       Sl   13:40   0:12 node server.js
+deploy    9902 97.8  44.1 4823104 3594112 ?    Rl   14:12   8:41 node worker.js
+```
+
+Read this left to right: `9902` is the PID. `97.8` is %CPU — that process is pegging almost an entire core. `44.1` is %MEM — 44% of this machine's RAM, 3.5GB resident (`RSS` column, in KB). `Rl` state means it's actively running. One worker process is clearly misbehaving — probably stuck in an infinite loop or a memory leak from a bad deploy.
+
+`top` gives you the live, sortable view of the whole machine instead of grepping one process at a time:
+
+```bash
+$ top
+top - 14:15:32 up 3 days,  2:10,  1 user,  load average: 2.41, 1.98, 1.20
+Tasks: 112 total,   2 running, 110 sleeping
+%Cpu(s): 89.2 us,  4.1 sy,  0.0 ni,  6.0 id
+MiB Mem :   8192.0 total,    412.3 free,   6981.2 used
+
+  PID USER      PR  NI    VIRT    RES  %CPU  %MEM  TIME+  COMMAND
+ 9902 deploy    20   0  4.7g   3.5g   97.8  44.1   8:41  node
+ 8841 deploy    20   0  1.1g  96.0m    0.3   1.2   0:12  node
+```
+
+Load average over 2 on what's likely a 2-core box, and 6.9GB of 8GB used — this box is close to falling over, and `9902` is the clear cause. You kill it: first the polite way, giving it a chance to clean up open files and connections, then forcefully if it ignores you.
+
+```bash
+$ kill -15 9902
+$ sleep 5 && ps -p 9902
+  PID TTY          TIME CMD
+ 9902 ?        00:08:41 node
+$ kill -9 9902
+$ ps -p 9902
+  PID TTY          TIME CMD
+```
+
+`-15` (`SIGTERM`) asks nicely. `-9` (`SIGKILL`) is non-negotiable termination — use it only after a `SIGTERM` is ignored, since it gives the process zero chance to close files or flush data.
+
+## Your First Cloud Shell
+
+You don't need your own server to practice any of this. GitHub Codespaces gives you a free-tier remote Linux machine in your browser, no local setup required.
+
+1. Open any GitHub repo you own (or fork one).
+2. Click the green **Code** button → **Codespaces** tab → **Create codespace on main**.
+3. Wait ~30-60 seconds for a container to provision. A VS Code interface opens in your browser with a terminal pane already attached.
+
+Run your first commands on that remote machine:
+
+```bash
+$ whoami
+codespace
+$ uname -a
+Linux codespaces-a1b2c3 6.5.0-1014-azure #14-Ubuntu SMP x86_64 GNU/Linux
+$ df -h /
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/sdb1        32G  6.1G   26G  20% /
+```
+
+That `uname -a` output telling you it's running Azure's kernel is the tell: this isn't your laptop pretending to be Linux, it's an actual container on Microsoft's infrastructure, assigned to you for this session, that you reached entirely through a browser tab. The equivalent free options are AWS CloudShell (console.aws.amazon.com → the `>_` icon top-right) and Google Cloud Shell (console.cloud.google.com → the terminal icon) — both drop you into a real remote Linux shell with cloud CLI tools preinstalled, no local install at all. This is the client-server model made concrete: your browser is the client: thin, disposable; the actual work happens on a machine somewhere else that you're renting by the second.
+
+## Exercise
+
+SSH access to a practice box isn't required — do this inside your Codespace or Cloud Shell:
+
+1. Create a file `secret.txt`, `chmod 777` it, then write a one-line comment explaining, as if to a teammate in a PR review, exactly what's wrong with that permission and who could exploit it.
+2. Start a deliberately CPU-hungry background process (`yes > /dev/null &` works well), find its PID with `ps aux | grep yes`, confirm it's consuming CPU with `top`, then kill it with `SIGTERM` and verify with `ps -p` that it's gone.
+
+**Hint:** `yes` writes "y" to stdout forever — redirecting it to `/dev/null` keeps your terminal clean but still burns CPU. The `&` at the end backgrounds it so you get your prompt back immediately to go look it up with `ps`.

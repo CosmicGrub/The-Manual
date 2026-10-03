@@ -1,0 +1,124 @@
+---
+trackId: devops-tooling
+tier: 0
+title: "Environment Setup for Ops Work"
+order: 4
+estimatedHours: 4
+slug: environment-setup-for-ops-work
+---
+
+You already know `sudo apt install something` or `brew install something` from CS Foundations Tier 0. That's a dev-machine reflex: one person, one laptop, GUI available if the CLI fails, and if you mess it up you just try again tomorrow. Ops work breaks that reflex on purpose. You're provisioning a server or container that has no GUI, no history, no "it'll be fine" — it either comes up correctly from a script, every time, or it doesn't come up at all. This module is about that gap: what package managers look like at that scale, how you bootstrap one on a system that has nothing, and how you prove to a teammate (or to your future self, redeploying at 2am) that your setup is real and repeatable, not an artifact of your one specific laptop.
+
+## Package managers at ops scale vs. on your laptop
+
+On your own machine, the package manager is whatever your OS ships with: Homebrew on macOS, `winget` (or Chocolatey) on Windows. Both are **personal-workstation tools**. They assume a GUI is nearby, that you're the only user, and that "latest" is usually fine. Neither one is how you provision a server.
+
+A fresh Ubuntu server or container uses `apt`. A fresh Amazon Linux or RHEL box uses `dnf`/`yum`. A minimal container base (common in CI and production images) uses `apk`. These aren't interchangeable flavors of the same thing — they're different tools with different package names, different repo formats, and different assumptions about who's running them (a script, unattended, with no one to answer a prompt).
+
+Watch what happens on a brand-new container with nothing done to it yet:
+
+```bash
+$ docker run --rm -it ubuntu:22.04 bash
+root@3f8a21c9b4e2:/# apt-get install -y curl
+Reading package lists... Done
+Building dependency tree... Done
+Reading state information... Done
+E: Unable to locate package curl
+```
+
+That's not a broken container. `apt` has no local index of what's available yet — nothing has told it what packages exist or where to get them. Compare the same request on Alpine, a distro you'll meet constantly in container images because it's tiny:
+
+```bash
+$ docker run --rm -it alpine:3.19 sh
+/ # apk add --no-cache curl
+fetch https://dl-cdn.alpinelinux.org/alpine/v3.19/main/x86_64/APKINDEX.tar.gz
+fetch https://dl-cdn.alpinelinux.org/alpine/v3.19/community/x86_64/APKINDEX.tar.gz
+(1/4) Installing ca-certificates (20240226-r0)
+(2/4) Installing brotli-libs (1.1.0-r1)
+(3/4) Installing nghttp2-libs (1.59.0-r0)
+(4/4) Installing libcurl (8.5.0-r0)
+OK: 8 MiB in 19 packages
+```
+
+Same intent ("give me curl"), completely different command, completely different output shape. Part of ops literacy is recognizing which family you're in from the base image or distro before you type anything — `apt-get`/`apt` (Debian, Ubuntu), `dnf`/`yum` (RHEL, Amazon Linux, Fedora), `apk` (Alpine). Running `apt-get` on an Alpine box, or asking for Homebrew on a server, just doesn't work — those tools aren't there and were never meant to be.
+
+## Bootstrapping a package manager on a bare system
+
+The Alpine example above hints at the real ops skill: before you can install anything, the package manager itself usually needs to be told what repositories exist. On the Ubuntu container, that step is `apt-get update`:
+
+```bash
+root@3f8a21c9b4e2:/# apt-get update
+Get:1 http://archive.ubuntu.com/ubuntu jammy InRelease [270 kB]
+Get:2 http://archive.ubuntu.com/ubuntu jammy-updates InRelease [119 kB]
+Get:3 http://archive.ubuntu.com/ubuntu jammy-security InRelease [110 kB]
+Fetched 3,816 kB in 2s (1,908 kB/s)
+Reading package lists... Done
+root@3f8a21c9b4e2:/# apt-get install -y curl
+Reading package lists... Done
+...
+Setting up curl (7.81.0-1ubuntu1.15) ...
+```
+
+That's the minimal case: refresh the index, then install. But a real server often needs a repository that isn't configured by default — say, installing Docker itself onto a fresh Ubuntu box. You're not just installing a package, you're bootstrapping a *new source* for the package manager to trust:
+
+```bash
+sudo install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.asc
+sudo chmod a+r /etc/apt/keyrings/docker.asc
+echo \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
+  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt-get update
+sudo apt-get install -y docker-ce
+```
+
+Every line matters for the same reason: a provisioning script runs unattended. There's no one at the keyboard to click "yes" on a prompt, so `-y` and `DEBIAN_FRONTEND=noninteractive` aren't style choices — without them, a script hangs forever waiting for input nobody will give:
+
+```bash
+export DEBIAN_FRONTEND=noninteractive
+apt-get install -y --no-install-recommends curl git
+```
+
+## What actually makes a setup reproducible
+
+"It works on my machine" fails for specific, nameable reasons: your laptop has a tool installed from some tutorial six months ago that the script never mentions; you added a repo manually once and forgot; the script says `python3` but means "whatever version happens to be first in my PATH"; or it names a package with no version, so "latest" today is not "latest" in three months.
+
+A genuinely reproducible setup is a script, checked into the repo next to the code it serves, that names every version explicitly and fails loudly instead of limping on:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+export DEBIAN_FRONTEND=noninteractive
+
+apt-get update
+apt-get install -y --no-install-recommends \
+  curl=7.81.0-1ubuntu1.15 \
+  git=1:2.34.1-1ubuntu1.11 \
+  python3.11 \
+  python3-pip
+rm -rf /var/lib/apt/lists/*
+
+echo "Bootstrap complete:"
+git --version
+python3.11 --version
+```
+
+`set -euo pipefail` means any failed command kills the script instead of silently continuing — you want it to blow up loudly on a teammate's machine rather than finish "successfully" with half the tools missing.
+
+The real test isn't rereading the script — it's running it somewhere that shares *none* of your machine's history:
+
+```bash
+$ docker run --rm -v "$PWD/bootstrap.sh:/bootstrap.sh" ubuntu:22.04 bash /bootstrap.sh
+...
+Bootstrap complete:
+git version 2.34.1
+Python 3.11.0
+```
+
+Run it again, from scratch, in a second fresh container. If it produces the identical result both times with zero manual intervention, you've actually proven reproducibility — not just described it.
+
+## Exercise
+
+Write a `bootstrap.sh` that provisions a fresh Ubuntu 22.04 box with: `nginx`, `git`, and Python 3.11, with every package version pinned, no interactive prompts possible, and `set -euo pipefail` at the top. Then validate it twice in a disposable `ubuntu:22.04` container — once to confirm it installs cleanly, and a second time on a brand-new container to confirm you get the exact same versions with no manual fixes in between.
+
+**Hint:** `docker run --rm -v "$PWD":/work -w /work ubuntu:22.04 bash bootstrap.sh` gives you a throwaway sandbox that starts exactly as bare as a real fresh server — if your script needs anything you did by hand earlier (a repo you added, a prompt you answered), it'll fail here even though it "worked" on your laptop.

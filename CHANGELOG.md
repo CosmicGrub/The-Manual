@@ -520,3 +520,14 @@ All notable changes to The Manual (curriculum + app) are logged here. This file 
 **Result:** `npm run build` passed clean — 226 pages, 209 unique slugs verified repo-wide.
 
 **Status:** Platforms complete (all 6 tiers, 629h, 31 lessons). This is the sixth fully content-complete track in The Manual, alongside CS Foundations, Language Mastery, Software Engineering, AI/ML & Prompt Engineering, and Hardware & Computer Systems. Remaining tracks: DevOps, Cybersecurity & Ethical Hacking, Capstones & Career.
+
+## [0.41.0] — 2026-10-03 — DevOps, Tooling & Professional Practice Tier 0: the seventh track begins
+
+**Context:** This track's Tier 0 is deliberately heavier than other tracks' light orientation tiers — CLI mastery is this track's home turf, so it skips past basics already owned by CS Foundations and goes straight into ops-specific depth: real multi-stage pipelines, man-page research habits, and a real WSL2 environment instead of a toy shell.
+
+**Added**
+- `content/devops-tooling/tier-0/*.mdx` (4 files) + matching quizzes: Terminal Fluency for Ops (a real grep/cut/sort/uniq/sort pipeline walked stage by stage explaining stdin/stdout at each step, a real man-page lookup solving a real sort-by-field problem, WSL2 vs. Git Bash concretely contrasted), Client-Server and "The Cloud," Demystified, Files/Permissions/Processes the Ops Angle, Environment Setup for Ops Work.
+
+**Result:** `npm run build` passed clean — 230 pages, 213 unique slugs verified repo-wide.
+
+**Status:** DevOps Tier 0 started (15h, 4 lessons) — the seventh track in The Manual to get real lesson content. Tiers 1-5 remain.

@@ -1,0 +1,177 @@
+---
+trackId: devops-tooling
+tier: 0
+title: "Terminal Fluency for Ops"
+order: 1
+estimatedHours: 4
+slug: terminal-fluency-for-ops
+---
+
+You already have `cd`, `ls`, `pwd`, `mkdir`, and basic git from CS Foundations Tier 0. This module doesn't touch any of that again. It picks up where "I can move around a filesystem" stops and "I can operate like someone who runs production systems" starts: chaining commands into real pipelines, using the manual instead of guessing, driving the shell without touching the mouse, and — if you're on Windows — getting off of toy shells and onto a real Linux environment.
+
+## Pipes and redirection: a real pipeline, stage by stage
+
+Say you've got a web server's access log, `access.log`, with lines like this:
+
+```text
+203.0.113.5 - - [03/Oct/2026:10:12:01 +0000] "GET /api/users HTTP/1.1" 200 512
+203.0.113.9 - - [03/Oct/2026:10:12:03 +0000] "GET /api/users HTTP/1.1" 404 128
+198.51.100.2 - - [03/Oct/2026:10:12:05 +0000] "GET /favicon.ico HTTP/1.1" 404 98
+203.0.113.5 - - [03/Oct/2026:10:12:07 +0000] "POST /api/login HTTP/1.1" 500 256
+198.51.100.2 - - [03/Oct/2026:10:12:09 +0000] "GET /api/users HTTP/1.1" 404 128
+203.0.113.9 - - [03/Oct/2026:10:12:11 +0000] "GET /health HTTP/1.1" 200 15
+```
+
+You want to know: which client IP is generating the most 404s? One pipeline, four stages:
+
+```bash
+grep ' 404 ' access.log | cut -d' ' -f1 | sort | uniq -c | sort -rn
+```
+
+```text
+      2 198.51.100.2
+      1 203.0.113.9
+```
+
+Walk through what's actually flowing between the `|` characters, because "pipe" is doing real work here, not magic:
+
+- `grep ' 404 ' access.log` reads the *file* directly (no stdin involved yet) and writes to **stdout** only the three lines that contain the literal string ` 404 `.
+- `cut -d' ' -f1` has no file argument, so it reads those three lines from **stdin** (that's what the pipe connected it to) and writes just the first whitespace-delimited field — the IP — to stdout. Three lines go in, three lines (just IPs) come out.
+- `sort` takes those three unordered IP lines on stdin and writes them back out on stdout in sorted order: `198.51.100.2`, `198.51.100.2`, `203.0.113.9`.
+- `uniq -c` reads that *sorted* stream and collapses adjacent duplicate lines, prefixing each with a count. This is the detail people miss: `uniq` only merges lines that are **next to each other** — it has no memory of lines it saw earlier. If you skip `sort`, `uniq -c` will silently undercount because the duplicates aren't adjacent.
+- The final `sort -rn` reorders those count-prefixed lines numerically (`-n`), descending (`-r`), so the worst offender is on top.
+
+Need a raw total instead of a breakdown? Swap the tail of the pipeline for `wc -l`, which just counts lines arriving on its stdin:
+
+```bash
+grep ' 404 ' access.log | wc -l
+```
+
+```text
+3
+```
+
+Same first stage, completely different consumer. That's the actual power of pipes: each program only knows "read stdin, write stdout," so you can rearrange and recombine them without any of them being aware of each other.
+
+## man pages and --help as a research habit
+
+You will not memorize every flag of every tool, and you shouldn't try. What you need is the habit of going straight to the source instead of guessing or re-deriving syntax from memory. Here's a real scenario: you've got a CSV of server costs and need it sorted by the third column (monthly cost), numerically, highest first — and you don't remember how `sort` does "sort by a specific field."
+
+```bash
+man sort
+```
+
+Inside the pager, type `/key` and hit Enter to jump straight to the relevant option instead of reading top to bottom:
+
+```text
+       -k, --key=KEYDEF
+              sort via a key; KEYDEF gives location and type
+
+       -n, --numeric-sort
+              compare according to string numerical value
+
+       -r, --reverse
+              reverse the result of comparisons
+
+       -t, --field-separator=SEP
+              use SEP instead of non-blank to blank transition
+```
+
+Four options, read directly off the man page, answer the whole question. Given `costs.csv`:
+
+```text
+web-01,us-east-1,42.50
+db-01,us-east-1,310.00
+cache-01,us-west-2,18.25
+web-02,us-east-1,42.50
+```
+
+```bash
+sort -t, -k3 -nr costs.csv
+```
+
+```text
+db-01,us-east-1,310.00
+web-01,us-east-1,42.50
+web-02,us-east-1,42.50
+cache-01,us-west-2,18.25
+```
+
+`-t,` sets the comma as the field separator, `-k3` says sort by the third field, `-n` compares those fields as numbers instead of text, `-r` reverses so the biggest cost is first. No man page on a minimal container image? `sort --help | head -20` gives you the same flag list without the full prose. Either way — this is the move, every time you hit an unfamiliar flag: check the manual before you guess, and verify what an AI tells you about a command against the man page before you trust it, same as the prompting-drill habit from earlier tiers.
+
+## Keyboard-only workflow
+
+Reaching for the mouse, or even the arrow keys, is a tell that you haven't internalized the shell yet. Four shortcuts carry most of the load (bash and zsh both use these Emacs-style bindings by default):
+
+- **Ctrl+R** — reverse incremental search through your history. Hit it, start typing part of a command you ran before:
+
+```text
+(reverse-i-search)`dock': docker run -it --rm -v $(pwd):/app ubuntu bash
+```
+
+Press Ctrl+R again to cycle to the next older match, Enter to run it as-is, or an arrow key to edit it first. Ctrl+G cancels and gives you back your empty prompt.
+
+- **Ctrl+A** / **Ctrl+E** — jump to the start / end of the current line. If you're 80 characters into a command and spot a typo near the beginning, Ctrl+A gets you there in one keystroke instead of holding the left arrow.
+- **Tab completion** — one Tab completes if there's only one possible match; a second Tab (when the first did nothing) lists every match. `cd Doc<Tab>` completes to `Documents/` if that's the only directory starting with "Doc"; if both `Documents/` and `Downloads/` exist, Tab-Tab lists both so you can type one more character and complete again.
+
+Put them together: you SSH into a box, re-run a long `docker run` command from history with Ctrl+R, realize you need to add a flag right after `docker run`, hit Ctrl+A, arrow right past `docker run `, type the flag, Ctrl+E to jump back to the end, Enter. Zero mouse, zero repeated arrow-key mashing.
+
+## WSL2: a real Linux environment, not a shim
+
+Git Bash — which CS Foundations Tier 0 may have had you install just to get Unix-style commands — is a POSIX-ish compatibility layer (MSYS2/MinGW) running on top of the Windows NT kernel. It gives you `bash`, `git`, and core GNU tools, and that's genuinely useful for basic command-line work. It is not Linux: no `apt`, no real `/proc`, no systemd, no Docker daemon, no `iptables`. For ops work — containers, package managers, anything that expects a real kernel underneath it — you need WSL2.
+
+Set it up from an administrator PowerShell on Windows 10 (build 19041+) or Windows 11:
+
+```powershell
+PS C:\Users\you> wsl --install
+```
+
+This installs the WSL2 backend plus Ubuntu by default. Reboot if prompted; on first launch, Ubuntu asks you to create a Unix username and password — that account is separate from your Windows login.
+
+Verify it's actually WSL2, not the older WSL1 translation layer:
+
+```powershell
+PS C:\Users\you> wsl --list --verbose
+
+  NAME      STATE           VERSION
+* Ubuntu    Running         2
+```
+
+`VERSION 2` is the whole check. Now confirm it from inside the Linux shell itself:
+
+```bash
+you@DESKTOP-ABC123:~$ uname -a
+Linux DESKTOP-ABC123 5.15.153.1-microsoft-standard-WSL2 #1 SMP x86_64 GNU/Linux
+```
+
+`microsoft-standard-WSL2` in that string is a real Linux kernel build, not an emulator. Compare that to running the same command in Git Bash on the same machine:
+
+```text
+MINGW64_NT-10.0-22631 DESKTOP-ABC123 3.4.10 x86_64 Msys
+```
+
+That's the Windows NT kernel announcing itself through a compatibility shim — there is no Linux kernel there at all. Prove WSL2 is a real distro by using its actual package manager:
+
+```bash
+you@DESKTOP-ABC123:~$ sudo apt update && sudo apt install -y htop
+you@DESKTOP-ABC123:~$ htop
+```
+
+That works because Ubuntu-on-WSL2 is Ubuntu, full stop. Try `sudo apt install htop` in Git Bash and it fails immediately — `apt` doesn't exist there. One filesystem-boundary note worth internalizing now: from Windows Explorer, `\\wsl$\Ubuntu\home\you\` reaches your Linux files, and from inside WSL, `/mnt/c/Users/you/` reaches your Windows drive — but crossing that boundary on every file read is slow. Keep project work inside the Linux filesystem (`~/projects`, not `/mnt/c/...`) and it'll perform like the real Linux box it is.
+
+## Exercise
+
+You have a file `deploy.log`:
+
+```text
+2026-10-01 09:12:03 host=web-01 status=success
+2026-10-01 09:14:51 host=web-02 status=failed
+2026-10-01 09:15:02 host=web-01 status=success
+2026-10-01 09:16:40 host=db-01 status=failed
+2026-10-01 09:18:11 host=web-02 status=success
+2026-10-01 09:19:47 host=web-02 status=failed
+```
+
+Write a single piped command that reports which `host=` value has the most `status=failed` lines, with the count. Don't just eyeball the answer from this short sample — build the pipeline so it'd work on a 50,000-line version of this file too.
+
+**Hint:** filter to failed lines first, then isolate just the `host=X` token (not the whole line) before you try to count duplicates — and remember `uniq -c` only merges duplicates that are adjacent, so there's a stage from this lesson's first pipeline you can't skip.
