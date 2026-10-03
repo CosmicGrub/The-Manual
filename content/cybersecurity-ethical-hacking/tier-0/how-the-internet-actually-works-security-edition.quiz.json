@@ -1,0 +1,98 @@
+[
+  {
+    "id": "cybersecurity-ethical-hacking/tier-0/how-the-internet-actually-works-security-edition/q1",
+    "type": "multiple_choice",
+    "prompt": "A server receives a request for /order?id=4471&user_id=102 and returns that order's data without checking whether the currently logged-in session actually belongs to user 102. What security concept does this illustrate?",
+    "choices": [
+      "The server is trusting client-supplied input without verifying it",
+      "TLS has failed to encrypt the request",
+      "The DNS resolver has been poisoned",
+      "The session cookie is missing the Secure flag"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-0/how-the-internet-actually-works-security-edition/q2",
+    "type": "multiple_choice",
+    "prompt": "You visit https://paypa1-secure-login.com and your browser shows a valid padlock with no warnings. What does that padlock actually guarantee?",
+    "choices": [
+      "The site is operated by PayPal",
+      "The site's content is safe and free of malware",
+      "You have an encrypted, tamper-evident connection to whoever holds the private key for that exact domain",
+      "The site has been verified as legitimate by your browser vendor"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-0/how-the-internet-actually-works-security-edition/q3",
+    "type": "multiple_choice",
+    "prompt": "Which of the following is TLS/HTTPS explicitly NOT designed to protect against?",
+    "choices": [
+      "An attacker on the same coffee-shop Wi-Fi reading your traffic in plaintext",
+      "A man-in-the-middle silently modifying your HTTP response in transit",
+      "A SQL injection vulnerability in the legitimate server's own application code",
+      "Someone spoofing the identity of the certificate's claimed domain without the matching private key"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-0/how-the-internet-actually-works-security-edition/q4",
+    "type": "multiple_choice",
+    "prompt": "After you log in, your browser sends a session cookie on every subsequent request. What is the server actually relying on to treat you as 'logged in'?",
+    "choices": [
+      "Your password being resubmitted and rechecked on every request",
+      "Your IP address matching the one used at login",
+      "Possession of the exact session identifier string, checked against its session store",
+      "The TLS certificate presented by your browser"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-0/how-the-internet-actually-works-security-edition/q5",
+    "type": "multiple_choice",
+    "prompt": "An attacker successfully reads a logged-in user's session cookie value through an XSS flaw and sends it in their own request to the server. What is the most accurate description of the result?",
+    "choices": [
+      "Nothing happens, because the server also checks the original password",
+      "The server treats the attacker's request as authenticated, equivalent to stealing that user's login",
+      "The request is rejected because the cookie's HttpOnly flag blocks reuse",
+      "The server detects the new IP address and forces a fresh login automatically"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-0/how-the-internet-actually-works-security-edition/q6",
+    "type": "multiple_choice",
+    "prompt": "Which cookie attribute specifically prevents JavaScript (document.cookie) from reading a session cookie's value, blunting basic XSS-based theft?",
+    "choices": [
+      "Secure",
+      "SameSite",
+      "HttpOnly",
+      "Max-Age"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-0/how-the-internet-actually-works-security-edition/q7",
+    "type": "multiple_choice",
+    "prompt": "Running `dig +trace example.com` shows your query walking through root servers, the .com TLD servers, and example.com's authoritative nameserver. By default, what security property does this plain DNS lookup have?",
+    "choices": [
+      "It is cryptographically signed and authenticated end-to-end by default",
+      "It travels encrypted over TLS by default",
+      "It is unauthenticated and spoofable unless DNSSEC or DNS-over-HTTPS is explicitly used",
+      "DNS answers cannot be forged because they always match the domain in the browser's address bar"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-0/how-the-internet-actually-works-security-edition/q8",
+    "type": "multiple_choice",
+    "prompt": "An nmap scan of a lab VM shows ports 21 (FTP), 22 (SSH), 80 (HTTP), and 3306 (MySQL) all open. Why does this matter from a security standpoint, beyond just being a technical inventory?",
+    "choices": [
+      "It means the VM has four separate running services, each a piece of code that can be sent attacker-controlled input",
+      "Open ports are purely informational and have no bearing on risk",
+      "Only port 3306 matters because databases are the only attackable service",
+      "It confirms the VM is already compromised"
+    ],
+    "correctIndex": 0
+  }
+]

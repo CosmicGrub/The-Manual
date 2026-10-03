@@ -1,0 +1,98 @@
+[
+  {
+    "id": "cybersecurity-ethical-hacking/tier-0/law-ethics-and-the-hacker-mindset/q1",
+    "type": "multiple_choice",
+    "prompt": "Under the CFAA, what actually determines whether accessing a computer system is illegal?",
+    "choices": [
+      "Whether the person intended to cause harm",
+      "Whether the person had authorization to access it",
+      "Whether the person profited financially from the access",
+      "Whether the system contained sensitive data"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-0/law-ethics-and-the-hacker-mindset/q2",
+    "type": "multiple_choice",
+    "prompt": "Which of the following is explicitly authorized security testing?",
+    "choices": [
+      "Practicing exploits in your own isolated, host-only-networked VM lab",
+      "Cracking a neighbor's locked Wi-Fi password because the signal reaches your yard",
+      "Running an exploitation tool against a company's login page that is not listed in any bounty scope",
+      "Using a friend's streaming account password you found without asking them"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-0/law-ethics-and-the-hacker-mindset/q3",
+    "type": "multiple_choice",
+    "prompt": "What legally distinguishes a white hat hacker from a black hat hacker?",
+    "choices": [
+      "White hats are more technically skilled",
+      "White hats have explicit authorization for what they do; black hats do not",
+      "White hats never find real, exploitable vulnerabilities",
+      "Black hats only target government systems"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-0/law-ethics-and-the-hacker-mindset/q4",
+    "type": "multiple_choice",
+    "prompt": "A 'grey hat' hacker scans a company's website without permission, finds a real SQL injection flaw, and reports it with good intentions. What is their legal exposure?",
+    "choices": [
+      "None \u2014 reporting the bug afterward retroactively grants authorization",
+      "None, as long as they didn't cause measurable damage",
+      "They may still be in violation of unauthorized access laws, because the access itself was never authorized",
+      "They are automatically entitled to a bug bounty payout"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-0/law-ethics-and-the-hacker-mindset/q5",
+    "type": "multiple_choice",
+    "prompt": "In a standard coordinated (responsible) disclosure process, when does public disclosure of a vulnerability happen?",
+    "choices": [
+      "Immediately upon discovery, to warn users as fast as possible",
+      "Only after the vendor ships a fix, or an agreed-upon timeline (e.g., 90 days) expires",
+      "Never \u2014 reported vulnerabilities must stay confidential permanently",
+      "Only if the vendor agrees to pay a bounty for the report"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-0/law-ethics-and-the-hacker-mindset/q6",
+    "type": "multiple_choice",
+    "prompt": "A bug bounty scope page lists '*.example.com' as in-scope and explicitly excludes third-party vendor domains and social engineering. Which action stays within scope?",
+    "choices": [
+      "Testing app.example.com (a subdomain of example.com) for an authentication bypass",
+      "Calling the company's support line to social-engineer a password reset",
+      "Testing a vendor's analytics subdomain hosted on vendor.io",
+      "Attempting to physically access the company's server room"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-0/law-ethics-and-the-hacker-mindset/q7",
+    "type": "multiple_choice",
+    "prompt": "Which treaty is the main international framework harmonizing computer crime laws across many countries, including illegal access and data interference?",
+    "choices": [
+      "The Geneva Convention",
+      "The Budapest Convention (Council of Europe Convention on Cybercrime)",
+      "The Paris Agreement",
+      "The Wassenaar Arrangement"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-0/law-ethics-and-the-hacker-mindset/q8",
+    "type": "multiple_choice",
+    "prompt": "Which scenario represents authorized access to practice an exploitation technique?",
+    "choices": [
+      "Practicing SQL injection on OWASP Juice Shop, a deliberately vulnerable app built for this purpose",
+      "Running automated vulnerability scanners against a random company's production website because it's publicly reachable",
+      "Using a friend's email password you discovered without telling them",
+      "Brute-forcing a neighbor's Wi-Fi password 'just to see if it's possible'"
+    ],
+    "correctIndex": 0
+  }
+]

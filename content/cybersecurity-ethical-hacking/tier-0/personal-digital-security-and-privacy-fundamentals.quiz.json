@@ -1,0 +1,98 @@
+[
+  {
+    "id": "cybersecurity-ethical-hacking/tier-0/personal-digital-security-and-privacy-fundamentals/q1",
+    "type": "multiple_choice",
+    "prompt": "Why is password reuse considered the single biggest real-world account-compromise risk?",
+    "choices": [
+      "It makes passwords easier to guess through brute force",
+      "A breach at one low-value site hands attackers a credential pair they can replay against your email, bank, and other accounts via credential stuffing",
+      "It slows down your browser's autofill feature",
+      "Reused passwords are always shorter than unique ones"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-0/personal-digital-security-and-privacy-fundamentals/q2",
+    "type": "multiple_choice",
+    "prompt": "What is the main reason SMS-based 2FA is considered weaker than TOTP apps or hardware security keys?",
+    "choices": [
+      "SMS messages are not encrypted during transmission",
+      "SMS codes are too short to be secure",
+      "A phone number can be hijacked via a SIM swap at the carrier, redirecting codes to the attacker without touching the victim's device",
+      "SMS codes never expire"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-0/personal-digital-security-and-privacy-fundamentals/q3",
+    "type": "multiple_choice",
+    "prompt": "In the example phishing email ('Your mailbox storage is full'), which detail is the most reliable red flag?",
+    "choices": [
+      "The email uses the word 'Dear'",
+      "The sender's actual domain (e.g. company-mail-secure.net) does not match the real organization's domain, even though the display name says 'IT Support'",
+      "The email was sent on a weekday",
+      "The subject line contains the word 'Action'"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-0/personal-digital-security-and-privacy-fundamentals/q4",
+    "type": "multiple_choice",
+    "prompt": "What does the HTTPS padlock icon in a browser actually guarantee?",
+    "choices": [
+      "The site is verified safe and free of malware",
+      "The business running the site has been identity-checked",
+      "The connection between your browser and the server is encrypted and matches the certificate's domain name \u2014 nothing about the site's trustworthiness",
+      "The site cannot be a phishing site"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-0/personal-digital-security-and-privacy-fundamentals/q5",
+    "type": "multiple_choice",
+    "prompt": "After checking your email on Have I Been Pwned and finding it listed in a breach, what is the correct next step?",
+    "choices": [
+      "Delete your email account immediately",
+      "Ignore it since breach notification sites are rarely accurate",
+      "Change the password at the breached site and anywhere else you reused that same password, then enable 2FA if not already on",
+      "Change your email address to a new provider"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-0/personal-digital-security-and-privacy-fundamentals/q6",
+    "type": "multiple_choice",
+    "prompt": "Why does a 5-6 word random passphrase (like 'horse-battery-lantern-plum-gravel7') tend to be stronger than a short complex-looking password like 'P@ssw0rd!23'?",
+    "choices": [
+      "Because it contains more special characters",
+      "Because its length and true randomness produce more entropy, making it far harder to crack despite looking simpler",
+      "Because passphrases are automatically hashed differently by servers",
+      "Because dictionary words can never appear in password-cracking wordlists"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-0/personal-digital-security-and-privacy-fundamentals/q7",
+    "type": "multiple_choice",
+    "prompt": "What makes a FIDO2 hardware key like a YubiKey more phishing-resistant than a TOTP app code?",
+    "choices": [
+      "It generates longer numeric codes",
+      "It requires a fingerprint instead of a code",
+      "It cryptographically binds the login challenge to the real website's domain, so a lookalike phishing site cannot complete the authentication even if the user is fooled",
+      "It never needs to be plugged in or touched"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-0/personal-digital-security-and-privacy-fundamentals/q8",
+    "type": "multiple_choice",
+    "prompt": "Which of the following is an acceptable target for the hands-on exercises in this Tier 0 module?",
+    "choices": [
+      "A coworker's social media account, with their verbal permission",
+      "Your own accounts, your own isolated lab environment, or a named legal practice platform you're authorized to use",
+      "A small business website you found that looks outdated",
+      "A public Wi-Fi network at a coffee shop, just to observe traffic"
+    ],
+    "correctIndex": 1
+  }
+]

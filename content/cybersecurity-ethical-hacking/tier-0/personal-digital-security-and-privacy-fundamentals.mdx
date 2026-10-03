@@ -1,0 +1,124 @@
+---
+trackId: cybersecurity-ethical-hacking
+tier: 0
+title: "Personal Digital Security & Privacy Fundamentals"
+order: 2
+estimatedHours: 6
+slug: personal-digital-security-and-privacy-fundamentals
+---
+
+## Why This Module Exists Before Anything Technical
+
+Tier 0 is not padding. Before you touch a VM, a packet capture, or a vulnerable web app, you need to not be the easiest target in the room yourself. Every statistic about "sophisticated attacks" hides a boring truth: most real-world compromises exploit reused passwords, missing MFA, and a five-second lapse in judgment on a phishing email. This module fixes those three things in your own life, using your own accounts. Nothing here touches a system you don't own or aren't explicitly licensed to test.
+
+## Password Managers and Passphrase Hygiene
+
+### Why reuse is the actual kill chain
+
+Here's the mechanism, concretely: Site A (some forum, some shopping site) gets breached. The breach dump — email + password hash, sometimes plaintext — ends up on a criminal marketplace or a dump site within days. Attackers don't hand-type your password into your bank. They run **credential stuffing**: an automated tool takes millions of leaked email/password pairs and fires them at Gmail, Amazon, bank logins, etc., at scale. If you used `Sunshine2019!` on that forum *and* on your email, the forum breach is now an email breach. This is not a hypothetical — it's the single most common account-takeover vector tracked by breach reports year over year, more common than malware, more common than targeted phishing. One reused password turns one weak site's breach into access to everything that shares it.
+
+### Setting up Bitwarden (concrete steps)
+
+1. Go to `vault.bitwarden.com`, create a free account with your real email.
+2. Set your **master password** as a passphrase, not a password. Use a diceware-style method: pick 5-6 random dictionary words. Example pattern (don't use this exact one): `horse-battery-lantern-plum-gravel7`. Four random words plus a number is harder to crack than `P@ssw0rd!23` because entropy comes from length and randomness, not symbol-stuffing — a modern GPU cracking rig tears through short complex-looking passwords far faster than long random-word strings.
+3. Install the Bitwarden browser extension (Chrome/Firefox) and the mobile app, log in once, and enable biometric unlock on mobile so you're not retyping the passphrase constantly.
+4. Enable 2FA **on your Bitwarden account itself** first (Settings → Security → Two-step Login) — your vault is the highest-value target in your whole setup, since it unlocks everything else.
+5. For every existing account, go to that site's password-change page, then in Bitwarden click the generator icon (⚙) and set: length 20, include uppercase/lowercase/numbers/symbols. Generate, save it directly into the Bitwarden entry for that site, update the password on the site, confirm login works with the autofilled credential.
+6. Do this for your email provider first, then financial accounts, then everything else — in that priority order, because your email is the recovery path for almost every other account.
+
+The point isn't memorizing 200 passwords. It's that you memorize exactly one strong passphrase, and Bitwarden remembers the other 200 — each one unique, each one useless to an attacker who breaches any single site.
+
+## 2FA/MFA: TOTP vs SMS vs Hardware Keys
+
+Three common second factors, ranked weakest to strongest:
+
+**SMS codes (weakest).** A 6-digit code texted to your phone. The weakness isn't the code itself — it's that your phone number can be hijacked without touching your phone. In a **SIM swap**, an attacker calls or socially-engineers your mobile carrier's support line, convinces them to port your number to a SIM card the attacker controls, and now every SMS code meant for you goes to them. Documented real case: in 2018, investor Michael Terpin sued AT&T after attackers convinced an AT&T store employee to swap his SIM, then used SMS-based account recovery to drain roughly $24 million in cryptocurrency from his accounts. The carrier's support process was the actual attack surface — not the code, not Terpin's password.
+
+**TOTP apps (good).** Time-based One-Time Password apps — Bitwarden's built-in authenticator, or a dedicated app — generate a 6-digit code from a shared secret stored on your device, refreshing every 30 seconds, with no network or carrier involved. Setup: when a site offers "authenticator app" 2FA, it shows a QR code; scan it in your TOTP app, which stores the secret locally. Nobody can "port" this — there's no phone number to hijack. The attack surface shrinks to "someone has physical access to your unlocked device."
+
+**Hardware security keys (strongest).** A YubiKey or similar FIDO2/U2F device plugs into USB or taps via NFC. Logging in requires physically touching the key. Unlike TOTP, FIDO2 keys are cryptographically bound to the real website's domain — a phishing site with a lookalike URL literally cannot complete the handshake, even if you're fooled into typing your password there. That's the critical property TOTP lacks: a sufficiently good phishing page can relay a TOTP code in real time, but it cannot relay a hardware key's challenge-response.
+
+Practical rule: use a hardware key or TOTP app everywhere offered. Keep SMS only as a last-resort fallback option, never your primary factor, especially on your email and financial accounts.
+
+## Phishing and Social Engineering Recognition
+
+Here's an anonymized, realistic phishing email pattern — this exact structure shows up constantly in real inboxes:
+
+```
+From: IT Support <it-helpdesk@company-mail-secure.net>
+To: you@yourcompany.com
+Subject: Action Required: Your mailbox storage is full
+
+Dear User,
+
+Your mailbox has exceeded its storage quota and will be
+suspended within 24 hours. To avoid service interruption,
+please verify your account immediately by clicking the
+link below and signing in with your credentials.
+
+[Verify My Account Now]
+
+Failure to act within 24 hours will result in permanent
+loss of email access.
+
+IT Support Team
+```
+
+Red flags, in order of reliability:
+
+- **Sender domain mismatch**: `company-mail-secure.net` is not your actual employer's domain. Real IT departments send from the company's real domain. Always check the full address, not just the display name "IT Support" — display names are trivially faked.
+- **Manufactured urgency with a deadline**: "within 24 hours," "immediately," "permanent loss." Urgency is designed to short-circuit your scrutiny.
+- **Generic greeting**: "Dear User" instead of your actual name — a real internal system usually knows who you are.
+- **A credential-harvesting link disguised as a button**: hovering over "Verify My Account Now" (without clicking) shows the real destination URL in your browser's status bar — if it doesn't match your company's actual domain, it's harvesting your login.
+- **Threat + action request combined**: any email that threatens a consequence *and* asks you to enter credentials or click a link is the single most common phishing template, whether it's framed as IT, HR, a bank, or a delivery company.
+- **Request for credentials by email/link at all**: legitimate IT departments essentially never ask you to "verify" your password via an emailed link.
+
+What to actually do: never click the link. Navigate to the service directly (type the URL yourself or use a bookmark), log in there, and check if the claimed issue is real. Report the email via your mail client's "Report Phishing" button if available.
+
+## HTTPS and the Padlock: What It Actually Guarantees
+
+The padlock icon means exactly one thing: the connection between your browser and the server is encrypted (TLS), and the server presented a certificate matching that domain name. That's it.
+
+What it does **not** guarantee:
+
+- That the site is legitimate or trustworthy. Attackers get free, valid HTTPS certificates from Let's Encrypt for phishing domains constantly — `paypa1-secure-login.com` can have a perfectly valid padlock.
+- That the business behind the domain is who it claims to be. Older "Extended Validation" green-bar certificates tried to signal verified business identity; most browsers removed that visual distinction because it didn't actually stop fraud.
+- That the site is free of malware, that your data is handled responsibly once it reaches the server, or that the domain itself isn't a typo-squat.
+
+The padlock tells you "nobody is eavesdropping on this specific connection." It tells you nothing about who is on the other end. Check the actual domain in the address bar character by character — that's the control that matters.
+
+## Breach Notification Services: Have I Been Pwned
+
+1. Go to `haveibeenpwned.com`.
+2. Enter your real email address (this is the intended use of the service — it checks against indexed breach data, it does not store what you search in a way that compromises you).
+3. Review the list of breaches returned. Each entry names the breached service, the date, and what data was exposed (passwords, emails, sometimes security questions or physical addresses).
+4. For each breach listed, if you still use that password anywhere else, change it there immediately — assume the breached password is public.
+5. Sign up for HIBP's free notification service with your email so future breaches alert you automatically.
+6. Bitwarden also has a built-in "check known data breaches" report under Vault Health / Reports, which cross-references your stored logins against the same Pwned Passwords dataset — run it after importing your vault.
+
+The output of HIBP isn't the goal — it's the trigger. A breach listing with no follow-up action is just information. The action is always: rotate the password at the breached site, confirm it's not reused elsewhere, and enable 2FA if you hadn't.
+
+## Personal OpSec: Auditing a Real Platform's Privacy Settings
+
+Walkthrough using your own Google Account (`myaccount.google.com/privacycheckup`):
+
+1. **Privacy Checkup** walks through what's shared — review "Your Activity controls" and turn off Web & App Activity tracking if you don't want search/browsing history retained.
+2. **Ad personalization** (`myaccount.google.com/data-and-privacy`) — review and disable ad personalization if you want to limit profiling.
+3. **Third-party app access** (`myaccount.google.com/permissions`) — this is the one most people skip. Every app you ever clicked "Sign in with Google" for is listed here with exactly what it can access. Revoke anything you no longer use — old games, abandoned trial apps, anything you don't recognize.
+4. **Recovery info** — confirm your recovery phone/email are current and belong to you, since this is the account-recovery path attackers target.
+5. **Device activity** (`myaccount.google.com/device-activity`) — check for sessions on devices you don't recognize; sign them out immediately if found.
+
+The same five-category checklist (activity tracking, ad/data sharing, third-party app access, recovery info, active sessions) applies to auditing any platform — Facebook, Instagram, a bank portal — even when the menu labels differ.
+
+## Exercise
+
+Using **only your own accounts**:
+
+1. Set up Bitwarden and migrate three real accounts (your email, one shopping site, one social account) to unique 20-character generated passwords.
+2. Enable TOTP-based 2FA on your email account specifically (not SMS).
+3. Run your real email through Have I Been Pwned and, for any breach found, confirm whether that exact password is still in use anywhere else in your life. If it is, rotate it now.
+4. Pick one platform you actually use (Google, Facebook, or Instagram) and run the five-category privacy audit above. Write down three settings you changed and why.
+
+Hint: the third-party app permissions page is almost always where people find the most surprising exposure — an app from three years ago still holding access you forgot about.
+
+Do not run this exercise against anyone else's accounts, even "to help them," without them doing it themselves on their own login session.

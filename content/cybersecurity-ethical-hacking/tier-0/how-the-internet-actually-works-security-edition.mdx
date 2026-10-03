@@ -1,0 +1,171 @@
+---
+trackId: cybersecurity-ethical-hacking
+tier: 0
+title: "How the Internet Actually Works, Security Edition"
+order: 3
+estimatedHours: 5
+slug: how-the-internet-actually-works-security-edition
+---
+
+## Who's Trusting Whom: The Client-Server Model
+
+Every web interaction is a client (your browser, your phone's app, `curl`) sending a request to a server, and the server sending back a response. That's the whole model. The security question underneath it is: **what is each side trusting about the other, and what happens when that trust is misplaced?**
+
+The server trusts the client's input unless it explicitly verifies it. If a web app has a URL like `https://shop.example/order?id=4471&user_id=102`, the server is implicitly trusting that the client requesting `user_id=102` actually is user 102. If it doesn't check that against the logged-in session, any client can edit the number in the address bar and view someone else's order. This single idea — "the server believed something the client said, without checking" — is the root cause of a huge fraction of real-world vulnerabilities, and you'll spend entire later modules exploiting exactly this.
+
+The client trusts the server's response completely by default. Your browser renders whatever HTML comes back and executes whatever JavaScript is in it. It assumes the page claiming to be your bank's login form actually came from your bank. That assumption is what phishing abuses — not a technical flaw in the protocol, a trust assumption in the human and the browser.
+
+See the raw exchange yourself:
+
+```bash
+curl -v http://example.com 2>&1 | head -30
+```
+
+```text
+> GET / HTTP/1.1
+> Host: example.com
+> User-Agent: curl/8.4.0
+> Accept: */*
+>
+< HTTP/1.1 200 OK
+< Content-Type: text/html; charset=UTF-8
+< Date: Sat, 03 Oct 2026 14:02:11 GMT
+```
+
+That's it. No identity proof baked into HTTP itself — just a text request and a text response. Everything resembling "trust" (login, authorization, encryption) is bolted on by the application and by TLS. Keep that in mind for the next section.
+
+## HTTP vs HTTPS: What TLS Actually Protects (and What It Doesn't)
+
+HTTPS is HTTP wrapped in TLS. TLS gives you three concrete guarantees about the **connection**:
+
+1. **Confidentiality** — nobody on the network path (your ISP, a hostile Wi-Fi AP, a man-in-the-middle) can read the request/response contents.
+2. **Integrity** — nobody on the path can modify the traffic in transit without the tampering being detected and the connection dropped.
+3. **Server authentication** — you are provably talking to whoever holds the private key matching the certificate for that exact hostname.
+
+Inspect that third guarantee directly:
+
+```bash
+openssl s_client -connect example.com:443 -servername example.com </dev/null 2>/dev/null | openssl x509 -noout -subject -issuer -dates
+```
+
+```text
+subject=CN = example.com
+issuer=C = US, O = DigiCert Inc, CN = DigiCert Global G2 TLS RSA SHA256 2020 CA1
+notBefore=Jan 15 00:00:00 2026 GMT
+notAfter=Feb 15 23:59:59 2027 GMT
+```
+
+That's all the padlock icon is telling you: "this connection is encrypted, and I'm talking to the entity that controls the private key for `example.com`." That is **not** the same as "this site is legitimate" or "this site is safe."
+
+What TLS does **not** protect against:
+
+- **A malicious domain with a perfectly valid certificate.** `paypa1-secure-login.com` can get a free Let's Encrypt cert in minutes and show the exact same padlock as `paypal.com`. The lock means "encrypted," not "trustworthy." This is the core mechanic behind modern phishing — attackers don't need to break TLS, they just need you to not read the domain.
+- **A compromised or malicious server.** If the legitimate server has a SQL injection vulnerability or has been breached, HTTPS faithfully encrypts the attacker's stolen data on its way out too.
+- **Your endpoint.** Malware on your machine, a malicious browser extension, or someone standing behind you can see everything TLS was protecting from the network.
+- **Phishing, social engineering, or weak passwords.** None of these are network-layer problems, so a network-layer protection doesn't touch them.
+
+Memorize the one-line version: **TLS secures the pipe, not the thing at the other end of it.**
+
+## Cookies and Sessions: Why Stealing a Cookie Is Stealing a Login
+
+HTTP is stateless — every request is independent, with no built-in memory of who you are. Logins work around this with **session cookies**.
+
+Concretely, this is the flow:
+
+1. You submit your username/password over HTTPS.
+2. The server verifies it, generates a random, unguessable session identifier (e.g. `8f14e45fceea167a5a36dedd4bea2543`), and stores it server-side in a session table mapped to your user ID.
+3. The server sends it back in a response header:
+
+```text
+Set-Cookie: session_id=8f14e45fceea167a5a36dedd4bea2543; HttpOnly; Secure; SameSite=Lax
+```
+
+4. Your browser stores that cookie and automatically attaches it on every subsequent request to that domain.
+5. The server receives the request, looks up `8f14e45fceea167a5a36dedd4bea2543` in its session table, finds your user ID, and treats the request as "authenticated as you" — **without you re-entering a password.**
+
+Here's the critical security fact: **the server does not re-verify your identity on every request — it trusts possession of that exact string.** Your password is checked once, at login. After that, the session cookie *is* your login, cryptographically speaking it's worth exactly as much as your password for as long as the session is valid. If an attacker obtains that identical string — by sniffing unencrypted HTTP traffic, through an XSS flaw that reads `document.cookie`, through malware, or by you leaving yourself logged in on a shared machine — they can paste it into their own browser's request headers and the server cannot tell them apart from you. This is called **session hijacking**, and it's the subject of a dedicated later module; everything here is the "why it works" you need first.
+
+The three cookie flags above each close one specific hole:
+
+- `Secure` — the cookie is only ever sent over HTTPS, never plain HTTP, so it can't leak over an unencrypted network hop.
+- `HttpOnly` — JavaScript on the page (`document.cookie`) cannot read it, so a basic XSS payload can't just exfiltrate it.
+- `SameSite` — restricts whether the cookie is sent on requests originating from a different site, which blunts CSRF attacks.
+
+Go look at a real one right now: open your browser's DevTools (F12) → Application/Storage tab → Cookies, on any site you're logged into. Find the session cookie and check whether `Secure` and `HttpOnly` are actually set. A shocking number of real production sites get this wrong.
+
+## DNS Resolution Basics: The Phone Book You're Trusting Blindly
+
+Before your browser can connect to `example.com`, it has to turn that name into an IP address. That's DNS, and the chain of trust involved is longer than people assume.
+
+```bash
+dig example.com +short
+```
+```text
+93.184.216.34
+```
+
+That one-line answer hides a resolution chain. See it with:
+
+```bash
+dig +trace example.com
+```
+```text
+.                       IN NS   a.root-servers.net.
+com.                    IN NS   a.gtld-servers.net.
+example.com.            IN NS   a.iana-servers.net.
+example.com.            IN A    93.184.216.34
+```
+
+Your machine asked a **resolver** (your ISP's, your router's, or a public one like `8.8.8.8` or `1.1.1.1`) to figure this out, and that resolver walked root → `.com` TLD → the domain's authoritative nameserver. Plain DNS, by default, travels over unencrypted UDP on port 53 with **no cryptographic authentication** of the answer. You are implicitly trusting:
+
+- Your resolver to actually give you the real answer, not a forged one.
+- Every network hop between you and that resolver not to intercept and rewrite the UDP packet (DNS spoofing/cache poisoning).
+- The registrar and registry that control the domain's delegation not to be compromised.
+
+If any of that trust is violated, your browser can navigate to `https://yourbank.com`, with the correct name right in the address bar, and silently connect to an attacker's server instead — because the IP address behind that name was forged, not the name itself. (TLS would catch this, since the attacker won't have the real certificate's private key — which is exactly why "TLS authenticates the server" in the earlier section matters so much.) DNSSEC exists to cryptographically sign DNS records against this, and DNS-over-HTTPS/TLS exists to stop on-path snooping and tampering of the query itself — but a huge share of real-world traffic still runs on unauthenticated plain DNS.
+
+## Ports and Protocols at a Glance
+
+A port is just a number that routes incoming traffic to the specific program listening for it on a given IP. An **open port means a piece of software is actively listening and will parse whatever bytes an attacker sends it.** Every open port is a running program that can, in principle, have a bug.
+
+| Port | Protocol | Typical Use | Why It's Attack Surface |
+|---|---|---|---|
+| 21 | FTP | File transfer | Often plaintext — credentials sniffable |
+| 22 | SSH | Remote shell | Frequently brute-forced if password auth is exposed to the internet |
+| 23 | Telnet | Remote shell | Fully plaintext, including passwords — should essentially never be open |
+| 25 | SMTP | Mail relay | Misconfigured open relays get abused for spam |
+| 53 | DNS | Name resolution | Cache poisoning, DDoS amplification source |
+| 80 | HTTP | Web | Unencrypted — anything sent is readable in transit |
+| 443 | HTTPS | Web | Encrypted transport, but the web app behind it can still be vulnerable |
+| 445 | SMB | Windows file sharing | Historically wormable (e.g. EternalBlue/WannaCry) |
+| 3306 | MySQL | Database | A database reachable directly from the internet is a near-guaranteed breach |
+| 3389 | RDP | Remote desktop | One of the most actively brute-forced services on the internet; a top ransomware entry point |
+
+More open ports = more running services = more code an outside attacker can throw input at without ever needing a password. "Just a port" is never just a technical detail — it's a decision about what you're exposing to anyone who can reach that IP.
+
+See this on your own lab target:
+
+```bash
+nmap -sV 192.168.56.101
+```
+```text
+PORT     STATE SERVICE VERSION
+21/tcp   open  ftp     vsftpd 2.3.4
+22/tcp   open  ssh     OpenSSH 4.7p1
+80/tcp   open  http    Apache httpd 2.2.8
+3306/tcp open  mysql   MySQL 5.0.51a
+```
+
+Four listening services = four separate pieces of software an attacker could target, each with its own history of bugs. This is literally what "attack surface" means, made concrete.
+
+## Exercise
+
+All of this is against your own isolated lab or your own accounts only — never a host you don't own or haven't been explicitly authorized to test.
+
+1. **Build the lab.** In VirtualBox (or VMware), create a Host-Only network (not Bridged, not NAT — host-only has no path to your real LAN or the internet). Install a Kali or Parrot VM and a deliberately vulnerable target VM (Metasploitable2, or run OWASP Juice Shop in Docker) on that same host-only network. Confirm both VMs can ping each other and that the target cannot reach the internet.
+2. **Scan it.** From Kali, run `nmap -sV <target-ip>` against your lab target. Write down every open port and what's listening on it.
+3. **Inspect a real cookie.** Log into your Juice Shop (or DVWA) instance, open DevTools → Cookies, find the session cookie, and check whether `Secure` and `HttpOnly` are set.
+4. **Check a password without ever sending it anywhere.** Pick an old password of yours you no longer use. Run `echo -n "yourpassword" | sha1sum`, take the first 5 characters of the hash, and query `https://api.pwnedpasswords.com/range/<first-5-chars>` with `curl`. Look for the rest of your hash in the response.
+5. **Trace a name.** Run `dig +trace` on any domain and identify at least three distinct servers in the resolution chain.
+
+Hint if step 4 confuses you: the Pwned Passwords API uses k-anonymity — you only ever send the first 5 characters of a hash, matching thousands of other hashes, so the service never sees your full hash or password, let alone the plaintext. That's the whole trick; look at what the response actually contains before deciding what it proves.

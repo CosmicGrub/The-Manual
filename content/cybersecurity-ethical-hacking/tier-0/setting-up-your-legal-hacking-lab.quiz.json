@@ -1,0 +1,98 @@
+[
+  {
+    "id": "cybersecurity-ethical-hacking/tier-0/setting-up-your-legal-hacking-lab/q1",
+    "type": "multiple_choice",
+    "prompt": "What is the primary technical reason host-only networking is required before attacking Juice Shop or DVWA in your lab?",
+    "choices": [
+      "It makes the VM run faster",
+      "It gives the VM a public IP address",
+      "It confines lab traffic to the virtual network, with no path to your real LAN or the internet",
+      "It's required for Docker to install"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-0/setting-up-your-legal-hacking-lab/q2",
+    "type": "multiple_choice",
+    "prompt": "In VirtualBox, which Network Adapter 'Attached to' setting creates the isolation boundary described in this lesson?",
+    "choices": [
+      "NAT",
+      "Bridged Adapter",
+      "Host-only Adapter",
+      "NAT Network"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-0/setting-up-your-legal-hacking-lab/q3",
+    "type": "multiple_choice",
+    "prompt": "Why does the lesson have you temporarily add a second NAT-attached adapter to the Kali VM during setup?",
+    "choices": [
+      "To make exploits run faster",
+      "To download updates and Docker images before going fully isolated",
+      "VirtualBox requires it to boot any VM",
+      "To let Juice Shop and DVWA reach the internet permanently"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-0/setting-up-your-legal-hacking-lab/q4",
+    "type": "multiple_choice",
+    "prompt": "Which command correctly starts OWASP Juice Shop as a Docker container listening on port 3000?",
+    "choices": [
+      "docker run -d -p 3000:3000 bkimminich/juice-shop",
+      "docker install juice-shop --port 3000",
+      "docker pull -p 3000 juice-shop",
+      "docker start --target juice-shop:3000"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-0/setting-up-your-legal-hacking-lab/q5",
+    "type": "multiple_choice",
+    "prompt": "What makes it legal to run exploitation techniques against DVWA or Juice Shop in your own lab?",
+    "choices": [
+      "OWASP hosting them implies permission to attack any target",
+      "They are deliberately built and distributed to be attacked for training, and you're running them on hardware you own",
+      "Nothing makes it legal without a signed contract, even for these apps",
+      "Legality never applies to test applications"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-0/setting-up-your-legal-hacking-lab/q6",
+    "type": "multiple_choice",
+    "prompt": "After pulling your Docker images and Kali updates, what should you do to fully air-gap the lab before practicing attacks?",
+    "choices": [
+      "Leave the NAT adapter enabled for convenience",
+      "Disable or detach the NAT-attached adapter so only the host-only adapter remains active",
+      "Switch the host-only adapter to Bridged",
+      "Nothing further is needed once Docker is installed"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-0/setting-up-your-legal-hacking-lab/q7",
+    "type": "multiple_choice",
+    "prompt": "Under the CFAA and similar laws, what determines whether accessing a computer system is a crime?",
+    "choices": [
+      "Whether you intended to cause harm",
+      "Whether you had authorization, regardless of intent",
+      "Whether you used advanced technical skill",
+      "Whether the system turned out to be vulnerable"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-0/setting-up-your-legal-hacking-lab/q8",
+    "type": "multiple_choice",
+    "prompt": "You want to reach your Kali VM's Juice Shop instance from your host machine's browser. What address should you use?",
+    "choices": [
+      "localhost:3000, which always reaches the VM regardless of network mode",
+      "The Kali VM's host-only network IP address (e.g., 192.168.56.101) on port 3000",
+      "You cannot reach a VM's services from the host machine",
+      "The VM's MAC address"
+    ],
+    "correctIndex": 1
+  }
+]

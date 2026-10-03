@@ -1,0 +1,113 @@
+---
+trackId: cybersecurity-ethical-hacking
+tier: 0
+title: "Law, Ethics & the Hacker Mindset"
+order: 1
+estimatedHours: 5
+slug: law-ethics-and-the-hacker-mindset
+---
+
+## Why This Module Exists
+
+Before you touch a single tool, you need one fact wired into your reflexes: **authorization is the only thing that matters.** Not your intent. Not how "harmless" the poking around was. Not whether you "gave back" by reporting what you found. Every exercise in this entire track — starting now — happens on systems you own, in an isolated VM lab you build yourself, or on a named platform that has explicitly granted permission to be attacked (OWASP Juice Shop, DVWA, WebGoat, PortSwigger Web Security Academy, TryHackMe, HackTheBox, picoCTF, OverTheWire, VulnHub). That boundary is not a suggestion. It is the entire difference between a career and a federal case.
+
+## The CFAA: What It Actually Criminalizes
+
+The U.S. **Computer Fraud and Abuse Act** (18 U.S.C. § 1030), passed in 1986 and amended repeatedly since, is the primary federal law governing computer intrusion in the United States. Strip away the legal language and it criminalizes two core things:
+
+1. **Accessing a computer "without authorization."** You were never allowed in, period.
+2. **"Exceeding authorized access."** You were allowed in for some purpose, but you went beyond what you were permitted to do once inside.
+
+Penalties scale from misdemeanors to felonies carrying up to 10+ years per count, depending on intent to defraud, damage caused, and whether the system is a "protected computer" (which, post-amendments, covers almost anything connected to the internet — effectively every computer).
+
+Here is the point that trips up well-meaning beginners: **"I didn't mean any harm" is not a defense.** The CFAA's core access provisions do not require proof that you intended damage. If you accessed a system you weren't authorized to access, the crime is already complete at the moment of access — what you did afterward (looked around, copied nothing, "was just curious") affects sentencing and prosecutorial discretion, not whether a crime occurred. Aaron Swartz was indicted for downloading journal articles he was later arguably entitled to as a researcher — the case still proceeded because his access method bypassed network restrictions. Intent to "do good" never nullifies the authorization question.
+
+One real nuance worth knowing: in *Van Buren v. United States* (2021), the Supreme Court narrowed "exceeds authorized access" — a police officer who had legitimate database access but misused it for an off-the-books favor was found NOT to have exceeded authorized access under the CFAA, because he was allowed into those files for some purpose. This matters for insider-misuse cases, but it does not change the fact for you, an outside learner: if you were never granted access to a system at all, Van Buren gives you nothing. The gate is still the gate.
+
+**International equivalents** work on the same authorization-first logic:
+- **UK Computer Misuse Act 1990** — criminalizes "unauthorised access," "unauthorised access with intent to commit further offences," and "unauthorised modification." Same structure as the CFAA.
+- **EU Directive 2013/40/EU** on attacks against information systems — requires member states to criminalize illegal access, illegal system interference, and illegal data interference.
+- **Budapest Convention (Council of Europe Convention on Cybercrime, 2001)** — ratified by 60+ countries including the US, harmonizes definitions of "illegal access" and "illegal interception" across borders, which is why cross-border hacking cases can still be prosecuted jointly.
+
+Different statute numbers, identical principle: authorization is the line.
+
+## Authorization vs. Unauthorized Access: Real Scenarios
+
+Run these through your head until the answer is instant:
+
+| Scenario | Authorized? | Why |
+|---|---|---|
+| Connecting to your friend's home Wi-Fi after they tell you the password | Yes | Explicit permission from the owner/administrator |
+| Cracking a neighbor's WPA2 password because their signal reaches your yard | No | Signal reaching you ≠ permission to use it; no authorization was given |
+| Browsing a company's public website as a normal visitor | Yes | The site is published for public viewing — that's its authorized use |
+| Running `sqlmap` or a vuln scanner against that same company's login page, uninvited | No | Normal browsing is in-scope; active exploitation attempts are not, unless the company says otherwise (ToS, bug bounty scope) |
+| Solving challenges on picoCTF or HackTheBox | Yes | The platform's entire purpose, and its ToS, explicitly invites attack traffic |
+| Testing a target listed in a bug bounty program's defined scope, following its rules | Yes | The scope document is a contract granting permission for exactly those targets, exactly those methods |
+| Testing an asset the company owns that is *not* listed in that same bug bounty's scope | No | Ownership by the same company does not equal inclusion in the grant — scope is explicit, not implied |
+
+Notice the pattern: authorization is never inferred from "they probably wouldn't mind" or "it's technically reachable." It comes from an explicit statement — a password handed to you, a platform's stated purpose, a signed scope document.
+
+## White Hat vs. Grey Hat vs. Black Hat
+
+These terms get thrown around as if they describe skill or morality. They don't. They describe **authorization status**, full stop:
+
+- **White hat**: Operates with explicit, documented permission — an employment contract, a signed pentest agreement, a bug bounty program's defined scope, or a legal practice platform's ToS. Same techniques as anyone else; the permission is what makes it legal.
+- **Black hat**: Operates without authorization, typically for personal gain, damage, or disregard for the law. A black hat can be highly skilled or barely competent — skill is irrelevant to the label.
+- **Grey hat**: Operates *without* authorization but without clearly malicious intent — e.g., a researcher scans a company's site uninvited, finds a real SQL injection flaw, and reports it "to help." This is still, legally, unauthorized access. The CFAA does not have a "but I was trying to help" carve-out. Grey hat activity is a real, ongoing legal risk, not a safe middle ground — companies have threatened and pursued legal action against well-meaning grey hat reporters. The only way to convert grey-hat-style curiosity into a safe activity is to get the authorization *first* (a bounty program, explicit permission) — at which point it's just white hat.
+
+## Responsible (Coordinated) Disclosure: How It Actually Works
+
+Say you're authorized — you're in a bug bounty program's scope — and you find a real vulnerability: a stored XSS in a web app that lets any user hijack another user's session. Here's the real sequence:
+
+1. **Confirm it's in scope** before doing anything else (see next section).
+2. **Report privately**, never publicly. Most organizations publish a disclosure channel. Check for a standardized file:
+
+```bash
+curl -s https://example.com/.well-known/security.txt
+```
+```text
+Contact: mailto:security@example.com
+Expires: 2026-12-31T23:59:00.000Z
+Encryption: https://example.com/pgp-key.txt
+Preferred-Languages: en
+Policy: https://example.com/security-policy
+```
+
+That's RFC 9116 — a real, standardized way vendors publish exactly where to send a report. If no security.txt exists, check the bug bounty platform (HackerOne, Bugcrowd) for the program's submission form instead of guessing an email.
+
+3. **Write the report with a proof of concept, impact, and a suggested fix** — not just "your site is vulnerable." Include exact steps to reproduce, affected URLs/parameters, and a CVSS estimate if you can.
+4. **Agree on a disclosure timeline.** Industry norms: Google Project Zero uses 90 days from report to public disclosure; CERT/CC defaults to 45 days. The timeline is usually proposed by the reporter and negotiated with the vendor — it exists specifically so vulnerabilities don't sit unpatched forever, but also so vendors get real time to fix things before attackers learn about them.
+5. **Vendor fixes the issue** (and often requests a CVE identifier to track it publicly).
+6. **Public disclosure happens only after the fix ships, or the agreed timeline expires** — whichever comes first. This is what separates "coordinated disclosure" from "full disclosure" (publish immediately, no waiting) and from doing nothing at all.
+
+## Reading a Scope Definition for Real
+
+Bug bounty scope pages are contracts. A real-style HackerOne/Bugcrowd scope section looks like this:
+
+```text
+IN SCOPE
+  *.example.com (production only)
+  api.example.com
+  Android app: com.example.app (Play Store build only)
+
+OUT OF SCOPE
+  staging.example.com, dev.example.com
+  Third-party vendor domains (support.zendesk.com, etc.)
+  Physical attacks, social engineering, phishing employees
+  Denial of Service / rate-limit flooding
+  Findings requiring physical access to a device
+```
+
+Reading this correctly: `app.example.com` is covered because it matches the `*.example.com` wildcard. `support.zendesk.com` is explicitly excluded even though the company uses it — third-party infrastructure is almost always carved out because the company doesn't own it and can't authorize testing on someone else's system. Calling the help desk to try to social-engineer a password reset is explicitly banned, even if it would "work." Testing `staging.example.com` because you stumbled on it is unauthorized, full stop, even though it's the same company — it's not on the list.
+
+This is also exactly why practice platforms publish Terms of Service: PortSwigger's Web Security Academy, TryHackMe, and HackTheBox all explicitly state that attack traffic against their labs is the intended use. That written permission is what makes every exercise in the rest of this track legal. No such statement, no permission — regardless of what platform or company it is.
+
+## Exercise
+
+Pick any public bug bounty program listed on HackerOne's or Bugcrowd's public directory (both are free to browse without applying). Read its full scope page and write down:
+
+1. Three assets that are explicitly in scope.
+2. Three assets or attack types that are explicitly out of scope.
+3. One item you find genuinely ambiguous, and what you would do before testing it (hint: when a scope is ambiguous, the correct move is always to ask the program — via its own clarification channel — before testing, never to assume permission).
+
+Do not test anything against the targets you find — this exercise is about reading and correctly interpreting a real authorization document, not touching a live target. That comes later, and only inside the isolated lab you'll build in the next module.

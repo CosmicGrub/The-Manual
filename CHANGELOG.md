@@ -586,3 +586,16 @@ All notable changes to The Manual (curriculum + app) are logged here. This file 
 **Result:** `npm run build` passed clean — 264 pages, 247 unique slugs verified repo-wide.
 
 **Status:** DevOps, Tooling & Professional Practice complete (all 6 tiers, 317h, 38 lessons). This is the seventh fully content-complete track in The Manual, alongside CS Foundations, Language Mastery, Software Engineering, AI/ML & Prompt Engineering, Hardware & Computer Systems, and Platforms. Remaining tracks: Cybersecurity & Ethical Hacking, Capstones & Career.
+
+## [0.47.0] — 2026-10-03 — Cybersecurity & Ethical Hacking Tier 0: the eighth track begins
+
+**Context:** The most safety-sensitive track in The Manual. Tier 0 is deliberately non-offensive by design: legal/ethical framing (CFAA and international equivalents, authorization-is-the-only-thing-that-matters, responsible disclosure), the learner's own personal digital security, networking literacy from a security angle, and building the isolated host-only-networked lab every later exercise depends on. Every module was written under an explicit non-negotiable framing instruction and manually reviewed afterward for defensive/authorized-only framing before assembly — the same scrutiny this session applied to the AI/ML track's red-teaming module.
+
+**Added**
+- `content/cybersecurity-ethical-hacking/tier-0/*.mdx` (4 files) + matching quizzes: Law, Ethics & the Hacker Mindset (the CFAA explained with *Van Buren v. United States*, a real scope-reading exercise, why "grey hat" is a legal risk, not a safe middle ground), Personal Digital Security & Privacy Fundamentals (a real SIM-swap case citation, Bitwarden/TOTP/HIBP walkthroughs against the learner's own accounts only), How the Internet Actually Works (Security Edition) (what TLS does and doesn't guarantee, session-cookie hijacking mechanics, a k-anonymity Pwned Passwords check), Setting Up Your Legal Hacking Lab (host-only networking as the non-negotiable isolation boundary, OWASP Juice Shop and DVWA run only inside it).
+
+**Caught and fixed:** one module's generated text leaked a stray `</mdx_body><quiz_questions>...</quiz_questions>` formatting artifact at its very end — caught during the manual safety-review read-through (not just the automated checks) and stripped before assembly.
+
+**Result:** `npm run build` passed clean — 268 pages, 251 unique slugs verified repo-wide.
+
+**Status:** Cybersecurity & Ethical Hacking Tier 0 started (20h, 4 lessons) — the eighth track in The Manual to get real lesson content. Tiers 1-5 remain.

@@ -1,0 +1,147 @@
+---
+trackId: cybersecurity-ethical-hacking
+tier: 0
+title: "Setting Up Your Legal Hacking Lab"
+order: 4
+estimatedHours: 4
+slug: setting-up-your-legal-hacking-lab
+---
+
+## The Lab Is the Boundary
+
+Everything you do from this point forward in this track happens inside a box you built and control. Not a shared server, not a friend's Wi-Fi router, not "just checking" a company's login page. A virtual machine on your own laptop, cut off from any real network, running software that was built and published specifically to be attacked. That isolation is not a suggestion — it's the thing that makes practicing an offensive technique legal instead of a federal crime. This lesson builds that box.
+
+By the end you will have: a hypervisor installed, a Kali Linux VM running on a network that cannot reach your home LAN or the internet, and two intentionally vulnerable web apps (OWASP Juice Shop and DVWA) running as containers, reachable only from inside that isolated network.
+
+## Step 1: Install a Hypervisor
+
+You need software that can run a virtual machine on top of your real OS. Two free options:
+
+**VirtualBox** (Windows/macOS/Linux host, free, Oracle):
+
+1. Go to `virtualbox.org/wiki/Downloads` and grab the installer for your host OS.
+2. Run it. On Windows, accept the default components (you need the Python support and network features — don't uncheck them). On macOS, you'll need to approve the Oracle kernel extension in System Settings → Privacy & Security after install, then reboot.
+3. Also install the **VirtualBox Extension Pack** from the same download page — it adds USB 2.0/3.0 support, which some guest OS installers need.
+4. Launch VirtualBox. If you see the Manager window with an empty VM list, the install worked.
+
+**VMware Workstation Pro** (Windows/Linux) or **VMware Fusion** (macOS) is the alternative — now free for personal use from `vmware.com`. Download, run the installer, accept the EULA, reboot if prompted. Either hypervisor works for everything below; this lesson shows VirtualBox menu paths with the VMware equivalent noted.
+
+Minimum host specs for what you're about to build: 8 GB RAM (Kali comfortably wants 4 GB allocated to it), 60+ GB free disk, and virtualization extensions (Intel VT-x / AMD-V) enabled in your BIOS — on by default on nearly every machine sold since 2015.
+
+## Step 2: Host-Only Networking — the Non-Negotiable Boundary
+
+Before you import any VM, understand the network setting that makes this lab safe to attack. A hypervisor gives each VM's virtual network adapter one of several modes:
+
+- **NAT** — the VM shares your host's internet connection, like a device behind a router. It can reach the internet; outside devices generally can't initiate connections to it.
+- **Bridged** — the VM gets its own address on your actual physical network (your home Wi-Fi/LAN), as if it were a second laptop plugged into your router. Anything else on that LAN can potentially reach it, and it can reach them.
+- **Host-only** — the VM can talk only to your physical host machine and to other VMs on the same host-only virtual network. There is no path to your home LAN and no path to the internet. Full stop.
+
+Host-only is the one you need. Here's the concrete reasoning: DVWA and Juice Shop are, by design, riddled with exploitable vulnerabilities — SQL injection, XSS, broken auth, command injection. If that container sits on a Bridged adapter, it is now a genuinely vulnerable server exposed to every other device on your home network, and potentially to the internet if your router has UPnP or port forwarding quietly doing its thing. Host-only closes that door entirely — there is no routable path out, so a vulnerable app or a mis-aimed exploit simply has nowhere else to go.
+
+**Set it up in VirtualBox:**
+
+1. File → Tools → Network Manager (older versions: File → Host Network Manager). Confirm a host-only network exists — by default it's `vboxnet0` with a range like `192.168.56.0/24`. If none exists, click Create.
+2. For each VM: Settings → Network → Adapter 1 → check "Enable Network Adapter" → **Attached to: Host-only Adapter** → Name: `vboxnet0`.
+
+**In VMware:** Edit → Virtual Network Editor → you'll see `VMnet1` already set to **Host-only** by default. On the VM: Settings → Network Adapter → Custom → "Specific virtual network" → `VMnet1 (Host-only)`.
+
+One practical wrinkle: Kali needs internet access once, to pull updates and Docker images. The clean way to handle this without ever exposing your lab to the real network during an actual attack session: add a *second* adapter set to NAT for the setup phase, then disable it once you're done installing.
+
+- Settings → Network → Adapter 2 → Enable → Attached to: NAT. Use this only while running `apt update` and pulling Docker images.
+- When you're actually practicing exploitation, go back to Settings → Network → Adapter 2 and uncheck "Enable Network Adapter." Now only the host-only adapter is live — the VM is air-gapped from everything except your lab.
+
+## Step 3: Install Kali Linux as a Guest VM
+
+Kali ships pre-built VM images specifically so you skip a manual OS install.
+
+1. Go to `kali.org/get-kali/#kali-virtual-machines` and download the VirtualBox (`.ova`) or VMware (`.vmx`/`.ova`) image — pick the 64-bit version matching your hypervisor.
+2. In VirtualBox: File → Import Appliance → select the downloaded `.ova` → Next. On the settings screen, bump RAM to 4096 MB and CPUs to 2 if your host can spare it → Import.
+3. Before first boot, set the networking as described above: Adapter 1 → Host-only (`vboxnet0`), Adapter 2 → NAT (temporary, for updates).
+4. Start the VM. Default login is `kali` / `kali`. Change it immediately:
+
+```bash
+passwd
+```
+
+5. Update the system while the NAT adapter is still live:
+
+```bash
+sudo apt update && sudo apt full-upgrade -y
+```
+
+6. Confirm your host-only interface got an address:
+
+```bash
+ip a
+```
+
+You're looking for an interface (commonly `eth0` or `enp0s3`) with an address in the `192.168.56.x` range — that's the host-only network talking to your real host machine.
+
+## Step 4: Stand Up Legal Practice Targets
+
+**OWASP Juice Shop** and **DVWA (Damn Vulnerable Web Application)** are not random websites you're sneaking into — they are open-source applications built, maintained, and distributed by security communities for the explicit purpose of being attacked by learners. Running exploits against them on your own machine is exactly what they're for. That's the whole difference between this and a crime: explicit permission, baked into the project's purpose, running on hardware you own.
+
+Install Docker inside your Kali VM (while the NAT adapter is still on):
+
+```bash
+sudo apt install -y docker.io
+sudo systemctl enable --now docker
+sudo usermod -aG docker $USER
+newgrp docker
+```
+
+Pull and run Juice Shop:
+
+```bash
+docker run -d -p 3000:3000 --name juice-shop bkimminich/juice-shop
+```
+
+Pull and run DVWA:
+
+```bash
+docker run -d -p 80:80 --name dvwa vulnerables/web-dvwa
+```
+
+Now disable the NAT adapter (Settings → Network → Adapter 2 → uncheck Enable) and reboot the Kali VM, or just power it off and on. Confirm both containers survive and are still listening:
+
+```bash
+docker ps
+```
+
+```text
+CONTAINER ID   IMAGE                       PORTS                    NAMES
+a1b2c3d4e5f6   bkimminich/juice-shop       0.0.0.0:3000->3000/tcp   juice-shop
+f6e5d4c3b2a1   vulnerables/web-dvwa        0.0.0.0:80->80/tcp       dvwa
+```
+
+From inside Kali, browse to `http://localhost:3000` (Juice Shop) and `http://localhost/setup.php` (DVWA — click "Create / Reset Database" to initialize it, then log in with `admin` / `password`). From your actual host machine's browser, reach the same apps via Kali's host-only IP from Step 3, e.g. `http://192.168.56.101:3000` — proving the targets are reachable across your isolated lab network, and nowhere else.
+
+## Verify the Isolation Before You Touch Anything
+
+Don't skip this. With the NAT adapter disabled, try from Kali:
+
+```bash
+ping -c 3 8.8.8.8
+```
+
+```text
+ping: connect: Network is unreachable
+```
+
+No route out — good. That failure is the proof your lab is sealed. If that ping succeeds, stop and recheck your adapter settings before running any exercise in this track.
+
+## Exercise
+
+With Juice Shop running and reachable only via your host-only network, open it in your host machine's browser using Kali's host-only IP and port 3000. Juice Shop ships with a hidden page that isn't linked anywhere in its visible UI — finding it is the application's own first built-in challenge, not an attack on anything external.
+
+**Hint:** the page is a scoreboard tracking which of Juice Shop's built-in challenges you've completed. It lives at a short, predictable path appended to the app's base URL, following the same client-side routing pattern (`/#/...`) as the rest of the site. No login or exploit is needed — just a guess at a common admin-style path name.
+
+Once you find it, leave it open — you'll use it to track progress through the exploitation techniques covered later in this track.
+
+## Checklist Before Moving On
+
+- Hypervisor installed, VM created with 2+ CPU / 4 GB RAM
+- Kali VM network adapter set to Host-only (NAT adapter disabled after setup)
+- `ping 8.8.8.8` from inside Kali fails — confirmed air-gapped
+- Juice Shop reachable at port 3000, DVWA reachable at port 80, both only via the host-only IP
+- You can state, in one sentence, why Bridged networking would have made this lab illegal to use against DVWA
