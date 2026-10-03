@@ -1,0 +1,98 @@
+[
+  {
+    "id": "platforms/tier-4/architecture-patterns-at-scale/q1",
+    "type": "multiple_choice",
+    "prompt": "In a Clean Architecture mobile app, which layer should contain zero references to platform framework classes (no Retrofit, Room, UIKit, etc.)?",
+    "choices": [
+      "Presentation layer",
+      "Domain layer",
+      "Data layer",
+      "Platform layer"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-4/architecture-patterns-at-scale/q2",
+    "type": "multiple_choice",
+    "prompt": "In the Order History example, why does OrderRepository exist as an interface in the domain layer with its implementation in the data layer?",
+    "choices": [
+      "To satisfy a build system requirement that interfaces be declared as data classes",
+      "So the domain layer depends only on an abstraction it owns, and the data layer can be swapped (e.g. REST to GraphQL) without touching the use case",
+      "Because Hilt requires every repository to be declared as an interface",
+      "To make the repository automatically thread-safe"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-4/architecture-patterns-at-scale/q3",
+    "type": "multiple_choice",
+    "prompt": "MVI differs from MVVM mainly in that MVI:",
+    "choices": [
+      "Cannot be used with Jetpack Compose",
+      "Has no ViewModel-equivalent at all",
+      "Funnels all UI changes through a single immutable State produced by a reducer from discrete Intents, rather than letting the ViewModel mutate several observable properties independently",
+      "Only works on iOS"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "platforms/tier-4/architecture-patterns-at-scale/q4",
+    "type": "multiple_choice",
+    "prompt": "In a Turborepo monorepo with apps/web, apps/mobile, and packages/core-logic, what does declaring \"dependsOn\": [\"^build\"] in turbo.json's build task achieve?",
+    "choices": [
+      "It forces every package to rebuild from scratch on every run, disabling caching",
+      "It builds a package's workspace dependencies first, following the real dependency graph, and skips rebuilding packages whose inputs haven't changed",
+      "It automatically deploys packages/core-logic to both apps",
+      "It is required only for TypeScript projects, not plain JavaScript"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-4/architecture-patterns-at-scale/q5",
+    "type": "multiple_choice",
+    "prompt": "The main cost micro-frontends (e.g. via Webpack Module Federation) introduce that a single-deploy SPA doesn't have is:",
+    "choices": [
+      "An inability to use React",
+      "Runtime coordination risk across independently-versioned pieces -- shared dependency mismatches, design-system drift, and composition failures that only appear in production",
+      "No way to share any code between teams",
+      "A mandatory server-side rendering requirement"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-4/architecture-patterns-at-scale/q6",
+    "type": "multiple_choice",
+    "prompt": "Why does the Hilt example bind OrderRepositoryImpl to the OrderRepository interface with @Binds, rather than having OrderHistoryViewModel instantiate OrderRepositoryImpl directly?",
+    "choices": [
+      "@Binds is required boilerplate with no functional purpose",
+      "It lets the ViewModel depend on the abstraction -- testable and swappable -- while Hilt wires the concrete implementation at compile time, the same dependency-inversion idea as the domain/data split",
+      "Direct instantiation of a class is forbidden by the Kotlin compiler",
+      "@Binds automatically makes the repository a singleton, which @Inject alone cannot do"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-4/architecture-patterns-at-scale/q7",
+    "type": "multiple_choice",
+    "prompt": "In the fintech native-vs-cross-platform scenario, the 60fps candlestick trading chart was pushed to fully native (Swift/Metal and Kotlin/Canvas) implementations instead of a shared React Native component mainly because:",
+    "choices": [
+      "React Native cannot render graphics of any kind",
+      "App store review guidelines forbid financial charts in cross-platform frameworks",
+      "The per-frame budget for a gesture-driven redraw of thousands of points leaves no slack for a JS/bridge round trip, and no cross-platform abstraction removes the per-platform rendering optimization needed to hit that budget",
+      "Native code is always faster than cross-platform code regardless of the feature"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "platforms/tier-4/architecture-patterns-at-scale/q8",
+    "type": "multiple_choice",
+    "prompt": "The app's React Native settings screen is cheap to build and carries no demanding performance budget. Per the decision framework in this module, the right default for a feature like this is:",
+    "choices": [
+      "Always native, since native is categorically the better choice",
+      "Cross-platform, since the feature doesn't justify spending scarce native-specialist time for roughly double the maintenance cost with no performance payoff",
+      "A micro-frontend, since every screen should be independently deployable",
+      "Whichever framework the team learned most recently"
+    ],
+    "correctIndex": 1
+  }
+]

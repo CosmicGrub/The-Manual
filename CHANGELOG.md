@@ -498,3 +498,14 @@ All notable changes to The Manual (curriculum + app) are logged here. This file 
 **Result:** `npm run build` passed clean — 214 pages, 197 unique slugs verified repo-wide.
 
 **Status:** Platforms Tier 3 complete (170h, 6 lessons). Platforms is now 4/6 tiers content-complete (Tiers 0-3, 359h); Tiers 4-5 remain.
+
+## [0.39.0] — 2026-10-03 — Platforms Tier 4: complete (architect-level, data-driven performance)
+
+**Context:** Continuing the tier-by-tier pattern. This tier's lesson is "profile first, fix second" — every module in this slot is anchored to a real tool trace (DevTools, Instruments, Android Profiler) rather than described abstractly, and the deeper-theory overlaps with Software Engineering and DevOps are deliberately scoped away in favor of the platform/app-layer angle.
+
+**Added**
+- `content/platforms/tier-4/*.mdx` (6 files) + matching quizzes: Performance Engineering Across Platforms (a real O(n² log n) sort-comparator bug found in a Chrome DevTools flame chart, a Swift retain-cycle fixed with `[weak self]`, an Android bitmap-decode-on-UI-thread bug caught in the CPU Profiler), Architecture Patterns at Scale (MVVM/Clean Architecture applied concretely, scoped away from Software Engineering's general theory), Cloud-Native Patterns (deploying this track's own app backends, scoped away from DevOps' deeper Kubernetes/SRE material), Advanced Game Development (a real Unity/Godot scene graph, physics, and minimal shader), Deep Platform Specialization (all three paths — iOS Swift concurrency/Metal, Android coroutines/Flow, Web Wasm/Workers/PWA — covered with genuine depth rather than one chosen for the learner), Contributing to Larger Systems (Bazel/Gradle/Xcode build systems concretely contrasted, real Playwright/Detox E2E tests).
+
+**Result:** `npm run build` passed clean — 220 pages, 203 unique slugs verified repo-wide.
+
+**Status:** Platforms Tier 4 complete (140h, 6 lessons). Platforms is now 5/6 tiers content-complete (Tiers 0-4, 499h); only Tier 5 (Expert/Innovator) remains.

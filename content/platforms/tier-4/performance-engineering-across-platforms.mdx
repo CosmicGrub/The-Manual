@@ -1,0 +1,389 @@
+---
+trackId: platforms
+tier: 4
+title: "Performance Engineering Across Platforms"
+order: 1
+estimatedHours: 20
+slug: performance-engineering-across-platforms
+---
+
+## Why Profiling Beats Guessing
+
+Every platform gives you the same lie when something feels slow: a vague sense that "the list is janky" or "the app feels heavy." That feeling is useless as a bug report. Performance engineering starts the moment you replace the feeling with a trace — a flame chart, a call tree, an allocation graph — and point at the specific function, the specific frame, the specific byte that's costing you.
+
+This module is deliberately tool-first. You'll read real traces from Chrome DevTools, Xcode Instruments, and Android Studio Profiler, diagnose the actual cause in each one, and fix it with real code. Everything here happens on a build you control, on your own machine. Production observability — distributed tracing across services, SLOs, on-call dashboards, the stuff that tells you a *fleet* of servers is unhealthy — belongs to the DevOps & Cloud Infrastructure track. This module stops at the boundary of a single client profiling session: one app, one trace, one root cause.
+
+## Chrome DevTools Performance Tab: Reading a Flame Chart and Killing a Long Task
+
+Here's a dashboard renderer that feels fine with test data and chokes in production with 5,000 rows:
+
+```javascript
+function renderDashboard(rows) {
+  const summary = rows.reduce((acc, row) => {
+    acc.total += row.amount;
+    acc.byCategory[row.category] = (acc.byCategory[row.category] || 0) + row.amount;
+    return acc;
+  }, { total: 0, byCategory: {} });
+
+  const sorted = [...rows].sort((a, b) => expensiveScore(b) - expensiveScore(a));
+  document.getElementById('summary').textContent = JSON.stringify(summary);
+  renderRows(sorted);
+}
+
+function expensiveScore(row) {
+  // Recomputes a weighted rank against every other row in the dataset
+  return rows.filter(r => r.category === row.category).length * row.amount;
+}
+```
+
+Open DevTools → Performance, hit record, click the button that triggers `renderDashboard`, stop recording. The summary strip at the top flags a red-bordered block under "Main" — DevTools labels anything over 50ms a **Long Task**, and this one is ~460ms. Switch to the **Bottom-Up** tab and sort by Total Time. You'll see `expensiveScore` consuming roughly 420ms of that 460ms, called thousands of times — because `Array.prototype.sort`'s comparator calls it on every comparison, and `expensiveScore` itself does an O(n) filter. A sort with an O(n) comparator is O(n² log n). That's the whole bug, visible as a single oversized bar in the flame chart's call tree, with `expensiveScore` repeated at the bottom of thousands of near-identical stack frames.
+
+The fix is the classic **decorate-sort-undecorate** pattern: compute the expensive value once per row, sort on the cached value, not through a function that recomputes it:
+
+```javascript
+function renderDashboard(rows) {
+  const summary = rows.reduce((acc, row) => {
+    acc.total += row.amount;
+    acc.byCategory[row.category] = (acc.byCategory[row.category] || 0) + row.amount;
+    return acc;
+  }, { total: 0, byCategory: {} });
+
+  const scored = rows.map(row => ({ row, score: expensiveScore(row, rows) }));
+  scored.sort((a, b) => b.score - a.score);
+  const sorted = scored.map(s => s.row);
+
+  document.getElementById('summary').textContent = JSON.stringify(summary);
+  renderRows(sorted);
+}
+```
+
+Re-record. The Long Task warning disappears; the same interaction now shows as a handful of sub-5ms scripting blocks. This isn't a Big-O lecture — that kind of general algorithmic analysis is Software Engineering track territory — but reading a flame chart *is* about recognizing when a repeated, non-trivial function in the call tree is the signature of bad asymptotic behavior.
+
+## Xcode Instruments: Time Profiler and Allocations
+
+A `UITableView` cell that decodes an image synchronously on the main thread is the iOS equivalent of that sort comparator:
+
+```swift
+// Before: decodes a JPEG from disk on the main thread, every single scroll
+func configure(with item: PhotoItem) {
+    imageView.image = UIImage(contentsOfFile: item.localPath)
+}
+```
+
+Record a **Time Profiler** trace while scrolling the list. In the call tree (invert it, and check "Hide System Libraries" off so you can see into UIKit), you'll see `tableView(_:cellForRowAt:)` → `configure(with:)` → `UIImage(contentsOfFile:)` → `CGImageSourceCreateImageAtIndex` eating something like 35–40% of main-thread samples during the scroll window. That percentage, sustained across every frame, is exactly what turns into dropped frames and a stuttering scroll.
+
+The fix moves the decode off the main thread and caches the result:
+
+```swift
+final class ImageDecoder {
+    static let cache = NSCache<NSString, UIImage>()
+
+    static func decode(path: String, completion: @escaping (UIImage?) -> Void) {
+        let key = path as NSString
+        if let cached = cache.object(forKey: key) {
+            completion(cached)
+            return
+        }
+        DispatchQueue.global(qos: .userInitiated).async {
+            guard let image = UIImage(contentsOfFile: path) else {
+                DispatchQueue.main.async { completion(nil) }
+                return
+            }
+            let decoded = image.forceDecoded()
+            cache.setObject(decoded, forKey: key)
+            DispatchQueue.main.async { completion(decoded) }
+        }
+    }
+}
+
+extension UIImage {
+    func forceDecoded() -> UIImage {
+        UIGraphicsImageRenderer(size: size).image { _ in draw(at: .zero) }
+    }
+}
+```
+
+Re-trace: `CGImageSourceCreateImageAtIndex` drops out of the main-thread call tree entirely and reappears on a background queue's track, where dropped frames don't matter.
+
+**Allocations** answers a different question: not "what's slow" but "what's growing." Take a **Generation A** snapshot, push and pop a detail screen five times, take **Generation B**. If `Generation B`'s persistent object count for your detail view controller's class isn't zero, something outside the normal lifecycle is holding a reference. That's the exact signature you're hunting for in the next section.
+
+## Android Studio Profiler: CPU and Memory Traces
+
+The Android analog combines both problems in one `RecyclerView`:
+
+```kotlin
+object ViewHolderCache {
+    val activityRefs = mutableListOf<Activity>() // never cleared — leaks every Activity forever
+}
+
+class PhotoViewHolder(view: View) : RecyclerView.ViewHolder(view) {
+    private val imageView: ImageView = view.findViewById(R.id.photo)
+
+    fun bind(path: String, activity: Activity) {
+        ViewHolderCache.activityRefs.add(activity)
+        val bitmap = BitmapFactory.decodeFile(path)
+        val scaled = Bitmap.createScaledBitmap(bitmap, 200, 200, true)
+        imageView.setImageBitmap(scaled)
+    }
+}
+```
+
+Record a **CPU Profiler** session (Sample Java/Kotlin Method) while flinging the list. The flame chart shows `bind` → `BitmapFactory.decodeFile` → `Bitmap.createScaledBitmap` as the dominant self-time contributor on the UI thread — you're decoding the *full-resolution* image just to immediately throw most of the pixels away. Switch to the **Memory Profiler** and watch the Java heap during the same fling: it climbs and never comes back down, even after a forced GC. Capture a heap dump and sort by shallow size — `Activity` instances pile up, retained by `ViewHolderCache.activityRefs`, a static field that outlives every screen.
+
+Fix both in one pass — decode at the target size instead of after, and drop the static leak for an `LruCache`:
+
+```kotlin
+object BitmapCache {
+    private val cache = LruCache<String, Bitmap>(50)
+    fun get(path: String): Bitmap? = cache.get(path)
+    fun put(path: String, bmp: Bitmap) = cache.put(path, bmp)
+}
+
+class PhotoViewHolder(view: View) : RecyclerView.ViewHolder(view) {
+    private val imageView: ImageView = view.findViewById(R.id.photo)
+
+    fun bind(path: String) {
+        imageView.setImageBitmap(BitmapCache.get(path) ?: loadAndCache(path))
+    }
+
+    private fun loadAndCache(path: String): Bitmap {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(path, bounds)
+        val sample = calculateInSampleSize(bounds, 200, 200)
+        val opts = BitmapFactory.Options().apply { inSampleSize = sample }
+        val bitmap = BitmapFactory.decodeFile(path, opts)
+        BitmapCache.put(path, bitmap)
+        return bitmap
+    }
+}
+```
+
+Re-profile: CPU self-time for `bind` drops by an order of magnitude (you're decoding ~200x200 pixels instead of a multi-megapixel source), and the memory timeline flattens into a sawtooth that returns to baseline after GC instead of a staircase that never comes down.
+
+## Memory Leaks and Retain Cycles: Fixing the Closure-Captures-Self Trap
+
+This is where the Allocations generation-count signature from Instruments gets its explanation. In Tier 3's Swift/MVVM module you used `[weak self]` in closures as a rule of thumb. Here you'll prove *why* it matters by watching a view model survive its own screen being dismissed.
+
+```swift
+final class ProfileViewModel {
+    private let api: ProfileAPI
+    var onUpdate: ((ProfileState) -> Void)?
+
+    init(api: ProfileAPI) {
+        self.api = api
+    }
+
+    func startPolling() {
+        Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { _ in
+            self.api.fetchProfile { result in
+                self.onUpdate?(result)
+            }
+        }
+    }
+}
+```
+
+Trace it: the `Timer` retains its closure. The closure captures `self` (the view model) strongly, twice — once directly, once again inside the nested `fetchProfile` closure. The running `RunLoop` retains the `Timer`. So: `RunLoop → Timer → closure → ProfileViewModel`, a cycle that never breaks on its own, and the view controller that *also* owns the view model is irrelevant — the timer alone keeps it alive forever.
+
+In Instruments: take Generation A, push the profile screen, dismiss it, repeat five times, take Generation B. `ProfileViewModel`'s persistent count in Generation B reads 5, not 0. Open the **Memory Graph Debugger** in Xcode on a live cycle and you'll see the literal loop drawn as a graph: the view model node has an incoming edge from the timer's closure, which has an incoming edge from the timer, which has an incoming edge from the run loop — no path back to a root that would release it.
+
+The fix:
+
+```swift
+final class ProfileViewModel {
+    private let api: ProfileAPI
+    private var timer: Timer?
+    var onUpdate: ((ProfileState) -> Void)?
+
+    init(api: ProfileAPI) {
+        self.api = api
+    }
+
+    func startPolling() {
+        timer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            self.api.fetchProfile { [weak self] result in
+                self?.onUpdate?(result)
+            }
+        }
+    }
+
+    deinit {
+        timer?.invalidate()
+    }
+}
+```
+
+`[weak self]` breaks the strong capture, so the view model's retain count no longer depends on the timer. Once its real owner releases it, `deinit` runs — and critically, `deinit` is what actually stops the ticking, by calling `timer?.invalidate()`. Weak alone stops the *leak*; without the explicit `invalidate()` the timer would keep firing into a `guard let self else { return }` no-op forever, wasting CPU on a zombie timer. Re-run the same Generation A/B comparison and the persistent count reads 0.
+
+## Render and Frame-Rate Bottlenecks: Killing Layout Thrash
+
+If you built games in Tier 2 with Phaser or Pygame, you already think in frame budgets — 16.6ms per frame at 60fps, no exceptions. Apply the same discipline to a web UI. Here's a resize handler that feels instant with 20 cards and visibly stutters with 300:
+
+```javascript
+function resizeAllCards(cards) {
+  cards.forEach(card => {
+    const width = card.offsetWidth;       // READ: forces layout
+    card.style.height = `${width * 0.6}px`; // WRITE: invalidates layout
+  });
+}
+```
+
+Record this in the Performance tab. The flame chart shows a tall, repeating stack of purple **Layout** blocks, one per card, each flagged with a small warning triangle — "Forced reflow." Reading `offsetWidth` forces the browser to flush any pending layout changes synchronously *before* answering; writing `style.height` right after invalidates layout again, so the next card's read forces another synchronous recalculation. For 300 cards that's 300 forced layouts, often 150–200ms total, instead of one.
+
+The fix is batching: do every read first, then every write, so the browser only has to lay out once:
+
+```javascript
+function resizeAllCards(cards) {
+  const widths = cards.map(card => card.offsetWidth); // all reads
+  cards.forEach((card, i) => {
+    card.style.height = `${widths[i] * 0.6}px`;        // all writes
+  });
+}
+```
+
+Re-record: the stack of purple blocks collapses into a single layout pass. The same read/write-interleaving mistake shows up cross-platform as unnecessary re-renders — a React component re-rendering a whole list because a parent passes a freshly-allocated callback or object literal as a prop every render, defeating `React.memo` — fixed the same conceptual way, by hoisting the allocation out of the render path with `useCallback`/`useMemo` so the reference is stable and the child's shallow-equality check actually short-circuits.
+
+## Bundle Size and Code Splitting: Webpack and Metro
+
+A slow app doesn't have to be a janky one — it can simply be a *heavy* one that takes seconds to even start executing. Here's a module that quietly drags in far more than it uses:
+
+```javascript
+import _ from 'lodash';
+import moment from 'moment';
+
+export function formatRecent(date) {
+  return _.capitalize(moment(date).fromNow());
+}
+```
+
+Build with `stats: true` and run `npx webpack-bundle-analyzer dist/stats.json`. The treemap shows `moment`'s `locale/` directory alone at ~230 KB gzipped inside a ~310 KB vendor chunk — every locale file ships even though the app only ever renders in `en-GB` — and the full `lodash` build taking another chunk even though `capitalize` is the only function used.
+
+Fix the imports to pull only what's needed, and tell webpack to drop the unused locales:
+
+```javascript
+import capitalize from 'lodash/capitalize';
+import moment from 'moment';
+import 'moment/locale/en-gb';
+```
+
+```javascript
+// webpack.config.js
+const webpack = require('webpack');
+
+module.exports = {
+  plugins: [
+    new webpack.IgnorePlugin({
+      resourceRegExp: /^\.\/locale$/,
+      contextRegExp: /moment$/,
+    }),
+  ],
+  optimization: {
+    splitChunks: { chunks: 'all' },
+  },
+};
+```
+
+For a feature that's used rarely — a PDF export button, say — don't ship it in the initial bundle at all:
+
+```javascript
+// Before: always in the main chunk
+import { exportToPdf } from './pdfExport';
+button.addEventListener('click', () => exportToPdf(data));
+
+// After: fetched only when the user actually clicks
+button.addEventListener('click', async () => {
+  const { exportToPdf } = await import('./pdfExport');
+  exportToPdf(data);
+});
+```
+
+Re-run the analyzer and `pdfExport.[hash].js` shows up as its own lazily-loaded chunk, no longer counted in the bundle the user pays for on first load.
+
+Metro, React Native's bundler, doesn't split a single JS bundle the way webpack does — but it has an equivalent deferred-load lever. First, find the problem the same way: `npx react-native bundle --platform ios --dev false --bundle-output main.jsbundle --sourcemap-output main.jsbundle.map`, then `npx source-map-explorer main.jsbundle main.jsbundle.map`. Suppose the treemap shows a full-featured date-picker library loaded eagerly even though it's only used on a Settings screen most users never open. Enable `inlineRequires` so `require()` calls are deferred until first use:
+
+```javascript
+// metro.config.js
+module.exports = {
+  transformer: {
+    getTransformOptions: async () => ({
+      transform: { inlineRequires: true },
+    }),
+  },
+};
+```
+
+Then push the actual `require()` for the heavy dependency inside the component that needs it instead of at module scope:
+
+```javascript
+// Before: required at import time, before the app even starts
+import DatePicker from 'react-native-date-picker';
+
+// After: required lazily, only when SettingsScreen actually mounts
+function SettingsScreen() {
+  const DatePicker = require('react-native-date-picker').default;
+  // ...
+}
+```
+
+The bytecode for `DatePicker` still ships in the single bundle (Metro can't chunk it out), but its *initialization* cost — module-level side effects, class setup — no longer runs on app start, which is usually where the user-visible cost actually was.
+
+## Building a Cross-Platform Performance Budget
+
+Enforce these wins instead of re-discovering regressions by hand. A CI budget check catches a bundle creeping back up before it ships:
+
+```yaml
+# .github/workflows/bundle-budget.yml
+name: bundle-budget
+on: [pull_request]
+jobs:
+  check-size:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm ci
+      - run: npm run build
+      - run: npx size-limit
+```
+
+Pair that with a `.size-limit.json` entry per bundle, and the pull request fails loudly instead of the regression surviving to a user's phone. That's the full loop of this module: trace, diagnose, fix, then budget it so it stays fixed.
+
+## Exercise
+
+You're handed this React Native list component and told users on older Android devices report stutter when scrolling:
+
+```javascript
+function ContactList({ contacts, onSelect }) {
+  return (
+    <FlatList
+      data={contacts}
+      keyExtractor={item => item.id}
+      renderItem={({ item }) => (
+        <ContactRow
+          contact={item}
+          onPress={() => onSelect(item.id)}
+          style={{ padding: 12 }}
+        />
+      )}
+    />
+  );
+}
+
+const ContactRow = React.memo(function ContactRow({ contact, onPress, style }) {
+  return (
+    <TouchableOpacity onPress={onPress} style={style}>
+      <Text>{contact.name}</Text>
+    </TouchableOpacity>
+  );
+});
+```
+
+`ContactRow` is wrapped in `React.memo`, but profiling the JS thread in Flipper (or the React DevTools Profiler) shows every row re-rendering on every parent re-render anyway — the memo isn't doing anything. Find why, and fix it so only rows whose data actually changed re-render.
+
+**Hint:** look at what `renderItem` allocates fresh on every call, and what `React.memo`'s shallow prop comparison actually checks for function and object props.
+
+## Quiz prep note
+
+The questions below check that you can read a trace and name the correct fix, not just recite definitions — which is exactly what gets checked when you profile real code on the job.

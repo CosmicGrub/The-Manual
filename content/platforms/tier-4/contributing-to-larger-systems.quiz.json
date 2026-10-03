@@ -1,0 +1,98 @@
+[
+  {
+    "id": "platforms/tier-4/contributing-to-larger-systems/q1",
+    "type": "multiple_choice",
+    "prompt": "What does Bazel hash to compute an action's cache key, which is why its builds are reproducible across machines in a way timestamp-based tools are not?",
+    "choices": [
+      "The content of declared inputs (sources, flags, toolchain, transitive dependency outputs)",
+      "The last-modified timestamp of each source file",
+      "The developer's machine hostname and OS version",
+      "The size in bytes of the compiled output artifact"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-4/contributing-to-larger-systems/q2",
+    "type": "multiple_choice",
+    "prompt": "In Gradle, a task reports UP-TO-DATE and is skipped on a rebuild when:",
+    "choices": [
+      "The task has no annotations at all",
+      "The hashes of its declared @InputFiles/@OutputFiles match the previous run",
+      "The project's build.gradle.kts file has not been opened in an editor",
+      "The task is listed first in the task graph"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-4/contributing-to-larger-systems/q3",
+    "type": "multiple_choice",
+    "prompt": "Mechanically, what is an Xcode build setting (as set via Target settings or an .xcconfig file)?",
+    "choices": [
+      "A node in a dependency graph you author yourself, like a Bazel target",
+      "A Gradle-style task with declared inputs and outputs",
+      "A key-value flag substituted into a fixed sequence of build phases that invoke clang/swiftc and ld directly",
+      "A remote cache key shared across every Xcode installation"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "platforms/tier-4/contributing-to-larger-systems/q4",
+    "type": "multiple_choice",
+    "prompt": "In the Playwright checkout test, why mock the payment API with page.route() instead of hitting a real sandboxed payment provider?",
+    "choices": [
+      "Playwright cannot make real network requests at all",
+      "It still exercises all of the app's own request/response/UI/navigation code up to the network boundary, while removing a third-party dependency as a source of flakiness",
+      "Mocking is required because Playwright does not support async assertions",
+      "Real payment sandboxes always return HTTP 500 in CI environments"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-4/contributing-to-larger-systems/q5",
+    "type": "multiple_choice",
+    "prompt": "A CODEOWNERS line reading `/packages/payments/ @org/payments-team` does what mechanically on GitHub?",
+    "choices": [
+      "Automatically deletes any PR not opened by that team",
+      "Requests review from, and (if enforced by branch protection) requires approval from, that team for any PR touching files under that path",
+      "Grants that team write access to the entire repository",
+      "Runs that team's CI pipeline instead of the default one"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-4/contributing-to-larger-systems/q6",
+    "type": "multiple_choice",
+    "prompt": "What is the central practical difference between a Tier 3 'good first issue' contribution and a Tier 4 'substantial' upstream contribution?",
+    "choices": [
+      "Substantial contributions are simply longer diffs with more lines changed",
+      "Substantial contributions touch a core/shared abstraction and require a design proposal and multiple maintainer review rounds before and during code review, not just a single-reviewer PR",
+      "Good first issues never require passing CI",
+      "There is no real difference beyond the label applied to the GitHub issue"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-4/contributing-to-larger-systems/q7",
+    "type": "multiple_choice",
+    "prompt": "How does `nx affected` decide which projects to build and test for a given change?",
+    "choices": [
+      "It always runs every project in the monorepo to be safe",
+      "It diffs changed files against a base commit, walks the dependency graph to find affected projects and their dependents, and scopes tasks to only that set",
+      "It asks the developer to manually list affected projects in a config file",
+      "It only ever re-runs the single file that changed, ignoring dependents"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-4/contributing-to-larger-systems/q8",
+    "type": "multiple_choice",
+    "prompt": "Why does Bazel's sandboxed action execution catch certain bugs that Gradle's default (non-sandboxed) task execution tends to miss?",
+    "choices": [
+      "Bazel only allows an action to see files explicitly declared as its inputs, so an undeclared dependency fails the build immediately instead of silently working on one machine and breaking elsewhere",
+      "Bazel recompiles the entire codebase on every build, so staleness is impossible",
+      "Gradle does not support Kotlin, so type errors go undetected",
+      "Bazel does not allow any external dependencies, eliminating all supply-chain risk"
+    ],
+    "correctIndex": 0
+  }
+]

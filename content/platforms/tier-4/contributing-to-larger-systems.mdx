@@ -1,0 +1,282 @@
+---
+trackId: platforms
+tier: 4
+title: "Contributing to Larger Systems"
+order: 6
+estimatedHours: 15
+slug: contributing-to-larger-systems
+---
+
+## Where this fits
+
+Tier 3 had you land a "good first issue" in a real open-source project — small, self-contained, one reviewer, maybe two rounds. Tier 3 also had you build a real iOS app with Swift and MVVM. This module assumes both and pushes past them: you're now operating inside large, multi-team codebases (monorepos with dozens of apps and libraries), you need to understand what the build tool is actually doing mechanically (not just which command to type), you need to write tests that catch the bugs that actually ship, and you need to land a contribution big enough that it requires a design conversation before anyone lets you touch the code.
+
+Two things this module deliberately does *not* re-teach. General software architecture theory — layering, coupling, the tradeoffs of a monolith vs. services — is owned by the Software Engineering track; this module stays at the "how do I find my way around and change *this specific* large codebase" level. Deep Kubernetes/SRE observability (distributed tracing, SLOs, on-call) is owned by the DevOps track; when CI and infrastructure come up here, it's only from the angle of "what does this mean for the code I'm shipping," not how to run the cluster.
+
+## 1. Navigating a large monorepo
+
+A 200-person monorepo might have 400 projects. You cannot read all of it. You need the repo's own tooling to answer two questions fast: *who owns this*, and *what does changing it actually affect*.
+
+**Ownership: CODEOWNERS.** Every major Git host (GitHub, GitLab, Bitbucket) reads a `CODEOWNERS` file at the repo root and uses path globs to auto-request reviewers and, if configured as a required check, block merge without their approval.
+
+```
+# /CODEOWNERS
+/packages/payments/          @org/payments-team
+/apps/mobile-ios/             @org/ios-platform
+/apps/mobile-android/         @org/android-platform
+/libs/design-system/          @org/design-system
+/infra/                       @org/platform-infra
+*.proto                       @org/api-contracts
+```
+
+This is mechanical, not advisory: open a PR touching `packages/payments/charge.ts` and GitHub's branch protection will refuse to let it merge until `@org/payments-team` approves, regardless of whether you knew that team existed. Before you write a line of code in an unfamiliar monorepo, `git log --follow -- path/to/file` plus `CODEOWNERS` tells you exactly whose attention you need, and `git blame` tells you who to actually ask a question.
+
+**Blast radius: the project graph.** Ownership tells you *who*; the dependency graph tells you *what breaks*. In an Nx monorepo, every project declares itself in a `project.json` with tags:
+
+```json
+{
+  "name": "payments-sdk",
+  "sourceRoot": "libs/payments-sdk/src",
+  "tags": ["scope:payments", "type:lib", "platform:shared"],
+  "targets": {
+    "build": { "executor": "@nx/js:tsc" },
+    "test": { "executor": "@nx/jest:jest" }
+  }
+}
+```
+
+Nx builds a graph from every project's actual `import`/`require` statements (not from a manually maintained list — it's derived by statically parsing the source), and you can query it directly:
+
+```bash
+# Visualize everything that depends on payments-sdk
+nx graph --focus=payments-sdk
+
+# Given your current branch's diff, which projects actually need re-testing?
+nx show projects --affected --base=main
+
+# Only run build/test/lint for projects affected by this diff and their dependents
+nx affected -t build test lint --base=main
+```
+
+That last command is the real payoff: in a 400-project repo, running every test suite on every PR is a non-starter. `nx affected` diffs your changed files against `main`, walks the graph forward to every project that transitively depends on what you touched, and scopes CI to exactly that set. If you change `payments-sdk` and forty projects depend on it, all forty get re-tested; if you fix a typo in a leaf app nothing else does, only that app runs. This is the practical answer to "how does anyone keep this repo's CI under twenty minutes" — and it's the same reasoning you'll use by hand (via `bazel query`, below) in a Bazel monorepo that doesn't have Nx's graph visualizer.
+
+The combined workflow for touching unfamiliar code: find the owning team via `CODEOWNERS`, find the blast radius via the graph tool, then scope your change (and your test run) to that cone — not the whole repo.
+
+## 2. What build systems actually do, mechanically
+
+"Bazel, Gradle, and Xcode all build code" is true and useless. What matters is *how each one decides what to rebuild and how it executes the build*, because that determines what bugs you'll hit and why a clean build on your machine can fail in CI.
+
+**Bazel: content-addressed, sandboxed, hermetic by design.** A `BUILD.bazel` file declares targets and their exact declared inputs:
+
+```python
+# //libs/image-codec/BUILD.bazel
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
+cc_library(
+    name = "image_codec",
+    srcs = ["codec.cc", "huffman.cc"],
+    hdrs = ["codec.h"],
+    deps = [
+        "//libs/bitstream",
+        "@zlib",
+    ],
+    copts = ["-O2", "-Wall"],
+    visibility = ["//apps:__subpackages__"],
+)
+
+cc_test(
+    name = "codec_test",
+    srcs = ["codec_test.cc"],
+    deps = [":image_codec", "@googletest//:gtest_main"],
+)
+```
+
+Bazel's cache key for the `image_codec` action is a hash of its *actual declared inputs* — the content of `codec.cc`, `codec.h`, the compiler flags, the toolchain version, and the hash of `//libs/bitstream`'s own output — never a timestamp. Two consequences follow directly from that mechanism. First, remote caching works perfectly across machines: if a teammate already built this exact input hash, you download the output instead of compiling, even if you've never built this repo before. Second, each action runs inside a filesystem sandbox that only mounts the files declared in `srcs`/`deps`/`hdrs`. If `codec.cc` secretly `#include`s a header that isn't declared as a dependency, the sandbox simply can't see it and the build fails loudly on *your* machine — not three weeks later when someone else's environment happens to lack that stray file. That's what "hermetic" buys you: undeclared dependencies are a build error, not a landmine.
+
+**Gradle: a task graph with incremental, non-hermetic-by-default execution.** Gradle models a build as a DAG of `Task` objects, each annotated with declared `@InputFiles`/`@OutputFiles`. Before running a task, Gradle hashes its declared inputs against the last run; if nothing changed, the task reports `UP-TO-DATE` and is skipped entirely (or `FROM-CACHE` if another machine already produced that output and the build cache is enabled).
+
+```kotlin
+// app/build.gradle.kts
+plugins {
+    id("com.android.application")
+    kotlin("android")
+}
+
+android {
+    namespace = "com.example.checkout"
+    compileSdk = 34
+
+    defaultConfig {
+        applicationId = "com.example.checkout"
+        minSdk = 24
+        targetSdk = 34
+    }
+
+    buildTypes {
+        release {
+            isMinifyEnabled = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+        }
+    }
+
+    flavorDimensions += "environment"
+    productFlavors {
+        create("staging") { dimension = "environment"; applicationIdSuffix = ".staging" }
+        create("production") { dimension = "environment" }
+    }
+}
+
+dependencies {
+    implementation(project(":libs:payments-sdk"))
+    implementation("androidx.core:core-ktx:1.13.0")
+}
+```
+
+Two `productFlavors` crossed with two `buildTypes` (`debug`/`release`) gives Gradle four build variants — `stagingDebug`, `stagingRelease`, `productionDebug`, `productionRelease` — each with its own task chain (`compileStagingDebugKotlin`, `assembleStagingDebug`, …). That variant matrix is Gradle's answer to "one codebase, many shipped configurations," analogous to Bazel `config_setting`s but generated automatically from the flavor/type cross product. The catch: unlike Bazel, a Gradle task isn't sandboxed by default — it can read any file on disk whether or not it's declared as an input, which is exactly how "works on my machine, fails on CI" bugs sneak in. The Configuration Cache (stable since Gradle 8) narrows this gap by serializing the task graph itself, but Gradle's model is fundamentally "trust the declared inputs," not "enforce them."
+
+**Xcode build settings: flags into fixed build phases, not a graph you author.** Xcode has no `BUILD` file or `build.gradle` equivalent that you write a dependency graph into. A target's settings are key-value pairs (resolved from Target settings, Project settings, and layered `.xcconfig` files) that get substituted directly into invocations of `clang`/`swiftc` and `ld` during Xcode's *fixed* sequence of Build Phases: Compile Sources → Link Binary With Libraries → Copy Bundle Resources → Run Script.
+
+```
+// Release.xcconfig
+SWIFT_OPTIMIZATION_LEVEL = -O
+SWIFT_COMPILATION_MODE = wholemodule
+GCC_PREPROCESSOR_DEFINITIONS = RELEASE=1
+ENABLE_BITCODE = NO
+OTHER_LDFLAGS = -ObjC
+CODE_SIGN_STYLE = Manual
+PROVISIONING_PROFILE_SPECIFIER = com.example.checkout.release
+```
+
+`SWIFT_COMPILATION_MODE = wholemodule` literally changes the `swiftc` invocation from one-process-per-file to a single whole-module invocation (slower incremental builds, better cross-file optimization). `OTHER_LDFLAGS = -ObjC` is passed straight to `ld` to force-load Objective-C categories from static libraries — skip it and categories silently vanish at link time, a classic Xcode-specific failure mode you won't hit in Gradle or Bazel. Since Xcode 10, the modern build system uses `llbuild` under the hood to parallelize compile/link into something graph-shaped, but you never author that graph; you only control it indirectly through xcconfig layering and scheme/configuration selection (`xcodebuild -scheme Checkout -configuration Release`). This is the direct continuation of the Xcode project mechanics you touched in Tier 3's Swift/MVVM work — now you're reading `.xcconfig` layering to understand *why* a release build behaves differently from debug, not just hitting Cmd-R.
+
+The one-sentence contrast that matters in an interview or a real debugging session: Bazel enforces hermeticity through sandboxing and content hashes; Gradle gets incrementality through a declared-but-unenforced input/output model; Xcode has no graph at all, just flags threaded into a fixed phase pipeline.
+
+## 3. Integration/E2E tests that actually catch bugs
+
+A test that renders a button and asserts it exists catches nothing a type system doesn't already catch. A test that matters exercises a full user journey across real boundaries: network, persistence, auth, and multi-step navigation.
+
+**Playwright — a checkout flow, not a login form.** This test authenticates via a pre-saved session, mocks the payment provider at the network layer (so it's deterministic and doesn't depend on a sandboxed third-party service being up), and verifies the result by navigating to a *different* page and reading persisted state:
+
+```ts
+// e2e/checkout.spec.ts
+import { test, expect } from '@playwright/test';
+
+test.use({ storageState: 'e2e/.auth/shopper.json' });
+
+test('a signed-in shopper can complete checkout with a saved card', async ({ page }) => {
+  await page.route('**/api/payments/charge', async (route) => {
+    const body = route.request().postDataJSON();
+    expect(body.amountCents).toBe(4998); // guards against a silent pricing bug
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ status: 'succeeded', chargeId: 'ch_test_123' }),
+    });
+  });
+
+  await page.goto('/cart');
+  await expect(page.getByTestId('cart-item')).toHaveCount(2);
+
+  await page.getByRole('button', { name: 'Proceed to checkout' }).click();
+  await page.getByLabel('Saved card ending in 4242').check();
+  await page.getByRole('button', { name: 'Place order' }).click();
+
+  await expect(page.getByRole('heading', { name: /order confirmed/i })).toBeVisible();
+  const orderId = await page.getByTestId('order-id').innerText();
+  expect(orderId).toMatch(/^ORD-\d{8}$/);
+
+  // Prove the order actually persisted server-side, not just a client-side toast
+  await page.goto(`/orders/${orderId}`);
+  await expect(page.getByText('succeeded')).toBeVisible();
+});
+```
+
+Why `page.route()` and not a real sandbox payment API: the test still exercises every line of *your* code — request construction, response handling, UI update, navigation, re-fetch — right up to the network boundary. The only thing it fakes is a third party you don't own, which is the right place to draw the line between "integration test" and "flaky test that fails because Stripe's sandbox is slow today."
+
+**Detox — the cross-platform case: offline-first sync.** This is the kind of flow that's genuinely hard to unit-test and genuinely easy to get wrong, which is exactly why it belongs in E2E:
+
+```js
+// e2e/offlineSync.e2e.js
+describe('cart survives a dropped connection and syncs on reconnect', () => {
+  beforeAll(async () => {
+    await device.launchApp({ newInstance: true });
+    await element(by.id('email-input')).typeText('shopper@example.com');
+    await element(by.id('password-input')).typeText('correct-horse-battery');
+    await element(by.id('login-button')).tap();
+    await waitFor(element(by.id('home-screen'))).toBeVisible().withTimeout(5000);
+  });
+
+  it('queues a cart add while offline and syncs it after reconnecting', async () => {
+    await device.setURLBlacklist(['.*']); // simulate total network loss
+    await element(by.id('product-42')).tap();
+    await element(by.id('add-to-cart')).tap();
+    await expect(element(by.id('cart-badge'))).toHaveText('1');
+    await expect(element(by.id('offline-banner'))).toBeVisible();
+
+    await device.setURLBlacklist([]); // reconnect
+    await waitFor(element(by.id('offline-banner')))
+      .not.toBeVisible()
+      .withTimeout(10000);
+
+    await device.reloadReactNative(); // kill in-memory state, force reliance on persisted store
+    await expect(element(by.id('cart-badge'))).toHaveText('1');
+  });
+});
+```
+
+The `device.reloadReactNative()` call is the point: it proves the cart item survived in whatever persistence layer (SQLite, AsyncStorage, MMKV) the sync queue uses, not just in a JS variable that happened to still be alive. A unit test on the sync-queue reducer would never catch a bug where the queue is correct in memory but never actually flushed to disk — this test would.
+
+## 4. Landing a substantial upstream contribution
+
+Tier 3 had you land a good-first-issue PR. Here's the mechanical difference at this tier, not just "it's harder":
+
+| | Good first issue (Tier 3) | Substantial contribution (Tier 4) |
+|---|---|---|
+| Scope | One file, one bug, isolated module | Touches a core abstraction or public API, affects multiple downstream consumers |
+| Design step | None — just write the fix | Requires a written proposal/RFC *before* code, discussed and often contested |
+| Review | One maintainer, 1–2 rounds | Multiple maintainers with different priorities, often 5+ rounds, sometimes a live call |
+| Compatibility | N/A | Must consider semver, deprecation path, migration guide for existing users |
+| CI bar | Existing test suite passes | New tests required; often must pass a cross-platform/cross-version matrix you don't control |
+
+The RFC is the real gate. For a change like "add a new caching strategy to the core data-fetching layer," you don't open a PR — you open a design doc as an issue or discussion first:
+
+```markdown
+# RFC: Stale-while-revalidate cache mode
+
+## Problem
+Consumers currently choose between "always fetch" and "cache forever."
+Several large users (list issues #412, #580, #601) need a third mode:
+serve cached data immediately, then refresh in the background.
+
+## Goals
+- Opt-in per query, zero behavior change for existing callers.
+- No new required config for the common case.
+
+## Non-goals
+- Replacing the existing cache invalidation API.
+- Solving offline persistence (tracked separately in #530).
+
+## Design
+Add `staleTime` and `revalidateOnMount` to the existing options object...
+[API shape, state machine diagram, interaction with existing `cacheTime`]
+
+## Alternatives considered
+- A separate `useStaleQuery` hook — rejected: duplicates 90% of existing logic.
+- Revalidation via a background worker — rejected: adds a platform dependency.
+
+## Rollout
+Ship behind no flag (purely additive API). Add a migration note to the
+next minor version's changelog. No major version bump needed.
+```
+
+Expect the first round of review to attack the *design*, not your code — "why not solve this in the existing hook," "what happens if the component unmounts mid-revalidation," "this needs a benchmark against the current fetch path before we discuss API shape at all." You'll often prototype on a branch, post benchmark numbers, and rewrite the approach once or twice before a maintainer agrees on the shape — only then does line-by-line code review start. The PR that eventually merges is commonly the fifth or sixth iteration of a branch that started from a completely different implementation than the RFC originally proposed. That's the real distinction from Tier 3: it's not that the diff is bigger, it's that you're negotiating a design with people who have to live with its consequences across a dependency graph you can't fully see — the same "blast radius" problem from section 1, except now the blast radius is every app in the world depending on this library, not forty projects in one monorepo.
+
+## Exercise
+
+Pick a monorepo you actually use — your employer's, a sizable open-source one, or your own project if it has at least two apps and a shared library. Using the repo's *own* tooling (not guesswork), answer three things in writing:
+
+1. If you needed to change one specific shared library in it, which team/person owns it, and how did the repo's own tooling (CODEOWNERS, an OWNERS file, or commit history) tell you that — not a README.
+2. What is the exact blast radius of that change? Use the real command: `nx graph --focus=<lib>` if it's Nx, or `bazel query 'rdeps(//..., //path/to:lib)'` if it's Bazel, or trace `implementation(project(...))` lines by hand if it's a smaller Gradle multi-module repo.
+3. Write one paragraph arguing whether your hypothetical change would be a good-first-issue-sized PR or would need an RFC first, using the scope/review-rounds criteria from section 4 — not a vibe.
+
+Hint: if the repo has no graph tooling at all, that absence is itself the finding — write one sentence on what tool (Nx, Bazel's `query`, or a dependency-cruiser config) you'd introduce and why, based on the repo's size and language mix.

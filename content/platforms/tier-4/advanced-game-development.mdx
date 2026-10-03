@@ -1,0 +1,182 @@
+---
+trackId: platforms
+tier: 4
+title: "Advanced Game Development"
+order: 4
+estimatedHours: 30
+slug: advanced-game-development
+---
+
+## A Real Engine vs. a Lightweight 2D Framework
+
+Tier 2's game dev module had you hand-build a game loop, hand-write AABB collision checks, and hand-wire score state in Phaser or Pygame — a lightweight 2D framework that gives you a canvas, a sprite system, and a simplified physics helper, and otherwise gets out of your way. That was the right call for a first game: you saw every moving part because you built most of them yourself.
+
+This module throws you into Godot, a real engine. The difference isn't "more features bolted onto the same idea" — it's a different shape of tool entirely:
+
+- **An editor that owns your scene, not just your code.** Phaser's `MainScene` was a JavaScript class you wrote top to bottom. A Godot scene (a `.tscn` file) is a tree of nodes you compose visually in the editor, each with its own inspector-exposed properties, and your GDScript scripts attach *to* nodes rather than *being* the whole game.
+- **A real physics server, not an overlap check.** Tier 2's `rectsOverlap()` and Arcade Physics' `overlap()` only ever answer "are these two boxes touching." Godot's physics server simulates mass, friction, restitution, torque, and angular velocity — actual rigid body dynamics.
+- **GPU-level control via shaders.** Phaser's sprites blit pre-rendered pixels; touching the GPU pipeline directly was out of scope in Tier 2. In Godot, every visual node has a `material` slot that takes a shader, no extra library required.
+- **Native export templates, built in.** One Godot project exports to Windows, Linux, macOS, Web, Android, and iOS from the same editor, using the same scenes and scripts, with no bridge or wrapper framework. Tier 2 needed Electron bolted on top of Phaser just to get a desktop build.
+
+Everything below builds on that: the node tree, the physics server, shaders, and the export pipeline are the four things a lightweight framework doesn't give you and a real engine does.
+
+## Scene Graphs: The Node Tree and Transform Propagation
+
+A Godot scene is a tree of nodes, and every node's final on-screen transform is computed by combining its own local transform with its parent's — recursively, all the way to the scene root. This is the scene graph, and it's the single most important structural idea in the engine.
+
+Concretely, here's a `Player` scene:
+
+```
+Player (CharacterBody2D)
+├── Sprite2D
+├── CollisionShape2D
+├── Camera2D
+└── Weapon (Node2D)            -- local position (50, 0)
+    ├── Sprite2D
+    └── Muzzle (Marker2D)      -- local position (20, 0)
+```
+
+`Weapon` is a child of `Player`, positioned 50 pixels to its right. `Muzzle` is a child of `Weapon`, 20 pixels further right again. Each node only ever stores its position *relative to its parent* — that's `position`. Godot computes `global_position` for you by walking up the tree and composing transforms.
+
+```gdscript
+# Player.gd -- attached to the root Player node
+extends CharacterBody2D
+
+@onready var weapon: Node2D = $Weapon
+
+func _physics_process(delta: float) -> void:
+	var input_dir := Input.get_vector("move_left", "move_right", "move_up", "move_down")
+	velocity = input_dir * 300.0
+	move_and_slide()
+
+	if Input.is_action_just_pressed("rotate_weapon"):
+		print("before: ", weapon.global_position)
+		rotation += PI / 2   # rotates the WHOLE Player node, not Weapon directly
+		print("after:  ", weapon.global_position)
+```
+
+Say `Player` sits at global position `(400, 300)` with `rotation = 0`. `Weapon`'s local position never changes — it's still `(50, 0)` relative to `Player` the entire time. But before the rotation, `Weapon.global_position` prints `(450, 300)`; after rotating `Player` by 90 degrees, it prints `(400, 350)`. Nothing touched `Weapon` directly. Its global position changed because Godot recomputes `global_transform = parent.global_transform * local_transform` every time the tree is dirty, and `Weapon` — and therefore `Muzzle`, two levels down — inherited the rotation applied to their ancestor.
+
+This is the practical payoff of a scene graph: attach a camera as a child of the player and it follows automatically; attach a muzzle marker as a grandchild of the player and `Muzzle.global_position` is always the correct spawn point for a bullet, rotated and translated correctly, with zero manual math. Phaser has `Container` nodes that give you a shallow version of this for grouping sprites, but Tier 2's Coin Dash never needed — or had — a deep tree of physics bodies, cameras, and markers all inheriting one root transform. That's the real difference a scene graph buys you once your game has more than one moving part attached to another.
+
+## Physics Engines: Real Rigid Bodies, Not Just Overlap
+
+Tier 2's Arcade Physics could tell you *that* two boxes touched and let you manually set a velocity in response. It could not tell you how a crate should tumble off a ledge, how a ball should roll down a ramp and visibly spin while doing so, or how a plank should tip when weight lands unevenly on one end — because Arcade bodies don't model mass, torque, or angular momentum at all. Godot's physics server does, through three node types that divide responsibility cleanly:
+
+- **StaticBody2D** — never moves, never responds to forces. A floor, a wall.
+- **RigidBody2D** — fully simulated: gravity, mass, friction, bounce, torque, angular velocity. The thing that actually gets physics done *to* it.
+- **Area2D** — detects overlap and fires signals, but exerts no collision response of its own. A trigger volume, not a solid object.
+
+A crate dropped onto a floor, with a goal trigger at the bottom of a ramp:
+
+```gdscript
+# Crate.gd -- attached to a RigidBody2D node named "Crate"
+extends RigidBody2D
+
+func _ready() -> void:
+	mass = 2.0
+	gravity_scale = 1.0
+	var mat := PhysicsMaterial.new()
+	mat.friction = 0.6
+	mat.bounce = 0.2
+	physics_material_override = mat
+
+func kick(direction: Vector2) -> void:
+	apply_central_impulse(direction.normalized() * 400.0)
+```
+
+```gdscript
+# Goal.gd -- attached to an Area2D node, connected to its own body_entered signal
+extends Area2D
+
+func _on_body_entered(body: Node) -> void:
+	if body.name == "Crate":
+		print("Crate reached the goal")
+		body.queue_free()
+```
+
+None of this is manual arithmetic. `_physics_process` runs on a fixed timestep — 60 Hz by default, decoupled from however fast the display is drawing frames, which is the engine-level version of the delta-time problem Tier 2 solved by hand with `performance.now()`. Inside that fixed step, Godot's physics server integrates gravity into `linear_velocity`, resolves the contact against the floor using `friction` and `bounce` from the `PhysicsMaterial`, and updates the crate's transform — all before your script code runs again.
+
+Rotation is where the gap with Tier 2 is most visible. Pin one end of a plank-shaped `RigidBody2D` to a `StaticBody2D` anchor with a `PinJoint2D`, and drop a ball on one end:
+
+```gdscript
+# the joint itself needs no script -- set it up once in the editor:
+# PinJoint2D.node_a = the anchor StaticBody2D
+# PinJoint2D.node_b = the Plank RigidBody2D
+```
+
+The ball's impact applies force at a point offset from the plank's center of mass, which produces torque; the physics server converts that torque into angular velocity, and the plank visibly rotates around the pin — heavier impact or impact further from the pin, more rotation, exactly as it should. Arcade Physics in Tier 2 has no concept of torque or angular velocity driven by collision at all; its bodies can technically have a `rotation` value, but nothing in a collision response ever changes it. That's the concrete difference between "overlap detection with a velocity you set yourself" and "an actual rigid body simulation."
+
+## Shaders 101: What the GPU Is Actually Doing
+
+A shader is a small program that runs on the GPU instead of the CPU, and it runs in two stages for every mesh Godot draws, including a sprite's quad.
+
+- **Vertex shader** — runs once per vertex. A sprite is a quad, so this runs 4 times. Its job is to output a position (and any other data the fragment stage will need, called varyings). You can displace geometry here.
+- **Fragment shader** — runs once per pixel the shape actually covers on screen. For a 200x200 sprite that's up to 40,000 executions, one per pixel, computing the final color.
+
+Here's a minimal, real `canvas_item` shader (Godot's shader language is GLSL, restricted and extended with engine-specific built-ins) that wobbles a sprite's geometry and pulses its brightness:
+
+```glsl
+shader_type canvas_item;
+
+uniform float pulse_speed = 2.0;
+uniform float pulse_strength = 0.4;
+
+void vertex() {
+	// VERTEX is this vertex's local-space position -- modifying it
+	// changes the actual geometry sent down the pipeline.
+	VERTEX.y += sin(TIME * pulse_speed + VERTEX.x * 0.1) * 2.0;
+}
+
+void fragment() {
+	vec4 tex_color = texture(TEXTURE, UV);
+	float glow = (sin(TIME * pulse_speed) * 0.5 + 0.5) * pulse_strength;
+	COLOR = vec4(tex_color.rgb + glow, tex_color.a);
+}
+```
+
+`TIME` is seconds since the game started, provided automatically. `UV` is the texture coordinate for this fragment, interpolated across the quad from the vertex stage. `TEXTURE` is the sprite's bound texture, sampled with `texture(TEXTURE, UV)` to get the original pixel. `COLOR` is the output you're required to set in `fragment()` — it's what actually reaches the screen.
+
+Drop this on a `Sprite2D` by creating a `ShaderMaterial`, assigning this shader to it, and setting it as the sprite's `material` — no extra plugin, no WebGL boilerplate. That last point is the direct contrast with Tier 2: Phaser's Arcade sprites never touch the GPU pipeline in your code at all; getting a custom shader into a Phaser game means reaching into its `Pipeline` / WebGL renderer API, which Tier 2 deliberately stayed away from. In Godot, every renderable node already has a slot for exactly this.
+
+One performance note worth internalizing now, even though the deep profiling work belongs to this tier's own Performance Engineering module: the vertex stage here runs 4 times per sprite, but the fragment stage runs once per covered pixel. Cheap-looking math in `fragment()` gets multiplied by resolution and sprite count, which is where shader performance problems actually come from — something to watch for, not re-derive here.
+
+## Multi-Platform Build Pipelines From One Engine
+
+A Phaser game is already a web page — there's no "export" step for the web target, and getting it onto desktop or mobile at all meant bolting on Electron (as Tier 2 did) or a tool like Capacitor for mobile. Godot inverts that: one project, one set of scenes and scripts, and a built-in exporter that targets a dozen platforms, including Web, from inside the same editor.
+
+The real steps, exporting the same project to Windows Desktop and Web:
+
+1. **Editor → Manage Export Templates**, and download the templates matching your exact installed Godot version. A version mismatch here is the single most common real failure — a 4.3 project exported with 4.2's templates will often just fail to run.
+2. **Project → Export → Add... → Windows Desktop.** Set an icon, choose whether to embed the `.pck` data file into the `.exe` or ship it alongside, and export. This produces a native binary that runs with no runtime installed, no browser, no wrapper — a sharp contrast with Tier 2's Electron output, which ships an entire bundled Chromium process just to render HTML/CSS.
+3. **Add... → Web.** Godot compiles the engine and your project to WebAssembly via its own Emscripten-based templates — you never touch a WASM toolchain yourself, you just pick this preset. The real constraint: the output (`index.html`, a `.wasm` file, a `.pck` file) must be served over HTTP(S); opening `index.html` directly from disk fails because browsers block the fetches the loader needs. If the project uses threads anywhere, the server also has to send `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp` headers, or the build silently can't allocate a `SharedArrayBuffer` and multithreading breaks at runtime with no obvious error in your code.
+4. **Add... → Android**, if you go further: this one needs setup entirely outside Godot — the Android SDK command-line tools, a Java 17 JDK, and a signing keystore generated once with `keytool -genkey -v -keystore debug.keystore -alias androiddebugkey -keyalg RSA -validity 10000`, pointed to from the export preset before Godot will even let you click Export.
+5. **For automation**, the same exports run headless from the command line, which is the one new piece to feed into a CI pipeline — the pipeline mechanics themselves (triggers, secrets, artifact upload) are the GitHub Actions material already covered in this tier's Cloud-Native Patterns module and Tier 3's Cloud Basics module, not something to re-derive here:
+
+```yaml
+# .github/workflows/export.yml -- the engine-specific line is the two exports below;
+# everything else here is the same GitHub Actions shape covered in Cloud-Native Patterns
+name: Export Builds
+on: [push]
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Export Windows and Web builds
+        run: |
+          godot4 --headless --export-release "Windows Desktop" build/win/game.exe
+          godot4 --headless --export-release "Web" build/web/index.html
+      - uses: actions/upload-artifact@v4
+        with:
+          name: builds
+          path: build/
+```
+
+The constraint worth sitting with: your GDScript and scene files don't branch per platform the way Tier 3's React Native work sometimes needed a `Platform.select`. The differences between these exports live almost entirely in export configuration and platform SDKs — templates, keystores, server headers — not in the game logic itself. That's the real tradeoff of a real engine: more moving parts in the export pipeline, in exchange for a single native-feeling binary (or a browser build) per platform instead of one framework wrapped repeatedly.
+
+## Exercise
+
+Build a small marble run: a tilted ramp (`StaticBody2D`), three `RigidBody2D` marbles with different `PhysicsMaterial` friction/bounce values dropped from the same height, and a goal `Area2D` at the bottom of the ramp. Give the goal's sprite the pulsing shader from this module, but keep it off by default, and toggle it on from GDScript the moment a marble enters (`material.set_shader_parameter("pulse_strength", 0.4)`). Then export the finished scene to both Windows Desktop and Web, run both builds, and check: do the marbles come to rest in the same place in both exports?
+
+**Hint:** they should, and if they don't, the bug is almost never in your GDScript — it's usually a project setting that differs between presets (a different default physics tick rate, or "Discrete" vs "Continuous" collision detection on the fast-moving marbles) rather than anything nondeterministic about the physics server itself. Check Project Settings → Physics before assuming your code is wrong.

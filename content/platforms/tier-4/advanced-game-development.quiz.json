@@ -1,0 +1,98 @@
+[
+  {
+    "id": "platforms/tier-4/advanced-game-development/q1",
+    "type": "multiple_choice",
+    "prompt": "A Weapon node (Node2D) sits as a child of Player at local position (50, 0). Player is at global position (400, 300) with rotation 0, then its rotation changes to 90 degrees (PI/2). What happens to Weapon's global_position, and why?",
+    "choices": [
+      "It changes to roughly (400, 350), because Godot recomputes a child's global transform from its parent's transform every time the tree updates",
+      "It stays at (450, 300), because Weapon's local position never changed",
+      "It becomes (0, 0), because rotating the parent resets children to the origin",
+      "It is undefined until you manually call weapon.update_transform()"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-4/advanced-game-development/q2",
+    "type": "multiple_choice",
+    "prompt": "You need a floor that collides with falling crates but never moves and is never affected by forces like gravity or impulses. Which Godot physics node fits?",
+    "choices": [
+      "RigidBody2D",
+      "Area2D",
+      "StaticBody2D",
+      "CharacterBody2D"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "platforms/tier-4/advanced-game-development/q3",
+    "type": "multiple_choice",
+    "prompt": "You want a trigger volume at the end of a ramp that detects when a marble passes through and fires a signal, but should never physically push the marble or block its path. Which node is correct?",
+    "choices": [
+      "StaticBody2D",
+      "Area2D",
+      "RigidBody2D",
+      "CollisionShape2D"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-4/advanced-game-development/q4",
+    "type": "multiple_choice",
+    "prompt": "A ball drops off-center onto one end of a plank pinned at its middle with a PinJoint2D. Why does the plank tip, something Tier 2's Arcade Physics-based AABB overlap system could never produce?",
+    "choices": [
+      "Arcade Physics bodies cannot have a rotation property at all",
+      "The off-center impact creates torque, which Godot's physics server converts into angular velocity; Arcade Physics has no concept of torque driven by collisions",
+      "PinJoint2D forces every connected body to spin at a fixed rate regardless of impact",
+      "The plank tips only because gravity_scale was set above 1.0"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-4/advanced-game-development/q5",
+    "type": "multiple_choice",
+    "prompt": "In a minimal Godot canvas_item shader, which built-in do you modify inside vertex() to displace a sprite's actual geometry, and which do you assign inside fragment() to set the final on-screen pixel color?",
+    "choices": [
+      "Modify COLOR in vertex(); assign VERTEX in fragment()",
+      "Modify UV in vertex(); assign TEXTURE in fragment()",
+      "Modify VERTEX in vertex(); assign COLOR in fragment()",
+      "Modify TIME in vertex(); assign UV in fragment()"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "platforms/tier-4/advanced-game-development/q6",
+    "type": "multiple_choice",
+    "prompt": "For a sprite rendered as a single quad, roughly how many times does the vertex shader stage run per draw compared to the fragment shader stage?",
+    "choices": [
+      "Vertex runs once per pixel covered; fragment runs once per vertex (4 times)",
+      "Vertex runs 4 times (once per vertex of the quad); fragment runs once per pixel the quad covers on screen",
+      "Both run exactly once per draw call, regardless of sprite size",
+      "Vertex and fragment both run once per frame for the whole scene, not per object"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-4/advanced-game-development/q7",
+    "type": "multiple_choice",
+    "prompt": "You export a Godot project to Web and the project uses threads. The build runs but multithreading fails at runtime with no obvious code error. What's the most likely cause?",
+    "choices": [
+      "The exported .wasm file is corrupted and needs re-exporting",
+      "GDScript threads are not supported by Godot at all, on any platform",
+      "The web server isn't sending the Cross-Origin-Opener-Policy and Cross-Origin-Embedder-Policy headers needed for SharedArrayBuffer",
+      "The export template version is newer than the runtime browser's WebAssembly version"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "platforms/tier-4/advanced-game-development/q8",
+    "type": "multiple_choice",
+    "prompt": "Exporting the same Godot project to Android requires setup that a Windows Desktop export from the same project does not. What is that extra requirement?",
+    "choices": [
+      "A separate rewrite of all GDScript game logic for Android-specific APIs",
+      "The Android SDK command-line tools, a Java JDK, and a signing keystore configured in the export preset",
+      "Converting all scenes from .tscn to a binary-only format",
+      "Installing Godot a second time, compiled specifically for ARM"
+    ],
+    "correctIndex": 1
+  }
+]

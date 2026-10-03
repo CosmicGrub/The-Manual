@@ -1,0 +1,98 @@
+[
+  {
+    "id": "platforms/tier-4/cloud-native-patterns/q1",
+    "type": "multiple_choice",
+    "prompt": "In the Deployment + Service pattern for the tasks-api, what is the Service object's primary job?",
+    "choices": [
+      "Provide a stable network address that routes to any healthy pod matching its selector, regardless of which pods are created or destroyed",
+      "Build the Docker image and push it to a registry",
+      "Store the application's persistent data on disk",
+      "Define how many replicas of the pod should run"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-4/cloud-native-patterns/q2",
+    "type": "multiple_choice",
+    "prompt": "The tasks-api Deployment is scaled to six replicas, but the app still uses the Tier 3 approach of a single SQLite file on local disk. What actually happens?",
+    "choices": [
+      "Each pod ends up with its own independent, diverging copy of the data instead of six workers sharing one dataset",
+      "Kubernetes automatically merges the six SQLite files into one on a shared volume",
+      "SQLite detects the replica count and switches itself into a clustered mode",
+      "Nothing changes, because SQLite files are automatically synced across pods by the Service object"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-4/cloud-native-patterns/q3",
+    "type": "multiple_choice",
+    "prompt": "In the CI/CD pipeline, what does running `kubectl rollout status deployment/tasks-api` as a CI step accomplish?",
+    "choices": [
+      "It blocks the pipeline until the new pods pass their readiness probes, so a broken rollout fails CI instead of leaving unhealthy pods live",
+      "It deletes the old Deployment immediately so the new one can take its place",
+      "It runs the application's unit test suite one more time inside the cluster",
+      "It builds the Docker image before pushing it to the registry"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-4/cloud-native-patterns/q4",
+    "type": "multiple_choice",
+    "prompt": "Why does the module's logging middleware emit one JSON object per request instead of a plain-text line like \"GET /tasks/1 200 14ms\"?",
+    "choices": [
+      "Log aggregators index and query on structured fields, so JSON enables queries like p95 latency per route without regex-parsing text",
+      "JSON logs take up less disk space than plain text",
+      "Express refuses to run unless console.log is passed a JSON string",
+      "Plain-text logs cannot include a timestamp"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-4/cloud-native-patterns/q5",
+    "type": "multiple_choice",
+    "prompt": "What is the key architectural difference between the Cloudflare Worker version of GET /tasks/:id and the containerized Express version running in the Deployment?",
+    "choices": [
+      "The Worker runs per-request on isolates with no standing process or in-memory state to manage and scales automatically, while the Express container is a long-running process you scale by replica count",
+      "The Worker requires its own dedicated Kubernetes cluster to run",
+      "The Worker can only respond to POST requests, never GET requests",
+      "The Express container has no CPU or memory limits, while the Worker always does"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-4/cloud-native-patterns/q6",
+    "type": "multiple_choice",
+    "prompt": "In the percentage-rollout feature flag implementation, what guarantees that the same user consistently lands on the same side of the `due_dates` flag across multiple requests?",
+    "choices": [
+      "A deterministic hash of the flag name and a stable user identifier is used to compute the bucket, rather than a random number per request",
+      "The flag state is stored in the SQLite database alongside each task",
+      "Express caches the first decision made for each IP address",
+      "The rollout percentage is recalculated fresh on every single request"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-4/cloud-native-patterns/q7",
+    "type": "multiple_choice",
+    "prompt": "According to this module, which of the following is explicitly out of scope here and belongs to the DevOps track instead?",
+    "choices": [
+      "Deep Kubernetes administration (Helm charts, operators, admission controllers) and the full SRE observability stack (distributed tracing, SLOs, on-call alerting)",
+      "Writing a Deployment and Service YAML for an app backend",
+      "Adding a structured-logging middleware to an Express app",
+      "Gating a new field behind a percentage-rollout feature flag"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-4/cloud-native-patterns/q8",
+    "type": "multiple_choice",
+    "prompt": "Why is `kubectl set image deployment/tasks-api tasks-api=<new-image>` safer for production than manually stopping the old container and starting a new one?",
+    "choices": [
+      "Kubernetes performs a rolling update, starting new pods and waiting on their readiness probes before terminating old ones, avoiding a hard all-at-once cutover",
+      "It skips running any tests before deploying",
+      "It permanently disables the readiness and liveness probes during the update",
+      "It automatically reverts the image tag back to \"latest\" after each deploy"
+    ],
+    "correctIndex": 0
+  }
+]

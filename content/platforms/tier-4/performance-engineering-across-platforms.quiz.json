@@ -1,0 +1,98 @@
+[
+  {
+    "id": "platforms/tier-4/performance-engineering-across-platforms/q1",
+    "type": "multiple_choice",
+    "prompt": "In Chrome DevTools' Performance tab, a recorded interaction shows a red-bordered block in the summary strip labeled as a Long Task. What does that specifically mean?",
+    "choices": [
+      "The main thread was blocked by a single task for more than 50ms",
+      "A network request took longer than 500ms to resolve",
+      "The page failed to reach First Contentful Paint",
+      "A JavaScript exception was thrown during the recording"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-4/performance-engineering-across-platforms/q2",
+    "type": "multiple_choice",
+    "prompt": "A sort comparator calls a function that itself loops over the full array to recompute a value for every comparison. What is the main consequence visible in a flame chart, and the standard fix?",
+    "choices": [
+      "The comparator function appears thousands of times with high total time; fix it by precomputing each row's value once before sorting (decorate-sort-undecorate)",
+      "The comparator causes a memory leak; fix it by calling the garbage collector manually",
+      "The comparator triggers forced reflows; fix it by batching DOM reads and writes",
+      "The comparator blocks the GPU thread; fix it by moving the sort to a Web Worker only"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-4/performance-engineering-across-platforms/q3",
+    "type": "multiple_choice",
+    "prompt": "In an Xcode Instruments Time Profiler trace of a laggy table view, the call tree shows `cellForRowAt` leading into `CGImageSourceCreateImageAtIndex` consuming a large share of main-thread samples. What is the correct fix?",
+    "choices": [
+      "Decode the image on a background queue, cache the result, and dispatch back to the main thread only to assign it to the image view",
+      "Replace UITableView with a UICollectionView to get better default performance",
+      "Increase the table view's estimated row height so fewer cells are measured",
+      "Call setNeedsDisplay() on the cell after configuring it"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-4/performance-engineering-across-platforms/q4",
+    "type": "multiple_choice",
+    "prompt": "Using Instruments Allocations with Generation A and Generation B snapshots, you push and pop a detail screen five times between the snapshots. Generation B shows the detail view controller's persistent count at 5 instead of 0. What does this indicate?",
+    "choices": [
+      "Something outside the normal view lifecycle is holding a strong reference, preventing the view controller from deallocating",
+      "The app is using too much CPU during the push/pop animation",
+      "The view controller's view hierarchy is too deeply nested",
+      "The detail screen is leaking only because ARC is disabled for that file"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-4/performance-engineering-across-platforms/q5",
+    "type": "multiple_choice",
+    "prompt": "A Swift view model starts a repeating Timer whose closure captures self strongly (directly and inside a nested network callback). The view model's owner is dismissed, but the view model never deallocates. What combination of changes actually fixes this?",
+    "choices": [
+      "Capture self weakly in both closures with [weak self], and call timer.invalidate() in deinit so the timer stops once the view model is finally released",
+      "Capture self weakly in both closures with [weak self] only; invalidation is unnecessary because ARC handles it automatically",
+      "Mark the ProfileViewModel class as final and remove the Timer entirely",
+      "Call timer.invalidate() immediately after creating the timer"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-4/performance-engineering-across-platforms/q6",
+    "type": "multiple_choice",
+    "prompt": "A loop reads card.offsetWidth and then writes card.style.height for each card, one card at a time. DevTools shows a repeated stack of purple Layout blocks each flagged as a forced reflow. Why does this happen, and what's the fix?",
+    "choices": [
+      "Interleaving a DOM read after a DOM write forces a synchronous layout on every iteration; batch all the reads first, then all the writes",
+      "The loop is too slow because of JavaScript's garbage collector; fix it by using a for-loop instead of forEach",
+      "offsetWidth is deprecated and should be replaced with getBoundingClientRect for better performance",
+      "The CSS transition duration is too long; shortening it removes the Layout blocks"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-4/performance-engineering-across-platforms/q7",
+    "type": "multiple_choice",
+    "prompt": "A webpack-bundle-analyzer treemap shows moment.js's locale directory taking up roughly 230 KB of a 310 KB vendor bundle, even though the app only ever renders dates in one locale. What's the most direct fix?",
+    "choices": [
+      "Add a webpack.IgnorePlugin targeting moment's locale directory and explicitly import only the needed locale file",
+      "Switch the build target from 'web' to 'node' in webpack.config.js",
+      "Replace webpack with Metro to get automatic locale tree-shaking",
+      "Move the moment import into a Web Worker so it doesn't count toward bundle size"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-4/performance-engineering-across-platforms/q8",
+    "type": "multiple_choice",
+    "prompt": "A React Native FlatList's renderItem does `onPress={() => onSelect(item.id)}` and `style={{ padding: 12 }}` inline, and ContactRow is wrapped in React.memo. Profiling shows every row re-rendering whenever the parent re-renders. Why does React.memo fail to prevent this?",
+    "choices": [
+      "renderItem allocates a new function and a new object literal on every call, so React.memo's shallow prop comparison always sees different references and re-renders anyway",
+      "React.memo does not work with FlatList's renderItem prop under any circumstances",
+      "FlatList re-renders every row by design regardless of memoization to keep scroll position in sync",
+      "The keyExtractor is returning a new key on every render, forcing a full remount"
+    ],
+    "correctIndex": 0
+  }
+]

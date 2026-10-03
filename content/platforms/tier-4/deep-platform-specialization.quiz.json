@@ -1,0 +1,98 @@
+[
+  {
+    "id": "platforms/tier-4/deep-platform-specialization/q1",
+    "type": "multiple_choice",
+    "prompt": "In Swift, what does rewriting a chain of three dependent network calls from nested completion handlers to `async`/`await` change about error handling?",
+    "choices": [
+      "Errors from any step propagate automatically via `try await`, instead of being manually forwarded through a `completion(.failure(error))` call at every nesting level",
+      "Errors can no longer be caught at all, since `async` functions cannot throw",
+      "Each step now needs its own separate `do`/`catch` block instead of one shared one",
+      "Nothing changes about error handling; only the indentation level changes"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-4/deep-platform-specialization/q2",
+    "type": "multiple_choice",
+    "prompt": "A plain Swift `class` with a mutable `[URL: Data]` dictionary is accessed concurrently from multiple `Task`s calling a `store` method. What specifically does converting it to an `actor` guarantee?",
+    "choices": [
+      "The dictionary's storage can no longer grow past a fixed size",
+      "Access to the actor's mutable state is serialized, so only one task's code runs against it at a time, and the compiler requires `await` at every external call site",
+      "All the tasks now run in parallel on separate CPU cores for better performance",
+      "The dictionary is automatically persisted to disk between app launches"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-4/deep-platform-specialization/q3",
+    "type": "multiple_choice",
+    "prompt": "In the minimal Metal render pipeline example, what is the correct order of operations to draw one frame?",
+    "choices": [
+      "Compile the fragment shader, delete the command queue, then present the drawable",
+      "Make a command buffer, make a render command encoder, set the pipeline state and vertex buffers, encode the draw call, end encoding, then commit the command buffer",
+      "Call `drawPrimitives` directly on the `MTLDevice` without any command buffer or encoder",
+      "Create a new `MTLDevice` for every frame to avoid stale GPU state"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-4/deep-platform-specialization/q4",
+    "type": "multiple_choice",
+    "prompt": "In the Kotlin `ProfileViewModel` example, two `async` calls are launched inside `coroutineScope { }` to fetch a user and a feed in parallel. If `feedRepo.fetchFeed` throws an exception, what happens to the `userDeferred` coroutine?",
+    "choices": [
+      "It keeps running in the background and its result is silently discarded",
+      "It is automatically cancelled by the enclosing `coroutineScope`, because structured concurrency propagates sibling failure as cancellation",
+      "It throws the same exception independently, causing it to be reported twice",
+      "It is paused indefinitely until the ViewModel is manually told to resume it"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-4/deep-platform-specialization/q5",
+    "type": "multiple_choice",
+    "prompt": "Why is `dao.observeMessages(): Flow<List<Message>>` from Room described as a 'cold' stream, while the `StateFlow` it's wrapped into via `stateIn` is described as 'hot'?",
+    "choices": [
+      "Cold flows run on a background thread and hot flows run on the main thread",
+      "A cold flow does no work until something collects it and the underlying query re-runs per collection; a hot StateFlow always holds a current value and keeps running independent of active collectors",
+      "Cold flows can only emit once; hot flows can emit multiple times",
+      "There is no real difference \u2014 'cold' and 'hot' are purely stylistic naming conventions"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-4/deep-platform-specialization/q6",
+    "type": "multiple_choice",
+    "prompt": "In the Rust-to-Wasm example, `count_primes_up_to` takes and returns a `u32`. Why does this particular function cross the JS/Wasm boundary with minimal overhead?",
+    "choices": [
+      "Because Rust functions are always faster than JavaScript functions regardless of their signature",
+      "Because a `u32` maps directly to a native Wasm numeric type, so no serialization into or out of linear memory is required, unlike passing a `String` or `Vec<u8>`",
+      "Because `wasm-pack` automatically rewrites the function to run on the main thread instead of in Wasm",
+      "Because the function uses `unsafe` Rust internally to skip all bounds checks"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-4/deep-platform-specialization/q7",
+    "type": "multiple_choice",
+    "prompt": "What is the key architectural difference between running the prime-counting loop in a Web Worker versus calling it directly from the page's main-thread JavaScript?",
+    "choices": [
+      "A Web Worker runs on a separate thread with its own event loop and communicates only via serialized `postMessage` calls, so the main thread (and the UI) stays responsive during the computation",
+      "A Web Worker has direct access to the DOM, so it can update the UI faster than the main thread",
+      "A Web Worker shares memory directly with the main thread, so no messages are needed",
+      "A Web Worker is just a `setTimeout` call that defers the loop to the next event loop tick"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-4/deep-platform-specialization/q8",
+    "type": "multiple_choice",
+    "prompt": "In the Service Worker `fetch` handler implementing a cache-first strategy, what happens on a request whose response is already in the cache?",
+    "choices": [
+      "The cached response is returned immediately, while a network fetch still runs in the background to refresh the cache for next time",
+      "The request always goes to the network first, and the cache is only checked if the network fails",
+      "The cached response is deleted immediately after being read so it can never be reused",
+      "The Service Worker ignores the cache entirely and always re-downloads every asset"
+    ],
+    "correctIndex": 0
+  }
+]

@@ -1,0 +1,324 @@
+---
+trackId: platforms
+tier: 4
+title: "Cloud-Native Patterns"
+order: 3
+estimatedHours: 30
+slug: cloud-native-patterns
+---
+
+## Where this module fits
+
+Tier 3's "Cloud Basics for App Backends" got your tasks API off `localhost`: a `Dockerfile`, secrets in environment variables instead of source code, one `fly deploy`, and a CI workflow that ran `npm test` on every push. That's the minimum viable "it's on the internet." This module is what happens after that backend has real users, a second developer, and a product manager asking for a feature behind a flag before QA signs off.
+
+Scope check up front, because it matters more here than almost anywhere else in this track: deep Kubernetes administration — Helm charts, operators, admission controllers, CNI networking, cluster autoscaler internals — and the full SRE observability stack — distributed tracing, SLO math, paging and on-call runbooks — belong to the DevOps track. If you want that depth, go there. What you're building here is narrower and specific to this track: given a cluster, a serverless runtime, and a CI system that already exist, can you take the app backend you wrote in Tier 2 (the Express or Flask tasks API) and this tier's Tier 3 Docker work, and run it like production software — orchestrated, observable at a basic level, scaled, and safely toggled.
+
+Everything below reuses that same tasks API: `GET /tasks`, `GET /tasks/:id`, `POST /tasks`, `PUT /tasks/:id`, `DELETE /tasks/:id`, backed by SQLite, containerized with the Tier 3 `Dockerfile`, with a `/health` route already wired up. If your Tier 2/3 work used Flask instead of Express, every pattern here still applies — only the app code inside the container changes, not the YAML around it.
+
+## From one container to orchestrated: Kubernetes basics
+
+`fly deploy` gave you one running container with a health check and auto-restart. Kubernetes gives you the same core guarantee — declare what should be running, and the cluster keeps reconciling reality toward that declaration — at a scale where "one container" becomes "N identical containers, self-healing, behind a stable network address." You don't need a managed cluster to learn this: `kind create cluster --name tasks-dev` gives you a real (if tiny) Kubernetes cluster running in Docker on your own laptop in under a minute.
+
+Two objects do almost all the work for a stateless API like this one: a `Deployment`, which says "run this many copies of this container image," and a `Service`, which gives those copies one stable address to be reached at even as individual pods are destroyed and recreated.
+
+```yaml
+# k8s/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tasks-api
+  labels:
+    app: tasks-api
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: tasks-api
+  template:
+    metadata:
+      labels:
+        app: tasks-api
+    spec:
+      containers:
+        - name: tasks-api
+          image: ghcr.io/yourname/tasks-api:1.4.0
+          ports:
+            - containerPort: 3000
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: tasks-api-secrets
+                  key: database-url
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tasks-api
+spec:
+  selector:
+    app: tasks-api
+  ports:
+    - port: 80
+      targetPort: 3000
+  type: LoadBalancer
+```
+
+Read the probes carefully, because they're the whole point of orchestration over a single Fly machine. `readinessProbe` tells Kubernetes "don't send this pod traffic yet" until `/health` responds — so a pod mid-startup never eats a real request. `livenessProbe` tells it "kill and restart this pod" if `/health` stops responding entirely — a hung process gets replaced automatically instead of serving errors silently until a human notices. The `Service` with `selector: app: tasks-api` routes traffic to *any* pod carrying that label, so pods can die, restart, and get rescheduled on different nodes without any client-facing address ever changing.
+
+Apply it and watch it reconcile:
+
+```bash
+kubectl apply -f k8s/deployment.yaml
+kubectl get pods -w
+```
+
+Then prove the self-healing claim instead of taking it on faith: `kubectl delete pod <one-of-the-three-pod-names>` and watch `kubectl get pods` — a fourth pod appears within seconds to bring the count back to three. Nothing you did caused that; the Deployment's `replicas: 3` is a standing instruction the cluster enforces continuously, which is the entire conceptual leap from "I ran a container" to "I declared a desired state."
+
+## Serverless: the same logic, no server to manage at all
+
+Not every piece of your backend needs a standing process. A single, stateless, read-heavy route — `GET /tasks/:id` is a good candidate — can run on a serverless platform that spins up per request and disappears, billed in milliseconds, with nothing for you to patch or restart. Cloudflare Workers plus D1 (a SQLite-compatible, serverless database) maps almost exactly onto the resource you already built:
+
+```toml
+# wrangler.toml
+name = "tasks-api-edge"
+main = "src/worker.js"
+compatibility_date = "2024-09-23"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "tasks"
+database_id = "7f1a9c3e-4b2d-4e11-9a6f-2c8d5e0b1a44"
+```
+
+```javascript
+// src/worker.js
+export default {
+  async fetch(request, env) {
+    const url = new URL(request.url);
+    const match = url.pathname.match(/^\/tasks\/(\d+)$/);
+
+    if (request.method === "GET" && match) {
+      const id = Number(match[1]);
+      const { results } = await env.DB.prepare(
+        "SELECT id, title, done FROM tasks WHERE id = ?"
+      )
+        .bind(id)
+        .all();
+
+      if (results.length === 0) {
+        return Response.json({ error: "task not found" }, { status: 404 });
+      }
+      return Response.json(results[0]);
+    }
+
+    return Response.json({ error: "not found" }, { status: 404 });
+  },
+};
+```
+
+```bash
+wrangler d1 create tasks
+wrangler d1 execute tasks --file=./schema.sql
+wrangler deploy
+```
+
+Compare this honestly against the containerized version instead of treating "serverless" as strictly better. A Worker has no idle cost and scales from zero to thousands of concurrent requests without you touching a replica count — but it has no in-memory state that survives between requests, a hard CPU-time budget per invocation (not wall-clock time — a Worker idling on a slow upstream call ties up that budget differently than a container thread would), and no long-lived connections pooled the way a Node process pools them. That's why this pattern is "one endpoint on serverless," not "the whole backend on serverless": the full CRUD surface with its validation and business logic stays on the orchestrated backend from the previous section; a cheap, high-traffic, edge-friendly read gets peeled off onto the platform built for exactly that shape of work.
+
+## End-to-end CI/CD: build, test, deploy
+
+Tier 3's pipeline stopped at `npm test`. Close the loop all the way to production: build the image, prove it works, push it somewhere pullable, then tell the cluster to run the new version.
+
+```yaml
+# .github/workflows/deploy.yml
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      - run: npm ci
+      - run: npm test
+
+  build-and-push:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.meta.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        run: echo "image=ghcr.io/${{ github.repository }}:${{ github.sha }}" >> "$GITHUB_OUTPUT"
+      - uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.image }}
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - uses: azure/setup-kubectl@v4
+      - run: |
+          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > kubeconfig
+          export KUBECONFIG=kubeconfig
+          kubectl set image deployment/tasks-api \
+            tasks-api=${{ needs.build-and-push.outputs.image }}
+          kubectl rollout status deployment/tasks-api
+```
+
+Three jobs, each gated on the last: no build without green tests, no deploy without a successfully pushed image. `kubectl set image` triggers a rolling update — Kubernetes replaces pods gradually, starting new ones and waiting on their readiness probe before killing old ones, so there's no hard cutover where every pod is down at once. `kubectl rollout status` is the step that makes this safe to automate: it blocks the CI job until the new pods actually pass their readiness probe, so a broken image fails the pipeline loudly instead of silently leaving three unhealthy pods in production. If a bad rollout slips through anyway, `kubectl rollout undo deployment/tasks-api` reverts to the previous image in one command — worth knowing before you need it at 2am, not after.
+
+## Observability: structured logs and basic metrics, not a full SRE stack
+
+"Observability" at the depth the DevOps track owns means distributed tracing across services, SLO burn-rate alerts, and on-call runbooks. At this track's depth, it means two much narrower things: your backend's logs are machine-parseable, and it exposes basic numbers about itself that something else could scrape later.
+
+Structured logging first — one JSON object per request, not a free-text line:
+
+```javascript
+import { randomUUID } from "crypto";
+
+app.use((req, res, next) => {
+  const start = Date.now();
+  req.requestId = randomUUID();
+
+  res.on("finish", () => {
+    console.log(JSON.stringify({
+      level: res.statusCode >= 500 ? "error" : "info",
+      requestId: req.requestId,
+      method: req.method,
+      path: req.path,
+      status: res.statusCode,
+      durationMs: Date.now() - start,
+      timestamp: new Date().toISOString(),
+    }));
+  });
+
+  next();
+});
+```
+
+`"GET /tasks/1 200 14ms"` is fine for your own terminal and useless to a log aggregator like CloudWatch Logs or Loki at scale, because those tools query on fields, not substrings. A JSON line means "p95 duration where path is `/tasks/:id` in the last hour" is a real query you can run later, not a regex you have to write under pressure during an incident.
+
+Basic metrics next — counts and latencies exposed in a format something can scrape, using `prom-client`:
+
+```javascript
+import client from "prom-client";
+
+const httpRequests = new client.Counter({
+  name: "http_requests_total",
+  help: "Total HTTP requests",
+  labelNames: ["method", "path", "status"],
+});
+
+const httpDuration = new client.Histogram({
+  name: "http_request_duration_seconds",
+  help: "HTTP request duration in seconds",
+  labelNames: ["method", "path"],
+  buckets: [0.01, 0.05, 0.1, 0.5, 1, 2],
+});
+
+app.use((req, res, next) => {
+  const route = req.route?.path || req.path;
+  const end = httpDuration.startTimer({ method: req.method, path: route });
+  res.on("finish", () => {
+    httpRequests.inc({ method: req.method, path: route, status: res.statusCode });
+    end();
+  });
+  next();
+});
+
+app.get("/metrics", async (req, res) => {
+  res.set("Content-Type", client.register.contentType);
+  res.end(await client.register.metrics());
+});
+```
+
+That `/metrics` route is as far as this module goes. Standing up a Prometheus server to scrape it, building Grafana dashboards on top, and defining SLOs and alert thresholds against those numbers is exactly the SRE-depth work the DevOps track covers properly. What you've built is the floor every one of those systems needs: a backend that tells the truth about itself in a format designed to be collected, instead of one you'd have to SSH into and `grep` under pressure.
+
+## Horizontal scaling and feature flags
+
+Scaling the Deployment is one command: `kubectl scale deployment tasks-api --replicas=6`. But run that against the exact backend from Tier 3 and you'll hit a real architectural wall worth understanding rather than a toy caveat: Tier 3's backend used SQLite, a single file on disk inside one container. Six replicas means six independent containers, each with its own disk — meaning six divergent copies of your data, not six workers sharing one dataset. Horizontal scaling a stateful app isn't free; it requires moving the state out of the pod entirely, onto a shared Postgres instance every replica connects to over the network, so the pods themselves become stateless and interchangeable — which is precisely why `tasks-api-secrets` held a `DATABASE_URL` in the Deployment YAML above instead of a local file path.
+
+Feature flags solve a different problem: decoupling *deploying* code from *releasing* a feature, so a half-finished or risky feature can ship to production dark and roll out gradually. Here's a real percentage-based rollout gating a new `dueDate` field on task creation, using a consistent hash so the same user always lands on the same side of the flag:
+
+```javascript
+import { createHash } from "crypto";
+
+function isFeatureEnabled(flagName, rolloutPercent, userId) {
+  const hash = createHash("sha256").update(`${flagName}:${userId}`).digest("hex");
+  const bucket = parseInt(hash.slice(0, 8), 16) % 100;
+  return bucket < rolloutPercent;
+}
+
+app.post("/tasks", (req, res) => {
+  const userId = req.header("X-User-Id") || "anonymous";
+  const rolloutPercent = Number(process.env.FLAG_DUE_DATES_PERCENT || 0);
+  const dueDatesOn = isFeatureEnabled("due_dates", rolloutPercent, userId);
+
+  const { title, dueDate } = req.body;
+  if (typeof title !== "string" || title.trim() === "") {
+    return res.status(400).json({ error: "title is required" });
+  }
+
+  const result = dueDatesOn
+    ? db.prepare("INSERT INTO tasks (title, done, due_date) VALUES (?, 0, ?)")
+        .run(title.trim(), dueDate ?? null)
+    : db.prepare("INSERT INTO tasks (title, done) VALUES (?, 0)").run(title.trim());
+
+  res.status(201).json(db.prepare("SELECT * FROM tasks WHERE id = ?").get(result.lastInsertRowid));
+});
+```
+
+Rolling this out is a sequence of environment-variable changes, not redeploys: `FLAG_DUE_DATES_PERCENT=10` in the Deployment's env, watch `/metrics` and logs for errors, then `25`, `50`, `100`. Each change is `kubectl set env deployment/tasks-api FLAG_DUE_DATES_PERCENT=50` plus the rolling restart Kubernetes already handles for you — no new image, no new CI run. This hand-rolled hash is the exact mechanism a real flagging service (LaunchDarkly, Unleash, Split) uses under the hood for percentage rollouts; the only thing a managed service adds is moving the flag state out to a dashboard and a runtime API call instead of a baked-in env var, which is a reasonable next step once you outgrow this.
+
+## Exercise
+
+Using your actual Tier 2/3 tasks API (Express or Flask, not a toy):
+
+1. Write `k8s/deployment.yaml` and a `Service` for it, spin up a local cluster with `kind create cluster`, apply the manifests, and confirm three pods are running. Delete one pod by name and confirm Kubernetes replaces it without you doing anything else.
+2. Pick one read-only route and reimplement it as a Cloudflare Worker (or AWS Lambda) backed by its own tiny datastore. Hit both versions after they've been idle for a few minutes and compare the cold-start latency you actually observe.
+3. Extend your Tier 3 GitHub Actions test workflow into the three-job pipeline above: test, build and push to GHCR, then `kubectl set image` against your local cluster (a self-hosted runner or `kind` cluster reachable from the runner works for this).
+4. Add the structured-logging middleware and a `/metrics` route, then gate one real field behind the percentage-rollout flag pattern, driven by an environment variable on the Deployment.
+
+**Hint:** for step 1, if you don't want to touch a cloud provider yet, `kind` gives you a real multi-node-capable cluster entirely on your own laptop — there's no reason to jump straight to a managed EKS/GKE cluster just to prove a Deployment and a Service work the way this module describes.

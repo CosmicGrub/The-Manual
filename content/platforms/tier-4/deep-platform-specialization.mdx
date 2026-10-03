@@ -1,0 +1,448 @@
+---
+trackId: platforms
+tier: 4
+title: "Deep Platform Specialization (choose one path)"
+order: 5
+estimatedHours: 25
+slug: deep-platform-specialization
+---
+
+## Where this sits in the track
+
+Tier 3 made you ship a real, working native app on one mobile OS — SwiftUI with `@State`/`@ObservedObject` on iOS, Compose with `ViewModel` and state hoisting on Android — and the earlier modules in this tier (Performance Engineering, Architecture Patterns, Cloud-Native Patterns, Advanced Game Development) taught you to reason about a whole system from the outside: profile it, scale it, pick an architecture for it. This module is the opposite move. You pick **one** of three paths — iOS, Android, or Web — and go underneath the framework you already know how to use, down to the concurrency model and the rendering layer. General concurrency theory (threads, locks, what a race condition actually is at the hardware level) belongs to the CS Systems track; this module assumes you have that and goes straight to how each platform's own idiomatic API expresses it, with a real bug each one prevents.
+
+Don't try to do all three shallowly. Pick the path that matches where you want to specialize — the one you'll actually use in a job or a side project — and go deep. The other two sections are here so you can read them later, or so a team lead who went a different direction than you can still follow your code review.
+
+## Path 1 — iOS: Swift Concurrency and Metal
+
+### From a completion-handler chain to async/await
+
+Your Tier 3 SwiftUI module used `@State` and `@ObservedObject`, but the networking underneath almost certainly used completion handlers, because that's what `URLSession` has offered since iOS 2. Here's the callback-chain shape you've probably already written, fetching a user, then their most recent post, then that post's comment count — three dependent network calls:
+
+```swift
+func fetchProfile(userID: String, completion: @escaping (Result<ProfileSummary, Error>) -> Void) {
+    fetchUser(id: userID) { userResult in
+        switch userResult {
+        case .failure(let error):
+            completion(.failure(error))
+        case .success(let user):
+            fetchLatestPost(authorID: user.id) { postResult in
+                switch postResult {
+                case .failure(let error):
+                    completion(.failure(error))
+                case .success(let post):
+                    fetchCommentCount(postID: post.id) { countResult in
+                        switch countResult {
+                        case .failure(let error):
+                            completion(.failure(error))
+                        case .success(let count):
+                            completion(.success(ProfileSummary(user: user, post: post, commentCount: count)))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+```
+
+Four levels of nesting, the same error-forwarding boilerplate repeated three times, and a real footgun: forget one `completion(.failure(error))` branch and that call site silently hangs forever. Here is the same logic with `async`/`await`, using `URLSession`'s async API:
+
+```swift
+func fetchProfile(userID: String) async throws -> ProfileSummary {
+    let user = try await fetchUser(id: userID)
+    let post = try await fetchLatestPost(authorID: user.id)
+    let count = try await fetchCommentCount(postID: post.id)
+    return ProfileSummary(user: user, post: post, commentCount: count)
+}
+
+// Call site, from a SwiftUI view:
+.task {
+    do {
+        profile = try await fetchProfile(userID: currentUserID)
+    } catch {
+        errorMessage = error.localizedDescription
+    }
+}
+```
+
+`try await` on each line *is* the error propagation — any thrown error skips straight to the `catch`, no manual forwarding. The pyramid is gone because each step reads top to bottom like synchronous code, while the compiler still suspends and resumes on a background thread without blocking the caller.
+
+### Actors preventing a real data race
+
+Here's a plain class used as a shared cache, hit concurrently from several `Task`s — say, several image-prefetch tasks racing to populate the same dictionary:
+
+```swift
+final class ImageCache {
+    private var storage: [URL: Data] = [:]
+
+    func store(_ data: Data, for url: URL) {
+        storage[url] = data
+    }
+
+    func data(for url: URL) -> Data? {
+        storage[url]
+    }
+}
+```
+
+Run `store` from multiple concurrent `Task`s at once and you get undefined behavior on the underlying `Dictionary` — Swift's standard collections are not synchronized, so two tasks writing at the same instant can corrupt the dictionary's internal storage or silently drop one of the writes. This is exactly the shared-mutable-state race your CS Systems coursework described abstractly; here it's a crash log with `Fatal error: Dictionary` and a stack trace that doesn't point at the real cause.
+
+Turn the class into an `actor` and the compiler enforces serialized access for you:
+
+```swift
+actor ImageCache {
+    private var storage: [URL: Data] = [:]
+
+    func store(_ data: Data, for url: URL) {
+        storage[url] = data
+    }
+
+    func data(for url: URL) -> Data? {
+        storage[url]
+    }
+}
+
+// Call sites now require await, because the actor may be busy with another caller:
+let cache = ImageCache()
+
+func prefetch(urls: [URL]) async {
+    await withTaskGroup(of: Void.self) { group in
+        for url in urls {
+            group.addTask {
+                let data = try? Data(contentsOf: url)
+                if let data { await cache.store(data, for: url) }
+            }
+        }
+    }
+}
+```
+
+Nothing else in the method bodies changed. What changed is that the compiler now refuses to compile a direct, unsynchronized call to `cache.storage` from outside the actor — every access is forced through `await`, and the actor runs one task's work at a time on its own serial executor. You traded a crash you'd only see under real concurrent load for a compile-time error you see immediately.
+
+### Metal basics: a minimal render pipeline
+
+SwiftUI and UIKit sit on top of Core Animation, which itself sits on top of Metal. A minimal Metal pipeline that draws one colored triangle has four pieces: a device, a command queue, a pipeline state built from a vertex/fragment shader pair, and a command buffer you encode and submit per frame.
+
+Shader pair, written in the Metal Shading Language (`Shaders.metal`):
+
+```metal
+#include <metal_stdlib>
+using namespace metal;
+
+struct VertexOut {
+    float4 position [[position]];
+    float4 color;
+};
+
+vertex VertexOut vertex_main(uint vertexID [[vertex_id]],
+                              constant float2 *positions [[buffer(0)]],
+                              constant float4 *colors [[buffer(1)]]) {
+    VertexOut out;
+    out.position = float4(positions[vertexID], 0.0, 1.0);
+    out.color = colors[vertexID];
+    return out;
+}
+
+fragment float4 fragment_main(VertexOut in [[stage_in]]) {
+    return in.color;
+}
+```
+
+Swift side — set up once, then encode a draw call each frame inside `MTKView`'s delegate:
+
+```swift
+let device = MTLCreateSystemDefaultDevice()!
+let commandQueue = device.makeCommandQueue()!
+let library = device.makeDefaultLibrary()!
+
+let pipelineDescriptor = MTLRenderPipelineDescriptor()
+pipelineDescriptor.vertexFunction = library.makeFunction(name: "vertex_main")
+pipelineDescriptor.fragmentFunction = library.makeFunction(name: "fragment_main")
+pipelineDescriptor.colorAttachments[0].pixelFormat = .bgra8Unorm
+let pipelineState = try! device.makeRenderPipelineState(descriptor: pipelineDescriptor)
+
+let positions: [SIMD2<Float>] = [[0, 0.5], [-0.5, -0.5], [0.5, -0.5]]
+let colors: [SIMD4<Float>] = [[1, 0, 0, 1], [0, 1, 0, 1], [0, 0, 1, 1]]
+let positionBuffer = device.makeBuffer(bytes: positions, length: MemoryLayout<SIMD2<Float>>.stride * 3)!
+let colorBuffer = device.makeBuffer(bytes: colors, length: MemoryLayout<SIMD4<Float>>.stride * 3)!
+
+func draw(in view: MTKView) {
+    guard let descriptor = view.currentRenderPassDescriptor,
+          let drawable = view.currentDrawable,
+          let commandBuffer = commandQueue.makeCommandBuffer(),
+          let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: descriptor) else { return }
+
+    encoder.setRenderPipelineState(pipelineState)
+    encoder.setVertexBuffer(positionBuffer, offset: 0, index: 0)
+    encoder.setVertexBuffer(colorBuffer, offset: 0, index: 1)
+    encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+    encoder.endEncoding()
+
+    commandBuffer.present(drawable)
+    commandBuffer.commit()
+}
+```
+
+Every triangle on screen — every SwiftUI `Rectangle`, every UIKit label glyph — ultimately becomes a sequence of exactly these calls: bind a pipeline state, bind buffers, encode a draw, commit a command buffer. The frameworks you used in Tier 3 do this for you thousands of times per frame; you've now written it once by hand.
+
+## Path 2 — Android: Kotlin Coroutines/Flow and Custom Compose Rendering
+
+### Structured concurrency: parallel work that cancels together
+
+Your Tier 3 Compose screens almost certainly used `viewModelScope.launch { }` for one sequential call. Structured concurrency is what happens when you need *two* independent calls to run in parallel and both must succeed before you render anything — and if either fails, the other should stop too, not keep running and waste work:
+
+```kotlin
+class ProfileViewModel(
+    private val userRepo: UserRepository,
+    private val feedRepo: FeedRepository
+) : ViewModel() {
+
+    private val _uiState = MutableStateFlow<ProfileUiState>(ProfileUiState.Loading)
+    val uiState: StateFlow<ProfileUiState> = _uiState
+
+    fun loadProfile(userId: String) {
+        viewModelScope.launch {
+            _uiState.value = ProfileUiState.Loading
+            try {
+                val (user, feed) = coroutineScope {
+                    val userDeferred = async { userRepo.fetchUser(userId) }
+                    val feedDeferred = async { feedRepo.fetchFeed(userId) }
+                    Pair(userDeferred.await(), feedDeferred.await())
+                }
+                _uiState.value = ProfileUiState.Loaded(user, feed)
+            } catch (e: Exception) {
+                _uiState.value = ProfileUiState.Error(e.message ?: "Unknown error")
+            }
+        }
+    }
+}
+```
+
+The structure *is* the guarantee: `coroutineScope { }` does not return until both children finish, and if `feedRepo.fetchFeed` throws, the scope automatically cancels the still-running `userDeferred` coroutine before rethrowing — you never get a silent orphan coroutine still fetching a user nobody will see, which is exactly the leak pattern a hand-rolled thread pool with two `Future`s would let slip through.
+
+Compare that to the unstructured version many people reach for first:
+
+```kotlin
+// Don't do this: no parent to wait for, no cancellation link between the two.
+fun loadProfileBroken(userId: String) {
+    GlobalScope.launch { userRepo.fetchUser(userId) }  // nobody awaits this
+    GlobalScope.launch { feedRepo.fetchFeed(userId) }   // or this
+}
+```
+
+`GlobalScope` has no parent job, so there is nothing to cancel either coroutine if the screen is dismissed, nothing to propagate a failure to, and no way for the caller to know when both are actually done. `viewModelScope` ties the coroutine's lifetime to the `ViewModel`'s — it cancels automatically in `onCleared()` — and `coroutineScope { }` nests a child scope that cancels its siblings on any failure. That nesting relationship, parent cancels children, sibling failure cancels sibling, is what "structured" means; it is not a style preference, it is the mechanism that makes "cancel the screen, cancel the work" actually true.
+
+### Flow collecting into UI updates
+
+`Flow` is Kotlin's reactive stream for values that arrive over time — a local database table changing, or a repeated poll. A repository exposing a `Flow` from Room, collected safely in Compose:
+
+```kotlin
+@Dao
+interface MessageDao {
+    @Query("SELECT * FROM messages ORDER BY timestamp DESC")
+    fun observeMessages(): Flow<List<Message>>
+}
+
+class ChatViewModel(dao: MessageDao) : ViewModel() {
+    val messages: StateFlow<List<Message>> = dao.observeMessages()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+}
+
+@Composable
+fun ChatScreen(viewModel: ChatViewModel) {
+    val messages by viewModel.messages.collectAsStateWithLifecycle()
+
+    LazyColumn {
+        items(messages, key = { it.id }) { message ->
+            Text("${message.sender}: ${message.body}")
+        }
+    }
+}
+```
+
+`collectAsStateWithLifecycle` subscribes only while the screen is `STARTED` and unsubscribes automatically on `onStop`, and `stateIn` with `WhileSubscribed(5000)` keeps the underlying Room query alive for five seconds after the last subscriber leaves so rotating the screen doesn't restart the whole query. Insert a row into the `messages` table from anywhere in the app — a push-notification handler, a background sync job — and this screen updates with no manual refresh call anywhere.
+
+Notice the two different kinds of stream here. `dao.observeMessages()` is a *cold* `Flow`: it does no work until something collects it, and Room re-runs the underlying query each time the table changes. `StateFlow` is *hot*: it always has a current value, replays only the latest one to a new subscriber, and keeps running independent of whether anyone is currently watching it (within the `WhileSubscribed` window). Reaching for `LiveData` here would get you similar lifecycle-awareness, but `StateFlow`/`Flow` is the idiomatic choice in new Compose code because it composes with the rest of the coroutines machinery you just used above — `map`, `combine`, and `async` all work on the same `Flow` type, where `LiveData` has its own smaller, Android-only operator set.
+
+### A custom Canvas draw: a radial progress ring
+
+Compose ships `Button`, `Text`, `LazyColumn` — but sometimes you need a visual that no built-in composable makes, and Compose gives you the raw `Canvas` composable plus a drawing scope for exactly that:
+
+```kotlin
+@Composable
+fun RadialProgress(progress: Float, modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier.size(120.dp)) {
+        val strokeWidth = 12.dp.toPx()
+        val diameter = size.minDimension - strokeWidth
+        val topLeft = Offset(
+            (size.width - diameter) / 2f,
+            (size.height - diameter) / 2f
+        )
+
+        drawArc(
+            color = Color.LightGray,
+            startAngle = -90f,
+            sweepAngle = 360f,
+            useCenter = false,
+            topLeft = topLeft,
+            size = Size(diameter, diameter),
+            style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+        )
+
+        drawArc(
+            color = Color(0xFF4F8EF7),
+            startAngle = -90f,
+            sweepAngle = 360f * progress.coerceIn(0f, 1f),
+            useCenter = false,
+            topLeft = topLeft,
+            size = Size(diameter, diameter),
+            style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+        )
+    }
+}
+```
+
+`DrawScope.drawArc` is the same category of primitive as the Metal triangle on the iOS path, one level higher: Compose is giving you direct access to a `Canvas`'s path and paint operations instead of composing existing widgets. Drive `progress` from a `StateFlow` updated on a timer or a real download callback and this becomes a live download indicator, with zero animation jank because it's drawn fresh every recomposition rather than being a stack of overlaid views.
+
+## Path 3 — Web: WebAssembly, Web Workers, and Offline-First Service Workers
+
+### Calling Rust compiled to Wasm from JS
+
+WebAssembly lets you run near-native-speed compiled code inside the same JS runtime your Tier 1–2 modules used. Here's a real Rust function, compiled to a `.wasm` module with `wasm-pack`, called directly from JavaScript. The Rust source:
+
+```rust
+// src/lib.rs
+use wasm_bindgen::prelude::*;
+
+#[wasm_bindgen]
+pub fn is_prime(n: u32) -> bool {
+    if n < 2 { return false; }
+    let mut i = 2;
+    while i * i <= n {
+        if n % i == 0 { return false; }
+        i += 1;
+    }
+    true
+}
+
+#[wasm_bindgen]
+pub fn count_primes_up_to(limit: u32) -> u32 {
+    (2..=limit).filter(|&n| is_prime(n)).count() as u32
+}
+```
+
+Build it with `wasm-pack build --target web`, which emits a `.wasm` binary plus a JS glue module. Calling it from a page:
+
+```js
+import init, { count_primes_up_to } from "./pkg/prime_wasm.js";
+
+async function main() {
+  await init(); // fetches and instantiates the .wasm binary
+  const start = performance.now();
+  const result = count_primes_up_to(2_000_000);
+  console.log(`${result} primes found in ${(performance.now() - start).toFixed(1)}ms`);
+}
+
+main();
+```
+
+That loop runs at close to native speed because it's compiled, typed, bounds-checked-at-compile-time Rust executing in a linear memory sandbox — not interpreted or JIT-warmed JS. Notice both functions passed only numbers across the boundary; a `u32` maps directly onto Wasm's native integer type, so there's no copying involved. Pass a `String` or a `Vec<u8>` instead and `wasm-bindgen` has to serialize it into the Wasm module's linear memory (a flat `ArrayBuffer` the JS side can also read) and back, which is real, measurable overhead — the reason Wasm wins hardest on tight numeric loops like this one, and wins least on code that is mostly shuffling strings and objects, where ordinary JS is often just as fast. This is the same category of win Tier 5's WebAssembly module will go deeper on (WASI, running Wasm outside the browser); here the point is narrower: a hot numeric loop is the textbook case for reaching for Wasm instead of rewriting it as "faster JavaScript."
+
+### Web Workers: real off-main-thread computation
+
+`count_primes_up_to(2_000_000)` above still blocks the main thread for its duration — the UI freezes while it runs, even though the function is fast. A Web Worker runs it on a separate OS thread with its own event loop, communicating only through serialized messages (no shared memory, no shared DOM access):
+
+```js
+// worker.js
+self.onmessage = (event) => {
+  const { limit } = event.data;
+  let count = 0;
+  for (let n = 2; n <= limit; n++) {
+    let isPrime = true;
+    for (let i = 2; i * i <= n; i++) {
+      if (n % i === 0) { isPrime = false; break; }
+    }
+    if (isPrime) count++;
+  }
+  self.postMessage({ count });
+};
+```
+
+```js
+// main.js
+const worker = new Worker("worker.js");
+
+document.getElementById("run").addEventListener("click", () => {
+  worker.postMessage({ limit: 2_000_000 });
+  statusEl.textContent = "computing... (try scrolling — the page is still responsive)";
+});
+
+worker.onmessage = (event) => {
+  statusEl.textContent = `found ${event.data.count} primes`;
+};
+```
+
+Click the button and the page keeps scrolling smoothly while the worker grinds through two million numbers on its own thread — the exact failure mode ("one slow synchronous function freezes the whole UI") that the actor example on the iOS path and the structured-concurrency example on the Android path were also built to prevent, expressed through this platform's own primitive.
+
+### Service Workers: a real cache-first fetch handler
+
+This is the one with the most direct payoff for this track specifically: **this track's own app is itself offline-first**, and a Service Worker's `fetch` event handler is the mechanism that makes "offline-first" real instead of aspirational. A cache-first strategy: serve from the cache immediately if present, and only hit the network on a cache miss, updating the cache in the background either way.
+
+```js
+// service-worker.js
+const CACHE_NAME = "app-shell-v3";
+const PRECACHE_URLS = ["/", "/index.html", "/styles.css", "/app.js", "/offline.html"];
+
+self.addEventListener("install", (event) => {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE_URLS))
+  );
+});
+
+self.addEventListener("activate", (event) => {
+  // Bump CACHE_NAME on every deploy; this deletes every cache that doesn't
+  // match the current version so stale app-shell files don't linger forever.
+  event.waitUntil(
+    caches.keys().then((keys) =>
+      Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key)))
+    )
+  );
+});
+
+self.addEventListener("fetch", (event) => {
+  event.respondWith(
+    caches.match(event.request).then((cached) => {
+      const networkFetch = fetch(event.request)
+        .then((response) => {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+          return response;
+        })
+        .catch(() => cached || caches.match("/offline.html"));
+
+      return cached || networkFetch;
+    })
+  );
+});
+```
+
+Returning `cached` immediately when it exists is what makes a repeat visit load instantly, even on a plane with no signal; falling through to `networkFetch` (and its `.catch` to a dedicated offline page) is what keeps a first visit or a stale cache entry working at all. The `activate` handler matters just as much as `fetch` in practice: without it, every deploy would pile up another versioned cache forever, and users would never actually get the new `app-shell-v4` files because `caches.match` would keep happily serving `v3`. Registration is one line on the page itself, usually gated behind a feature check:
+
+```js
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("/service-worker.js");
+}
+```
+
+This is the actual production pattern behind "installable web app that still works with no bars" — the same property your Tier 2 Electron module and Tier 3 cross-platform module let you take for granted on native shells, implemented here from first principles.
+
+## Exercise
+
+Pick one path and build the smallest real thing that proves you understand the mechanism, not the API surface:
+
+- **iOS:** Build a tiny image-prefetch cache as an `actor`. Launch 20 concurrent `Task`s that each try to store a different image under the same key, then read it back. Temporarily change the `actor` back to a plain `class` and run it under Xcode's Thread Sanitizer (Edit Scheme → Diagnostics → Thread Sanitizer) to see the race actually get flagged, then revert and confirm the actor version is clean.
+- **Android:** Build a screen that fires two parallel network calls with `coroutineScope`/`async`, where one of them is wired to randomly throw after a delay. Confirm in Logcat that the *other* call's coroutine gets cancelled, not left running, every time the failing one throws.
+- **Web:** Compile a small Rust function to Wasm, call it from a Web Worker (not the main thread), and have the worker `postMessage` progress updates back every 100,000 iterations so the UI can show a live progress bar while the computation runs fully off the main thread.
+
+Hint for all three: the thing you're actually testing is what happens at the *boundary* — the moment two independent pieces of work touch shared state or hand control back to each other. Don't just make the happy path work; deliberately trigger the failure (the race, the cancellation, the frozen UI) first on the "broken" version so you have real before/after evidence, the same way your Tier 4 performance-engineering work asked for before/after measurements rather than a claim.

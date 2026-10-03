@@ -1,0 +1,278 @@
+---
+trackId: platforms
+tier: 4
+title: "Architecture Patterns at Scale"
+order: 2
+estimatedHours: 20
+slug: architecture-patterns-at-scale
+---
+
+## Where this module sits
+
+This module is about applying architecture patterns at the scale of a real codebase with real teams — not about re-deriving architecture theory. SOLID, hexagonal architecture, ports-and-adapters, dependency inversion as a general principle: that's the Software Engineering track's job, and if you haven't taken it, go skim it before this module — everything here assumes you already know *why* dependency inversion matters and just want to see it wired into a mobile app, a monorepo, and a cross-platform decision with real numbers attached.
+
+Tier 3's desktop module had you build a macOS app with MVVM: a `View` bound to an `ObservableObject` `ViewModel`, which talked more or less directly to `URLSession` and Core Data. That's the right amount of structure for one screen. It stops being the right amount of structure once you have forty screens, three platforms sharing business logic, and a QA team that needs every use case unit-testable without booting a simulator. This module is about what changes when you cross that line.
+
+## 1. From MVVM to Clean Architecture: adding layers that survive scale
+
+In the Tier 3 desktop app, your `ViewModel` probably looked like this:
+
+```swift
+// Tier 3 style — fine for one screen, one platform
+final class OrderHistoryViewModel: ObservableObject {
+    @Published var orders: [Order] = []
+    func load() {
+        URLSession.shared.dataTask(with: ordersURL) { data, _, _ in
+            guard let data else { return }
+            let decoded = try! JSONDecoder().decode([Order].self, from: data)
+            DispatchQueue.main.async { self.orders = decoded }
+        }.resume()
+    }
+}
+```
+
+This is untestable without a network stack, unreusable on Android, and it mixes three concerns — fetching, decoding, presenting — in one method. Clean Architecture's fix is to split those concerns into layers with a strict dependency rule: outer layers depend on inner layers, never the reverse. The domain layer owns the "ports" (interfaces); the data layer provides the "adapters" — this is the hexagonal-architecture vocabulary from the Software Engineering track, applied here, not reinvented.
+
+Here's the same feature, layered, in Kotlin (the pattern is identical in Swift — only the syntax changes):
+
+```kotlin
+// domain/model/Order.kt — pure data, no framework imports
+data class Order(val id: String, val total: Money, val placedAt: Instant)
+
+// domain/repository/OrderRepository.kt — the "port": domain owns this interface
+interface OrderRepository {
+    suspend fun getOrderHistory(customerId: String): List<Order>
+}
+
+// domain/usecase/GetOrderHistoryUseCase.kt — the actual business rule, testable with zero mocks of Android
+class GetOrderHistoryUseCase(private val repository: OrderRepository) {
+    suspend operator fun invoke(customerId: String): List<Order> =
+        repository.getOrderHistory(customerId).sortedByDescending { it.placedAt }
+}
+```
+
+```kotlin
+// data/remote/OrderApi.kt — Retrofit lives ONLY here
+interface OrderApi {
+    @GET("customers/{id}/orders")
+    suspend fun fetchOrders(@Path("id") id: String): List<OrderDto>
+}
+
+// data/repository/OrderRepositoryImpl.kt — the "adapter"
+class OrderRepositoryImpl(private val api: OrderApi) : OrderRepository {
+    override suspend fun getOrderHistory(customerId: String): List<Order> =
+        api.fetchOrders(customerId).map { it.toDomain() }
+}
+```
+
+The domain layer has never heard of Retrofit, Room, or Compose. Swap REST for GraphQL, or add an offline cache, and `GetOrderHistoryUseCase` doesn't change — only `OrderRepositoryImpl` does. That's the entire payoff of the split, and it's the same payoff dependency inversion gives you anywhere else.
+
+The presentation layer is where MVVM and MVI diverge. MVVM lets the ViewModel expose several independently-mutable `@Published`/`StateFlow` properties. MVI forces every state change through one immutable `State` object produced by a reducer from discrete `Intent`s — better for complex screens because the UI can never observe a half-updated state:
+
+```kotlin
+sealed interface OrderHistoryIntent {
+    data object Load : OrderHistoryIntent
+    data class Retry(val reason: String) : OrderHistoryIntent
+}
+
+data class OrderHistoryState(
+    val orders: List<Order> = emptyList(),
+    val isLoading: Boolean = false,
+    val error: String? = null
+)
+
+class OrderHistoryViewModel(
+    private val getOrderHistory: GetOrderHistoryUseCase
+) : ViewModel() {
+    private val _state = MutableStateFlow(OrderHistoryState())
+    val state: StateFlow<OrderHistoryState> = _state.asStateFlow()
+
+    fun onIntent(intent: OrderHistoryIntent) {
+        when (intent) {
+            is OrderHistoryIntent.Load, is OrderHistoryIntent.Retry -> viewModelScope.launch {
+                _state.update { it.copy(isLoading = true, error = null) }
+                runCatching { getOrderHistory("current-user") }
+                    .onSuccess { orders -> _state.update { it.copy(orders = orders, isLoading = false) } }
+                    .onFailure { e -> _state.update { it.copy(error = e.message, isLoading = false) } }
+            }
+        }
+    }
+}
+```
+
+Compose just renders whatever `state` is current — no partial updates, no stale `isLoading` flag left over from a previous load. Use MVVM for simple CRUD screens; reach for MVI once a screen has more than two or three interacting pieces of state.
+
+## 2. Modular monorepos: a real Turborepo layout
+
+Once the domain layer is framework-free, it's portable — and the natural place to put a portable domain layer is a shared package in a monorepo that both your web app and your React Native app import. Here's an actual Turborepo layout for that:
+
+```
+apps/
+  web/            # Next.js
+  mobile/         # React Native
+packages/
+  core-logic/     # domain layer: use cases, pure TS, zero React
+  ui/             # shared design-system components (web + native variants)
+  api-client/     # the "adapter": fetch wrappers, typed endpoints
+  config/         # shared eslint/tsconfig
+```
+
+```yaml
+# pnpm-workspace.yaml
+packages:
+  - "apps/*"
+  - "packages/*"
+```
+
+```json
+// turbo.json
+{
+  "$schema": "https://turbo.build/schema.json",
+  "pipeline": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**", ".next/**"]
+    },
+    "test": {
+      "dependsOn": ["build"],
+      "outputs": []
+    },
+    "lint": { "outputs": [] }
+  }
+}
+```
+
+`"dependsOn": ["^build"]` means: before building `apps/web`, build everything `apps/web` depends on first (`core-logic`, `ui`, `api-client`), following the real `package.json` dependency graph — not a hand-maintained build order. Turborepo hashes each package's inputs and skips rebuilding anything unchanged, so a CI run that only touched `packages/ui` doesn't rebuild `core-logic`. This is what makes "share the domain layer across platforms" practical instead of theoretical: `apps/mobile/package.json` and `apps/web/package.json` both list `"core-logic": "workspace:*"`, and a bug fix in a use case ships to both platforms from one PR.
+
+## 3. Micro-frontends: one page, independently deployed pieces
+
+A monorepo solves *code* sharing with one deploy pipeline. Micro-frontends solve the opposite problem: letting independently-deployed teams compose one page at *runtime*, without a shared release train. A concrete example — a product page made of a shell plus two remotes, via Webpack Module Federation:
+
+```javascript
+// shell/webpack.config.js — the host page
+new ModuleFederationPlugin({
+  name: "shell",
+  remotes: {
+    reviews: "reviews@https://reviews.example.com/remoteEntry.js",
+    recommendations: "recs@https://recs.example.com/remoteEntry.js",
+  },
+  shared: { react: { singleton: true }, "react-dom": { singleton: true } },
+});
+```
+
+```javascript
+// reviews-team/webpack.config.js — deployed independently, on its own schedule
+new ModuleFederationPlugin({
+  name: "reviews",
+  filename: "remoteEntry.js",
+  exposes: { "./ReviewsWidget": "./src/ReviewsWidget" },
+  shared: { react: { singleton: true }, "react-dom": { singleton: true } },
+});
+```
+
+```jsx
+// shell/src/ProductPage.jsx
+const ReviewsWidget = React.lazy(() => import("reviews/ReviewsWidget"));
+const Recommendations = React.lazy(() => import("recs/RecommendationsRail"));
+
+function ProductPage({ productId }) {
+  return (
+    <main>
+      <ProductDetails id={productId} />
+      <Suspense fallback={<ReviewsSkeleton />}>
+        <ReviewsWidget productId={productId} />
+      </Suspense>
+      <Suspense fallback={null}>
+        <Recommendations productId={productId} />
+      </Suspense>
+    </main>
+  );
+}
+```
+
+The reviews team ships to production without coordinating a release with the shell team or the recommendations team. The cost is real and shows up at runtime, not compile time: a version mismatch in the shared `react` singleton, a design-system drift because the reviews team shipped a button two shades off brand, or a remote that's down taking a widget out with it instead of the whole page. Reach for this only when teams are large enough and release cadences different enough that a shared deploy pipeline is the actual bottleneck — for a team of four, a monorepo with fast CI solves the same problem with far less runtime risk.
+
+## 4. Dependency injection, concretely
+
+DI is what makes the domain/data split from Section 1 wireable without a web of manual constructors. On Android, Hilt generates that wiring from annotations:
+
+```kotlin
+@Module
+@InstallIn(SingletonComponent::class)
+object NetworkModule {
+    @Provides @Singleton
+    fun provideOrderApi(retrofit: Retrofit): OrderApi = retrofit.create(OrderApi::class.java)
+}
+
+@Module
+@InstallIn(SingletonComponent::class)
+abstract class RepositoryModule {
+    @Binds
+    abstract fun bindOrderRepository(impl: OrderRepositoryImpl): OrderRepository
+}
+
+@HiltViewModel
+class OrderHistoryViewModel @Inject constructor(
+    private val getOrderHistory: GetOrderHistoryUseCase
+) : ViewModel() { /* ... */ }
+```
+
+`@Binds` tells Hilt "whenever something asks for `OrderRepository`, hand it an `OrderRepositoryImpl`." The ViewModel never names the concrete class, which means a test can supply a fake `OrderRepository` with no network and no Hilt involved at all:
+
+```kotlin
+class FakeOrderRepository(private val fixed: List<Order>) : OrderRepository {
+    override suspend fun getOrderHistory(customerId: String) = fixed
+}
+
+@Test
+fun `load sorts orders newest first`() = runTest {
+    val useCase = GetOrderHistoryUseCase(FakeOrderRepository(unsortedFixtures))
+    assertEquals(expectedSortedIds, useCase("any-id").map { it.id })
+}
+```
+
+iOS has no framework with Hilt's market share, so the same idea is usually hand-rolled as constructor injection through a composition-root container:
+
+```swift
+protocol OrderRepository {
+    func getOrderHistory(customerId: String) async throws -> [Order]
+}
+
+final class AppContainer {
+    lazy var orderRepository: OrderRepository = OrderRepositoryImpl(api: orderApi)
+    lazy var orderApi = URLSessionOrderApi()
+
+    func makeOrderHistoryViewModel() -> OrderHistoryViewModel {
+        OrderHistoryViewModel(getOrderHistory: GetOrderHistoryUseCase(repository: orderRepository))
+    }
+}
+```
+
+Same principle as `@Binds`, no code generation: the container is the one place that knows about `OrderRepositoryImpl`; everything else depends on the `OrderRepository` protocol.
+
+## 5. Native vs. cross-platform, per feature — a worked decision
+
+A fintech app is built on React Native, shipped by a team of six: three RN generalists, one iOS specialist, one Android specialist, one lead. Ten weeks to add four features. Here's the decision, feature by feature, against three constraints — team size, performance budget, time to ship:
+
+| Feature | Perf budget | Decision | Why |
+|---|---|---|---|
+| Settings/profile screens | None (static forms) | **Cross-platform (RN)** | Zero perf payoff from native; native would cost 2x the engineering time for no user-visible gain. |
+| Push notification handling | Low | **RN + thin native module** | Needs native APNs/FCM registration, but the bulk of the logic (routing, badges) is fine in JS. |
+| Live candlestick chart, 60fps, 5k+ points, pan/zoom | 16.6ms/frame, continuous | **Fully native per platform** (Swift + Metal/SwiftUI Canvas on iOS, Kotlin + Canvas/Skia on Android) | A gesture-driven redraw of thousands of points every frame leaves no slack for a JS bridge round trip; dropped frames are directly visible and this is the product's core differentiator. |
+| Check-deposit camera capture with real-time edge detection | High, per-frame | **Native modules** (Vision/CoreML on iOS, ML Kit on Android) bridged into the RN shell | Frame-by-frame image processing has to run in the camera pipeline, not cross a bridge; only the result (a cropped image) returns to RN. |
+| Face ID / biometric auth | Low, but security-sensitive | **Thin native module** | Secure Enclave and Android Keystore APIs are inherently platform-specific; wrap them in a tiny native module rather than finding a shaky cross-platform shim. |
+
+The pattern: only two of five features justify spending the one iOS and one Android specialist's scarce time on genuinely separate implementations — the chart and the camera pipeline, because no cross-platform abstraction removes the per-platform optimization needed to hit their budgets. Everything else stays in RN by default. The mistake teams make under deadline pressure is treating "native is better" as a blanket rule; the actual rule is "native costs double the maintenance surface, so only pay it where the performance or capability gap is real and the specialist headcount to cover it exists."
+
+## Exercise
+
+Your team's modular monorepo (web + React Native, Turborepo, shared `core-logic` package) is adding a collaborative whiteboard feature: multiple users draw on a shared canvas in real time, synced over WebSocket, with undo/redo.
+
+Work through, and write down your reasoning for each:
+
+1. **Layering** — sketch the domain layer (what's the core entity and use case — e.g., `applyStroke(stroke, canvasState) -> CanvasState`?) and where the WebSocket connection and the actual canvas rendering belong instead.
+2. **DI** — what gets injected into your whiteboard ViewModel/controller, and what's the one thing you'd fake in a test to verify undo/redo without a real network or a real canvas?
+3. **Monorepo placement** — does the stroke-application logic belong in `packages/core-logic`? Does the rendering code?
+4. **Native vs. cross-platform** — is canvas rendering itself a candidate for staying in RN/web, or does it belong on the native side of the fence like the trading chart in Section 5? Justify with a frame-budget argument, not a gut feeling.
+
+Hint: the thing that tells you whether rendering needs to go native isn't "drawing is hard" — it's how many strokes-per-second and how many concurrent remote cursors you need to redraw per frame, and whether that number is closer to the settings-screen row of the decision table or the trading-chart row.
