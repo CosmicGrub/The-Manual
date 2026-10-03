@@ -1,0 +1,98 @@
+[
+  {
+    "id": "devops-tooling/tier-1/networking-basics-for-developers/q1",
+    "type": "multiple_choice",
+    "prompt": "In a dig response's ANSWER SECTION showing `example.com. 86400 IN A 93.184.215.14`, what does the 86400 represent?",
+    "choices": [
+      "The port number the record applies to",
+      "The TTL in seconds -- how long the record can be cached",
+      "The record's priority relative to other A records",
+      "The timestamp the record was created, in Unix epoch seconds"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-1/networking-basics-for-developers/q2",
+    "type": "multiple_choice",
+    "prompt": "A server runs nginx on port 80 and Postgres on port 5432 at the same IP address. What actually lets the kernel deliver incoming packets to the correct process?",
+    "choices": [
+      "The destination port number, as part of the connection's 4-tuple",
+      "The order in which the processes were started",
+      "A separate IP address assigned internally to each process",
+      "The HTTP Host header in the request"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "devops-tooling/tier-1/networking-basics-for-developers/q3",
+    "type": "multiple_choice",
+    "prompt": "In a raw HTTP/1.1 request sent over a TCP connection, what signals the end of the headers and the start of the body (or end of the request)?",
+    "choices": [
+      "A line containing only the word END",
+      "The Content-Length header reaching zero",
+      "A blank line (\\r\\n\\r\\n after the last header)",
+      "The TCP connection being closed by the client"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "devops-tooling/tier-1/networking-basics-for-developers/q4",
+    "type": "multiple_choice",
+    "prompt": "Why is the Host header required in an HTTP/1.1 request even though the client already connected to a specific IP address?",
+    "choices": [
+      "It encrypts the request so intermediate routers cannot read the path",
+      "It lets one IP/port serve multiple domains (virtual hosting), so the server knows which site is being requested",
+      "It specifies which port on the server to use",
+      "It is only used for HTTPS, not plain HTTP"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-1/networking-basics-for-developers/q5",
+    "type": "multiple_choice",
+    "prompt": "A Flask app bound with `app.run(host=\"127.0.0.1\", port=5000)` responds to curl from inside the VM it's running on, but every curl from an external machine times out. What's the direct cause?",
+    "choices": [
+      "The cloud provider's DNS has not propagated yet",
+      "127.0.0.1 is the loopback interface, which only accepts connections originating from the same machine",
+      "Port 5000 is a reserved port that cloud providers block by default",
+      "Flask's development server cannot handle more than one client at a time"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-1/networking-basics-for-developers/q6",
+    "type": "multiple_choice",
+    "prompt": "After fixing the bind address to 0.0.0.0, external curl requests still time out. What is the most likely remaining cause specific to cloud VMs?",
+    "choices": [
+      "The private key was not regenerated after the code change",
+      "The app needs to be restarted with sudo",
+      "A firewall or cloud security-group rule is not allowing inbound traffic on that port",
+      "0.0.0.0 only works for HTTPS traffic, not plain HTTP"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "devops-tooling/tier-1/networking-basics-for-developers/q7",
+    "type": "multiple_choice",
+    "prompt": "Running `ssh-keygen -t ed25519` produces id_ed25519 and id_ed25519.pub. Which statement about these two files is correct?",
+    "choices": [
+      "Both files must be copied to the remote server's authorized_keys",
+      "id_ed25519.pub is safe to share and gets placed in the remote server's authorized_keys; id_ed25519 must stay private and never leave your machine",
+      "id_ed25519 is uploaded to the server; id_ed25519.pub stays local",
+      "The two files are interchangeable copies of the same key for redundancy"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-1/networking-basics-for-developers/q8",
+    "type": "multiple_choice",
+    "prompt": "You need to download a 27 MB installer archive onto a remote server and you don't need to inspect headers or script anything else around it. Which tool is the more direct fit?",
+    "choices": [
+      "curl, because wget cannot handle HTTPS",
+      "wget, because it is built for saving a URL's contents to disk by default",
+      "dig, because it resolves the download URL first",
+      "nc (netcat), because it works at the TCP level"
+    ],
+    "correctIndex": 1
+  }
+]

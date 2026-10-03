@@ -1,0 +1,312 @@
+---
+trackId: devops-tooling
+tier: 1
+title: "Git Fundamentals"
+order: 1
+estimatedHours: 8
+slug: git-fundamentals
+---
+
+## Why This Lesson Looks Different From the Git You've Already Learned
+
+If you've gone through this curriculum's Software Engineering track, you already know how to branch, merge, and get a pull request approved for a feature. This module does not re-teach that. Here, the same git mechanics — commits, branches, merges, remotes, `.gitignore`, conflict resolution, `log`/`diff`/`stash` — get pointed at a different kind of repository: one that holds the configuration and infrastructure definitions that keep production running. The stakes and the workflows are different. Nobody is reviewing your `main.tf` for code style; they're asking "what changed, and can we get back to a known-good state in the next five minutes."
+
+## Setup: The Repo You're Working In
+
+Assume a repository called `platform-infra` with a layout like this:
+
+```text
+platform-infra/
+├── terraform/
+│   └── prod/
+│       ├── main.tf
+│       └── variables.tf
+├── ansible/
+│   └── playbooks/
+│       └── nginx.yml
+├── configs/
+│   └── nginx/
+│       └── upstream.conf
+└── .gitignore
+```
+
+This repo is cloned onto a bastion host or a CI runner, not a laptop with a text editor open all day. Every commit in it is a change that eventually gets applied to real servers via `terraform apply` or an Ansible playbook run. That changes how you use git.
+
+## `.gitignore` for Infrastructure Repos: Keep State and Secrets Out
+
+In an app repo, `.gitignore` mostly keeps `node_modules/` out. In an infra repo, getting this wrong leaks credentials or corrupts state. A realistic `.gitignore`:
+
+```text
+# Terraform local state and cache - never commit, state is sensitive
+# and should live in a remote backend (S3 + DynamoDB lock), not git
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+
+# Terraform variable files that carry real secrets
+*.tfvars
+!example.tfvars
+
+# Ansible Vault-decrypted scratch files and inventories with real IPs
+*.retry
+inventories/prod/host_vars/*.decrypted
+
+# Local env files used for one-off manual runs
+.env
+```
+
+Two of these matter more than anything in a feature-dev repo: `*.tfstate` (it often contains plaintext secrets like database passwords pulled from provider APIs) and `*.tfvars` (it's where someone pastes an API key "just to test"). If you ever commit one of these by accident, treat it as a security incident: rotate the credential, then deal with the git history (`git filter-repo` or BFG, not covered here — flag it to whoever owns secrets management).
+
+## Commits, Branches, Remotes — the Ops Version
+
+The mechanics are identical to feature work: `git checkout -b`, `git commit`, `git push -u origin <branch>`, `git fetch`, `git pull`. What's different is the branch naming and the urgency behind it:
+
+```bash
+git checkout -b hotfix/revert-upstream-timeout
+# ...edit configs/nginx/upstream.conf...
+git add configs/nginx/upstream.conf
+git commit -m "revert keepalive_timeout bump, caused upstream 502s"
+git push -u origin hotfix/revert-upstream-timeout
+```
+
+`git fetch` vs `git pull` matters more here too. Before touching a prod branch during an incident, run `git fetch` and inspect `origin/main` before merging it into your local copy — you want to see what changed, not blindly pull it into a branch you're about to apply:
+
+```bash
+git fetch origin
+git log main..origin/main --oneline
+```
+
+That shows commits on `origin/main` that aren't in your local `main` yet — exactly what you're about to pull in before you run `terraform apply` with it.
+
+## Finding the Commit That Broke Prod: `git log` and `git diff`
+
+This is the core ops skill. PagerDuty fires at 14:32 UTC: upstream 502 rate has spiked. You suspect the nginx upstream config, last touched recently.
+
+Start with the file's history:
+
+```bash
+git log --oneline -- configs/nginx/upstream.conf
+```
+
+```text
+a3f9c21 bump keepalive timeout for perf
+7d12e88 add second upstream server for canary
+e4a001c initial upstream.conf
+```
+
+`a3f9c21` is suspicious — it's the most recent change and it touches timeout behavior. Look at exactly what it changed:
+
+```bash
+git show a3f9c21 -- configs/nginx/upstream.conf
+```
+
+```text
+commit a3f9c21e9d4f2b1a6c8e0f3d5b7a9c1e2f4a6b8c
+Author: j.ramirez <j.ramirez@company.com>
+Date:   Thu Oct 2 11:14:02 2026 +0000
+
+    bump keepalive timeout for perf
+
+diff --git a/configs/nginx/upstream.conf b/configs/nginx/upstream.conf
+index 8f3a1c2..9b4e2d1 100644
+--- a/configs/nginx/upstream.conf
++++ b/configs/nginx/upstream.conf
+@@ -3,7 +3,7 @@ upstream app_backend {
+     server 10.0.1.12:8080;
+     server 10.0.1.13:8080;
+-    keepalive_timeout 65;
++    keepalive_timeout 5;
+     keepalive 32;
+ }
+```
+
+There it is: `keepalive_timeout` was changed from `65` to `5` — the opposite of a "bump." Someone fat-fingered the intent (meant to lower connection *count* pressure, instead slashed the timeout), and now upstream connections are getting recycled mid-request under load.
+
+When you don't already know which file to suspect, `git log` can search by *content* instead of filename, across the whole repo, using the pickaxe flag `-S`:
+
+```bash
+git log -S"keepalive_timeout" --oneline --all
+```
+
+```text
+a3f9c21 bump keepalive timeout for perf
+e4a001c initial upstream.conf
+```
+
+`-S"<string>"` finds every commit that added or removed that exact string — invaluable when you know a setting name but not which file or branch it lives on. Compare that to a plain `git diff` between two known-good points once you have candidates:
+
+```bash
+git diff e4a001c a3f9c21 -- configs/nginx/upstream.conf
+```
+
+This gives you the cumulative diff across both commits in one shot, useful when three or four commits touched the file and you want the net change, not each step.
+
+Once you've confirmed the cause, the fastest safe fix is usually `git revert` (not `reset` — you don't want to rewrite history other people may have already pulled):
+
+```bash
+git revert a3f9c21
+```
+
+```text
+[main 8c2f104] Revert "bump keepalive timeout for perf"
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+```
+
+This creates a *new* commit undoing the change, preserving the full audit trail — which matters when someone writes the postmortem.
+
+## Merge Conflicts in Infrastructure-as-Code
+
+You'll meet real merge conflicts in Terraform and Ansible files — this previews mechanics this track covers in much more depth later (Terraform and Ansible are their own modules), but the git side of resolving a conflict is the same regardless of file type.
+
+Say two engineers both edit `terraform/prod/main.tf` off the same base commit. One bumps the instance size:
+
+```hcl
+resource "aws_instance" "app_server" {
+  ami           = "ami-0abcdef1234567890"
+  instance_type = "t3.large"
+  tags = {
+    Name = "app-server-prod"
+  }
+}
+```
+
+The other adds a required tag for cost allocation:
+
+```hcl
+resource "aws_instance" "app_server" {
+  ami           = "ami-0abcdef1234567890"
+  instance_type = "t3.medium"
+  tags = {
+    Name      = "app-server-prod"
+    CostCenter = "platform-eng"
+  }
+}
+```
+
+Merging the second branch into the first:
+
+```bash
+git merge feature/add-cost-tags
+```
+
+```text
+Auto-merging terraform/prod/main.tf
+CONFLICT (content): Merge conflict in terraform/prod/main.tf
+Automatic merge failed; fix conflicts and then commit the result.
+```
+
+Open the file and you'll see standard conflict markers:
+
+```hcl
+resource "aws_instance" "app_server" {
+  ami           = "ami-0abcdef1234567890"
+<<<<<<< HEAD
+  instance_type = "t3.large"
+  tags = {
+    Name = "app-server-prod"
+  }
+=======
+  instance_type = "t3.medium"
+  tags = {
+    Name      = "app-server-prod"
+    CostCenter = "platform-eng"
+  }
+>>>>>>> feature/add-cost-tags
+}
+```
+
+In app code you'd often pick one side. In IaC, you usually need *both* intents merged correctly, because each half represents a real infrastructure requirement (the right instance size **and** the cost tag):
+
+```hcl
+resource "aws_instance" "app_server" {
+  ami           = "ami-0abcdef1234567890"
+  instance_type = "t3.large"
+  tags = {
+    Name       = "app-server-prod"
+    CostCenter = "platform-eng"
+  }
+}
+```
+
+Remove the conflict markers, then — and this is the step that's different from app-code merges — run a plan before you ever commit the resolution, so you validate against real provider state, not just that the HCL parses:
+
+```bash
+terraform plan -out=tfplan
+```
+
+Only after the plan shows the change you expect do you stage and commit:
+
+```bash
+git add terraform/prod/main.tf
+git commit -m "merge: keep t3.large instance size, add CostCenter tag"
+```
+
+A conflict resolved without a `plan` check is a coin flip on production infrastructure — the git conflict markers tell you the *text* collided, not whether the *resulting resource graph* is sane.
+
+## `git stash`: Dropping Infra Work for an Incident
+
+You're mid-refactor on `ansible/playbooks/nginx.yml`, half-done, not committable:
+
+```bash
+git status
+```
+
+```text
+On branch feature/nginx-refactor
+Changes not staged for commit:
+  modified:   ansible/playbooks/nginx.yml
+```
+
+PagerDuty fires. You need `main` clean, right now, to branch a hotfix. Don't commit broken work just to switch branches — stash it:
+
+```bash
+git stash push -m "wip: nginx playbook refactor - worker_processes block"
+```
+
+```text
+Saved working directory and index state On feature/nginx-refactor: wip: nginx playbook refactor - worker_processes block
+```
+
+Your working tree is now clean. Switch, fix the incident, deploy:
+
+```bash
+git checkout main
+git pull origin main
+git checkout -b hotfix/revert-upstream-timeout
+# ...fix, commit, push, deploy...
+```
+
+Once the incident is resolved, come back and restore exactly where you left off:
+
+```bash
+git checkout feature/nginx-refactor
+git stash list
+```
+
+```text
+stash@{0}: On feature/nginx-refactor: wip: nginx playbook refactor - worker_processes block
+```
+
+```bash
+git stash pop
+```
+
+If the hotfix touched the same file your stash touches, `pop` can conflict just like a merge — you'll get the same `<<<<<<<` markers and resolve them the same way. Check a stash's contents without applying it first when you're not sure what's in it:
+
+```bash
+git stash show -p stash@{0}
+```
+
+`git stash` is not version control for finished work — it's a scratch pad for exactly this situation: incident response needs priority over whatever you were mid-typing.
+
+## Exercise
+
+You're on-call. Alerts show request latency doubled starting ~20 minutes ago. The suspected file is `configs/nginx/upstream.conf` again, but this time three commits touched it in the last day, and none of the commit messages mention timeouts or latency.
+
+Your task:
+1. Use `git log` to list every commit touching that file in the last day.
+2. Find the exact line that changed `proxy_read_timeout` or `keepalive` settings — without knowing the commit message in advance.
+3. Decide whether a `git revert` of a single commit is safe, or whether the net change spans multiple commits and you need a diff across a range instead.
+
+**Hint:** you don't have to read full diffs one at a time to find a setting you know the name of but not the commit — there's a `git log` flag earlier in this lesson built exactly for "find commits that touched this specific string," across the whole file history in one command.

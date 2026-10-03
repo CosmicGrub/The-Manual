@@ -1,0 +1,98 @@
+[
+  {
+    "id": "devops-tooling/tier-1/first-contact-with-containers/q1",
+    "type": "multiple_choice",
+    "prompt": "A container and a VM both run on the same physical server. What is the key architectural difference in what each actually has, kernel-wise?",
+    "choices": [
+      "The VM shares the host's kernel; the container boots its own separate kernel",
+      "The container shares the host's kernel via namespaces/cgroups; the VM boots its own independent kernel on top of a hypervisor",
+      "Both share the host's kernel, but the VM uses more RAM",
+      "Neither shares the host kernel; both always boot a fresh kernel"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-1/first-contact-with-containers/q2",
+    "type": "multiple_choice",
+    "prompt": "Running `docker run --rm alpine uname -r` prints the exact same kernel version as running `uname -r` directly on the host. What does this prove?",
+    "choices": [
+      "Alpine Linux happens to use the same kernel version by coincidence",
+      "Docker copied the host's kernel version string into the container's metadata",
+      "The container is not running its own kernel at all -- it is making syscalls directly to the one shared host kernel",
+      "This only happens on Linux hosts running Alpine as the base OS"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "devops-tooling/tier-1/first-contact-with-containers/q3",
+    "type": "multiple_choice",
+    "prompt": "After installing Docker on Ubuntu and running `sudo usermod -aG docker $USER`, why is this step necessary?",
+    "choices": [
+      "It installs the Docker CLI binary for the first time",
+      "The Docker daemon's socket is owned by root:docker by default, so your user needs group membership to run docker commands without sudo",
+      "It downloads the nginx and alpine base images in advance",
+      "It is required only on Windows and macOS, never on Linux"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-1/first-contact-with-containers/q4",
+    "type": "multiple_choice",
+    "prompt": "You run `docker run -d --name web -p 8080:80 nginx:1.27`. What does the `-p 8080:80` flag do?",
+    "choices": [
+      "Limits the container to 8080 MB of memory and 80% CPU",
+      "Maps port 8080 on the host machine to port 80 inside the container, where nginx listens",
+      "Pulls version 8080 of the image and tags it as 80",
+      "Sets the container's process priority to 8080 with a timeout of 80 seconds"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-1/first-contact-with-containers/q5",
+    "type": "multiple_choice",
+    "prompt": "What is the practical difference between `docker logs web` and `docker exec -it web /bin/bash`?",
+    "choices": [
+      "They are two names for the same command",
+      "`docker logs` shows the container's past stdout/stderr output; `docker exec` opens a new interactive process (like a shell) running inside the already-running container",
+      "`docker logs` only works on stopped containers, and `docker exec` only works on running ones that were started with `-it`",
+      "`docker exec` restarts the container, while `docker logs` does not"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-1/first-contact-with-containers/q6",
+    "type": "multiple_choice",
+    "prompt": "You start three containers from the same nginx:1.27 image and write a new file inside only one of them (web1). Why can't web2 and web3 see that file?",
+    "choices": [
+      "Because each container has its own private writable layer on top of the shared read-only image layers, so changes in one are invisible to the others",
+      "Because the image itself gets modified, but only web1 is allowed to read the modification",
+      "Because each container actually downloads a completely separate full copy of the image",
+      "Because docker exec always operates on a random container, not the one you named"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "devops-tooling/tier-1/first-contact-with-containers/q7",
+    "type": "multiple_choice",
+    "prompt": "Why does starting a 4th container from an image you've already pulled take well under a second, even if the image is hundreds of megabytes?",
+    "choices": [
+      "Docker secretly runs all containers from one image as a single shared process",
+      "The read-only layers are already present on disk and get mounted (via a union filesystem like overlayfs), not copied -- only a small writable layer is newly created",
+      "Docker caches a pre-booted container in RAM at all times",
+      "Small images are always used for the 2nd and subsequent containers automatically"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-1/first-contact-with-containers/q8",
+    "type": "multiple_choice",
+    "prompt": "You run `docker run -d --name flaky busybox echo \"starting up\"` and then `docker ps` shows nothing running. What's the most accurate explanation?",
+    "choices": [
+      "The container crashed due to a Docker installation bug",
+      "A container's lifecycle is tied to its main (PID 1) process; `echo` printed its output and exited immediately, so the container exited right after -- it needs a long-running foreground process to stay up",
+      "busybox images cannot be run detached with -d",
+      "The --name flag is incompatible with -d and silently fails the whole command"
+    ],
+    "correctIndex": 1
+  }
+]

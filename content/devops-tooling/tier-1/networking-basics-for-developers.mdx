@@ -1,0 +1,229 @@
+---
+trackId: devops-tooling
+tier: 1
+title: "Networking Basics for Developers"
+order: 5
+estimatedHours: 6
+slug: networking-basics-for-developers
+---
+
+## Why this module exists
+
+You don't need to re-derive TCP's three-way handshake or memorize the OSI model to do this job. You need to know enough to answer three questions fast, under pressure: *can I reach this thing, on the right port, with the right protocol, from where I'm standing right now?* Almost every "it's down" page starts there.
+
+The full protocol depth — TCP/IP internals, DNS record types beyond A/CNAME, HTTP/2 framing, routing — lives in the Hardware & Computer Systems track's Tier 3 networking module. This module is the applied floor: the commands you run and the output you read before you ever need that depth.
+
+## IP addresses and DNS
+
+Every machine reachable on a network has an IP address. Nobody types `93.184.215.14` into a browser — DNS is the lookup table that turns `example.com` into that address. Here's what that lookup actually looks like on the wire.
+
+```bash
+$ dig example.com
+
+; <<>> DiG 9.18.1-1ubuntu1.3-Ubuntu <<>> example.com
+;; global options: +cmd
+;; Got answer:
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 51200
+;; flags: qr rd ra; QUERY: 1, ANSWER: 1, AUTHORITY: 0, ADDITIONAL: 1
+
+;; QUESTION SECTION:
+;example.com.			IN	A
+
+;; ANSWER SECTION:
+example.com.		86400	IN	A	93.184.215.14
+
+;; Query time: 24 msec
+;; SERVER: 127.0.0.53#53(127.0.0.53) (UDP)
+;; WHEN: Sat Oct 03 2026 14:22:01 UTC
+;; MSG SIZE  rcvd: 56
+```
+
+Read the ANSWER SECTION: name, TTL (86400 seconds — cache this for a day), record class (IN), record type (A — IPv4 address), and the address itself. `nslookup` gives the same fact with less noise:
+
+```bash
+$ nslookup example.com
+Server:		127.0.0.53
+Address:	127.0.0.53#53
+
+Non-authoritative answer:
+Name:	example.com
+Address: 93.184.215.14
+```
+
+"Non-authoritative" means your resolver answered from cache, not by asking example.com's own nameserver directly. When a deploy "isn't showing up," `dig` tells you in ten seconds whether DNS is even pointing where you think it is — before you waste twenty minutes debugging the app itself.
+
+## Ports: why one host runs many services
+
+An IP address gets a packet to a machine. A port number gets it to the right *process* on that machine. Without ports, a server could only run one network service at a time — one IP, one program. SSH, your web server, and your database all need to run simultaneously on the same box, so each one claims its own port and the kernel routes incoming traffic accordingly.
+
+```bash
+$ sudo ss -tlnp
+State   Recv-Q  Send-Q    Local Address:Port    Peer Address:Port   Process
+LISTEN  0       128       0.0.0.0:22            0.0.0.0:*           users:(("sshd",pid=612,fd=3))
+LISTEN  0       511       0.0.0.0:80            0.0.0.0:*           users:(("nginx",pid=1842,fd=6))
+LISTEN  0       511       127.0.0.1:5432        0.0.0.0:*           users:(("postgres",pid=951,fd=7))
+LISTEN  0       128       127.0.0.1:3000        0.0.0.0:*           users:(("node",pid=2201,fd=19))
+```
+
+One host, four listening sockets. A TCP connection is uniquely identified by the 4-tuple (source IP, source port, destination IP, destination port), so the kernel can have thousands of simultaneous connections to port 80 and still hand each one to nginx correctly, while connections to port 5432 go to Postgres instead. This is also why `postgres` and `node` above are bound to `127.0.0.1` rather than `0.0.0.0` — they're internal dependencies the app on port 3000 talks to locally; nginx on port 80 is the only thing meant to be reachable from outside. That distinction — "listening on loopback only" vs "listening on all interfaces" — is exactly the bug in the localhost-vs-remote section below.
+
+## HTTP request/response, at the byte level
+
+HTTP is plain text sent over a TCP connection. You can watch this with `nc` (netcat), bypassing any HTTP library entirely:
+
+```bash
+$ printf 'GET /index.html HTTP/1.1\r\nHost: example.com\r\nConnection: close\r\n\r\n' | nc example.com 80
+HTTP/1.1 200 OK
+Content-Type: text/html; charset=UTF-8
+ETag: "3147526947+gzip"
+Last-Modified: Thu, 17 Oct 2024 07:18:26 GMT
+Cache-Control: max-age=1032
+Date: Sat, 03 Oct 2026 14:25:09 GMT
+Content-Length: 1256
+Connection: close
+
+<!doctype html>
+<html>
+<head>
+    <title>Example Domain</title>
+...
+```
+
+The request has a method and path (`GET /index.html`), a protocol version (`HTTP/1.1`), and headers terminated by a blank line (`\r\n\r\n` — that blank line is mandatory; forget it and the server waits forever for more headers). `Host:` matters because one IP can serve many domains (virtual hosting) — without it, the server doesn't know which site you're asking for. The response starts with a status line (`200 OK`), its own headers, a blank line, then the body. Every REST call, every webhook, every `fetch()` reduces to this.
+
+## curl and wget
+
+`curl` is for inspecting and scripting requests; `wget` is for pulling files down. `curl -v` shows you the exact request it sent and the response it got, prefixed with `>` and `<`:
+
+```bash
+$ curl -v -H "Accept: application/vnd.github+json" https://api.github.com/repos/torvalds/linux
+*   Trying 140.82.113.6:443...
+* Connected to api.github.com (140.82.113.6) port 443
+> GET /repos/torvalds/linux HTTP/2
+> Host: api.github.com
+> Accept: application/vnd.github+json
+> User-Agent: curl/8.5.0
+>
+< HTTP/2 200
+< content-type: application/json; charset=utf-8
+< x-ratelimit-remaining: 59
+< x-ratelimit-reset: 1759501200
+<
+{
+  "id": 1062897,
+  "name": "linux",
+  "full_name": "torvalds/linux",
+  "stargazers_count": 189432,
+  ...
+}
+```
+
+This is the single most useful debugging command in the entire module: it tells you whether you connected, what you actually sent, and what came back — headers included. When an API call "isn't working," `curl -v` separates "my request was wrong" from "the server rejected me" from "I never even connected."
+
+`wget` defaults to saving the response to disk instead of printing it, and shows download progress — useful for pulling installers, binaries, and archives onto a server:
+
+```bash
+$ wget https://releases.hashicorp.com/terraform/1.9.8/terraform_1.9.8_linux_amd64.zip
+--2026-10-03 14:31:02--  https://releases.hashicorp.com/terraform/1.9.8/terraform_1.9.8_linux_amd64.zip
+Resolving releases.hashicorp.com (releases.hashicorp.com)... 151.101.1.63
+Connecting to releases.hashicorp.com (151.101.1.63):443... connected.
+HTTP request sent, awaiting response... 200 OK
+Length: 28571278 (27M) [application/zip]
+Saving to: 'terraform_1.9.8_linux_amd64.zip'
+
+terraform_1.9.8_linux_amd64.zip  100%[=================================>]  27.25M  18.4MB/s    in 1.5s
+
+2026-10-03 14:31:04 (18.4 MB/s) - 'terraform_1.9.8_linux_amd64.zip' saved [28571278/28571278]
+```
+
+Rule of thumb: reaching for `curl` means you want to see or script the exchange; reaching for `wget` means you just want the file.
+
+## localhost vs remote: the bug that bites everyone once
+
+This is the single most common "it worked on my machine" incident in ops. A developer runs a Flask app:
+
+```bash
+$ python3 app.py
+ * Running on http://127.0.0.1:5000
+```
+
+On their laptop: `curl http://localhost:5000/health` → `200 OK`. They deploy the identical code to a cloud VM, and then from their own laptop:
+
+```bash
+$ curl http://203.0.113.42:5000/health
+curl: (28) Failed to connect to 203.0.113.42 port 5000: Connection timed out
+```
+
+But SSH'd into the VM itself:
+
+```bash
+user@vm:~$ curl http://localhost:5000/health
+{"status":"ok"}
+```
+
+So the app is running, and it's not a firewall issue if that's your first guess — it's working from *inside* the box. The actual cause: `127.0.0.1` is the loopback interface, which only accepts connections originating from the same machine. `localhost` always resolves to `127.0.0.1`, so testing from the VM itself always succeeds even when the app is fundamentally unreachable from outside. The fix is binding to the wildcard address instead:
+
+```python
+app.run(host="0.0.0.0", port=5000)
+```
+
+`0.0.0.0` means "listen on every network interface this machine has," including the one facing the internet. Confirm the change with `ss`:
+
+```bash
+$ sudo ss -tlnp | grep 5000
+LISTEN  0  128   0.0.0.0:5000   0.0.0.0:*   users:(("python3",pid=3390,fd=4))
+```
+
+Note that even after this fix, a cloud VM typically still needs an explicit firewall/security-group rule opening port 5000 to the outside world — "listening on the right interface" and "allowed through the firewall" are two separate failure points, and a real incident often turns out to be both at once.
+
+## SSH fundamentals
+
+SSH is how you get a shell on a remote machine, and key-based auth is how you do it without typing a password every time (and how most servers are configured to require you to log in at all). Generate a key pair locally:
+
+```bash
+$ ssh-keygen -t ed25519 -C "chris@laptop"
+Generating public/private ed25519 key pair.
+Enter file in which to save the key (/home/chris/.ssh/id_ed25519):
+Enter passphrase (empty for no passphrase):
+Enter same passphrase again:
+Your identification has been saved in /home/chris/.ssh/id_ed25519
+Your public key has been saved in /home/chris/.ssh/id_ed25519.pub
+The key fingerprint is:
+SHA256:k3Jd9... chris@laptop
+```
+
+This produces two files: `id_ed25519` (private — never leaves your machine, never gets committed to a repo) and `id_ed25519.pub` (public — safe to hand out). Authentication works because the server can verify, using only your public key, that a response was signed by the matching private key, without the private key ever being transmitted.
+
+Put the public key on the server's authorized list, then connect:
+
+```bash
+$ ssh-copy-id -i ~/.ssh/id_ed25519.pub deploy@203.0.113.42
+$ ssh deploy@203.0.113.42
+Welcome to Ubuntu 22.04.4 LTS
+deploy@web-01:~$
+```
+
+Under the hood, `ssh-copy-id` just appended your public key to `~/.ssh/authorized_keys` on the remote box — you can do the same thing by hand if that command isn't available. For servers you connect to often, save yourself the typing with `~/.ssh/config`:
+
+```text
+Host web01
+    HostName 203.0.113.42
+    User deploy
+    IdentityFile ~/.ssh/id_ed25519
+```
+
+Now `ssh web01` does the whole thing. This same key pair is also what authenticates `git push` over SSH to GitHub — same mechanism, different server.
+
+## Exercise
+
+You're given a VM with two tiny Python HTTP servers meant to run side by side: one on port 8000 serving a `/health` endpoint, one on port 8001 serving a `/metrics` endpoint. After starting both with `python3 -m http.server`, a teammate reports that `/health` works fine when they curl it from their own laptop, but `/metrics` times out from everywhere except the VM itself.
+
+Diagnose and fix it using only `ss -tlnp` and `curl`. Don't just restart the service and hope — identify exactly which interface the failing server is bound to, and explain in one sentence why the other one works.
+
+*Hint: compare the Local Address column for both ports in the `ss` output before you touch any code.*
+
+## Check yourself
+
+- You should now be able to read a `dig` ANSWER SECTION and state the resolved IP and its TTL without help.
+- You should be able to explain, using the 4-tuple, why one IP can serve two different applications on two different ports.
+- You should be able to tell, from `ss -tlnp` output alone, whether a service is reachable from outside the machine.

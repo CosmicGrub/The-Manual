@@ -1,0 +1,98 @@
+[
+  {
+    "id": "devops-tooling/tier-1/bash-scripting-fundamentals/q1",
+    "type": "multiple_choice",
+    "prompt": "A script does `LOGFILE=$1` then `rm $LOGFILE`, called as `./cleanup.sh \"nightly report.log\"`. What actually happens?",
+    "choices": [
+      "rm correctly deletes the single file 'nightly report.log'",
+      "Bash word-splits the unquoted $LOGFILE into two arguments, 'nightly' and 'report.log', and rm fails to remove either one",
+      "The script fails immediately with a syntax error before rm ever runs",
+      "rm deletes every .log file in the current directory instead"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-1/bash-scripting-fundamentals/q2",
+    "type": "multiple_choice",
+    "prompt": "Why is `[ -s \"$backup\" ]` a better check than just `[ -f \"$backup\" ]` when validating a nightly backup file?",
+    "choices": [
+      "-s is faster to execute than -f",
+      "-f only checks that the file exists and is a regular file; -s additionally requires the file to be non-empty, catching a backup job that created the file but wrote zero bytes to it",
+      "-s checks the file's permissions while -f checks its contents",
+      "There is no difference; both flags behave identically"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-1/bash-scripting-fundamentals/q3",
+    "type": "multiple_choice",
+    "prompt": "In a bash function, what does `return 1` actually communicate to the code that called it?",
+    "choices": [
+      "The function's computed result is the number 1",
+      "The function's exit code is 1, which a caller can check via $? immediately afterward, conventionally signaling failure",
+      "The function will retry itself one more time",
+      "The value 1 is printed to stdout for the caller to capture with $(...)"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-1/bash-scripting-fundamentals/q4",
+    "type": "multiple_choice",
+    "prompt": "After calling a function, you run `echo \"checked\"` and then check `$?`. The check doesn't reflect the function's result. Why?",
+    "choices": [
+      "$? only works for external commands, never for bash functions",
+      "$? was overwritten by the echo command, since $? always reflects the most recently completed command",
+      "$? needs to be explicitly reset with `unset $?` before each use",
+      "Functions never set $? at all"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-1/bash-scripting-fundamentals/q5",
+    "type": "multiple_choice",
+    "prompt": "In a getopts optstring like \"e:v h\", what does the colon after 'e' mean?",
+    "choices": [
+      "The -e flag is deprecated and should not be used",
+      "The -e flag requires an accompanying value, which getopts places into $OPTARG",
+      "The -e flag can only be passed once per invocation",
+      "The -e flag must come before all other flags on the command line"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-1/bash-scripting-fundamentals/q6",
+    "type": "multiple_choice",
+    "prompt": "A deploy script with no `set -e` has `cp` fail (source file missing), followed by a `tar` extract that also fails, followed by `systemctl restart myapp.service`, followed by `echo \"Deploy complete\"`. What actually happens when you run it?",
+    "choices": [
+      "The script stops at the failed cp command and nothing after it runs",
+      "Bash automatically skips to the systemctl line, skipping tar entirely",
+      "Every line still executes in order: cp fails, tar fails, the service restarts on the old unchanged code, and the script prints 'Deploy complete' despite nothing having actually deployed",
+      "The script throws a fatal syntax error because cp failed"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "devops-tooling/tier-1/bash-scripting-fundamentals/q7",
+    "type": "multiple_choice",
+    "prompt": "With `set -e` (but NOT `set -o pipefail`) active, `cat missing.log | grep ERROR | wc -l` runs where `cat` fails but `wc -l` still prints 0. Why doesn't `set -e` stop the script here?",
+    "choices": [
+      "set -e only applies to the first command in a script, never to later ones",
+      "In a pipeline, bash by default reports only the exit code of the last command (wc -l, which succeeded), so set -e sees no failure to react to",
+      "cat's failure was actually a warning, not a real error",
+      "set -e is disabled automatically whenever a pipe character is used"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-1/bash-scripting-fundamentals/q8",
+    "type": "multiple_choice",
+    "prompt": "What does adding `set -o pipefail` change about how a pipeline's exit status is determined?",
+    "choices": [
+      "It makes every stage of the pipeline run in a separate subshell with its own log file",
+      "It makes the pipeline's overall exit code the right-most non-zero exit code among all its stages, instead of just the last command's exit code",
+      "It silently retries any failed stage in the pipeline up to three times",
+      "It has no effect on exit codes; it only changes how error messages are formatted"
+    ],
+    "correctIndex": 1
+  }
+]

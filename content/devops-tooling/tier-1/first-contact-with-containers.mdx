@@ -1,0 +1,283 @@
+---
+trackId: devops-tooling
+tier: 1
+title: "First Contact with Containers"
+order: 6
+estimatedHours: 6
+slug: first-contact-with-containers
+---
+
+## Why This Module Exists
+
+By this point in the track you've got git, bash, Linux fundamentals, and basic networking under your belt. This module is your first hands-on contact with the technology that runs most of modern production infrastructure: containers. Not the theory — the actual commands, the actual output, the actual mental model of what's running where. "First contact with the cloud" (the next module) assumes you already have this.
+
+## VM vs Container: What's Actually Shared With the Host
+
+Every explanation that stops at "containers are lighter than VMs" is useless for debugging anything. Here's the concrete difference.
+
+A **virtual machine** runs a full guest operating system — its own kernel, its own device drivers, its own init system — on top of a **hypervisor** (VMware, KVM, Hyper-V) that emulates hardware. If your host is Linux and you spin up a VM, that VM boots its own Linux kernel from scratch, independent of the host's. You could even run a Windows VM on a Linux host, or vice versa, because the hypervisor is faking an entire computer underneath it.
+
+```text
+Host hardware
+  └── Hypervisor (KVM/VMware)
+        ├── VM 1: own kernel, own /sbin/init, own device drivers, own filesystem
+        ├── VM 2: own kernel, own /sbin/init, own device drivers, own filesystem
+        └── VM 3: own kernel, own /sbin/init, own device drivers, own filesystem
+```
+
+A **container** shares the host's kernel. There is no second kernel booting. What a container gets is not a fake computer — it's a set of Linux kernel features (namespaces and cgroups) that make a process *believe* it has its own filesystem, its own process tree, its own network stack, and its own hostname, while the actual kernel underneath handling syscalls, scheduling, and memory is the one and only host kernel.
+
+```text
+Host hardware
+  └── Host Linux kernel (ONE kernel, shared by everything below)
+        ├── Container 1: isolated filesystem view, isolated PID namespace, own network namespace — but syscalls go to the host kernel
+        ├── Container 2: isolated filesystem view, isolated PID namespace, own network namespace — but syscalls go to the host kernel
+        └── Container 3: isolated filesystem view, isolated PID namespace, own network namespace — but syscalls go to the host kernel
+```
+
+You can prove this to yourself. Run a container and check what kernel it reports:
+
+```bash
+$ docker run --rm alpine uname -r
+6.5.0-1025-aws
+```
+
+Now check your host:
+
+```bash
+$ uname -r
+6.5.0-1025-aws
+```
+
+Identical. The container didn't load a kernel — it borrowed yours. This is exactly why a container starts in milliseconds (`docker run` just asks the kernel to create some namespaces and exec a process) while a VM takes tens of seconds to boot (it has to POST virtual hardware, load a bootloader, and boot an entire second OS). It's also why a Linux container cannot run a Windows binary — there's no second kernel to execute it; it's the host kernel's job, and that kernel only understands Linux syscalls. VMs don't have this restriction because the hypervisor emulates hardware, not an API surface.
+
+The practical consequence that bites people in production: a kernel-level vulnerability or a `cgroup` misconfiguration on the host affects every container on that host, because they all share one attack surface. A VM's isolation boundary is much harder to escape because there's a hypervisor and a separate kernel in the way. This is why security-sensitive multi-tenant platforms often run containers *inside* VMs (one VM per customer, containers for workload density within it) — and why "containers are a security boundary" is a claim you should be skeptical of without more context.
+
+## Installing Docker and Verifying It Actually Works
+
+On a Linux server (Ubuntu 22.04/24.04), skip Docker Desktop entirely — you want the engine and CLI directly:
+
+```bash
+$ curl -fsSL https://get.docker.com -o install-docker.sh
+$ sudo sh install-docker.sh
+# ... a few hundred lines of apt output ...
+$ sudo usermod -aG docker $USER
+```
+
+That last line matters: by default only `root` can talk to the Docker daemon (it listens on a socket, `/var/run/docker.sock`, owned by `root:docker`). Adding yourself to the `docker` group lets you run `docker` without `sudo` in front of every command. Log out and back in (or `newgrp docker`) for the group change to take effect, then verify:
+
+```bash
+$ docker --version
+Docker version 26.1.3, build b72abbb
+
+$ docker info
+Client: Docker Engine - Community
+ Version:    26.1.3
+ ...
+Server:
+ Containers: 0
+  Running: 0
+  Paused: 0
+  Stopped: 0
+ Images: 0
+ Server Version: 26.1.3
+ Storage Driver: overlayfs
+ ...
+```
+
+`docker info` talking to the daemon and returning a `Server:` block, not a connection error, is your real proof of installation — `docker --version` only proves the CLI binary exists, not that the daemon is running and reachable. The real smoke test is running something:
+
+```bash
+$ docker run hello-world
+Unable to find image 'hello-world:latest' locally
+latest: Pulling from library/hello-world
+c1ec31eb5944: Pull complete
+Digest: sha256:0f77aae4fa0d2f8c0e..a89c88b4a3cf4d86
+Status: Downloaded newer image for hello-world:latest
+
+Hello from Docker!
+This message shows that your installation appears to be working correctly.
+```
+
+If you see that message, Docker can pull images from a registry, create a container, run it, and tear it down. That's the whole engine working end to end.
+
+On macOS/Windows, Docker Desktop bundles a lightweight Linux VM (because macOS and Windows kernels can't run Linux containers directly — remember, containers share the host kernel, and the host kernel here isn't Linux). Docker Desktop's "host" from the container's point of view is that internal VM, not your actual Mac or Windows kernel. Same `docker info` / `docker run hello-world` verification applies.
+
+## docker run / ps / logs / exec: A Real Sequence
+
+This is the loop you'll run dozens of times a day as an operations engineer. Start an actual nginx web server in the background:
+
+```bash
+$ docker run -d --name web -p 8080:80 nginx:1.27
+Unable to find image 'nginx:1.27' locally
+1.27: Pulling from library/nginx
+a378f10b3218: Pull complete
+.. several more layers ..
+Status: Downloaded newer image for nginx:1.27
+4f2a1e9d8c3b7a6e5f4d3c2b1a0f9e8d7c6b5a4938271605f4e3d2c1b0a9f8e
+```
+
+Breaking down the flags: `-d` runs it detached (in the background, returns your shell); `--name web` gives it a human-readable name instead of a random one; `-p 8080:80` maps port 8080 on the host to port 80 inside the container, where nginx listens by default. The long hex string is the full container ID.
+
+Confirm it's actually running:
+
+```bash
+$ docker ps
+CONTAINER ID   IMAGE        COMMAND                  CREATED         STATUS         PORTS                  NAMES
+4f2a1e9d8c3b   nginx:1.27   "/docker-entrypoint.…"   5 seconds ago   Up 5 seconds   0.0.0.0:8080->80/tcp   web
+```
+
+`docker ps` (by default) only shows *running* containers — `docker ps -a` shows every container including stopped/exited ones, which matters when you're hunting for why something crashed. Hit it from the host to prove the port mapping works:
+
+```bash
+$ curl -s http://localhost:8080 | head -5
+<!DOCTYPE html>
+<html>
+<head>
+<title>Welcome to nginx!</title>
+<style>
+```
+
+Read what the container has logged so far:
+
+```bash
+$ docker logs web
+/docker-entrypoint.sh: /docker-entrypoint.d/ is not empty, will attempt to perform configuration
+/docker-entrypoint.sh: Looking for shell scripts in /docker-entrypoint.d/
+10-listen-on-ipv6-by-default.sh: info: Getting the checksum of host's IP address
+/docker-entrypoint.sh: Configuration complete; ready for start up
+2026/10/03 14:22:08 [notice] 1#1: nginx/1.27.0
+2026/10/03 14:22:08 [notice] 1#1: start worker processes
+```
+
+Tail it live the way you would in an incident — leave this running in a second terminal while you hit the server with traffic, and watch the access log stream:
+
+```bash
+$ docker logs -f web
+172.17.0.1 - - [03/Oct/2026:14:25:33 +0000] "GET / HTTP/1.1" 200 615 "-" "curl/8.5.0"
+```
+
+Now get an actual shell *inside* the running container — the thing that most distinguishes "I understand containers" from "I ran a tutorial once":
+
+```bash
+$ docker exec -it web /bin/bash
+root@4f2a1e9d8c3b:/#
+```
+
+`-i` keeps stdin open, `-t` allocates a pseudo-terminal — together they're what make it feel like an interactive shell instead of a one-shot command. Notice the prompt changed to `root@4f2a1e9d8c3b` — that hex string is the container ID, now acting as its hostname, because the container has its own UTS namespace. From inside, prove this is a genuinely different, minimal filesystem:
+
+```bash
+root@4f2a1e9d8c3b:/# cat /etc/os-release
+PRETTY_NAME="Debian GNU/Linux 12 (bookworm)"
+
+root@4f2a1e9d8c3b:/# ps aux
+USER         PID %CPU %MEM COMMAND
+root           1  0.0  0.1 nginx: master process
+nginx          7  0.0  0.1 nginx: worker process
+root          34  0.0  0.0 /bin/bash
+```
+
+Two things to notice: the container's `/etc/os-release` says Debian, even though your host might be Ubuntu or Amazon Linux — the *filesystem* and *userland tools* are whatever the image packaged, independent of the host OS, even though the *kernel* answering `ps`'s syscalls is still the host's. And `ps aux` inside the container shows only the container's own processes (PID 1 is nginx's master, not systemd) — that's the PID namespace isolating what this container can see, not what's actually running on the host. Exit, and the container keeps running (unlike `docker run -it`, `docker exec` doesn't kill the container when you leave):
+
+```bash
+root@4f2a1e9d8c3b:/# exit
+$ docker ps
+CONTAINER ID   IMAGE        STATUS         NAMES
+4f2a1e9d8c3b   nginx:1.27   Up 2 minutes   web
+```
+
+Stop and remove it when you're done:
+
+```bash
+$ docker stop web
+web
+$ docker rm web
+web
+```
+
+## Images vs Containers: One Image, Many Containers
+
+An **image** is a read-only template — layered filesystem snapshots plus metadata (what command to run, what port to expose). A **container** is a running (or stopped) *instance* of that image, with a thin writable layer bolted on top for anything the process changes at runtime. This is exactly like the class/object distinction, or a `.iso` file vs. a VM actually booted from it — except the image is reused far more cheaply because of how the layers work.
+
+Prove the "one image, many independent containers" claim directly. Start three containers from the exact same `nginx:1.27` image:
+
+```bash
+$ docker run -d --name web1 -p 8081:80 nginx:1.27
+$ docker run -d --name web2 -p 8082:80 nginx:1.27
+$ docker run -d --name web3 -p 8083:80 nginx:1.27
+
+$ docker ps
+CONTAINER ID   IMAGE        STATUS         PORTS                   NAMES
+7a1b2c3d4e5f   nginx:1.27   Up 3 seconds   0.0.0.0:8081->80/tcp   web1
+8b2c3d4e5f6a   nginx:1.27   Up 2 seconds   0.0.0.0:8082->80/tcp   web2
+9c3d4e5f6a7b   nginx:1.27   Up 1 second    0.0.0.0:8083->80/tcp   web3
+```
+
+Three separate container IDs, three separate PID namespaces, three separate writable layers — from one image. Prove they're independent by modifying the filesystem *inside* just one of them:
+
+```bash
+$ docker exec web1 sh -c "echo 'this is web1 only' > /usr/share/nginx/html/marker.txt"
+$ docker exec web1 cat /usr/share/nginx/html/marker.txt
+this is web1 only
+
+$ docker exec web2 cat /usr/share/nginx/html/marker.txt
+cat: can't open '/usr/share/nginx/html/marker.txt': No such file or directory
+```
+
+`web2` and `web3` have no idea that file exists, even though all three started from byte-for-byte the same image, because each container's writable layer is private to it. If you stopped and removed `web1` right now, that `marker.txt` would be gone forever — it only ever existed in that one container's writable layer, never in the image.
+
+Now look at *why* starting three containers was fast and didn't triple your disk usage. Check the image's layer structure:
+
+```bash
+$ docker history nginx:1.27
+IMAGE          CREATED        CREATED BY                                      SIZE
+a1b2c3d4e5f6   3 weeks ago    CMD ["nginx" "-g" "daemon off;"]                 0B
+<missing>      3 weeks ago    EXPOSE map[80/tcp:{}]                            0B
+<missing>      3 weeks ago    COPY docker-entrypoint.sh / # buildkit           1.62kB
+<missing>      3 weeks ago    RUN /bin/sh -c set -x && apt-get update &&…     62.1MB
+<missing>      3 weeks ago    ENV NGINX_VERSION=1.27.0                         0B
+<missing>      3 weeks ago    LABEL maintainer=NGINX Docker Maintainers        0B
+<missing>      4 weeks ago    /bin/sh -c #(nop)  CMD ["bash"]                  0B
+<missing>      4 weeks ago    /bin/sh -c #(nop) ADD file:9d3cc006e1b7…in /     74.8MB
+```
+
+Each line is a read-only layer, stacked via a union filesystem (`overlayfs`, which is what `docker info` reported earlier as the storage driver). When you ran three containers from this image, Docker did not copy those ~137MB of layers three times — all three containers mount the *same* read-only layers underneath, and each gets its own tiny writable layer on top for changes like your `marker.txt`. That's why `docker run` on an already-pulled image is instant, and why ten containers from the same image cost barely more disk than one.
+
+```text
+            writable layer (web1)   writable layer (web2)   writable layer (web3)
+                    |                        |                        |
+                    +------------------------+------------------------+
+                                             |
+                          nginx.conf layer (read-only, SHARED)
+                          nginx binary layer (read-only, SHARED)
+                          Debian base layer (read-only, SHARED)
+```
+
+This is the concrete answer to "what's the relationship between an image and a container": a container is a read-only image's layer stack, plus one private writable layer, plus a process given its own namespaces by the kernel to make it feel like an isolated machine.
+
+Clean up:
+
+```bash
+$ docker rm -f web1 web2 web3
+web1
+web2
+web3
+```
+
+## Exercise: Diagnose a Container That Won't Stay Up
+
+Run this and see what happens:
+
+```bash
+$ docker run -d --name flaky busybox echo "starting up"
+$ docker ps
+CONTAINER ID   IMAGE     STATUS   NAMES
+```
+
+Notice `docker ps` shows nothing — no `flaky` in the list. Your job: using only `docker ps -a`, `docker logs`, and `docker inspect flaky --format '{{.State.ExitCode}}'`, figure out exactly why `flaky` isn't running, and explain it in terms of what a container actually *is* (a wrapped process, not a persistent VM). Then fix it so `flaky` stays running indefinitely without changing the image — you'll need a different command than a one-shot `echo`.
+
+Hint: a container's lifecycle is tied directly to its PID 1. What happens to a VM when you log out of its shell versus what happens to a container when its main process returns?
+
+## What's Next
+
+The next module, "First Contact with the Cloud," takes this same hands-on approach to a real cloud VM — provisioning one, SSH-ing in, and shutting it down responsibly. Everything you just learned about `docker ps`/`logs`/`exec` on a local container applies unchanged once that container is running on a rented VM instead of your own laptop.

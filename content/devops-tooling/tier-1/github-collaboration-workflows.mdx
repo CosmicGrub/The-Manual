@@ -1,0 +1,201 @@
+---
+trackId: devops-tooling
+tier: 1
+title: "GitHub Collaboration Workflows"
+order: 2
+estimatedHours: 5
+slug: github-collaboration-workflows
+---
+
+## GitHub as a Deployment Gate, Not a Code Review Ritual
+
+You've already learned how to branch, commit, and open a pull request. This module is not about that. It's about what happens *around* a pull request once a team treats GitHub as the thing standing between a change and production.
+
+In an operations context, a pull request isn't "please review my code" — it's "this diff is about to become infrastructure, and nothing ships until a machine says it's safe." Forks, issues, project boards, and branch protection rules are the control surface for that. Get comfortable with the mechanics here, because on your first infra job you will hit a red X on a PR before you hit a human reviewer's comment.
+
+## Forks and Pull Requests That Trigger a Real Pipeline
+
+When you don't have write access to a repo (true for almost every open-source project, and true for many internal repos until you're trusted), you fork it. The fork is your own copy on GitHub; you branch and commit there, then open a PR from your fork's branch back to the upstream repo's branch. GitHub diffs across the fork boundary automatically — you don't need the two repos to share history beyond the common ancestor.
+
+Here's the actual flow against a real-shaped repo with a CI workflow:
+
+```bash
+# Fork via API (creates ctsolomon95/infra-tools on GitHub)
+gh api -X POST repos/acme-org/infra-tools/forks
+
+# Clone YOUR fork, not the upstream
+git clone git@github.com:ctsolomon95/infra-tools.git
+cd infra-tools
+
+# Add upstream so you can pull in changes later
+git remote add upstream git@github.com:acme-org/infra-tools.git
+
+git checkout -b fix/dockerfile-healthcheck
+```
+
+Say the change is adding a `HEALTHCHECK` instruction to a Dockerfile that was missing one — a real, small, infra-flavored fix:
+
+```dockerfile
+FROM python:3.12-slim
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY . .
+HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
+  CMD curl -f http://localhost:8080/healthz || exit 1
+CMD ["python", "app.py"]
+```
+
+```bash
+git add Dockerfile
+git commit -m "Add container HEALTHCHECK for liveness probing"
+git push origin fix/dockerfile-healthcheck
+
+gh pr create \
+  --repo acme-org/infra-tools \
+  --head ctsolomon95:fix/dockerfile-healthcheck \
+  --base main \
+  --title "Add container HEALTHCHECK for liveness probing" \
+  --body "Image had no HEALTHCHECK, so orchestrators couldn't detect a hung app without relying on the process still being alive. Adds a curl-based probe against /healthz."
+```
+
+The moment that PR opens, GitHub fires a `pull_request` event. If the repo has a workflow file watching for it, CI starts immediately — before any human looks at the diff:
+
+```yaml
+# .github/workflows/ci.yml (already in the repo)
+on:
+  pull_request:
+    branches: [main]
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t infra-tools:pr-${{ github.event.number }} .
+      - name: Run container smoke test
+        run: |
+          docker run -d --name test-container -p 8080:8080 infra-tools:pr-${{ github.event.number }}
+          sleep 5
+          docker inspect --format='{{.State.Health.Status}}' test-container
+```
+
+Check the live status from the terminal instead of refreshing the browser:
+
+```bash
+gh pr checks 47
+```
+```text
+NAME                 STATUS   DURATION  URL
+build-and-test       pass     38s       https://github.com/acme-org/infra-tools/actions/runs/9931204551
+```
+
+That's the mechanism: the PR is the trigger, the workflow file is the listener, and the check result is what everything downstream (branch protection, auto-merge, deploy pipelines) reads. No CI file watching `pull_request`, no safety net — you could merge garbage straight to `main` and nothing would stop you.
+
+## Issues and Project Boards: Tracking an Infra Change, Not a Feature
+
+Feature work gets tracked in issues too, but infra issues have a different shape: they usually start from an alert, a cost report, or a postmortem action item, not a product spec. Here's a realistic one:
+
+```bash
+gh issue create \
+  --repo acme-org/infra-tools \
+  --title "nginx: no rate limiting on /api/login, vulnerable to brute force" \
+  --body "Security scan (2026-09-30) flagged unlimited requests to /api/login.
+Action item from incident INC-1142.
+
+Acceptance criteria:
+- limit_req_zone applied to /api/login, 5 req/s per IP, burst 10
+- Returns 429 (not 502) when limit exceeded
+- Verified under load with \`ab -n 200 -c 20\`" \
+  --label "infra,security,p1"
+```
+```text
+https://github.com/acme-org/infra-tools/issues/152
+```
+
+That issue gets dropped onto a project board — typically `Todo → In Progress → In Review → Done` — either manually in the UI or via the API:
+
+```bash
+gh project item-add 4 --owner acme-org --url https://github.com/acme-org/infra-tools/issues/152
+```
+
+The part that actually matters operationally is the *link* between the issue and the PR that closes it. You don't close infra issues by hand — you reference them in the PR description, and GitHub closes the issue automatically on merge:
+
+```bash
+gh pr create \
+  --title "nginx: add rate limiting to /api/login" \
+  --body "Fixes #152
+
+Adds limit_req_zone keyed on \$binary_remote_addr, 5r/s with burst=10 nodelay. Tested with ab against staging; 429s start at request 11 in a 1-second burst as expected."
+```
+
+When this PR merges, issue #152 auto-closes and the board moves it to `Done` without anyone touching it. That auto-linking is why "Fixes #152" / "Closes #152" syntax matters — it's not decoration, it's the thing wiring your audit trail together. Six months later, when someone asks "when did we fix the login rate limiting and what was the change," `git log` plus the closed issue gives a complete answer in two clicks.
+
+## Branch Protection: What Actually Blocks the Merge
+
+"CI has to pass before you can merge" is a policy. Branch protection is the enforcement mechanism, and it's worth seeing the actual rule, not just the concept.
+
+```bash
+gh api repos/acme-org/infra-tools/branches/main/protection
+```
+```json
+{
+  "required_status_checks": {
+    "strict": true,
+    "contexts": ["build-and-test", "security-scan"]
+  },
+  "enforce_admins": { "enabled": true },
+  "required_pull_request_reviews": {
+    "required_approving_review_count": 1
+  },
+  "restrictions": null
+}
+```
+
+`strict: true` is the detail people skip past — it means the branch must be up to date with `main` before the check result counts. If someone else merged while your PR sat open, your old CI run doesn't satisfy the rule anymore; GitHub re-requires the check after you merge/rebase latest `main` in.
+
+Here's what it looks like when a required context hasn't reported yet, or has failed. Try to merge anyway:
+
+```bash
+gh pr merge 47 --merge
+```
+```text
+X Pull request #47 is not mergeable: the base branch policy requires branches to be up to date and all required status checks must pass.
+Required status checks: build-and-test (pending), security-scan (failing)
+```
+
+The merge button in the UI is just this same check, grayed out with the same message: "Required statuses must pass before merging." Nobody — not even a repo admin, with `enforce_admins: true` — can click past it. That's the whole point: the rule isn't a reviewer being strict, it's GitHub refusing the `git merge` operation server-side until the API reports green on every context listed in `contexts`.
+
+Setting this up as a maintainer is one API call:
+
+```bash
+gh api -X PUT repos/acme-org/infra-tools/branches/main/protection \
+  -f required_status_checks[strict]=true \
+  -f 'required_status_checks[contexts][]=build-and-test' \
+  -f 'required_status_checks[contexts][]=security-scan' \
+  -F enforce_admins=true \
+  -f 'required_pull_request_reviews[required_approving_review_count]=1'
+```
+
+If you add a new CI job later, a PR against `main` won't block on it until you add its exact job name to `contexts`. This bites people constantly: they rename a job in the workflow YAML, forget to update the protection rule, and now a stale check name sits in `contexts` forever "pending" — because nothing ever reports under that name again, so the merge button never un-grays. Checking `gh api repos/:owner/:repo/branches/main/protection` after any CI rename is a real, recurring sysadmin habit, not a one-time setup step.
+
+## Your First Real Open-Source PR: Pick an Infra-Shaped One
+
+A good first PR to an unfamiliar project is boring on purpose. You're building trust in the mechanism (fork → branch → PR → CI → review → merge) before you're building trust in your judgment about their architecture. Infra/tooling-adjacent first PRs that maintainers actually merge quickly:
+
+- **A Dependabot-flagged version bump** that's failing CI for a reason you can read in the log (a deprecated flag, a changed default) — fix the actual breakage, not just the version number.
+- **A missing `.dockerignore` or `.gitignore` entry** that's bloating build context or leaking `.env` patterns into images.
+- **A flaky CI step** with a root cause you can show (no retry on a network call, a race in a healthcheck sleep) — include the failing run's log link in the PR description as evidence.
+- **A broken or outdated `CONTRIBUTING.md` command** — run every command in it yourself first; if `make test` from the docs 404s because the target was renamed, that's a real, verifiable bug.
+- **A GitHub Actions workflow fix** — pinning an action to a SHA instead of a floating tag, or fixing a matrix build that's silently only running one leg.
+
+What makes these *good* first PRs isn't that they're small — it's that they come with evidence. "I ran this, here's the failing output, here's the fix, here's the passing output" is a complete, verifiable claim a maintainer can approve without re-deriving your reasoning. A one-line formatting PR with no linked issue and no "why" is the thing that gets closed with "thanks but not needed right now" — avoid drive-by changes with no acceptance criteria behind them.
+
+## Exercise: Trigger and Clear a Real Branch Protection Block
+
+1. Fork any small public repo that has both a GitHub Actions CI workflow on `pull_request` and branch protection with required status checks on `main` (search GitHub for `is:public topic:github-actions` and check Settings → Branches on a few candidates, or use one you already use).
+2. Open a PR from your fork that you know will fail CI — e.g., introduce a syntax error in a shell script the workflow lints, or break an existing test intentionally.
+3. Run `gh pr checks <number>` and confirm it reports a failure, then try `gh pr merge <number> --merge` and capture the exact rejection message.
+4. Push a fix commit to the same branch, watch the check re-run and go green, and merge.
+
+**Hint:** if you can't find a suitable public repo quickly, create your own test repo, add a minimal workflow (`on: pull_request`, one job that runs `exit 1`), turn on branch protection with that job's name as a required context in Settings → Branches, then open a PR against yourself. The mechanism is identical whether the repo has two contributors or two thousand.

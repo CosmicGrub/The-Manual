@@ -1,0 +1,86 @@
+[
+  {
+    "id": "devops-tooling/tier-1/github-collaboration-workflows/q1",
+    "type": "multiple_choice",
+    "prompt": "When you open a pull request from a fork back to an upstream repository, what actually triggers the CI pipeline defined in a GitHub Actions workflow?",
+    "choices": [
+      "A maintainer manually clicking 'Run checks' after reviewing the diff",
+      "GitHub firing a pull_request event that any workflow watching for it picks up automatically",
+      "The act of forking the repository, which runs CI once immediately",
+      "Merging the PR into the base branch"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-1/github-collaboration-workflows/q2",
+    "type": "multiple_choice",
+    "prompt": "In a required_status_checks branch protection rule, what does setting \"strict\": true actually enforce?",
+    "choices": [
+      "Only repo admins can bypass failing checks",
+      "Every commit author must have 2FA enabled",
+      "The branch must be up to date with the base branch before an existing passing check result is considered valid",
+      "Status checks must complete in under 5 minutes or they count as failed"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "devops-tooling/tier-1/github-collaboration-workflows/q3",
+    "type": "multiple_choice",
+    "prompt": "A repo renames a CI job from `test` to `build-and-test` in its workflow YAML but the branch protection rule's required_status_checks.contexts still lists `test`. What happens to new PRs against the protected branch?",
+    "choices": [
+      "GitHub automatically updates the required context name to match",
+      "The merge button stays blocked forever because the required context `test` never reports again",
+      "Branch protection is disabled automatically until the mismatch is fixed",
+      "CI simply runs both the old and new job names"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-1/github-collaboration-workflows/q4",
+    "type": "multiple_choice",
+    "prompt": "What does enforce_admins: true in a branch protection rule mean in practice?",
+    "choices": [
+      "Only admins are allowed to approve pull requests",
+      "Admins get an extra required review step that other contributors don't",
+      "Even repository admins cannot merge past failing or pending required status checks",
+      "Admins must enable two-factor authentication before pushing"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "devops-tooling/tier-1/github-collaboration-workflows/q5",
+    "type": "multiple_choice",
+    "prompt": "Writing \"Fixes #152\" in a pull request description that gets merged into the default branch causes what to happen automatically?",
+    "choices": [
+      "Nothing \u2014 it is purely a documentation convention with no functional effect",
+      "GitHub closes issue #152 and the linked project board moves it to its closed-state column",
+      "Issue #152 is deleted from the repository",
+      "A new branch protection rule is created referencing issue #152"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-1/github-collaboration-workflows/q6",
+    "type": "multiple_choice",
+    "prompt": "Which of these is the strongest example of a good first infra/tooling-adjacent pull request to an unfamiliar open-source repo?",
+    "choices": [
+      "A large refactor of the build system reorganizing how all CI jobs are structured",
+      "A one-line reformatting change with no linked issue and no explanation of why it's needed",
+      "A fix for a flaky CI step, including the failing run's log link and the passing run after the fix",
+      "Renaming variables throughout the codebase to match the contributor's preferred style"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "devops-tooling/tier-1/github-collaboration-workflows/q7",
+    "type": "multiple_choice",
+    "prompt": "You run gh pr merge 47 --merge and get: \"Required status checks: build-and-test (pending), security-scan (failing)\". What does this indicate about the underlying mechanism?",
+    "choices": [
+      "GitHub is only issuing a warning; the merge will proceed after a 10-second delay",
+      "GitHub's server-side merge operation itself is refusing the request because contexts listed in required_status_checks have not all reported success",
+      "The PR reviewer rejected the change, which GitHub is reporting as a check failure",
+      "The repository has run out of CI minutes for the billing period"
+    ],
+    "correctIndex": 1
+  }
+]

@@ -1,0 +1,98 @@
+[
+  {
+    "id": "devops-tooling/tier-1/first-contact-with-the-cloud/q1",
+    "type": "multiple_choice",
+    "prompt": "On AWS, which instance state stops compute billing but still leaves the root EBS volume intact and billed for storage?",
+    "choices": [
+      "Terminated",
+      "Stopped",
+      "Hibernated",
+      "Rebooted"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-1/first-contact-with-the-cloud/q2",
+    "type": "multiple_choice",
+    "prompt": "Which AWS CLI command permanently destroys an EC2 instance and, by default, its root EBS volume along with it?",
+    "choices": [
+      "aws ec2 stop-instances",
+      "aws ec2 terminate-instances",
+      "aws ec2 reboot-instances",
+      "aws ec2 deregister-instances"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-1/first-contact-with-the-cloud/q3",
+    "type": "multiple_choice",
+    "prompt": "Before you can SSH into a freshly launched EC2 instance on macOS or Linux using a downloaded .pem key, what must you do to that file first?",
+    "choices": [
+      "chmod 400 it",
+      "gzip it",
+      "rename it to id_rsa",
+      "upload it back to the AWS console"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "devops-tooling/tier-1/first-contact-with-the-cloud/q4",
+    "type": "multiple_choice",
+    "prompt": "What is the default SSH login username for an official Ubuntu AMI on EC2, as opposed to Amazon Linux's ec2-user?",
+    "choices": [
+      "root",
+      "admin",
+      "ubuntu",
+      "ec2-user"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "devops-tooling/tier-1/first-contact-with-the-cloud/q5",
+    "type": "multiple_choice",
+    "prompt": "What is the real-world gotcha with shutting an Azure VM down from inside the guest OS (e.g. running sudo shutdown now over SSH), versus stopping it through Azure's own control plane?",
+    "choices": [
+      "They are identical; both deallocate the VM and immediately stop compute billing",
+      "An OS-level shutdown can leave the VM allocated and still billed for compute, unlike an explicit stop/deallocate",
+      "An OS-level shutdown permanently terminates and deletes the VM",
+      "OS-level shutdown is blocked entirely on Azure VMs"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-1/first-contact-with-the-cloud/q6",
+    "type": "multiple_choice",
+    "prompt": "Which TCP port does SSH use by default, and what does the host key fingerprint shown on first connection actually verify?",
+    "choices": [
+      "Port 22; the server's host key, letting you confirm you're connecting to the real host and not an impostor",
+      "Port 443; the client's certificate fingerprint",
+      "Port 21; a hash of your password",
+      "Port 3389; the session's symmetric encryption key"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "devops-tooling/tier-1/first-contact-with-the-cloud/q7",
+    "type": "multiple_choice",
+    "prompt": "Why might an AWS account still show charges even after every EC2 instance has been terminated?",
+    "choices": [
+      "AWS charges a flat one-time termination fee per instance",
+      "Leftover resources like unattached EBS volumes, snapshots, or unassociated Elastic IPs keep accruing charges independently of any instance",
+      "Terminated instances are automatically billed for 30 additional days",
+      "AWS always bills a monthly fee just for having a VPC"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-1/first-contact-with-the-cloud/q8",
+    "type": "multiple_choice",
+    "prompt": "On GCP, which machine type is the one commonly eligible for the no-cost 'Always Free' Compute Engine instance in eligible US regions?",
+    "choices": [
+      "n1-standard-4",
+      "e2-micro",
+      "c2-standard-8",
+      "a2-highgpu-1g"
+    ],
+    "correctIndex": 1
+  }
+]

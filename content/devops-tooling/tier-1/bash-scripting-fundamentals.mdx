@@ -1,0 +1,288 @@
+---
+trackId: devops-tooling
+tier: 1
+title: "Bash Scripting Fundamentals"
+order: 3
+estimatedHours: 8
+slug: bash-scripting-fundamentals
+---
+
+## Variables and quoting: the bug that deletes the wrong thing
+
+Bash variables don't have the safety rails you're used to from other languages. An unquoted variable isn't "mostly fine" — it's fed to the shell's word-splitting and globbing before the command ever sees it. That's not a style nitpick; it's the single most common source of production scripts doing the wrong thing to the wrong file.
+
+Here's a cleanup script a lot of people would write without thinking twice:
+
+```bash
+#!/bin/bash
+# cleanup.sh — delete a named log file
+LOGFILE=$1
+rm $LOGFILE
+echo "Removed $LOGFILE"
+```
+
+It works fine in testing because nobody tests with real filenames. Then ops hands you an actual nightly export:
+
+```bash
+$ ls -la /var/log/app/
+-rw-r--r-- 1 app app 48213 Oct  3 02:00 nightly report.log
+
+$ ./cleanup.sh "/var/log/app/nightly report.log"
+rm: cannot remove '/var/log/app/nightly': No such file or directory
+rm: cannot remove 'report.log': No such file or directory
+Removed /var/log/app/nightly report.log
+
+$ ls -la /var/log/app/
+-rw-r--r-- 1 app app 48213 Oct  3 02:00 nightly report.log
+```
+
+Walk through what happened: `$1` correctly captured the full string `/var/log/app/nightly report.log`, quotes and all, at the call site. The bug is inside the script. `rm $LOGFILE` expands the variable *before* word-splitting runs, and bash splits on whitespace, so `rm` actually receives two separate arguments: `/var/log/app/nightly` and `report.log`. Neither exists, so `rm` fails on both — but the script's own `echo` line still runs and prints a success message, because nothing checked whether `rm` actually succeeded. The real file is still sitting there untouched. In a cron job with no human watching stdout, this fails silently forever and disk fills up.
+
+The fix is one character, applied everywhere the variable is used as a value rather than being intentionally split:
+
+```bash
+#!/bin/bash
+# cleanup.sh — delete a named log file
+LOGFILE="$1"
+rm "$LOGFILE"
+echo "Removed $LOGFILE"
+```
+
+```bash
+$ ./cleanup.sh "/var/log/app/nightly report.log"
+Removed /var/log/app/nightly report.log
+
+$ ls -la /var/log/app/
+$
+```
+
+Same input, correct result. The rule you should default to: quote every variable expansion — `"$VAR"`, `"$1"`, `"$(some_command)"` — unless you have a specific, deliberate reason not to (rare: things like `$@` inside `"${@}"` need care of their own, and deliberate word-splitting of a space-separated list is one of the few legitimate exceptions). Unquoted is the opt-in, not the default.
+
+## Conditionals and loops: looping over real files, branching on real conditions
+
+Ops scripts spend most of their time doing one thing: iterate over a set of files or hosts, and make a decision per item. Here's a backup health check that a monitoring job might run every morning:
+
+```bash
+$ ls -la /var/backups/
+-rw-r--r-- 1 root root 182837402 Oct  3 01:00 db-prod.tar.gz
+-rw-r--r-- 1 root root         0 Oct  3 01:00 db-staging.tar.gz
+-rw-r--r-- 1 root root  44112983 Oct  3 01:00 db-analytics.tar.gz
+```
+
+Notice `db-staging.tar.gz` is zero bytes — the backup job ran, created the file, but the actual dump failed silently partway through. A naive check that only asks "does the file exist?" would miss this entirely. You need to branch on size, not just presence:
+
+```bash
+#!/bin/bash
+# check_backups.sh
+for backup in /var/backups/*.tar.gz; do
+  if [ -s "$backup" ]; then
+    size=$(du -h "$backup" | cut -f1)
+    echo "OK:   $backup ($size)"
+  else
+    echo "FAIL: $backup is zero bytes — backup job produced no data" >&2
+  fi
+done
+```
+
+```text
+$ ./check_backups.sh
+OK:   /var/backups/db-prod.tar.gz (175M)
+FAIL: /var/backups/db-staging.tar.gz is zero bytes — backup job produced no data
+OK:   /var/backups/db-analytics.tar.gz (43M)
+```
+
+Two things worth internalizing here. First, `[ -s "$backup" ]` is a test, not an `ls` — `-s` means "exists and has size greater than zero," and there's a whole family of these: `-f` (regular file), `-d` (directory), `-x` (executable), `-r`/`-w` (readable/writable). Second, the glob `/var/backups/*.tar.gz` expands to a list of full paths *before* the loop starts, so `for backup in ...` is iterating over real, already-quoted-safe strings — which is exactly why you still quote `"$backup"` inside the loop body: the filename itself could still contain a space, and the loop variable is just an ordinary variable once assigned.
+
+Routing failures to stderr (`>&2`) instead of stdout is deliberate: it lets a caller or a monitoring system separate "what happened" from "what went wrong" by redirecting the two streams independently, and it's the convention every ops tool you'll run alongside expects.
+
+## Functions and exit codes: the contract a caller actually checks
+
+A bash function's return value isn't data — `return` only hands back an exit code (0–255), and 0 means success by convention. If you want a function to hand back a string or number, you print it and capture it with `$(...)`; if you want it to report success/failure, you `return` a code and the caller checks `$?`.
+
+This matters because it's exactly how real deploy and health-check tooling is structured:
+
+```bash
+#!/bin/bash
+# deploy_guard.sh
+check_health() {
+  local url="$1"
+  if curl -sf "$url" > /dev/null 2>&1; then
+    return 0
+  else
+    return 1
+  fi
+}
+
+check_health "http://localhost:8080/healthz"
+if [ $? -ne 0 ]; then
+  echo "Health check failed — rolling back" >&2
+  systemctl restart myapp.service
+  exit 1
+fi
+
+echo "Health check passed, deploy stays live"
+```
+
+```text
+$ ./deploy_guard.sh
+curl: (7) Failed to connect to localhost port 8080: Connection refused
+Health check failed — rolling back
+```
+
+`curl -sf` is doing real work here: `-s` silences curl's own progress output, and `-f` ("fail") makes curl return a non-zero exit code on an HTTP error response instead of treating a 500 page as "success, I downloaded some bytes." That non-zero exit from `curl` is what makes the `if` inside `check_health` take the failure branch, which is what makes `return 1` happen, which is what `$?` picks up in the caller.
+
+The gotcha that burns people: `$?` reflects the exit code of the *immediately preceding* command. Put any other command — even an `echo` for debugging — between the function call and the `$?` check, and you're reading the wrong exit code. The idiomatic fix when you need to do more than one thing is to capture it immediately:
+
+```bash
+check_health "http://localhost:8080/healthz"
+status=$?
+echo "Checked at $(date)"
+if [ "$status" -ne 0 ]; then
+  echo "Health check failed — rolling back" >&2
+fi
+```
+
+## Reading arguments: positional params and getopts
+
+The simplest form of argument handling is positional: `$1` is the first argument, `$2` the second, `$@` is "all of them, each still quoted as its own word" (almost always what you want over `$*`, which mashes them into one string).
+
+```bash
+#!/bin/bash
+# deploy.sh
+ENV=$1
+VERSION=$2
+echo "Deploying version $VERSION to $ENV"
+echo "Full argument list: $@"
+echo "Argument count: $#"
+```
+
+```text
+$ ./deploy.sh production v1.4.2
+Deploying version v1.4.2 to production
+Full argument list: production v1.4.2
+Argument count: 2
+```
+
+That's fine for two fixed, order-dependent arguments. It falls apart the moment you want optional flags, because positional params have no concept of "skip this one" or "this one's a boolean switch." That's what `getopts` is for — it's the standard way CLI tools parse `-e staging -v -h`-style flags in bash:
+
+```bash
+#!/bin/bash
+# deploy2.sh
+VERBOSE=0
+while getopts "e:v h" opt; do
+  case "$opt" in
+    e) ENVIRONMENT="$OPTARG" ;;
+    v) VERBOSE=1 ;;
+    h) echo "Usage: deploy2.sh -e <environment> [-v] [-h]"; exit 0 ;;
+    \?) echo "Invalid option" >&2; exit 1 ;;
+  esac
+done
+
+echo "Environment: $ENVIRONMENT"
+echo "Verbose: $VERBOSE"
+```
+
+```text
+$ ./deploy2.sh -e staging -v
+Environment: staging
+Verbose: 1
+
+$ ./deploy2.sh -x
+./deploy2.sh: illegal option -- x
+Invalid option
+```
+
+The `:` after a letter in the optstring (`"e:v h"` — note the space before `h` is cosmetic, getopts ignores it) means that flag *requires* a value, which getopts hands you in `$OPTARG`; a flag with no `:` is a plain boolean switch. This is the pattern you'll recognize in almost every real deploy script, backup tool, and CI helper script you read from here on.
+
+## set -e: stopping on failure, and the pipeline gotcha that still bites you
+
+By default, bash does not stop when a command fails — it just moves on to the next line. That default is how real incidents happen. Here's a deploy script with no safety net:
+
+```bash
+#!/bin/bash
+# deploy_release.sh
+cp /opt/releases/app-v2.1.0.tar.gz /opt/current/release.tar.gz
+tar xzf /opt/current/release.tar.gz -C /opt/current/
+systemctl restart myapp.service
+echo "Deploy complete"
+```
+
+```text
+$ ./deploy_release.sh
+cp: cannot stat '/opt/releases/app-v2.1.0.tar.gz': No such file or directory
+tar (child): /opt/current/release.tar.gz: Cannot open: No such file or directory
+tar (child): Error is not recoverable: exiting now
+tar: Child returned status 2
+tar: Error is not recoverable: exiting now
+Deploy complete
+```
+
+The release artifact didn't exist (wrong version string, bad build, doesn't matter why). `cp` failed. `tar` then failed too, because there was nothing to extract. But the script kept going anyway and restarted the service — on the *old* binary, since nothing new was ever unpacked — and then cheerfully printed "Deploy complete." Nobody paging on this output would know anything was wrong. This is a textbook silent-failure incident: the service bounced, logs look like a normal restart, and the actual bug (still running the old version) surfaces hours later as "weird, the fix doesn't seem to be live."
+
+Add one line:
+
+```bash
+#!/bin/bash
+set -e
+# deploy_release.sh
+cp /opt/releases/app-v2.1.0.tar.gz /opt/current/release.tar.gz
+tar xzf /opt/current/release.tar.gz -C /opt/current/
+systemctl restart myapp.service
+echo "Deploy complete"
+```
+
+```text
+$ ./deploy_release.sh
+cp: cannot stat '/opt/releases/app-v2.1.0.tar.gz': No such file or directory
+$
+```
+
+`set -e` makes the script exit immediately on the first command that returns non-zero (with specific, documented exceptions — commands in an `if`/`while` condition, or the left side of `&&`/`||`, are allowed to fail without killing the script, because the script is explicitly testing them). The service never restarted on broken state, and the exit code propagates — so if this script runs as a CI/CD deploy step, the pipeline correctly shows red instead of green.
+
+Now the gotcha that catches people who think `set -e` means "any failure anywhere stops the script." It doesn't cover pipelines the way you'd expect:
+
+```bash
+#!/bin/bash
+set -e
+cat /var/log/app/does-not-exist.log | grep ERROR | wc -l
+echo "Script kept running"
+```
+
+```text
+$ ./check_errors.sh
+cat: /var/log/app/does-not-exist.log: No such file or directory
+0
+Script kept running
+```
+
+`cat` failed loudly, but the script didn't stop. Here's why: in a pipeline, bash only looks at the exit code of the *last* command by default. `grep` and `wc -l` both technically "succeeded" (`wc -l` happily counted zero lines of empty input and returned 0), so the pipeline as a whole reports success even though its first stage blew up. `set -e` has nothing to catch, because as far as it's concerned, nothing failed.
+
+The fix is `set -o pipefail`, which changes that rule: the pipeline's exit code becomes the *right-most non-zero* exit code among all its stages (or zero if they all succeeded):
+
+```bash
+#!/bin/bash
+set -e
+set -o pipefail
+cat /var/log/app/does-not-exist.log | grep ERROR | wc -l
+echo "Script kept running"
+```
+
+```text
+$ ./check_errors.sh
+cat: /var/log/app/does-not-exist.log: No such file or directory
+$
+```
+
+Now the pipeline reports failure, `set -e` catches it, and the script stops before printing a misleading "success." For any ops script with pipelines in it — which is most of them — treat `set -eo pipefail` as the real baseline, not `set -e` alone. (A third flag, `set -u`, which errors on unset variables instead of silently expanding them to empty strings, is worth adding too once you're comfortable — it would have caught an unquoted, *unset* `$LOGFILE` in the very first example before it ever got near `rm`.)
+
+## Exercise: a safe log-rotation script
+
+Write `rotate_logs.sh` that takes a directory of `.log` files and does the following:
+
+- Accepts the target directory via a `-d` flag (`getopts`), and an optional `-n` flag for how many days old a file must be before rotating (default: 7 if not supplied).
+- Uses `set -eo pipefail` at the top.
+- Loops over `*.log` files in the target directory, correctly quoted so filenames with spaces survive.
+- For each file, calls a function `should_rotate` that returns 0 or 1 based on the file's age (hint: `find "$dir" -maxdepth 1 -name '*.log' -mtime +"$days"` lists files older than N days — you can use this inside the function instead of reinventing age logic), and have the caller check the function's exit code before gzip-ing the file and renaming it to `<name>.log.gz`.
+- Prints a one-line summary per file to stdout, and prints a line to stderr for any file it skips.
+
+Hint: don't try to pass the matched filename back out of `should_rotate` as its "return value" — have the loop do the `find`-based test for each individual file (or restructure so the function takes a single filename and just answers yes/no about that one file), since `return` in bash only ever gives you an exit code, never a string.

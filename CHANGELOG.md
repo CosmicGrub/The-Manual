@@ -531,3 +531,14 @@ All notable changes to The Manual (curriculum + app) are logged here. This file 
 **Result:** `npm run build` passed clean — 230 pages, 213 unique slugs verified repo-wide.
 
 **Status:** DevOps Tier 0 started (15h, 4 lessons) — the seventh track in The Manual to get real lesson content. Tiers 1-5 remain.
+
+## [0.42.0] — 2026-10-03 — DevOps Tier 1: complete (ops-framed git, bash, Linux, containers, cloud)
+
+**Context:** Continuing the tier-by-tier pattern. Git and GitHub collaboration mechanics are already taught (for feature development) by Software Engineering and CS Foundations, so this tier's git modules deliberately re-teach the same mechanical ground through an operations lens instead — using `git log -S`/`git show` to find the exact commit that broke a production config, resolving a merge conflict in a Terraform file, branch protection as a CI-gating mechanism — rather than duplicating feature-branch collaboration content.
+
+**Added**
+- `content/devops-tooling/tier-1/*.mdx` (7 files) + matching quizzes: Git Fundamentals (a real incident-response `git log -S"keepalive_timeout"` trace finding the exact commit that broke production), GitHub Collaboration Workflows (branch protection as a required-status-check mechanism), Bash Scripting Fundamentals (a real unquoted-variable bug, `set -e` and its pipefail gotcha), Linux Fundamentals for Developers (octal permissions bit by bit, SIGTERM vs SIGKILL, systemd/journalctl), Networking Basics for Developers (applied only — defers to Hardware & Computer Systems Tier 3 for protocol depth), First Contact with Containers (VM vs. container kernel-sharing contrast), First Contact with the Cloud (provisioning, SSH, and responsibly tearing down a free-tier VM).
+
+**Result:** `npm run build` passed clean — 237 pages, 220 unique slugs verified repo-wide.
+
+**Status:** DevOps Tier 1 complete (48h, 7 lessons). DevOps is now 2/6 tiers content-complete (Tiers 0-1, 63h); Tiers 2-5 remain.

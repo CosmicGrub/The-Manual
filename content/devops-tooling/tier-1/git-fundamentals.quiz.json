@@ -1,0 +1,98 @@
+[
+  {
+    "id": "devops-tooling/tier-1/git-fundamentals/q1",
+    "type": "multiple_choice",
+    "prompt": "You know a production nginx config has a setting called `worker_connections` that was recently changed, but you don't know which commit or even which branch touched it. Which command finds every commit that added or removed that exact string?",
+    "choices": [
+      "git log -S\"worker_connections\" --oneline --all",
+      "git diff HEAD~10 HEAD",
+      "git blame worker_connections",
+      "git status --short"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "devops-tooling/tier-1/git-fundamentals/q2",
+    "type": "multiple_choice",
+    "prompt": "Why should `*.tfstate` files be listed in `.gitignore` for a Terraform infrastructure repo rather than committed?",
+    "choices": [
+      "Terraform state files are often very large and slow down clones",
+      "Git cannot diff binary files like .tfstate",
+      "State files can contain plaintext secrets pulled from provider APIs and should live in a remote backend, not version control",
+      "Terraform refuses to run if state files are tracked by git"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "devops-tooling/tier-1/git-fundamentals/q3",
+    "type": "multiple_choice",
+    "prompt": "After resolving a merge conflict in a Terraform .tf file by combining both sides' changes and removing the conflict markers, what should you do before committing the resolution?",
+    "choices": [
+      "Immediately run terraform apply to confirm the merge worked",
+      "Run terraform plan to validate the resulting resource graph before committing",
+      "Nothing extra is needed since git already confirmed the merge is correct",
+      "Force-push the merge commit to skip CI"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-1/git-fundamentals/q4",
+    "type": "multiple_choice",
+    "prompt": "You're mid-edit on an Ansible playbook with changes that don't compile cleanly yet, when an incident requires you to switch to a clean main branch immediately. What is the correct move?",
+    "choices": [
+      "git commit the broken changes so you don't lose them, then switch branches",
+      "git stash push -m \"...\" to shelve the changes, then switch branches",
+      "git reset --hard to discard the changes and start the hotfix fresh",
+      "Open a second terminal and manually copy the file contents aside"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-1/git-fundamentals/q5",
+    "type": "multiple_choice",
+    "prompt": "After fixing an incident on a hotfix branch, you return to your stashed work with `git stash pop` and the stashed file overlaps with a file the hotfix also touched. What happens?",
+    "choices": [
+      "git silently discards the stash to avoid any risk",
+      "git automatically keeps the hotfix version and drops the stash changes",
+      "You get a conflict with standard <<<<<<< markers, resolved the same way as a merge conflict",
+      "git refuses to pop and permanently deletes the stash"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "devops-tooling/tier-1/git-fundamentals/q6",
+    "type": "multiple_choice",
+    "prompt": "You want to see which commits exist on origin/main that you don't yet have locally, before merging them into a branch you're about to apply to production. Which sequence does that safely?",
+    "choices": [
+      "git pull origin main, then inspect the result afterward",
+      "git fetch origin, then git log main..origin/main --oneline",
+      "git merge origin/main directly without looking first",
+      "git clone the repo again into a new directory"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-1/git-fundamentals/q7",
+    "type": "multiple_choice",
+    "prompt": "A bad config commit has been identified as the cause of a production outage. Why is git revert generally preferred over git reset for undoing it on a shared branch?",
+    "choices": [
+      "git revert is faster to execute than git reset",
+      "git revert creates a new commit that undoes the change while preserving history, instead of rewriting history others may have already pulled",
+      "git reset only works on remote branches, not local ones",
+      "git revert automatically runs terraform apply after undoing the change"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-1/git-fundamentals/q8",
+    "type": "multiple_choice",
+    "prompt": "Given a commit hash a3f9c21, which command shows exactly what that single commit changed, including the diff?",
+    "choices": [
+      "git log --oneline -- a3f9c21",
+      "git stash show a3f9c21",
+      "git show a3f9c21",
+      "git branch a3f9c21"
+    ],
+    "correctIndex": 2
+  }
+]

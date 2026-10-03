@@ -1,0 +1,98 @@
+[
+  {
+    "id": "devops-tooling/tier-1/linux-fundamentals-for-developers/q1",
+    "type": "multiple_choice",
+    "prompt": "A production server is rapidly running out of disk space. Based on the FHS, which directory should you check first for the likely culprit?",
+    "choices": [
+      "/usr, because installed programs grow over time",
+      "/var, because logs, caches, and spool data accumulate there while the system runs",
+      "/etc, because configuration files are the largest files on a typical system",
+      "/home, because user directories are unbounded in size by default"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-1/linux-fundamentals-for-developers/q2",
+    "type": "multiple_choice",
+    "prompt": "What does the sticky bit (the trailing 't' in 'drwxrwxrwt') on /tmp actually do?",
+    "choices": [
+      "It prevents any user other than root from writing new files into /tmp",
+      "It makes the directory read-only after boot",
+      "It allows any user to create files in the world-writable directory, but only the file's own creator (or root) can delete or rename it",
+      "It automatically deletes files older than 24 hours"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "devops-tooling/tier-1/linux-fundamentals-for-developers/q3",
+    "type": "multiple_choice",
+    "prompt": "A file has permissions 'rwxr-xr-x'. What octal mode is this, and what does it mean?",
+    "choices": [
+      "640 - owner can read/write, group can read, others have no access",
+      "755 - owner can read/write/execute, group and others can read/execute but not write",
+      "777 - everyone has full read, write, and execute access",
+      "700 - only the owner has any access at all"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-1/linux-fundamentals-for-developers/q4",
+    "type": "multiple_choice",
+    "prompt": "You run './deploy.sh' and get 'Permission denied', even though your user owns the file and can open it in an editor. What is the most likely cause?",
+    "choices": [
+      "The file is owned by root, so it cannot be executed by any other user",
+      "The script's execute bit is not set for your user (e.g. it's 644 instead of 755)",
+      "Bash scripts must always be run with 'sudo' regardless of permissions",
+      "The file is located in /tmp, which disables script execution"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-1/linux-fundamentals-for-developers/q5",
+    "type": "multiple_choice",
+    "prompt": "A hung process on a production server needs to be stopped. What is the correct order of operations and why?",
+    "choices": [
+      "Send SIGKILL immediately, since it guarantees the process stops fastest with the least risk",
+      "Send SIGTERM first and give the process a chance to shut down cleanly; only send SIGKILL if it doesn't respond, since SIGKILL skips any cleanup code entirely",
+      "Send SIGHUP first, then SIGTERM, then SIGKILL, in all cases regardless of the process",
+      "It doesn't matter which signal you send, since 'kill' always terminates the process the same way"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-1/linux-fundamentals-for-developers/q6",
+    "type": "multiple_choice",
+    "prompt": "What is the key difference between 'apt-get remove' and 'apt-get purge' for a package?",
+    "choices": [
+      "'remove' uninstalls the package and its config files; 'purge' only removes the binary",
+      "There is no real difference; both commands behave identically",
+      "'remove' uninstalls the package's program files but leaves its configuration files under /etc in place; 'purge' also deletes those config files",
+      "'purge' only works on packages that were installed with 'dpkg', not 'apt-get'"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "devops-tooling/tier-1/linux-fundamentals-for-developers/q7",
+    "type": "multiple_choice",
+    "prompt": "After a server reboot, a service that was running yesterday is no longer up, even though nobody manually stopped it. 'systemctl status' shows it as 'inactive (dead)' and NOT 'enabled'. What does this tell you?",
+    "choices": [
+      "The service was active but never enabled, so it did not start automatically at boot and must be enabled with 'systemctl enable' to survive future reboots",
+      "The service's systemd unit file was deleted during the reboot",
+      "'enabled' and 'active' always match, so this output is impossible",
+      "The service crashed because of a SIGKILL sent during shutdown"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "devops-tooling/tier-1/linux-fundamentals-for-developers/q8",
+    "type": "multiple_choice",
+    "prompt": "What is the most direct way to view the recent log output of a specific systemd-managed service, such as nginx, and keep watching new entries as they arrive?",
+    "choices": [
+      "cat /var/log/syslog | grep nginx, repeated manually",
+      "journalctl -u nginx -f",
+      "systemctl status nginx --verbose",
+      "tail -f /etc/nginx/nginx.conf"
+    ],
+    "correctIndex": 1
+  }
+]

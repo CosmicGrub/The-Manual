@@ -1,0 +1,159 @@
+---
+trackId: devops-tooling
+tier: 1
+title: "First Contact with the Cloud"
+order: 7
+estimatedHours: 5
+slug: first-contact-with-the-cloud
+---
+
+## From Your Laptop to a Machine You've Never Touched
+
+Everything in this tier so far — git, bash, Linux internals, networking — has happened on hardware you can touch: your laptop, maybe a local VM. This module is the first time you reach out over the internet and take real, paid-for control of a machine sitting in a datacenter you will never see, running an operating system you are responsible for keeping patched, secured, and — critically — turned off when you're done paying for it.
+
+This isn't theory. You will launch a real virtual machine on a real cloud provider, SSH into it using the same protocol mechanics you learned in this tier's networking module, and then — the part most tutorials skip — shut it down in a way that actually stops the meter.
+
+## What You're Actually Renting
+
+"The cloud" is a marketing word for "someone else's datacenter, rented by the hour (or the second)." AWS, Google Cloud (GCP), and Microsoft Azure are the three dominant providers. Under the hood, a "VM instance" is a slice of a physical server's CPU, RAM, and disk, carved out by a hypervisor, that boots an OS image you picked from a catalog.
+
+Each provider gives new accounts a free tier specifically so you can do what this module asks:
+
+- **AWS**: 750 hours/month of a `t2.micro` or `t3.micro` EC2 instance, for 12 months from account creation, plus 30 GB of EBS storage.
+- **GCP**: one `e2-micro` instance per month, forever, in specific US regions (`us-west1`, `us-central1`, `us-east1`), under the "Always Free" tier.
+- **Azure**: a $200, 30-day credit, plus some always-free VM hours on `B1s`-class instances for 12 months.
+
+This walkthrough uses AWS EC2 because it's the instance most commonly required in DevOps job postings, but the GCP and Azure steps map almost one-to-one: pick an image, pick a tiny instance size, open port 22, get a public IP.
+
+## Step 1: Launch the Instance
+
+From the AWS Console, go to EC2 → Launch Instance. Four choices matter:
+
+1. **AMI (image)**: Amazon Linux 2023 — free, minimal, well-documented.
+2. **Instance type**: `t2.micro`, the free-tier-eligible size. GCP's equivalent is `e2-micro`; Azure's is `Standard_B1s`.
+3. **Key pair**: create a new one, name it `devops-tier1-key`. AWS hands you a `.pem` file exactly once — if you lose it, you lose SSH access to that instance permanently; there's no "resend."
+4. **Network settings**: a security group rule allowing inbound SSH (TCP port 22) **from your IP only**, not `0.0.0.0/0`. Opening port 22 to the entire internet is how automated bots start brute-forcing login attempts within minutes of boot.
+
+Click Launch. Within about 30-60 seconds the console shows:
+
+```text
+Instance ID: i-0a1b2c3d4e5f67890
+Instance type: t2.micro
+Instance state: Running
+Status check: 2/2 checks passed
+Public IPv4 address: 54.210.167.42
+Public IPv4 DNS: ec2-54-210-167-42.compute-1.amazonaws.com
+```
+
+That public IPv4 address is a real, internet-routable address pointing at a machine that is, right now, costing you money or burning free-tier hours.
+
+## Step 2: Lock Down the Key File
+
+Move the downloaded `devops-tier1-key.pem` out of `Downloads` and fix its permissions. SSH refuses to use a private key that other local users could read:
+
+```bash
+mv ~/Downloads/devops-tier1-key.pem ~/.ssh/
+chmod 400 ~/.ssh/devops-tier1-key.pem
+```
+
+Skip this and you get a hard failure before any network traffic even goes out:
+
+```text
+Permissions 0644 for 'devops-tier1-key.pem' are too open.
+It is required that your private key files are NOT accessible by others.
+Load key "devops-tier1-key.pem": bad permissions
+Permission denied (publickey).
+```
+
+## Step 3: SSH In — For Real This Time
+
+This tier's networking module covered the SSH handshake: a TCP connection on port 22, a server host key the client verifies on first contact, then public-key authentication instead of a password. Here's that exact mechanism, against a host whose network path you don't control:
+
+```bash
+ssh -i ~/.ssh/devops-tier1-key.pem ec2-user@54.210.167.42
+```
+
+```text
+The authenticity of host '54.210.167.42 (54.210.167.42)' can't be established.
+ED25519 key fingerprint is SHA256:fL3n8q2Z9x+VvU0cQe1kR8m2wP5tY7hB3jD6sA1cE0g.
+Are you sure you want to continue connecting (yes/no/fingerprint)? yes
+Warning: Permanently added '54.210.167.42' (ED25519) to the list of known hosts.
+
+       __|  __|_  )
+       _|  (     /   Amazon Linux 2023
+      ___|\___|___|
+
+[ec2-user@ip-172-31-16-200 ~]$
+```
+
+That fingerprint prompt is the client asking "is this really the server I think it is, or has someone hijacked this IP?" You're accepting it blind on first connect, which is normal for an instance you just launched yourself; AWS logs the matching host key fingerprint in the instance's system log if you ever want to verify it out-of-band instead of trusting on first use.
+
+Note the username: `ec2-user` for Amazon Linux AMIs, `ubuntu` for official Ubuntu AMIs, `admin` for Debian. Get it wrong and you'll still see `Permission denied (publickey)` even with a perfectly valid key — the key authenticates fine, there's just no account by that name to log into.
+
+Prove this is a real, independent machine, not a simulation:
+
+```bash
+[ec2-user@ip-172-31-16-200 ~]$ uname -a
+Linux ip-172-31-16-200.ec2.internal 6.1.61-85.141.amzn2023.x86_64 #1 SMP PREEMPT_DYNAMIC Wed Mar 13 2024 x86_64 GNU/Linux
+
+[ec2-user@ip-172-31-16-200 ~]$ sudo dnf install -y nginx
+[ec2-user@ip-172-31-16-200 ~]$ sudo systemctl enable --now nginx
+[ec2-user@ip-172-31-16-200 ~]$ curl -I localhost
+HTTP/1.1 200 OK
+Server: nginx/1.24.0
+```
+
+Add an inbound rule for TCP port 80 to the security group, then open `http://54.210.167.42` in a browser on your own laptop. You'll get the nginx welcome page, served from a machine on the other side of the planet. That's the whole trick of "the cloud" demystified: a Linux box, the same `systemctl` and `dnf` commands from the Linux administration module, just reachable from anywhere instead of from your own network.
+
+Save yourself the long command by adding an entry to `~/.ssh/config`:
+
+```text
+Host tier1-vm
+    HostName 54.210.167.42
+    User ec2-user
+    IdentityFile ~/.ssh/devops-tier1-key.pem
+```
+
+Now `ssh tier1-vm` does the whole thing.
+
+## Step 4: Shut It Down Responsibly
+
+This is the step most beginners skip, and it's the one that actually matters for your wallet. AWS gives you two different "off" buttons, and they are not the same thing.
+
+**Stop** (`Instance State → Stop instance`, or `aws ec2 stop-instances --instance-ids i-0a1b2c3d4e5f67890`): the VM shuts down and compute billing stops, but the root EBS volume is *not* deleted. It keeps existing as a block of storage, billed at roughly $0.08 per GB per month regardless of whether anything is running on top of it. An 8 GB volume left stopped for a year costs a few dollars you forgot about; a team's worth of forgotten stopped instances is how cloud bills quietly bloat.
+
+**Terminate** (`Instance State → Terminate instance`, or `aws ec2 terminate-instances --instance-ids i-0a1b2c3d4e5f67890`): the instance is destroyed, and — because "Delete on Termination" is checked by default for the root volume — the EBS volume goes with it. No more storage charges. This is what you want when you're genuinely done with a throwaway learning instance.
+
+```bash
+$ aws ec2 terminate-instances --instance-ids i-0a1b2c3d4e5f67890
+{
+    "TerminatingInstances": [
+        {
+            "InstanceId": "i-0a1b2c3d4e5f67890",
+            "CurrentState": {"Code": 32, "Name": "shutting-down"},
+            "PreviousState": {"Code": 16, "Name": "running"}
+        }
+    ]
+}
+```
+
+Two cost traps worth knowing by name, because every provider has a version of them:
+
+- **Elastic IPs**: on AWS, a static public IP ("Elastic IP") that is allocated to your account but *not attached to a running instance* is billed hourly — roughly $0.005/hour, about $3.60/month, forever, until you explicitly release it. Stopping or terminating the instance it was attached to does not release it for you.
+- **Azure's "stopped" trap**: shutting a VM down from *inside the guest OS* (running `sudo shutdown now` over your own SSH session) is not the same as stopping it through Azure's control plane. An OS-level shutdown can leave the VM in an allocated state — hardware still reserved for you, compute still billed — even though nothing is running inside it. You have to explicitly deallocate it; `az vm stop` and the Azure Portal's "Stop" button both perform that deallocation and actually release the hardware along with the billing meter. On AWS and GCP, equivalent in-OS shutdown behavior defaults sensibly to a real stop; on Azure, don't assume — the portal should read "Stopped (deallocated)," not just "Stopped."
+
+The real lesson: "off" is not one concept. There's compute-off, storage-off, and IP-off, and each is billed and released independently of the others.
+
+## Cleanup Checklist (Run This After Every Experiment)
+
+1. Terminate the instance, not just stop it, unless you have a specific reason to keep the disk around.
+2. Go to EC2 → Volumes. Delete any volume showing status `available` — that means it's detached from a now-terminated instance and is pure dead weight on your bill.
+3. Go to EC2 → Elastic IPs. Release any address with no associated instance.
+4. Check EC2 → Snapshots if you ever created one — snapshots outlive the volumes they were taken from and bill separately.
+5. Open the Billing Dashboard → Free Tier page and confirm your usage is actually at $0 or within free-tier limits.
+
+## Exercise
+
+Launch a free-tier VM on any one provider — AWS EC2, GCP Compute Engine, or Azure VM. SSH into it using a key pair, ideally one you generate yourself with `ssh-keygen` rather than the console-provided one (practice from the bash module). Once connected, install and start any simple service — nginx, or even just `python3 -m http.server 8000` — and confirm from your own laptop's browser or `curl` that you can reach it over the public internet. Then tear everything down and verify, in the console, that nothing billable is left behind.
+
+**Hint**: the easy part is terminating the instance. The part people actually get wrong is checking *afterward* — go look at the Volumes list and the Elastic IPs list (or your provider's equivalents) after termination, not before. If either list isn't empty, you're not done.
