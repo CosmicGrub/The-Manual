@@ -1,0 +1,191 @@
+---
+trackId: platforms
+tier: 1
+title: "How Native, Mobile, and Desktop Differ From Web (Conceptual + Code Reading)"
+order: 4
+estimatedHours: 6
+slug: how-native-mobile-and-desktop-differ-from-web
+---
+
+## Where this lands
+
+By now you've written HTML/CSS/JS that runs in a browser, you've used the DOM to make a page react to clicks, and you've compared that JavaScript against Python to build a "what even is a programming language" mental model. All of that was one world: the web, running inside a browser's JavaScript engine.
+
+This module does not teach you to write Swift, Kotlin, Dart, or React Native. You'll do that later, in dedicated tracks. What it teaches is how to *read* a tiny file from each of those worlds and correctly answer: what is this code going to run as, and what is going to draw it on screen? Those two questions — "how does the code execute" and "how do the pixels get painted" — are the whole conceptual core of mobile and desktop development, and almost nobody explains them clearly before throwing you into a framework. We're doing it now, with your browser-based JS as the anchor you already understand.
+
+## Four ways to build "an app"
+
+**1. Interpreted/JIT web — what you already know.** You write JS, ship it as text, and the browser's JS engine (V8 in Chrome, JavaScriptCore in Safari) parses and compiles it *at runtime*, on the user's machine, the moment the page loads. The actual pixels are drawn by the browser's layout and paint engine, working from the DOM and CSS. Nothing is compiled ahead of time by you; the browser does the work live.
+
+**2. Compiled native — Swift on iOS/macOS, Kotlin on Android.** You write Swift or Kotlin, and a compiler (Swift's own LLVM-based compiler; Kotlin's compiler targeting the JVM and then Android's ART runtime) turns it into machine code *before* the app ever reaches a user's device. There is no "download the source and interpret it live" step. The UI elements — buttons, text, lists — are the operating system's own native widgets (UIKit/AppKit components under SwiftUI, Android's View system under Compose), drawn by the OS's own rendering pipeline.
+
+**3. Cross-platform bridges — React Native and Flutter.** Both let you write one codebase that runs on iOS and Android, but they get there in very different ways, which is the detail most tutorials skip:
+- **React Native**: you write JS (often with JSX), which runs on an actual JS engine bundled into the app (Hermes, by default). That JS doesn't draw anything itself — it sends instructions across a bridge (or, in the newer architecture, direct synchronous calls via JSI) telling the *native* side "render a real `UIButton` here, a real Android `TextView` there." The pixels you see are genuine native OS widgets, just like the fully-native Swift/Kotlin app. The JS is interpreted/JIT'd like web JS; the widgets are native.
+- **Flutter**: you write Dart, which is ahead-of-time compiled to native ARM/x86 machine code for release builds (and JIT-compiled during development for fast hot reload). But Flutter does **not** use the OS's native widgets at all. It ships its own rendering engine (Skia, or the newer Impeller) and paints every pixel of every button and letter itself, the same way a game engine draws its own UI. A Flutter button on iOS and a Flutter button on Android are pixel-identical, because neither is a real iOS or Android button — both are Flutter's own drawing.
+
+**4. Electron — web tech in a native shell.** You write HTML/CSS/JS — the exact stack you already know — and Electron bundles a full copy of Chromium (the browser engine) plus Node.js into your app. Your UI is a real web page, rendered by a real browser engine, running on the user's desktop inside what looks like a native window. Nothing about the rendering is native; it's the same DOM/CSS/paint pipeline as a browser tab, just without visible browser chrome.
+
+The axis worth memorizing: **compiled ahead-of-time vs. interpreted/JIT at runtime** (how the code executes), and **native OS widgets vs. a custom rendering engine vs. a browser engine** (how the pixels get drawn). Every framework above is a specific combination of answers to those two questions.
+
+## Reading five starter files for the same tiny app
+
+Here's the same trivial app — a label showing a count, and a button that increments it — as a minimal real starting point in each stack. Don't try to write this yet. Just read each one and notice what you can already recognize from JS, and what's genuinely new.
+
+**SwiftUI (compiled native, iOS/macOS):**
+
+```swift
+import SwiftUI
+
+struct CounterView: View {
+    @State private var count = 0
+
+    var body: some View {
+        VStack {
+            Text("Count: \(count)")
+            Button("+1") {
+                count += 1
+            }
+        }
+    }
+}
+```
+
+**Jetpack Compose (compiled native, Android — Kotlin):**
+
+```kotlin
+@Composable
+fun CounterView() {
+    var count by remember { mutableStateOf(0) }
+
+    Column {
+        Text("Count: $count")
+        Button(onClick = { count++ }) {
+            Text("+1")
+        }
+    }
+}
+```
+
+**React Native (cross-platform bridge — JS):**
+
+```jsx
+import React, { useState } from 'react';
+import { View, Text, Button } from 'react-native';
+
+function CounterView() {
+  const [count, setCount] = useState(0);
+
+  return (
+    <View>
+      <Text>Count: {count}</Text>
+      <Button title="+1" onPress={() => setCount(count + 1)} />
+    </View>
+  );
+}
+
+export default CounterView;
+```
+
+**Flutter (cross-platform, own renderer — Dart):**
+
+```dart
+import 'package:flutter/material.dart';
+
+class CounterView extends StatefulWidget {
+  @override
+  _CounterViewState createState() => _CounterViewState();
+}
+
+class _CounterViewState extends State<CounterView> {
+  int count = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text('Count: $count'),
+        ElevatedButton(
+          onPressed: () => setState(() => count++),
+          child: Text('+1'),
+        ),
+      ],
+    );
+  }
+}
+```
+
+**Electron (web tech, native shell — JS):**
+
+```js
+// main.js -- this runs in Node.js, as the app's "main process."
+// It does NOT contain the counter UI itself.
+const { app, BrowserWindow } = require('electron');
+
+function createWindow() {
+  const win = new BrowserWindow({
+    width: 400,
+    height: 300,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+    },
+  });
+
+  win.loadFile('index.html');
+}
+
+app.whenReady().then(createWindow);
+```
+
+```html
+<!-- index.html -- this is the actual counter UI, loaded into the window above. -->
+<!-- It's exactly the DOM/JS you already learned in this track. -->
+<!doctype html>
+<html>
+  <body>
+    <p id="count">Count: 0</p>
+    <button id="btn">+1</button>
+    <script>
+      let count = 0;
+      const p = document.getElementById('count');
+      document.getElementById('btn').addEventListener('click', () => {
+        count++;
+        p.textContent = `Count: ${count}`;
+      });
+    </script>
+  </body>
+</html>
+```
+
+Notice that `main.js` is doing a completely different job than the other four files. It's not UI code at all — it's infrastructure code, the thing that opens a native-looking window and tells it to load a web page. The real counter logic in Electron is just `index.html`, and it's the plainest, most familiar file of the five.
+
+## What's actually the same across all five
+
+Strip away the syntax and four of the five examples (everything but Electron's `main.js`) share a real, non-superficial pattern:
+
+- **A piece of state**: `@State private var count`, `remember { mutableStateOf(0) }`, `useState(0)`, `int count` paired with `setState`, and plain JS `let count` all name "the one number this screen cares about."
+- **A declarative description of UI, not a sequence of draw commands**: none of these frameworks say "draw a rectangle at x=10,y=20, then draw text inside it." They all say "here is what the screen should look like *given* the current state" — `Text("Count: \(count)")`, `Text("Count: $count")`, `<Text>Count: {count}</Text>` — and the framework figures out how to update the actual pixels when state changes.
+- **An event handler that mutates the state, not the pixels directly**: the button's job in every single example is to change `count`; it never touches the text label itself. The framework re-renders the label as a side effect of the state changing. This is the real family resemblance: SwiftUI, Compose, React Native, and Flutter are all, at heart, the same idea — **UI = f(state)**, re-evaluated automatically when state changes — wearing four different syntaxes. If you've used React on the web, `useState` and the JSX return value should feel almost identical to what you just read in the React Native file, because it *is* the same programming model, just rendering to different targets.
+
+## What's actually different across all five
+
+This is the part that matters for this module, and it's not just "different languages":
+
+- **Execution model.** SwiftUI and Compose: compiled ahead of time to native machine code/bytecode before the app ships — there's no "interpreting source on the user's device." Plain web JS and Electron's JS: interpreted and JIT-compiled at runtime by a JS engine, every time the page loads. React Native's JS: also interpreted/JIT-compiled at runtime (by Hermes), even though the surrounding app was compiled. Flutter's Dart: AOT-compiled to native machine code for the release build you'd actually ship, but JIT-compiled during development so you get Flutter's famous sub-second hot reload.
+- **Rendering target.** SwiftUI and Compose draw using the OS's own native widget toolkit — a SwiftUI `Button` *is* a real UIKit button under the hood. React Native also ends up drawing real native widgets, but gets there by having its JS send instructions across a bridge to the native side, rather than being native code itself. Flutter draws none of the platform's native widgets — it paints every pixel itself with its own engine, which is why a Flutter app looks pixel-identical on iOS and Android. Electron (and plain web pages) render through a full browser engine's DOM/CSS pipeline — no native widgets, no custom pixel-painting engine, just the same browser rendering you've been using all along.
+- **What "cross-platform" actually buys you.** React Native and Flutter both let one codebase target iOS and Android, but "cross-platform" means something different in each: React Native cross-platform means "our JS drives real native widgets on both platforms," while Flutter cross-platform means "we don't touch native widgets at all, so both platforms look the same because we drew both ourselves." Electron's "cross-platform" is yet another meaning again: "ship a browser engine with the app so rendering is identical everywhere," which is why Electron apps are famously heavier (you're bundling an entire Chromium) than the other three approaches.
+
+## Exercise
+
+Open the five snippets above side by side. For each of the four UI examples (skip Electron's `main.js`), find and underline:
+1. the line that declares the state variable,
+2. the line that reads the state variable to produce displayed text, and
+3. the line inside the button that changes the state.
+
+Then answer, in your own words, for each of the five files: when a user taps/clicks the button, what program actually executes the click handler — compiled native machine code already sitting on disk, or JS/Dart text being interpreted or JIT-compiled at that moment? And what actually paints the resulting pixels: the OS's native widget toolkit, a custom engine the app shipped (like Flutter's), or a browser engine (like Electron's or a plain web page's)?
+
+**Hint:** two of the five files have the exact same answer to the rendering question as a plain web page you built earlier in this track, even though neither one is a native mobile or desktop UI framework by itself. Which two, and why?
+
+## What to actually retain
+
+You now have a map for every "huh, why does this cross-platform tool work the way it does" question you'll hit later in this track: ask "how does the code execute" and "what draws the pixels," and you'll correctly place almost any mobile/desktop framework you encounter, even ones not covered here, by comparing it against these five.

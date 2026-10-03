@@ -1,0 +1,248 @@
+---
+trackId: platforms
+tier: 1
+title: "JavaScript Fundamentals"
+order: 2
+estimatedHours: 30
+slug: javascript-fundamentals
+---
+
+## Where this module picks up
+
+The Language Mastery track already taught you what a variable is, what a function is, what a loop is, and how JavaScript's type system behaves. This module does not re-teach any of that. What changes here is the environment: your code is no longer running in a bare interpreter, it's running inside a browser tab, attached to a live document that a user is looking at and clicking on. That changes which bugs you actually hit, which tools you actually reach for, and why certain language features (closures, async) matter in practice instead of being abstract trivia.
+
+Everything below is "JavaScript, but specifically the parts that only make sense because this code runs inside a web page."
+
+## `var` vs `let` vs `const`: the loop bug you will actually write
+
+You already know `let` is block-scoped and `var` is function-scoped. Here is the bug shape where that distinction stops being trivia and starts being a real defect in a real page.
+
+Say you have a page with four buttons and you want clicking button N to alert "You clicked button N":
+
+```html
+<button class="btn">0</button>
+<button class="btn">1</button>
+<button class="btn">2</button>
+<button class="btn">3</button>
+```
+
+```js
+const buttons = document.querySelectorAll('.btn');
+
+for (var i = 0; i < buttons.length; i++) {
+  buttons[i].addEventListener('click', function () {
+    alert('You clicked button ' + i);
+  });
+}
+```
+
+Click any button. Every single one alerts "You clicked button 4". Not a typo, not a browser bug — this is `var` working exactly as specified. `var` is scoped to the whole function (or, here, the global scope), so there is only ever **one** `i` for the entire loop. The loop runs, `i` climbs to 4 and the condition fails, and the loop exits — but the four click handlers you attached didn't copy `i`'s value when you created them. A closure doesn't capture a value, it captures a *reference to the variable itself*. All four callbacks are looking at the same box, and by the time anyone clicks anything, that box holds `4`.
+
+Fix:
+
+```js
+for (let i = 0; i < buttons.length; i++) {
+  buttons[i].addEventListener('click', function () {
+    alert('You clicked button ' + i);
+  });
+}
+```
+
+Now it works correctly. `let` is block-scoped, so the `for` loop creates a **fresh** `i` for every iteration, and each callback closes over its own private copy. This is the single most common real-world closure bug, and it is specifically a DOM bug — you don't hit it unless you're attaching callbacks (usually event listeners) inside a loop over real elements. Use `const` for anything you never reassign (which, in browser code, is most things — DOM references, element lists), and reach for `let` only when a binding genuinely needs to change, like a loop counter or an accumulator. Note `const` doesn't make objects immutable — `const el = document.querySelector('.btn')` locks the variable `el` to that element forever, but `el.textContent = 'new label'` is perfectly legal, because you're mutating the object `el` points to, not reassigning `el` itself.
+
+## Closures: what they actually capture
+
+The loop bug above *is* a closure in action, but let's isolate the mechanism with something simpler than a DOM loop, because the "what does it capture" question trips people up constantly:
+
+```js
+function makeCounter() {
+  let count = 0;
+  return function () {
+    count += 1;
+    return count;
+  };
+}
+
+const counterA = makeCounter();
+const counterB = makeCounter();
+
+console.log(counterA()); // 1
+console.log(counterA()); // 2
+console.log(counterB()); // 1 — independent, its own `count`
+```
+
+`counterA` and `counterB` each close over a *different* `count` variable, because each call to `makeCounter()` creates a new one. A closure is a function bundled with a live reference to the variables in scope where it was defined — not a snapshot, a reference. That's exactly why the `var` loop broke: every iteration's callback closed over the *same* `i`, because `var` never created a new one to close over in the first place. Once you see closures as "a function plus a pointer back to its birth scope," both examples are the same fact viewed two ways.
+
+## Control flow, in page terms
+
+You know `if`/`else`, `switch`, and loops already. In browser code, the conditions you branch on are usually things coming off the page or the user, not values you invented in a script:
+
+```js
+const input = document.querySelector('#email');
+
+function validate() {
+  if (input.value.trim() === '') {
+    showError('Email is required.');
+  } else if (!input.value.includes('@')) {
+    showError('That doesn\'t look like an email.');
+  } else {
+    clearError();
+  }
+}
+```
+
+Nothing new syntactically — the point is that `input.value` changes over time because a user is typing, so the same `if` statement can produce different results on every call. That's the shift from scripts to pages: your conditions are reading live, mutable state.
+
+## Arrays and objects on real data: `map`, `filter`, `reduce`, `find`
+
+Say you've fetched this from a page's embedded data:
+
+```js
+const products = [
+  { id: 1, name: 'Desk Lamp', price: 24.99, inStock: true },
+  { id: 2, name: 'Monitor Arm', price: 89.00, inStock: false },
+  { id: 3, name: 'Keyboard', price: 59.50, inStock: true },
+  { id: 4, name: 'Webcam', price: 45.00, inStock: true },
+];
+```
+
+`filter` — keep only what's in stock:
+
+```js
+const available = products.filter(p => p.inStock);
+// 3 objects: Desk Lamp, Keyboard, Webcam
+```
+
+`map` — transform each item into something else (here, strings ready to drop into HTML):
+
+```js
+const labels = available.map(p => `${p.name} — $${p.price.toFixed(2)}`);
+// ["Desk Lamp — $24.99", "Keyboard — $59.50", "Webcam — $45.00"]
+```
+
+`reduce` — collapse the array into one value, like a running total:
+
+```js
+const total = available.reduce((sum, p) => sum + p.price, 0);
+// 129.49
+```
+
+`find` — get the first match, or `undefined`:
+
+```js
+const lamp = products.find(p => p.name === 'Desk Lamp');
+// { id: 1, name: 'Desk Lamp', price: 24.99, inStock: true }
+```
+
+Chain them when it reads naturally:
+
+```js
+const cheapAvailable = products
+  .filter(p => p.inStock)
+  .filter(p => p.price < 50)
+  .map(p => p.name);
+// ["Desk Lamp", "Keyboard"]
+```
+
+This matters in a browser specifically because the next section's DOM APIs hand you collections of *elements*, not plain data — and those collections don't come with `map`/`filter`/`reduce` built in, as you're about to see.
+
+## The DOM: reading and changing a real page
+
+`document.querySelector(selector)` returns the **first** matching element or `null`. `document.querySelectorAll(selector)` returns **all** matches as a `NodeList`.
+
+```html
+<ul id="todo-list">
+  <li class="todo">Buy milk</li>
+  <li class="todo done">Walk the dog</li>
+  <li class="todo">Finish report</li>
+</ul>
+```
+
+```js
+const first = document.querySelector('.todo');
+console.log(first.textContent); // "Buy milk"
+
+const all = document.querySelectorAll('.todo');
+console.log(all.length); // 3
+```
+
+Here's the catch mentioned above: `all` is a `NodeList`, not an `Array`, so `all.map(...)` throws `TypeError: all.map is not a function`. Convert it first:
+
+```js
+const items = Array.from(document.querySelectorAll('.todo'));
+const doneCount = items.filter(li => li.classList.contains('done')).length;
+// 1
+```
+
+Now you can use everything from the previous section on real page content.
+
+Changing the page: `textContent` for text, `classList.add/remove/toggle` for CSS classes, `style` for inline styles, and `createElement`/`appendChild` to add new elements:
+
+```js
+const list = document.querySelector('#todo-list');
+
+const newItem = document.createElement('li');
+newItem.textContent = 'Read a book';
+newItem.className = 'todo';
+list.appendChild(newItem);
+
+items[1].classList.toggle('done'); // un-mark "Walk the dog"
+```
+
+## Events: `addEventListener` and delegation
+
+Attaching a listener directly:
+
+```js
+const button = document.querySelector('#save-btn');
+
+button.addEventListener('click', function (event) {
+  console.log('Clicked', event.target);
+  event.preventDefault();
+});
+```
+
+That works fine for one fixed button. It breaks down for a list where items get added and removed dynamically — a listener attached to an `<li>` that gets removed is gone, and a new `<li>` added later never got a listener in the first place. The fix is **event delegation**: attach one listener to a stable parent, and use `event.target` to figure out what was actually clicked, because clicks **bubble** up through ancestors.
+
+```js
+const list = document.querySelector('#todo-list');
+
+list.addEventListener('click', function (event) {
+  if (event.target.matches('.todo')) {
+    event.target.classList.toggle('done');
+  }
+});
+```
+
+One listener, attached once, and it keeps working no matter how many `<li>` elements get added or removed later — because the listener lives on `#todo-list`, which never goes away, and it checks `event.target` fresh on every click instead of relying on a listener having been attached to that specific element.
+
+## An intro to async: why the browser forces this on you
+
+Browser code is full of things that don't finish instantly: a `setTimeout`, a user click, a network request. JavaScript handles "do this later" with **callbacks** first — `addEventListener`'s second argument *is* a callback, and so is `setTimeout`'s:
+
+```js
+setTimeout(function () {
+  console.log('3 seconds later');
+}, 3000);
+```
+
+Callbacks nested inside callbacks get unreadable fast ("callback hell"). **Promises** are the browser's answer: an object representing a value that *will* exist later, with `.then()` to run code once it does and `.catch()` to handle failure.
+
+```js
+fetch('https://api.example.com/users/1')
+  .then(response => response.json())
+  .then(user => {
+    console.log(user.name);
+  })
+  .catch(error => {
+    console.error('Request failed:', error);
+  });
+```
+
+`fetch` returns a promise immediately, before the network request finishes. `.then(response => response.json())` runs once a response arrives, and itself returns a *new* promise (parsing the body also takes time), which is why the next `.then` chains onto it instead of nesting inside it. `.catch` runs if the network fails or any `.then` throws. This is the pattern you'll see constantly once you start loading real data into real pages — the rest of promise mechanics (async/await, `Promise.all`, writing your own promise-returning functions) is worth a module of its own, but this is the shape you need to read and write browser code that waits on something.
+
+## Exercise
+
+Build a small page: a text `<input>`, an "Add" `<button>`, and an empty `<ul>`. Clicking "Add" should append a new `<li>` containing the input's current text, then clear the input. Each `<li>` should have a small "×" delete control that removes just that item when clicked — and it has to work for items added *after* the page first loaded, not just the ones present at load.
+
+Hint: that last requirement is exactly the event delegation problem from this module — think about whether you're attaching a click listener per `<li>` (which won't work for future items) or one listener on the `<ul>` that checks `event.target`.

@@ -1,0 +1,98 @@
+[
+  {
+    "id": "platforms/tier-1/how-native-mobile-and-desktop-differ-from-web/q1",
+    "type": "multiple_choice",
+    "prompt": "What is the key architectural difference in how React Native and Flutter actually get pixels onto the screen?",
+    "choices": [
+      "React Native renders using real native platform widgets via a bridge/JSI; Flutter draws every pixel itself with its own rendering engine instead of using native widgets.",
+      "React Native and Flutter both embed a full web browser to render their UI, just like Electron.",
+      "Flutter uses real native platform widgets while React Native draws its own pixels with a custom engine.",
+      "Both React Native and Flutter compile down to Swift and Kotlin source code before they run."
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-1/how-native-mobile-and-desktop-differ-from-web/q2",
+    "type": "multiple_choice",
+    "prompt": "In the Electron example, what is main.js actually responsible for?",
+    "choices": [
+      "Defining the counter button's click handler directly using JSX syntax",
+      "Creating a native OS window (via Node.js) and loading an HTML file into it",
+      "Compiling the HTML/CSS into native Swift machine code",
+      "Parsing Dart widgets into native Android View objects"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-1/how-native-mobile-and-desktop-differ-from-web/q3",
+    "type": "multiple_choice",
+    "prompt": "Which statement best describes the real similarity between SwiftUI's @State and React's useState?",
+    "choices": [
+      "They're identical because SwiftUI is React compiled to Swift under the hood.",
+      "Both let a variable's change automatically trigger the framework to re-render the UI that depends on it, following a declarative 'UI as a function of state' pattern.",
+      "They have nothing meaningful in common since one targets mobile and one targets web.",
+      "@State executes on the GPU directly while useState only ever runs on the CPU."
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-1/how-native-mobile-and-desktop-differ-from-web/q4",
+    "type": "multiple_choice",
+    "prompt": "Why does a web page's JavaScript typically run via an interpreter/JIT compiler at runtime, while a SwiftUI app's Swift code is compiled ahead of time?",
+    "choices": [
+      "Because JavaScript cannot be compiled under any circumstances.",
+      "Because a web page's code is downloaded and must run immediately in an unknown browser environment the moment the user visits, while a native app is built and compiled for a known OS/CPU target before distribution.",
+      "Because Swift runs slower than JavaScript, so it must be compiled to compensate.",
+      "There's no real difference; both are always compiled in the exact same way before execution."
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-1/how-native-mobile-and-desktop-differ-from-web/q5",
+    "type": "multiple_choice",
+    "prompt": "Which statement about Flutter's rendering is true?",
+    "choices": [
+      "Flutter calls out to native UIKit/Android View widgets for every button and label, the same way React Native does.",
+      "Flutter uses its own graphics engine to draw every widget itself, pixel by pixel, instead of using the platform's native UI components.",
+      "Flutter widgets are rendered entirely inside an embedded WebView/Chromium instance, like Electron.",
+      "Flutter only ever runs in interpreted mode and never compiles to native machine code."
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-1/how-native-mobile-and-desktop-differ-from-web/q6",
+    "type": "multiple_choice",
+    "prompt": "What makes Electron fundamentally different from React Native and Flutter, even though all three are often called 'cross-platform'?",
+    "choices": [
+      "Electron apps cannot run on Windows machines.",
+      "Electron renders its UI using an embedded full browser engine (Chromium) with plain DOM/CSS -- the same rendering model as an ordinary web page -- rather than native widgets or a custom pixel-painting engine.",
+      "Electron apps can only be built for mobile phones, not desktops.",
+      "Electron ahead-of-time compiles its JavaScript into native ARM machine code the way Flutter's release builds compile Dart."
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-1/how-native-mobile-and-desktop-differ-from-web/q7",
+    "type": "multiple_choice",
+    "prompt": "In the Jetpack Compose snippet, what does remember { mutableStateOf(0) } correspond to conceptually in the React Native snippet's useState(0)?",
+    "choices": [
+      "Nothing -- the two solve entirely unrelated problems.",
+      "Both create a piece of state the framework tracks, so that when it changes, the UI function re-runs (recomposes/re-renders) to reflect the new value.",
+      "remember performs a network request while useState only applies visual styling.",
+      "mutableStateOf compiles the UI ahead of time into native machine code while useState never does."
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-1/how-native-mobile-and-desktop-differ-from-web/q8",
+    "type": "multiple_choice",
+    "prompt": "Which statement correctly describes how the 'same' counter button literally executes at runtime in SwiftUI versus Electron?",
+    "choices": [
+      "A SwiftUI counter's button-tap handler runs as compiled native machine code; an Electron counter's button-tap handler runs as JavaScript interpreted/JIT-compiled by Chromium's engine.",
+      "Both run identically because all five examples in this lesson share the same underlying JavaScript engine.",
+      "SwiftUI code and Electron code both execute inside a sandboxed mobile browser.",
+      "Electron's button handler is compiled ahead of time into Swift bytecode before the app runs."
+    ],
+    "correctIndex": 0
+  }
+]

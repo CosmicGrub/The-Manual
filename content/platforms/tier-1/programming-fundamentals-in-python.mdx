@@ -1,0 +1,273 @@
+---
+trackId: platforms
+tier: 1
+title: "Programming Fundamentals in a Second Language (Python)"
+order: 3
+estimatedHours: 20
+slug: programming-fundamentals-in-python
+---
+
+## What this module is actually for
+
+You can already write JavaScript that runs in a browser — variables, functions, loops, conditionals, the DOM. Language Mastery already taught you *how to program* in general. This module does neither of those things again. Its only job is to take the mental model you built for JavaScript and run it through Python, side by side, so you walk away with something more valuable than "I know two languages": a map of *which parts of "knowing a language" are universal* (there is data, there is control flow, there is reuse) and *which parts are arbitrary syntax choices one community made* (semicolons, braces, `===`). That map is what lets you pick up a third, fourth, and fifth language in days instead of months for the rest of this track — Swift for iOS, Kotlin for Android, C# for Unity all rhyme with one of these two more than they differ from both.
+
+Every section below puts a JS snippet and a Python snippet that do the *exact same thing* next to each other. Read the JS first — you already know it — then read the Python as "same idea, different spelling" rather than as new material.
+
+## Getting Python running
+
+You already set up a command-line environment in Tier 0. Python needs one binary and no build step:
+
+```bash
+$ python3 --version
+Python 3.12.1
+
+$ python3
+>>> print("hello from the REPL")
+hello from the REPL
+>>> exit()
+
+$ cat hello.py
+print("hello, world")
+
+$ python3 hello.py
+hello, world
+```
+
+No `npm install`, no bundler, no `<script>` tag, no browser. A `.py` file is a program the interpreter reads top to bottom — the closest JS equivalent is running a file directly with `node script.js`, not loading a page.
+
+## Syntax and data types, same program twice
+
+Here is one small program — take a list of order totals, apply a 10% discount to anything over $50, and print the final total — written identically in both languages.
+
+```js
+// JS
+const orders = [42.50, 71.00, 18.25, 103.40];
+
+function applyDiscount(amount) {
+    if (amount > 50) {
+        return amount * 0.9;
+    }
+    return amount;
+}
+
+let total = 0;
+for (const order of orders) {
+    total += applyDiscount(order);
+}
+
+console.log(`Final total: $${total.toFixed(2)}`);
+```
+
+```python
+# Python
+orders = [42.50, 71.00, 18.25, 103.40]
+
+def apply_discount(amount):
+    if amount > 50:
+        return amount * 0.9
+    return amount
+
+total = 0
+for order in orders:
+    total += apply_discount(order)
+
+print(f"Final total: ${total:.2f}")
+```
+
+Line these up and the real differences are smaller than they look:
+
+| | JavaScript | Python |
+|---|---|---|
+| Block delimiters | `{ }` | indentation (consistent whitespace is not a style choice, it's syntax) |
+| Statement endings | `;` (often optional) | newline, no punctuation |
+| Variable declaration | `const` / `let` required | no keyword — just `name = value` |
+| String interpolation | `` `${x}` `` template literal | `f"{x}"` f-string |
+| Number formatting | `.toFixed(2)` method on the number | `:.2f` format spec inside the f-string |
+| Comments | `//` | `#` |
+
+Data types are where it gets more interesting than "different spelling." Both languages are *dynamically typed* — you never declare a variable's type — but they disagree hard on how far they'll bend a type to make an operation work:
+
+```js
+// JS: + coerces aggressively
+console.log(1 + "1");      // "11"  (number silently becomes string)
+console.log("5" - 1);      // 4    (string silently becomes number)
+console.log(1 + true);     // 2    (boolean silently becomes number)
+console.log(typeof null);  // "object"  — a famous JS wart
+console.log(typeof undefined); // "undefined"
+```
+
+```python
+# Python: + refuses to guess
+print(1 + "1")      # TypeError: unsupported operand type(s) for +: 'int' and 'str'
+print(int("5") - 1)  # 4 — you must convert explicitly
+print(1 + True)      # 2 — bool IS a subtype of int in Python, so this one *does* work
+print(type(None))    # <class 'NoneType'>
+```
+
+JS also splits "number" into exactly one type (`Number`, always a float under the hood — `1` and `1.0` are the same value), while Python has two distinct numeric types, `int` and `float`, and `1 == 1.0` is `True` but `type(1) == type(1.0)` is `False`. JS has `null` *and* `undefined` for "nothing is here" (two different kinds of nothing, a frequent source of bugs). Python has exactly one: `None`.
+
+## Lists, dicts, and tuples vs. arrays and objects
+
+JS gives you two general-purpose containers: the array and the object. Python gives you three, because it splits "ordered, mutable collection" and "fixed, immutable collection" into different types.
+
+**Array → list.** Both are ordered and mutable, and the method sets rhyme once you see them side by side:
+
+```js
+const nums = [1, 2, 3, 4, 5];
+const doubled = nums.map(n => n * 2);
+const evens = nums.filter(n => n % 2 === 0);
+const sum = nums.reduce((acc, n) => acc + n, 0);
+nums.push(6);
+console.log(nums.length);
+```
+
+```python
+nums = [1, 2, 3, 4, 5]
+doubled = [n * 2 for n in nums]          # list comprehension, not a .map() call
+evens = [n for n in nums if n % 2 == 0]  # filter folded into the same syntax
+total = sum(nums)                        # sum() is a built-in function, not a method
+nums.append(6)
+print(len(nums))                         # len() is a function you call ON the list,
+                                          # not a property the list carries
+```
+
+The comprehension is the one genuinely new shape here: `[expression for item in iterable if condition]` fuses `.map()` and `.filter()` into a single readable line instead of chaining two method calls. It's not shorter JS with the dots removed — it's a different idiom Python culture reaches for by default.
+
+**Object → dict.** Both map keys to values and both preserve insertion order (JS objects guarantee this since ES2015 for string keys; Python dicts guarantee it since 3.7 — before that, dict order was unspecified, so you'll see older code that doesn't rely on it).
+
+```js
+const user = { name: "Dana", age: 29, active: true };
+console.log(user.name);
+console.log(user["age"]);
+for (const [key, value] of Object.entries(user)) {
+    console.log(`${key}: ${value}`);
+}
+```
+
+```python
+user = {"name": "Dana", "age": 29, "active": True}
+print(user["name"])       # bracket access is the ONLY way — user.name does not work
+print(user.get("age"))    # .get() returns None instead of crashing if the key is missing
+for key, value in user.items():
+    print(f"{key}: {value}")
+```
+
+Two real differences, not cosmetic ones: Python has no dot access on dicts (`user.name` raises `AttributeError`; you must write `user["name"]`), and Python dict keys can be *any hashable type* — including tuples — not just strings and symbols the way JS object keys effectively are. That lets you write `cache[(x, y)] = result` to key a cache by a coordinate pair directly, something you'd fake in JS by joining `x` and `y` into a string key.
+
+**Tuple — JS has no real equivalent.** A tuple is an ordered, *immutable* sequence:
+
+```python
+point = (3, 4)
+x, y = point          # unpacking
+print(point[0])        # 3
+point[0] = 9            # TypeError: 'tuple' object does not support item assignment
+```
+
+JS fakes this two ways, both worse: `Object.freeze([3, 4])` (an array that *looks* mutable but silently fails to change — no error in non-strict code) or just a plain array you promise not to mutate (no enforcement at all). Python's tuple makes "this data should never change after creation" a property the language itself enforces. This matters for function returns: Python functions routinely return multiple values as a tuple —
+
+```python
+def min_max(nums):
+    return min(nums), max(nums)   # returns the tuple (lowest, highest)
+
+low, high = min_max([4, 1, 9, 2])
+```
+
+— where JS would return an array or object and destructure it (`const [low, high] = ...` or `const { low, high } = ...`), functionally similar but without the "this is now locked" guarantee.
+
+## Functions and modules
+
+Function definitions map closely:
+
+```js
+function greet(name, greeting = "Hello") {
+    return `${greeting}, ${name}!`;
+}
+const square = x => x * x;
+function sumAll(...nums) {
+    return nums.reduce((a, b) => a + b, 0);
+}
+```
+
+```python
+def greet(name, greeting="Hello"):
+    return f"{greeting}, {name}!"
+
+square = lambda x: x * x    # lambda is restricted to ONE expression, no statements
+                              # — a multi-line function body must use def, always
+
+def sum_all(*nums):          # *nums collects extra positional args into a tuple
+    return sum(nums)
+```
+
+Default parameters and "collect the rest of the arguments" both exist in both languages (`...nums` ↔ `*nums`), and arrow functions and lambdas look like siblings. The real gap is that JS arrow functions can hold a full block body (`x => { doStuff(); return y; }`), while Python's `lambda` is deliberately crippled to a single expression — anything with an `if`, a loop, or multiple statements *must* become a named `def` function. Python's culture treats that as a feature: it keeps throwaway one-liners from growing into unreadable logic hidden inside an argument list.
+
+Modules differ more structurally than functions do:
+
+```js
+// mathUtils.js
+export function square(x) { return x * x; }
+export const PI = 3.14159;
+
+// main.js
+import { square, PI } from "./mathUtils.js";
+console.log(square(4), PI);
+```
+
+```python
+# math_utils.py
+def square(x):
+    return x * x
+
+PI = 3.14159
+
+# main.py
+from math_utils import square, PI
+print(square(4), PI)
+```
+
+`export` and `import { }` map to "just define it at module level" and `from module import name` — Python doesn't need an `export` keyword because *every* top-level name in a `.py` file is importable by default. There's no Python equivalent of a JS *default* export; Python conventionally just has you import the specific names you need, or `import math_utils` and call `math_utils.square(4)`.
+
+One difference has no JS counterpart at all: because a `.py` file can be *either* imported as a module *or* run directly as a script, Python code uses a guard to tell those two cases apart:
+
+```python
+def main():
+    print("Running as a script")
+
+if __name__ == "__main__":
+    main()
+```
+
+`__name__` is `"__main__"` only when the file was launched directly (`python3 main.py`); when another file imports it, `__name__` is the module's name instead, and `main()` doesn't auto-run. JS has nothing like this because a browser `<script>` tag or `node file.js` call is *always* "run it directly" — there's no ambiguity to guard against.
+
+## Where the approaches genuinely diverge, and why
+
+Some differences above are just spelling. These are not — they reflect the two languages solving the same problem with different values.
+
+| Problem | JavaScript's approach | Python's approach | Why it actually differs |
+|---|---|---|---|
+| Iterate a collection | `for...of`, `.forEach()`, or `.map()`/`.filter()` chained | `for item in collection`, or a list comprehension | JS treats iteration as one of several interchangeable methods on the array object. Python treats "iterable" as a protocol *any* object can implement (`__iter__`), so the same `for x in thing` syntax works unchanged on lists, dicts, files, and generators — one idiom for everything, not an array-specific toolkit. |
+| Check "is this empty" | `if (arr.length > 0)` — an empty array is still **truthy** as a value | `if arr:` — an empty list, dict, string, or tuple is **falsy** | JS truthiness is about the value's type (objects/arrays are always truthy, only `0`, `""`, `null`, `undefined`, `NaN`, `false` are falsy). Python truthiness asks "is this container empty," so `[]`, `{}`, `""`, and `0` are *all* falsy by the same rule. Porting `if (list)` from JS to Python silently changes behavior on an empty list — a real, easy-to-miss bug when translating code. |
+| Handle an error | `try { ... } catch (err) { ... }` — `err` can be *anything* you threw: an `Error`, a string, a plain object | `try: ... except ValueError: ...` — you can only `raise` an instance of an `Exception` subclass, and `except` filters by that class | JS's `throw` accepts any value, so `catch` blocks routinely do manual checks like `if (err instanceof TypeError)`. Python builds a real class hierarchy of exceptions (`ValueError`, `KeyError`, `TypeError`, all descending from `Exception`), so `except ValueError:` catches *only* that family and lets everything else propagate — filtering is a language feature, not something you write by hand. |
+| Compare two collections for equality | `[1,2] === [1,2]` → `false` (reference equality — two different array objects, always unequal) | `[1,2] == [1,2]` → `True` (structural equality — same contents, equal) | JS's `===` on objects/arrays always compares *identity* (same object in memory), never contents — you need `JSON.stringify()` or a deep-equal library to compare contents. Python's `==` on lists/dicts/tuples compares contents by default; identity has its own separate operator, `is`. These are opposite defaults, not just different syntax. |
+
+## Exercise: port a JS function to Python, on purpose
+
+Here's a JS function. Port it to Python, keeping the exact same behavior — including the parts where a careless, syntax-only translation would quietly change what it does.
+
+```js
+function summarize(scores) {
+    if (!scores.length) {
+        return "No scores yet";
+    }
+    const passed = scores.filter(s => s >= 60);
+    const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
+    return `${passed.length}/${scores.length} passed, average ${avg.toFixed(1)}`;
+}
+
+console.log(summarize([45, 72, 88, 59, 91]));
+console.log(summarize([]));
+```
+
+Write `summarize(scores)` in Python that produces the same two outputs for the same two inputs. Pay specific attention to the empty-list case — the JS code leans on `!scores.length` being truthy-checkable in a way that doesn't translate line-for-line.
+
+*Hint: the comparison table above has the exact rule you need for "check if a collection is empty" — you won't need `.length` or `!` at all once you use it. For the average, Python's `sum()` built-in replaces `.reduce()` + the accumulator pattern entirely.*

@@ -465,3 +465,14 @@ All notable changes to The Manual (curriculum + app) are logged here. This file 
 **Result:** `npm run build` passed clean — 199 pages, 182 unique slugs verified repo-wide.
 
 **Status:** Platforms Tier 0 started (16h, 4 lessons) — the sixth track in The Manual to get real lesson content. Tiers 1-5 remain.
+
+## [0.36.0] — 2026-10-03 — Platforms Tier 1: complete (HTML/CSS/JS, Python comparison)
+
+**Context:** Continuing the tier-by-tier pattern. This tier deliberately overlaps in subject matter with Language Mastery's own JS/Python modules, so it was scoped on purpose: the JavaScript module stays specific to browser/DOM context (why running inside a page matters), and the Python module is framed as a direct side-by-side comparison against the JS just taught, not a standalone from-scratch language course — Language Mastery already owns that.
+
+**Added**
+- `content/platforms/tier-1/*.mdx` (4 files) + matching quizzes: HTML & CSS Fundamentals (a real div-soup-vs-semantic-HTML rewrite showing the concrete accessibility/SEO difference, a worked box-model calculation showing why `box-sizing: border-box` exists, a real Flexbox navbar and Grid card gallery), JavaScript Fundamentals (DOM selection/manipulation and event handling framed explicitly as browser-context material), Programming Fundamentals in a Second Language (Python, taught via direct side-by-side snippets against the JS module), How Native, Mobile, and Desktop Differ From Web (real minimal SwiftUI/Compose/React Native/Flutter/Electron starter files read side by side).
+
+**Result:** `npm run build` passed clean — 203 pages, 186 unique slugs verified repo-wide.
+
+**Status:** Platforms Tier 1 complete (76h, 4 lessons). Platforms is now 2/6 tiers content-complete (Tiers 0-1, 92h); Tiers 2-5 remain.

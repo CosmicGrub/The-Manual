@@ -1,0 +1,86 @@
+[
+  {
+    "id": "platforms/tier-1/javascript-fundamentals/q1",
+    "type": "multiple_choice",
+    "prompt": "A loop attaches a click handler to each of several buttons using `for (var i = 0; i < buttons.length; i++) { buttons[i].addEventListener('click', () => alert(i)); }`. Every button alerts the same final number. Why?",
+    "choices": [
+      "var is function/global scoped, so there is only one i shared by every callback, and by the time any button is clicked the loop has already finished and left i at its final value",
+      "addEventListener only remembers the last listener attached to any element, so earlier ones are discarded",
+      "let would produce the exact same bug, so switching to let would not fix it",
+      "Arrow functions cannot be used as event listener callbacks, which causes them all to fall back to the same handler"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-1/javascript-fundamentals/q2",
+    "type": "multiple_choice",
+    "prompt": "What does a JavaScript closure actually capture from its surrounding scope?",
+    "choices": [
+      "A live reference to the variable binding itself, so later changes to that variable are visible inside the closure",
+      "A frozen copy of the variable's value at the exact moment the inner function was defined",
+      "Nothing \u2014 closures only work with global variables, never with local ones",
+      "A copy of the entire outer function's source code, re-parsed each time the closure runs"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-1/javascript-fundamentals/q3",
+    "type": "multiple_choice",
+    "prompt": "Why does `document.querySelectorAll('.item').map(fn)` throw a TypeError?",
+    "choices": [
+      "querySelectorAll returns a NodeList, which does not have map/filter/reduce; it needs to be converted with Array.from(...) first",
+      "map only works on arrays of numbers, never on arrays of DOM elements",
+      "querySelectorAll always returns null when more than one element matches the selector",
+      "The .item selector syntax is invalid, so querySelectorAll never returns any results"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-1/javascript-fundamentals/q4",
+    "type": "multiple_choice",
+    "prompt": "What is the key difference between document.querySelector and document.querySelectorAll?",
+    "choices": [
+      "querySelector returns the first matching element (or null); querySelectorAll returns a NodeList of every matching element (possibly empty)",
+      "querySelector returns every match; querySelectorAll returns only the first match",
+      "querySelector only works on IDs; querySelectorAll only works on classes",
+      "They are interchangeable aliases for the exact same method"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-1/javascript-fundamentals/q5",
+    "type": "multiple_choice",
+    "prompt": "A `<ul>` of to-do items gets new `<li>` elements added dynamically after the page loads. Why attach a single click listener to the `<ul>` (event delegation) instead of one listener per `<li>`?",
+    "choices": [
+      "Because a listener attached directly to an `<li>` that gets added later would never exist; one listener on the stable parent catches clicks on any child, present or future, via event.target",
+      "Because browsers silently ignore any listener attached to more than 10 elements at once",
+      "Because addEventListener can only be called once per page, no matter how many elements need listeners",
+      "Because click events do not bubble, so delegation is only cosmetic and changes nothing functionally"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-1/javascript-fundamentals/q6",
+    "type": "multiple_choice",
+    "prompt": "What problem do Promises solve compared to plain nested callbacks for handling something like a fetch() request?",
+    "choices": [
+      "They let you chain .then()/.catch() instead of nesting callback after callback, with a single standardized way to handle success and failure",
+      "They make the network request finish instantly instead of taking time",
+      "They remove the need for addEventListener anywhere in the page",
+      "They convert asynchronous code into synchronous code that blocks the browser until it finishes"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-1/javascript-fundamentals/q7",
+    "type": "multiple_choice",
+    "prompt": "Given `const user = { name: 'Alex' }; user.name = 'Sam';` \u2014 does this throw an error?",
+    "choices": [
+      "No \u2014 const prevents reassigning the variable user to a different object, but mutating properties of the object it already points to is still allowed",
+      "Yes \u2014 const freezes every property of any object assigned to it, so user.name can never change",
+      "Yes \u2014 const can only be used with primitive values like numbers and strings, never with objects",
+      "No, but only because 'name' is a special property name that const always allows changing"
+    ],
+    "correctIndex": 0
+  }
+]

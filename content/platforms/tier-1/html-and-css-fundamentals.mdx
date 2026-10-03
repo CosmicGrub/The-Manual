@@ -1,0 +1,273 @@
+---
+trackId: platforms
+tier: 1
+title: "HTML & CSS Fundamentals"
+order: 1
+estimatedHours: 20
+slug: html-and-css-fundamentals
+---
+
+## Div soup vs. structure that means something
+
+Here's a real landing page fragment, written the way a lot of beginners write HTML — every element is a `<div>`, and meaning lives only in class names:
+
+```html
+<div class="page">
+  <div class="top">
+    <div class="brand">Northwind Traders</div>
+    <div class="links">
+      <div class="link"><a href="/catalog">Catalog</a></div>
+      <div class="link"><a href="/about">About</a></div>
+      <div class="link"><a href="/contact">Contact</a></div>
+    </div>
+  </div>
+  <div class="content">
+    <div class="post">
+      <div class="post-head">Shipping Delays This Week</div>
+      <div class="post-text">Carriers are reporting 2-3 day delays...</div>
+    </div>
+  </div>
+  <div class="bottom">© 2026 Northwind Traders</div>
+</div>
+```
+
+This renders fine. A sighted user scanning it visually can tell the top part is navigation and the bottom part is a footer, because of position and styling. But nothing in the *markup* says that. Now the semantic version of the exact same page:
+
+```html
+<body>
+  <header>
+    <p class="brand">Northwind Traders</p>
+    <nav>
+      <ul>
+        <li><a href="/catalog">Catalog</a></li>
+        <li><a href="/about">About</a></li>
+        <li><a href="/contact">Contact</a></li>
+      </ul>
+    </nav>
+  </header>
+  <main>
+    <article>
+      <h1>Shipping Delays This Week</h1>
+      <p>Carriers are reporting 2-3 day delays...</p>
+    </article>
+  </main>
+  <footer>© 2026 Northwind Traders</footer>
+</body>
+```
+
+Same visual result if the CSS is identical, but now the tags themselves carry meaning: `<header>`, `<nav>`, `<main>`, `<article>`, `<footer>` are landmarks. This matters in two concrete, measurable ways.
+
+**Accessibility.** A screen reader like VoiceOver or NVDA builds a "landmarks" list from these tags, letting a blind user jump straight to `<nav>` or `<main>` with a keystroke instead of listening to every single div read aloud in order. In the div-soup version, there is no landmark list — the screen reader has no way to distinguish "navigation" from "random box of links" because `<div class="links">` is, to the accessibility tree, just a div. The `<nav>` tag is the actual signal; the class name is invisible to assistive tech.
+
+**SEO.** Search engine crawlers use the same structural tags to figure out what a page is actually about. A single `<h1>` inside an `<article>` tells Google "this is the main heading of the primary content." A `<div class="post-head">` tells it nothing — visually it might be styled to look identical to an `<h1>`, but structurally it's noise. Google has said directly that semantic HTML is a signal it uses for ranking and for generating rich search snippets; div soup forces the crawler to guess from CSS classes, which it mostly ignores.
+
+The rule of thumb: reach for `<div>` only when no semantic element fits. Navigation is `<nav>`, the page's one primary content block is `<main>` (use it exactly once per page), a self-contained piece of content is `<article>`, a thematic grouping with a heading is `<section>`, and the page footer is `<footer>`.
+
+## The box model: where your pixels actually go
+
+Take this card:
+
+```css
+.card {
+  width: 300px;
+  padding: 20px;
+  border: 5px solid #333;
+  margin: 10px;
+}
+```
+
+By default (`box-sizing: content-box`), `width: 300px` sets the size of the *content area only*. Padding and border are added on top of that:
+
+- Content: 300px
+- + padding: 20px on each side → +40px
+- + border: 5px on each side → +10px
+- **Rendered box: 300 + 40 + 10 = 350px**
+- Margin sits outside the box entirely and doesn't count toward its size, but it does push neighboring elements away — total space claimed on the page is 350 + 20 (10px margin × 2 sides) = **370px**.
+
+This is where real layouts break. Put three of these cards in a 900px-wide container, each with `width: 300px`:
+
+```
+350px + 350px + 350px = 1050px
+```
+
+That's 150px wider than the container. The third card wraps to a new line or overflows, even though "300 × 3 = 900" looked like it should fit exactly. This is the single most common first-month CSS bug: the math you did in your head used `width`, but the browser's rendered size includes padding and border on top of it.
+
+The fix is `box-sizing: border-box`, which redefines what `width` means: now it's the size of the *whole box*, padding and border included, and the content area shrinks to make room:
+
+```css
+.card {
+  box-sizing: border-box;
+  width: 300px;    /* this is now the TOTAL box width */
+  padding: 20px;
+  border: 5px solid #333;
+}
+/* content area = 300 - 40 (padding) - 10 (border) = 250px */
+/* rendered box = exactly 300px, as written */
+```
+
+Now three cards at 300px each sum to exactly 900px — they fit. This is why virtually every real-world stylesheet opens with this reset:
+
+```css
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+```
+
+With this in place, every `width` and `height` you write means what it looks like it means. Margin is the one exception — it's never included in either box-sizing mode, because margin is space *between* boxes, not part of a box's own size.
+
+## Flexbox: solving a real navbar
+
+Flexbox is for one-dimensional layout — a single row or a single column where items need to be aligned, spaced, or pushed apart along that one line. A navbar is the textbook case: logo on the left, links on the right, everything vertically centered.
+
+```html
+<nav class="navbar">
+  <a href="/" class="logo">Acme</a>
+  <ul class="nav-links">
+    <li><a href="/products">Products</a></li>
+    <li><a href="/pricing">Pricing</a></li>
+    <li><a href="/contact">Contact</a></li>
+  </ul>
+</nav>
+```
+
+```css
+.navbar {
+  display: flex;
+  align-items: center;        /* cross-axis: vertically center everything */
+  justify-content: space-between; /* main-axis: push logo and links apart */
+  padding: 1rem 2rem;
+  background: #1a1a2e;
+}
+.nav-links {
+  display: flex;
+  gap: 1.5rem;
+  list-style: none;
+}
+```
+
+Two axes matter here. The **main axis** is the direction items flow (horizontal, by default, for `flex-direction: row`); `justify-content` controls spacing *along* it — `space-between` shoves the first and last children to opposite edges and distributes the remaining gap evenly. The **cross axis** is perpendicular to that; `align-items: center` is what stops the logo and link list from sitting at different vertical heights even though they're different sizes. Without it, each item would sit at the top of the navbar's height by default (`stretch`), and a taller logo would look misaligned against shorter text links. `gap` replaces what used to require margin hacks between list items — one line, no fiddling with "margin-right on everything except the last child."
+
+## Grid: solving a real card gallery
+
+A card gallery is two-dimensional — you care about alignment across *both* rows and columns at once, and the number of columns should adapt to available width. This is where Grid wins over Flexbox:
+
+```html
+<div class="gallery">
+  <div class="card">Product A</div>
+  <div class="card">Product B</div>
+  <div class="card">Product C</div>
+  <div class="card">Product D</div>
+  <div class="card">Product E</div>
+</div>
+```
+
+```css
+.gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1.5rem;
+  padding: 2rem;
+}
+.card {
+  background: white;
+  border-radius: 8px;
+  padding: 1.5rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+```
+
+`repeat(auto-fit, minmax(240px, 1fr))` is doing real work: it tells the browser "fit as many columns as you can, where each is at least 240px and at most an equal share (`1fr`) of the remaining space." On a 1200px-wide container that's 4 columns of ~276px each (minus gaps); on a 500px-wide phone screen it recalculates to 2 columns, or 1, automatically — **no media query needed for this reflow.** Try `auto-fill` instead of `auto-fit` and watch the difference: `auto-fill` keeps empty placeholder columns if there aren't enough cards to fill a row, which can leave visible gaps on the right; `auto-fit` collapses those empty tracks and lets the real cards expand to fill the space.
+
+Why not use Flexbox with `flex-wrap: wrap` for this instead? You can, but rows end up independent — if row one's tallest card is 400px and row two's tallest is 200px, flex items in each row don't line up into a shared grid; row two's cards won't align their edges with row one's columns unless every card happens to be the same size. Grid's columns are a single structure spanning every row, so card edges line up down the whole gallery automatically. Rule of thumb: one row or column of related items → Flexbox. A grid of items that needs rows *and* columns to line up together → Grid.
+
+## Responsive design: mobile-first, for real
+
+"Mobile-first" means: write your base CSS (no media query at all) for the smallest/narrowest screen, then use `min-width` media queries to progressively *add* complexity as the viewport grows. This is the opposite of writing desktop CSS first and using `max-width` queries to strip things away for small screens.
+
+```css
+/* Base rules — apply to EVERY screen, mobile included. No media query. */
+.gallery {
+  grid-template-columns: 1fr; /* single column by default */
+}
+.nav-links {
+  flex-direction: column; /* stacked links on a phone */
+}
+
+/* Progressively enhance for wider viewports */
+@media (min-width: 600px) {
+  .gallery {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (min-width: 900px) {
+  .gallery {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .nav-links {
+    flex-direction: row;
+  }
+}
+```
+
+Compare this to the desktop-first version of the same intent:
+
+```css
+.gallery { grid-template-columns: repeat(3, 1fr); }
+@media (max-width: 899px) {
+  .gallery { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 599px) {
+  .gallery { grid-template-columns: 1fr; }
+}
+```
+
+Functionally similar for this simple case, but mobile-first scales better as a *codebase*, not just a single property: every added `min-width` block is pure addition — you're never fighting a rule set earlier in the file that you now have to override and unset. Desktop-first tends to accumulate `max-width` overrides that fight each other once more than a couple of properties are involved, because you wrote the complex (desktop) layout first and now have to actively undo pieces of it for every smaller breakpoint. It also matches reality: more global web traffic is mobile, so optimizing the no-media-query path for the phone case means the *majority* of visitors get the lightest, simplest CSS path with zero media queries evaluated at all.
+
+One line makes all of this possible in the first place — without it, phones render pages zoomed out to a fake "desktop-width" viewport and none of your media queries fire as intended:
+
+```html
+<meta name="viewport" content="width=device-width, initial-scale=1">
+```
+
+## Accessibility: alt text, landmarks, and contrast you can actually measure
+
+**Alt text, done wrong vs. right.** Wrong alt text is either missing, or present but useless:
+
+```html
+<!-- wrong: screen reader announces the filename instead — worse than nothing -->
+<img src="dog-park-7823.jpg">
+
+<!-- wrong: technically has alt, but conveys zero information -->
+<img src="q3-revenue-chart.png" alt="image">
+<img src="q3-revenue-chart.png" alt="chart">
+```
+
+Right alt text describes what the image *communicates*, not just what it depicts:
+
+```html
+<img src="dog-park-7823.jpg" alt="Golden retriever catching a frisbee mid-air in a park">
+<img src="q3-revenue-chart.png" alt="Bar chart showing Q3 revenue up 18% over Q2, driven mostly by EU sales">
+```
+
+And for purely decorative images that add no information — a swoosh divider, a background texture — the correct `alt` is an *empty string*, not a missing attribute:
+
+```html
+<img src="divider-swoosh.svg" alt="">
+```
+
+`alt=""` tells a screen reader "skip this, it's decorative, don't announce anything." A genuinely missing `alt` attribute instead causes it to fall back to reading the raw filename aloud — `alt=""` is a deliberate, correct choice; omitting `alt` is a bug.
+
+**Landmarks**, covered above, double as accessibility infrastructure: `<header>`, `<nav>`, `<main>`, `<footer>` aren't just semantically tidy — they're literally what a screen reader's landmark navigation menu is built from.
+
+**Contrast, with real numbers.** WCAG 2.1 Level AA requires a contrast ratio of at least **4.5:1** between text and its background for normal-size text (3:1 for large text — 18pt+, or 14pt+ bold). This is a computable number, not a vibe. Gray text at `#999999` on a white `#FFFFFF` background measures **2.85:1** — it fails AA outright; plenty of real sites ship this exact gray and fail an audit because of it. Darken it to `#767676` and you get **4.54:1** — it passes AA, just barely clearing the bar. Darken further to `#595959` and you hit roughly **7:1**, clearing the stricter AAA standard with room to spare. The lesson: "looks readable to me" is not a check — measuring the actual hex values against the 4.5:1 threshold (tools like WebAIM's contrast checker do this instantly) is.
+
+## Exercise
+
+Build a single HTML page for a small team's "About Us" section:
+
+- Use real semantic structure: `<header>` with a `<nav>`, a `<main>` containing one `<section>` with a heading, a grid of team member cards, and a `<footer>`.
+- Each card has a photo (`<img>` with real, descriptive alt text), a name, and a role.
+- The card grid should reflow from 1 column on a narrow viewport to 3 columns on a wide one, using Grid's `auto-fit`/`minmax` technique — try to do it with *zero* media queries first, then add one `min-width` media query if you want fixed breakpoints instead.
+- Pick a text color and background color for the role text and check their contrast ratio against the 4.5:1 AA threshold before finalizing them.
+
+**Hint:** if your `auto-fit` columns aren't behaving the way you expect — either refusing to add a second column when there's clearly room, or creating oddly empty trailing space — check `minmax()`'s first argument. A minimum that's too large relative to your container width is the most common reason `auto-fit` grids seem to "get stuck" at fewer columns than you expected.

@@ -1,0 +1,98 @@
+[
+  {
+    "id": "platforms/tier-1/html-and-css-fundamentals/q1",
+    "type": "multiple_choice",
+    "prompt": "A page uses <div class=\"nav\"> for its navigation links instead of <nav>. What is the concrete, measurable consequence of this choice?",
+    "choices": [
+      "The links will not be clickable in most browsers",
+      "The CSS will fail to apply because div cannot be styled the same way",
+      "Screen readers lose the ability to jump to it as a landmark, and search engines lose a structural signal for what that content is",
+      "Nothing changes; div and nav are functionally identical in every way"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "platforms/tier-1/html-and-css-fundamentals/q2",
+    "type": "multiple_choice",
+    "prompt": "A box has width: 300px, padding: 20px, and border: 5px solid, with the default box-sizing: content-box. What is the box's actual rendered width?",
+    "choices": [
+      "300px",
+      "325px",
+      "350px",
+      "370px"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "platforms/tier-1/html-and-css-fundamentals/q3",
+    "type": "multiple_choice",
+    "prompt": "Same box as above (width: 300px, padding: 20px, border: 5px solid), but now with box-sizing: border-box. How wide is the actual content area, inside the padding and border?",
+    "choices": [
+      "300px",
+      "270px",
+      "260px",
+      "250px"
+    ],
+    "correctIndex": 3
+  },
+  {
+    "id": "platforms/tier-1/html-and-css-fundamentals/q4",
+    "type": "multiple_choice",
+    "prompt": "You need a navbar with a logo on the left and nav links on the right, both vertically centered on one row. Which CSS gets you there?",
+    "choices": [
+      "display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));",
+      "display: flex; align-items: center; justify-content: space-between;",
+      "display: block; text-align: justify;",
+      "display: inline; vertical-align: middle;"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-1/html-and-css-fundamentals/q5",
+    "type": "multiple_choice",
+    "prompt": "A card gallery needs to reflow from 1 column on a phone to several columns on a wide screen, with no media queries at all, and each card at least 240px wide. Which rule does that?",
+    "choices": [
+      "flex-wrap: wrap; combined with flex-basis: 240px;",
+      "grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));",
+      "column-count: 3; column-width: 240px;",
+      "display: inline-block; width: 240px;"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-1/html-and-css-fundamentals/q6",
+    "type": "multiple_choice",
+    "prompt": "In mobile-first responsive CSS, what do the base (non-media-query) rules target, and what kind of media query is then added to scale up?",
+    "choices": [
+      "Base rules target the widest desktop layout; max-width queries strip features away for smaller screens",
+      "Base rules target the narrowest mobile layout; min-width queries progressively add complexity for larger screens",
+      "Base rules target print layout; screen queries are added for all digital displays",
+      "There is no base rule in mobile-first; every rule lives inside a media query"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-1/html-and-css-fundamentals/q7",
+    "type": "multiple_choice",
+    "prompt": "A divider image is purely decorative and conveys no content. What is the correct way to handle its alt text?",
+    "choices": [
+      "Omit the alt attribute entirely so screen readers skip the image",
+      "Use alt=\"decorative image\" so the purpose is clear",
+      "Use alt=\"\" (present but empty) so screen readers skip announcing it",
+      "Use alt=\"divider-swoosh.svg\" so the filename is announced"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "platforms/tier-1/html-and-css-fundamentals/q8",
+    "type": "multiple_choice",
+    "prompt": "Gray text at #999999 on a white background measures a contrast ratio of about 2.85:1. Per WCAG 2.1 Level AA for normal-size text, what does this mean?",
+    "choices": [
+      "It passes, since AA only requires 2:1 for body text",
+      "It fails, since AA requires at least 4.5:1 for normal-size text",
+      "It passes AAA but fails the lower AA standard, which is a contradiction",
+      "Contrast ratio only matters for large headings, not body text, so this is irrelevant"
+    ],
+    "correctIndex": 1
+  }
+]

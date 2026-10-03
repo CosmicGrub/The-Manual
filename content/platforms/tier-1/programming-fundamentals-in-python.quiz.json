@@ -1,0 +1,98 @@
+[
+  {
+    "id": "platforms/tier-1/programming-fundamentals-in-python/q1",
+    "type": "multiple_choice",
+    "prompt": "In JavaScript, `1 + \"1\"` evaluates to the string \"11\" because `+` coerces the number into a string. What happens when you run the equivalent `1 + \"1\"` in Python?",
+    "choices": [
+      "It also returns the string \"11\"",
+      "It raises a TypeError because Python refuses to implicitly convert between int and str",
+      "It returns the number 2",
+      "It returns None"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-1/programming-fundamentals-in-python/q2",
+    "type": "multiple_choice",
+    "prompt": "Which Python collection type is the closest match for \"an ordered, mutable sequence you can append to and modify\" \u2014 the role a JS array plays?",
+    "choices": [
+      "tuple",
+      "dict",
+      "list",
+      "set"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "platforms/tier-1/programming-fundamentals-in-python/q3",
+    "type": "multiple_choice",
+    "prompt": "Why does JavaScript have no true equivalent of Python's tuple, even though you can approximate one with `Object.freeze([...])`?",
+    "choices": [
+      "JavaScript arrays can't hold numbers",
+      "`Object.freeze` only prevents reassignment of the variable, not mutation of array contents in non-strict contexts the way a tuple enforces immutability at the language level",
+      "JavaScript has no ordered collections at all",
+      "Tuples and arrays are actually identical in both languages"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-1/programming-fundamentals-in-python/q4",
+    "type": "multiple_choice",
+    "prompt": "An empty list `[]` is used as a condition: `if arr:` in Python versus `if (arr.length)` in JavaScript. If you instead wrote the JS version as `if (arr)` (just the array itself, no `.length`), how does its truthiness compare to Python's `if arr:` on an empty list?",
+    "choices": [
+      "They behave the same: both treat an empty collection as falsy",
+      "They behave oppositely: JavaScript's bare `if (arr)` is truthy even when the array is empty, while Python's `if arr:` is falsy when the list is empty",
+      "Both raise an error on an empty collection",
+      "Neither language allows a collection directly in an if-condition"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-1/programming-fundamentals-in-python/q5",
+    "type": "multiple_choice",
+    "prompt": "What does Python's `except ValueError:` do that a plain JavaScript `catch (err) {}` cannot do directly, without extra manual checks?",
+    "choices": [
+      "Catch every possible error the same way `catch` does",
+      "Filter which errors it catches by exception class, since Python exceptions form a real class hierarchy, while JS requires manual checks like `err instanceof TypeError` to filter inside a generic `catch`",
+      "Run before the try block executes",
+      "Prevent the program from continuing after an error"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-1/programming-fundamentals-in-python/q6",
+    "type": "multiple_choice",
+    "prompt": "What is the purpose of `if __name__ == \"__main__\":` in a Python file, and why does JavaScript have no equivalent?",
+    "choices": [
+      "It's required syntax for defining any function in Python",
+      "It distinguishes 'this file was run directly' from 'this file was imported as a module' \u2014 a distinction JS doesn't need because running a script with `node file.js` or a `<script>` tag is always direct execution",
+      "It's Python's version of a JS import statement",
+      "It marks the file as containing only comments"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-1/programming-fundamentals-in-python/q7",
+    "type": "multiple_choice",
+    "prompt": "Comparing two separate but content-identical arrays with `===` in JavaScript (e.g. `[1,2] === [1,2]`) returns `false`. What does the equivalent `[1,2] == [1,2]` return in Python, and why?",
+    "choices": [
+      "False, because Python also compares arrays by identity",
+      "True, because Python's `==` on lists compares contents (structural equality) by default, unlike JS's `===` which compares reference identity for objects and arrays",
+      "It raises an error because lists can't be compared",
+      "True, but only if both lists are converted to tuples first"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-1/programming-fundamentals-in-python/q8",
+    "type": "multiple_choice",
+    "prompt": "A Python dict can use a tuple like `(x, y)` directly as a key (e.g. `cache[(3, 4)] = result`). What would you need to do to achieve the same effect with a plain JS object, and why?",
+    "choices": [
+      "Nothing \u2014 JS object keys can also be tuples or arrays directly",
+      "Join the coordinates into a string key yourself (e.g. `cache[\"3,4\"]`), because JS object keys are effectively limited to strings and symbols, not arbitrary structured values",
+      "Use `Object.freeze` on the key first",
+      "Convert the object into a Python dict before using it"
+    ],
+    "correctIndex": 1
+  }
+]
