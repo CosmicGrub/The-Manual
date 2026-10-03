@@ -553,3 +553,14 @@ All notable changes to The Manual (curriculum + app) are logged here. This file 
 **Result:** `npm run build` passed clean — 244 pages, 227 unique slugs verified repo-wide.
 
 **Status:** DevOps Tier 2 complete (52h, 7 lessons). DevOps is now 3/6 tiers content-complete (Tiers 0-2, 115h); Tiers 3-5 remain.
+
+## [0.44.0] — 2026-10-03 — DevOps Tier 3: complete (operate like a working team engineer)
+
+**Context:** Continuing the tier-by-tier pattern. Security Fundamentals for Engineers stays deliberately scoped to pipeline/supply-chain/infra security (Cybersecurity & Ethical Hacking owns exploit depth), and Agile and Collaboration Norms applies Software Engineering's own code-review discipline inside a team-process context rather than re-teaching it.
+
+**Added**
+- `content/devops-tooling/tier-3/*.mdx` (7 files) + matching quizzes: Advanced CI/CD Patterns (a real 3-environment promotion pipeline with a required-reviewer gate on prod, blue-green's instant Service-selector cutover vs. canary's weighted traffic ramp with a real PromQL abort query), Kubernetes Fundamentals, Advanced Infrastructure as Code (Terraform modules, remote state, workspaces, a Pulumi/CDK contrast), Observability Deep Dive (the three pillars, PromQL, OpenTelemetry, a noisy-vs-useful alert rule), Security Fundamentals for Engineers (OWASP Top 10, Dependabot, Trivy, CI secrets scanning), Agile and Collaboration Norms (Scrum vs. Kanban, RFC structure), Cloud Architecture Patterns.
+
+**Result:** `npm run build` passed clean — 251 pages, 234 unique slugs verified repo-wide.
+
+**Status:** DevOps Tier 3 complete (72h, 7 lessons). DevOps is now 4/6 tiers content-complete (Tiers 0-3, 187h); Tiers 4-5 remain.

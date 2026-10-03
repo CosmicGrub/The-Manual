@@ -1,0 +1,186 @@
+---
+trackId: devops-tooling
+tier: 3
+title: "Observability Deep Dive"
+order: 4
+estimatedHours: 12
+slug: observability-deep-dive
+---
+
+## Where Tier 2 left off
+
+In Tier 2's basic observability module you got a service emitting metrics, a Prometheus server scraping them, and probably a log aggregator tailing stdout into something searchable. That's the minimum viable setup — it tells you a service is running and lets you grep for errors after the fact. This module is about what you do once "it's running" isn't a good enough answer anymore: when you have five services calling each other, a latency spike that only shows up under load, and an on-call rotation that's three alerts away from muting your pager entirely.
+
+Everything here builds directly on that Tier 2 foundation. You're not replacing Prometheus — you're writing PromQL that actually answers questions. You're not replacing your logs — you're adding the piece that connects a log line in service A to a log line in service B. And you're not adding more alerts — you're fixing the ones that are currently training your team to ignore Slack notifications.
+
+## The three pillars: what each one answers that the others can't
+
+"Metrics, logs, and traces" gets repeated so often it turns into a slogan nobody unpacks. Here's the unpacked version, with a single incident walking through all three.
+
+**Metrics** answer: *what is the aggregate behavior of the system right now, and is it different from normal?* A metric is a number with labels, sampled over time — request count, error count, CPU percent, queue depth. Metrics are cheap to store and fast to query precisely because they throw away the details of any individual event. `http_requests_total{status="500"}` doesn't know which user hit the error or what their cart contained — it just knows a 500 happened, and it can tell you instantly whether that's happening 1 time a day or 1 time a second. This is why metrics are what you alert on: they're the only pillar cheap enough to evaluate every 15 seconds, forever, across your whole fleet.
+
+**Logs** answer: *what exactly happened, in this one case?* A log line is a structured (hopefully) record of a specific event, with whatever detail the developer decided to include — the stack trace, the user ID, the exact SQL that failed, the request body. Logs are where you go once a metric tells you something is wrong, to find out *which* thing and *why*. They don't scale to "query across my whole system in real time" the way metrics do — searching terabytes of logs is slow and expensive — and a log line from the checkout service has no inherent connection to a log line from the inventory service, even if they were both caused by the same user request.
+
+**Traces** answer: *where did the time go, and which hop in a multi-service call caused it?* A trace is the thing that stitches together the checkout service's log line and the inventory service's log line, by tagging every piece of work caused by one incoming request with a shared trace ID. No amount of metrics or logs, read separately, tells you that 3.8 of the 4 seconds your `/checkout` endpoint took were spent waiting on a downstream gRPC call — you need something that understands causal, cross-service structure.
+
+Walk it through: a user reports checkout is slow. Metrics show it immediately — p99 latency on `/checkout` jumped from 300ms to 4.1s at 14:32, and it's *only* p99, so it's not everyone, just the tail. Logs from the checkout service show nothing — no errors, no exceptions, just normal entries. If you stopped at logs and metrics, you'd be stuck. The trace for a slow request shows a waterfall: `POST /checkout` (4.1s total) → `validate_cart` (40ms) → `charge_card` (120ms) → `reserve_inventory` (3.8s) → `send_confirmation` (60ms). Now you know exactly where to look: the inventory service, during that window. Its logs (now that you know when and where to look) show a query doing a full table scan because an index got dropped in a migration. Three pillars, three different questions, one incident.
+
+## Prometheus + Grafana: queries that answer something
+
+Tier 2 had you scraping a `/metrics` endpoint. Assume your checkout service now exposes the two metrics you'll actually use for everything that follows:
+
+```
+# A counter, labeled by method/path/status
+http_requests_total{job="checkout-service", method="POST", path="/checkout", status="200"} 48213
+
+# A histogram, which Prometheus turns into _bucket, _sum, and _count series
+http_request_duration_seconds_bucket{job="checkout-service", path="/checkout", le="0.1"} 41022
+http_request_duration_seconds_bucket{job="checkout-service", path="/checkout", le="0.5"} 47890
+http_request_duration_seconds_bucket{job="checkout-service", path="/checkout", le="1.0"} 48110
+http_request_duration_seconds_bucket{job="checkout-service", path="/checkout", le="+Inf"} 48213
+```
+
+A raw counter value is useless on its own — "48213" tells you nothing. The query that matters is the *rate of change*:
+
+```promql
+sum(rate(http_requests_total{job="checkout-service"}[5m])) by (path)
+```
+
+`rate()` looks at the increase in the counter over the trailing 5-minute window and divides by time, giving you requests-per-second, correctly handling counter resets (a deploy restarts the process, the counter goes back to 0, `rate()` doesn't report a nonsensical negative spike). `sum(...) by (path)` collapses the per-instance series into one line per endpoint, so a 10-pod deployment gives you one graph, not ten.
+
+The query that actually tells you something is broken is error *ratio*, not error *count*:
+
+```promql
+sum(rate(http_requests_total{job="checkout-service", status=~"5.."}[5m]))
+/
+sum(rate(http_requests_total{job="checkout-service"}[5m]))
+```
+
+5 errors a minute is a crisis at 10 requests/minute (50% failure) and a rounding error at 50,000 requests/minute. Dividing by total request rate is what makes the number meaningful regardless of traffic volume, and it's the query you'll reuse for the alert later in this module.
+
+For latency, use the histogram with `histogram_quantile`:
+
+```promql
+histogram_quantile(0.95,
+  sum(rate(http_request_duration_seconds_bucket{job="checkout-service", path="/checkout"}[5m])) by (le)
+)
+```
+
+This reads as: "of all checkout requests in the last 5 minutes, 95% completed faster than this value." Grouping `by (le)` (the bucket upper bound label) is required — without it, `histogram_quantile` can't reconstruct the distribution.
+
+**Building the panel in Grafana:** create a new panel, paste the error-ratio query as query A, set the panel's unit to **Percent (0.0-1.0)** (Grafana then renders `0.05` as `5%` instead of asking you to multiply by 100 in PromQL), and set visualization to Time series. Add two threshold lines under the panel's Thresholds tab: yellow at `0.01` (1%), red at `0.05` (5%). Add a second query B for the p95 latency expression on the same panel's second axis, or — better — a separate panel next to it, since error rate and latency are different units and conflating them on one axis hides both. That's the dashboard: one row showing request rate, error ratio, and p95 latency, side by side, all driven by the two metrics you were already scraping.
+
+## OpenTelemetry: instrumenting one function, seeing one trace
+
+Metrics and logs you likely already have from Tier 2. Traces require actually instrumenting code — wrapping units of work in **spans** that carry a trace ID, so a tracing backend (Jaeger, Tempo, or even the console for learning) can reconstruct the waterfall from the earlier example.
+
+Take the `charge_card` function from the checkout flow and give it a span:
+
+```python
+from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
+
+trace.set_tracer_provider(TracerProvider())
+trace.get_tracer_provider().add_span_processor(
+    BatchSpanProcessor(ConsoleSpanExporter())
+)
+tracer = trace.get_tracer("checkout-service")
+
+def charge_card(order_id, amount_usd):
+    with tracer.start_as_current_span("charge_card") as span:
+        span.set_attribute("order.id", order_id)
+        span.set_attribute("charge.amount_usd", amount_usd)
+        try:
+            result = payment_gateway.charge(order_id, amount_usd)
+            span.set_attribute("charge.status", "success")
+            return result
+        except PaymentError as e:
+            span.record_exception(e)
+            span.set_status(trace.Status(trace.StatusCode.ERROR, str(e)))
+            raise
+```
+
+Four things happened here that turn a plain function call into observable work: `start_as_current_span` opens a span that records its own start and end time automatically; `set_attribute` attaches structured context (the order ID, the amount) the way you'd want in a log line, except now it's attached to a specific timed operation instead of floating free; and if the function is itself called from inside another span (say, a parent span around the whole `/checkout` handler), OpenTelemetry automatically makes `charge_card` a *child* of that parent — that parent/child relationship is what produces a waterfall instead of a flat list of unrelated timings.
+
+Running this inside a request that also wraps `validate_cart`, `reserve_inventory`, and `send_confirmation` in their own spans produces, in a trace viewer, exactly the waterfall described earlier:
+
+```
+POST /checkout                      [======================] 4.10s
+  validate_cart                     [=]                       0.04s
+  charge_card                       [==]                       0.12s
+  reserve_inventory                 [====================]    3.80s
+  send_confirmation                 [=]                        0.06s
+```
+
+That picture — which span is the parent, which are siblings, and which one ate the time — is the entire value proposition of tracing, and it's not something a dashboard full of per-service metrics panels can reconstruct, because each service only knows about its own numbers, not the causal chain between them.
+
+## Alerts: the difference between a signal and noise
+
+This is the part of observability most teams get wrong first, and the damage compounds: a bad alert doesn't just waste one person's time, it teaches everyone that alerts are noise, so the one time it's real, it gets acknowledged and ignored along with the rest.
+
+Here's the alert almost everyone writes first:
+
+```yaml
+groups:
+- name: naive-alerts
+  rules:
+  - alert: HighErrorRate
+    expr: http_requests_total{status="500"} > 0
+    for: 0m
+    labels:
+      severity: critical
+    annotations:
+      summary: "A 500 error occurred"
+```
+
+This looks reasonable and is badly broken, for a reason specific to how Prometheus counters work: `http_requests_total` only ever goes up (it resets to 0 only when the process restarts). The instant your service logs its *first* 500 error — ever, including during initial testing — this expression becomes true, and it stays true for the rest of that process's life, because the counter never goes back down. The alert doesn't fire once; it fires on every evaluation cycle from that point forward, usually every 30-60 seconds, indefinitely. Within a day, on-call has gotten dozens of pages for an error that happened once, hours ago, and is long resolved. The rational response to that is to mute the alert — which is exactly the failure mode: the alert has now trained the team to ignore it, so the *next* time it fires for a genuinely ongoing problem, nobody looks.
+
+Here's the fix, using the same error-ratio query from the Grafana section:
+
+```yaml
+groups:
+- name: useful-alerts
+  rules:
+  - alert: CheckoutHighErrorRate
+    expr: |
+      (
+        sum(rate(http_requests_total{job="checkout-service", status=~"5.."}[5m]))
+        /
+        sum(rate(http_requests_total{job="checkout-service"}[5m]))
+      ) > 0.05
+    for: 10m
+    labels:
+      severity: critical
+    annotations:
+      summary: "Checkout error rate above 5% for 10+ minutes"
+      description: "Current error rate: {{ $value | humanizePercentage }}. Check recent deploys to checkout-service and the status of its downstream dependencies."
+```
+
+Three specific changes, each closing a specific hole:
+
+1. **`rate(...)[5m]` instead of the raw counter.** This measures *recent* error velocity, not lifetime total — a 500 from three days ago has aged out of the window and stopped contributing, so the alert reflects current state, not historical trivia.
+2. **A ratio, not a count.** `> 0.05` means "more than 5% of requests are failing," which scales correctly whether you're serving 10 requests/minute or 10,000 — a fixed count threshold (`> 5 errors`) would either never fire at low traffic or fire constantly at high traffic.
+3. **`for: 10m` instead of `for: 0m`.** The condition has to stay true continuously for ten minutes before Prometheus fires the alert. A single bad deploy that self-heals in 90 seconds, or one noisy minute during a traffic spike, never reaches the page. Only a *sustained* problem does.
+
+The result is an alert that fires rarely and means something every time it does — which is the entire design goal. Teams that want to go further from here look at multi-window, multi-burn-rate alerting (pairing a fast, sensitive window with a slow, high-confidence one, as described in Google's SRE workbook) to catch both fast-burning outages and slow-burning degradations without adding more noisy single-threshold rules — worth knowing exists, not something to hand-build from scratch in this module.
+
+## Exercise
+
+Your `order-processing` service publishes to a queue, and consumers pull from it. You have this metric from the consumer fleet:
+
+```
+queue_messages_pending{queue="order-processing"} 142
+```
+
+A teammate wrote this alert and it's paging on-call 15 times a day:
+
+```yaml
+- alert: QueueBacklog
+  expr: queue_messages_pending{queue="order-processing"} > 100
+  for: 0m
+```
+
+Rewrite it so it only fires on a genuine, sustained backlog — not a normal traffic burst that drains in two minutes. You'll need to think about what "backlog" should actually mean here (a point-in-time depth, or a rate — is the queue draining slower than it's filling?), and pick a `for:` duration that reflects how long a backlog has to persist before it's actually an operational problem rather than normal queueing.
+
+*Hint: consider using `deriv()` or two snapshots of `queue_messages_pending` over a window to check whether the queue is growing, not just whether it's currently above some fixed depth — a queue sitting at 150 but shrinking every minute is healthy; one sitting at 110 and climbing is not.*

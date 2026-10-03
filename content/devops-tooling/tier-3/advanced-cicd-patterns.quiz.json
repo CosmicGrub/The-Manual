@@ -1,0 +1,98 @@
+[
+  {
+    "id": "devops-tooling/tier-3/advanced-cicd-patterns/q1",
+    "type": "multiple_choice",
+    "prompt": "A job has `environment: prod`, and the `prod` environment has a required-reviewer protection rule configured in repo settings. What actually happens when that job is reached?",
+    "choices": [
+      "The job runs immediately and sends a notification to the reviewer afterward",
+      "The job's steps pause and do not execute until a listed reviewer approves it in the Review deployments panel",
+      "The job is skipped silently because no reviewer responded within the run",
+      "The protection rule only affects which secrets are visible, not when the job runs"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-3/advanced-cicd-patterns/q2",
+    "type": "multiple_choice",
+    "prompt": "In a correct dev -> staging -> prod promotion pipeline, where should the `staging` and `prod` deploy jobs get the artifact tag to deploy?",
+    "choices": [
+      "Each job should rebuild the image fresh from the current main branch to make sure it's up to date",
+      "Each job should deploy whatever tag is currently pushed as :latest in the registry",
+      "Each job should reference the exact tag produced once by the build job, e.g. via needs.build.outputs.image_tag",
+      "Each job should read the tag from a hardcoded value typed into that job's YAML"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "devops-tooling/tier-3/advanced-cicd-patterns/q3",
+    "type": "multiple_choice",
+    "prompt": "What is the actual traffic-switching mechanism in a blue-green deploy, as opposed to a canary deploy?",
+    "choices": [
+      "Blue-green gradually increases the percentage of traffic to the new version over several steps; canary flips a single switch and moves 100% at once",
+      "Blue-green flips a single routing target (e.g. a Service selector or load-balancer target group) so 100% of traffic moves at once; canary gradually increases the percentage of traffic to the new version over several steps",
+      "Both strategies use the exact same weighted-routing mechanism, just with different names",
+      "Blue-green only applies to databases; canary only applies to stateless web services"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-3/advanced-cicd-patterns/q4",
+    "type": "multiple_choice",
+    "prompt": "A canary rollout is paused at setWeight: 10 when the new version starts throwing errors. What is the actual blast radius at that moment, compared to a blue-green cutover that had the same bug?",
+    "choices": [
+      "Identical: both strategies expose 100% of users to the bug immediately",
+      "Canary exposes roughly 10% of traffic to the bug and can abort back to stable; blue-green would have already exposed 100% of traffic the instant it cut over",
+      "Canary exposes 100% of traffic because weight settings don't actually affect live requests",
+      "Blue-green is unaffected because it doesn't use real production traffic"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-3/advanced-cicd-patterns/q5",
+    "type": "multiple_choice",
+    "prompt": "A team removes a field from an existing API response that other services depend on. Following semantic versioning, what kind of version bump is this?",
+    "choices": [
+      "PATCH, since it's a small change",
+      "MINOR, since no new dependency was added",
+      "MAJOR, since it can break existing clients",
+      "No version bump is needed since the endpoint URL didn't change"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "devops-tooling/tier-3/advanced-cicd-patterns/q6",
+    "type": "multiple_choice",
+    "prompt": "Beyond the mutable-pointer problem already covered for a single deploy, why specifically is `:latest` wrong for an artifact moving through a dev -> staging -> prod promotion pipeline?",
+    "choices": [
+      "latest tags are not supported by any container registry",
+      "latest images are always larger in size than semver-tagged images",
+      "If a new build pushes over :latest while an earlier build is still being promoted, prod could deploy bits that were never actually validated in staging",
+      "latest tags cannot be pulled by Kubernetes, only by Docker Compose"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "devops-tooling/tier-3/advanced-cicd-patterns/q7",
+    "type": "multiple_choice",
+    "prompt": "A workflow-file PR changes a job's trigger from `pull_request` to `pull_request_target` and adds `ref: ${{ github.event.pull_request.head.sha }}` to its checkout step, in the same job that references a repository secret. Why should a reviewer treat this as a serious security finding?",
+    "choices": [
+      "It has no real effect; pull_request_target behaves identically to pull_request in all cases",
+      "It only affects billing for Actions minutes, not security",
+      "It runs the fork PR's own (attacker-controlled) code in a context that now has access to the base repo's secrets, letting any contributor exfiltrate them via a PR",
+      "It disables all secrets for the workflow, making the job strictly safer"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "devops-tooling/tier-3/advanced-cicd-patterns/q8",
+    "type": "multiple_choice",
+    "prompt": "What is the purpose of adding a CODEOWNERS entry for `/.github/workflows/`?",
+    "choices": [
+      "It automatically fixes any syntax errors in workflow YAML before merge",
+      "It speeds up the Actions runner by skipping steps the owning team marks as optional",
+      "It requires sign-off from the designated team before a change to pipeline files can be merged, since those files control deploys and hold secret references",
+      "It prevents the workflow from ever being triggered by pull requests"
+    ],
+    "correctIndex": 2
+  }
+]

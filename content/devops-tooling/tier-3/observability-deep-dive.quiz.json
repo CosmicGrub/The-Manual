@@ -1,0 +1,98 @@
+[
+  {
+    "id": "devops-tooling/tier-3/observability-deep-dive/q1",
+    "type": "multiple_choice",
+    "prompt": "A request fails after passing through three services. Which pillar is specifically designed to show which service in that chain caused the failure, by following one request's causal path across all three?",
+    "choices": [
+      "Metrics",
+      "Logs",
+      "Traces",
+      "Dashboards"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "devops-tooling/tier-3/observability-deep-dive/q2",
+    "type": "multiple_choice",
+    "prompt": "Which pillar is cheap enough to evaluate every 15-30 seconds across an entire fleet, which is exactly why it's the pillar you alert on?",
+    "choices": [
+      "Logs",
+      "Traces",
+      "Metrics",
+      "Dashboards"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "devops-tooling/tier-3/observability-deep-dive/q3",
+    "type": "multiple_choice",
+    "prompt": "What does the PromQL expression rate(http_requests_total[5m]) compute?",
+    "choices": [
+      "The total number of requests received in the last 5 minutes",
+      "The per-second average rate of increase of the counter over the trailing 5-minute window",
+      "The instantaneous requests-per-second at the exact current moment",
+      "The difference between the current value and the single previous scrape"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-3/observability-deep-dive/q4",
+    "type": "multiple_choice",
+    "prompt": "Why is `http_requests_total{status=\"500\"} > 0` a broken alert expression?",
+    "choices": [
+      "Because Prometheus counters only increase, so once a single 500 is ever recorded the expression stays true essentially forever, firing continuously",
+      "Because counters reset to zero on every scrape, so the expression is never true",
+      "Because label matchers like status=\"500\" are invalid PromQL syntax",
+      "Because the `>` comparison operator cannot be used with counter metrics"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "devops-tooling/tier-3/observability-deep-dive/q5",
+    "type": "multiple_choice",
+    "prompt": "In an alert rule, what does `for: 10m` do?",
+    "choices": [
+      "It delays running the query by 10 minutes after the rule is loaded",
+      "It requires the alert expression to evaluate true continuously for 10 minutes before the alert actually fires, filtering out brief spikes",
+      "It automatically re-fires the alert every 10 minutes once it is active",
+      "It sets how long Prometheus retains the alert's historical data"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-3/observability-deep-dive/q6",
+    "type": "multiple_choice",
+    "prompt": "In OpenTelemetry, what is a span?",
+    "choices": [
+      "A single aggregated numeric time series sampled at fixed intervals",
+      "A raw, unstructured text log line written to stdout",
+      "A timed unit of work, with a start/end time, attributes, and a parent/child relationship to other spans, that becomes one segment of a trace",
+      "A saved Grafana dashboard panel definition"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "devops-tooling/tier-3/observability-deep-dive/q7",
+    "type": "multiple_choice",
+    "prompt": "What does histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le)) tell you?",
+    "choices": [
+      "The total number of requests observed in the last 5 minutes",
+      "The p95 latency: 95% of requests in the trailing window completed faster than this value",
+      "The mean (average) latency across all requests ever recorded",
+      "The single slowest request latency ever recorded for this service"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-3/observability-deep-dive/q8",
+    "type": "multiple_choice",
+    "prompt": "A naive alert fires the instant CPU usage crosses 80%, with no sustained-duration requirement. Why does this specifically cause alert fatigue?",
+    "choices": [
+      "It pages on-call for brief, harmless spikes with no duration check, so people get paged for noise and start ignoring or muting the alert entirely",
+      "It can never fire because CPU usage never reaches 80% in practice",
+      "It requires manual acknowledgement from every on-call engineer before it can be dismissed",
+      "Prometheus cannot query CPU usage metrics, so the rule silently fails"
+    ],
+    "correctIndex": 0
+  }
+]

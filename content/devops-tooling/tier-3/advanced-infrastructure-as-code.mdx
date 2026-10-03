@@ -1,0 +1,370 @@
+---
+trackId: devops-tooling
+tier: 3
+title: "Advanced Infrastructure as Code"
+order: 3
+estimatedHours: 10
+slug: advanced-infrastructure-as-code
+---
+
+## Where Tier 2 Left Off
+
+Tier 2's Terraform module got you one resource, end to end: an `aws_s3_bucket.reports`, hardcoded at first, then parameterized with `variables.tf` and applied with a `.tfvars` file. It also left you with a loaded gun: a `terraform.tfstate` file sitting on your laptop, which you were told never to commit to git and never to lose — because losing it means Terraform has no idea the bucket already exists, and reapplying either collides on the name or silently creates an orphaned duplicate.
+
+That's fine for one person learning one resource. It falls apart the moment you have a team, or even just yourself working from two machines. This module fixes the two structural problems Tier 2 left open — "my laptop is the only copy of the truth" and "there's exactly one copy of this infrastructure, called `dev` whether I like it or not" — and then shows you that Terraform/HCL isn't the only way to describe infrastructure as code.
+
+## Modules: Packaging the Tier 2 Resource for Reuse
+
+Right now, provisioning a second reports bucket for a different team means copy-pasting `main.tf`, `variables.tf`, and `outputs.tf` into a new directory and hoping you don't let the two diverge. A Terraform **module** is just a directory of `.tf` files that something else calls with its own input values — the exact `variables.tf` / `main.tf` / `outputs.tf` split from Tier 2, moved into a reusable location.
+
+Extract the Tier 2 files unchanged into `modules/reports-bucket/`:
+
+```hcl
+# modules/reports-bucket/variables.tf
+variable "bucket_name" {
+  description = "Globally unique S3 bucket name"
+  type        = string
+}
+
+variable "environment" {
+  description = "Deployment environment, used in resource tags"
+  type        = string
+  default     = "dev"
+}
+
+variable "aws_region" {
+  description = "AWS region to provision into"
+  type        = string
+  default     = "us-east-1"
+}
+```
+
+```hcl
+# modules/reports-bucket/main.tf
+resource "aws_s3_bucket" "reports" {
+  bucket = var.bucket_name
+
+  tags = {
+    Environment = var.environment
+    ManagedBy   = "terraform"
+  }
+}
+```
+
+```hcl
+# modules/reports-bucket/outputs.tf
+output "bucket_arn" {
+  description = "ARN of the reports bucket"
+  value       = aws_s3_bucket.reports.arn
+}
+
+output "bucket_id" {
+  description = "Name/ID of the created bucket"
+  value       = aws_s3_bucket.reports.id
+}
+```
+
+Notice what's gone: the `provider "aws" { region = var.aws_region }` block. A module doesn't configure its own provider — the thing calling it does. That's the whole point: the same module, called twice, can provision into two different regions or accounts without touching a single line inside `modules/reports-bucket/`.
+
+Now the root configuration becomes a caller, not a copy:
+
+```hcl
+# main.tf (root)
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+}
+
+provider "aws" {
+  region = "us-east-1"
+}
+
+module "team_reports" {
+  source      = "./modules/reports-bucket"
+  bucket_name = "acme-team-reports-bucket"
+  environment = "dev"
+}
+
+module "billing_reports" {
+  source      = "./modules/reports-bucket"
+  bucket_name = "acme-billing-reports-bucket"
+  environment = "dev"
+}
+```
+
+Same module, two call sites, two different `bucket_name` values — two real, independent S3 buckets. `terraform plan` shows each as its own resource, addressed as `module.team_reports.aws_s3_bucket.reports` and `module.billing_reports.aws_s3_bucket.reports`. To read an output back out, reach through the module:
+
+```bash
+terraform output
+```
+
+```text
+module.billing_reports.bucket_arn = "arn:aws:s3:::acme-billing-reports-bucket"
+module.team_reports.bucket_arn = "arn:aws:s3:::acme-team-reports-bucket"
+```
+
+That's the entire mental model for modules: a module is a function. `source` is which function, the block's arguments are the parameters, and `module.<name>.<output>` is the return value. Nothing new is being learned about HCL here — this is purely a restructuring of the exact Tier 2 resource so it stops getting copy-pasted.
+
+## Remote State: Fixing the Single-Laptop Risk
+
+Tier 2 named the risk directly: the `terraform.tfstate` on your machine is the *only* record tying `aws_s3_bucket.reports` in your config to the real bucket in AWS. Lose it, and Terraform tries to recreate what already exists. That risk doesn't go away with modules — it gets worse, because now one state file tracks *multiple* real resources across multiple teams.
+
+A **remote backend** moves state off your laptop into a service multiple people and CI jobs can read and write safely. The standard AWS pattern is an S3 bucket for storage plus a DynamoDB table for locking:
+
+```hcl
+# backend.tf
+terraform {
+  backend "s3" {
+    bucket         = "acme-terraform-state"
+    key            = "reports/terraform.tfstate"
+    region         = "us-east-1"
+    dynamodb_table = "acme-terraform-locks"
+    encrypt        = true
+  }
+}
+```
+
+Walk through concretely why this fixes the Tier 2 risk:
+
+- **No single point of loss.** The state file now lives in S3, which has 99.999999999% durability and versioning you can turn on. Your laptop dying, or you running `rm -rf` in the wrong directory, no longer destroys the only copy.
+- **Locking prevents concurrent corruption.** Tier 2 described the worst case as two engineers each applying from their own locally-modified state and merging a JSON file that's "textually mergeable but semantically garbage." The `dynamodb_table` entry stops that from ever happening: before any `apply`, Terraform writes a lock row into DynamoDB. A second `apply` that starts while the first is running gets this instead of proceeding:
+
+```text
+Error: Error acquiring the state lock
+
+Lock Info:
+  ID:        7c3e1a2b-9f4d-4e2a-8b61-2d6f3a9c1e04
+  Path:      acme-terraform-state/reports/terraform.tfstate
+  Operation: OperationTypeApply
+  Who:       dana@acme-ci-runner-04
+  Version:   1.7.5
+  Created:   2026-10-03 14:22:07 UTC
+
+Terraform acquires a state lock to protect the state from being written
+by multiple users at the same time. Please resolve the issue above and try
+again.
+```
+
+  There is now exactly one `apply` in flight at a time, full stop. There's no "merge the conflict" step to get wrong, because a second writer is blocked before it starts, not after it's already mutated state.
+- **`encrypt = true`** turns on S3 server-side encryption on the state object — relevant because, as Tier 2 noted, state can hold plaintext values a provider handed back (an RDS password, for instance).
+
+Run `terraform init` again after adding `backend.tf` to migrate:
+
+```bash
+terraform init
+```
+
+```text
+Initializing the backend...
+Backend configuration changed!
+
+Terraform has detected that the configuration specified for the backend
+has changed. Terraform will now check for existing state in the backends.
+
+Do you want to copy existing state to the new backend?
+  Pre-existing state was found while migrating the previous "local" backend
+  to the newer "s3" backend. No existing state was found in the newer
+  "s3" backend. Do you want to copy this state to the new "s3"
+  backend? Enter "yes" to copy and "no" to start with an empty state.
+
+  Enter a value: yes
+
+Successfully configured the backend "s3"! Terraform will automatically
+use this backend unless the backend configuration changes.
+```
+
+After this, `terraform.tfstate` stops appearing in your working directory at all — `terraform plan` now fetches it from S3 first, locks it in DynamoDB, computes the diff, and releases the lock when done (or on `apply`, once the write is confirmed).
+
+**Terraform Cloud is the managed alternative** to hand-rolling S3+DynamoDB — HashiCorp runs the state storage and locking for you:
+
+```hcl
+terraform {
+  cloud {
+    organization = "acme-corp"
+
+    workspaces {
+      name = "reports-infra"
+    }
+  }
+}
+```
+
+Functionally equivalent outcome (durable, locked, remote state), but Terraform Cloud also gives you a web UI for plan output, run history, and policy checks before apply — things you'd otherwise bolt on yourself around the S3+DynamoDB backend. Teams already paying for HashiCorp's platform tend to use this; teams who want to stay on infrastructure they already operate (their own AWS account) tend to use S3+DynamoDB. Both solve the exact same single-laptop problem.
+
+## Workspaces: One Module, Many Environments
+
+Modules solved "many buckets, one shape." Remote state solved "many people, one truth." Neither solves "the same infrastructure shape, but a separate dev copy and a separate prod copy that must never collide." That's what Terraform **workspaces** are for.
+
+By default, you're in a workspace literally named `default`. Create two more:
+
+```bash
+terraform workspace new dev
+terraform workspace new prod
+```
+
+```text
+Created and switched to workspace "dev"!
+
+You're now on a new, empty workspace. Workspaces isolate their state,
+so if you run "terraform plan" Terraform will not see any existing state
+for this configuration.
+```
+
+Each workspace gets its own state, inside the same backend, automatically keyed apart — with the S3 backend above, Terraform stores it at `env:/dev/reports/terraform.tfstate` and `env:/prod/reports/terraform.tfstate` respectively, as separate objects under the same bucket and `key`. Switch between them with `terraform workspace select <name>`, and check which one is active with `terraform workspace show`.
+
+Wire the active workspace into variable values so the *same* module call provisions different real infrastructure per environment:
+
+```hcl
+# main.tf (root)
+locals {
+  env_config = {
+    dev = {
+      bucket_name = "acme-reports-dev"
+      instance_count = 1
+    }
+    prod = {
+      bucket_name = "acme-reports-prod"
+      instance_count = 3
+    }
+  }
+}
+
+module "reports" {
+  source      = "./modules/reports-bucket"
+  bucket_name = local.env_config[terraform.workspace].bucket_name
+  environment = terraform.workspace
+}
+```
+
+`terraform.workspace` is a built-in reference to whichever workspace is currently selected — no variable needed to pass it in. Run the plan from each:
+
+```bash
+terraform workspace select dev
+terraform plan
+```
+
+```text
+  # module.reports.aws_s3_bucket.reports will be created
+  + resource "aws_s3_bucket" "reports" {
+      + bucket = "acme-reports-dev"
+      + tags   = {
+          + "Environment" = "dev"
+          + "ManagedBy"   = "terraform"
+        }
+    }
+
+Plan: 1 to add, 0 to change, 0 to destroy.
+```
+
+```bash
+terraform workspace select prod
+terraform plan
+```
+
+```text
+  # module.reports.aws_s3_bucket.reports will be created
+  + resource "aws_s3_bucket" "reports" {
+      + bucket = "acme-reports-prod"
+      + tags   = {
+          + "Environment" = "prod"
+          + "ManagedBy"   = "terraform"
+        }
+    }
+
+Plan: 1 to add, 0 to change, 0 to destroy.
+```
+
+Same `.tf` files, same module, two completely independent real buckets with independent state — switching workspaces is the only thing that changed between those two plans. Critically: running `terraform destroy` while in the `dev` workspace only touches dev's state, so prod is physically incapable of being affected by a dev teardown, as long as you actually check `terraform workspace show` before you run anything destructive. That check matters more than any other habit in this module — "wrong workspace" is the modern equivalent of "wrong terminal tab" when you `rm -rf`.
+
+A caveat worth stating plainly: workspaces are good for "same shape, different variable values" (what you just did). They're a poor fit for environments that need genuinely different resources — prod needing a feature dev doesn't, say. At that point, most teams switch to separate root configurations (or separate directories per environment) that each call the same shared module, rather than branching heavily on `terraform.workspace` inside one root config.
+
+## Pulumi: Code-First IaC as a Contrast
+
+Terraform's HCL is declarative and purpose-built, but it's also *not* a general-purpose language — no real loops with arbitrary logic, no classes, limited string manipulation, and you fight `jsonencode()`/`templatefile()` the moment you need something HCL wasn't designed for. **Pulumi** and **AWS CDK** take the opposite bet: write infrastructure in a language you already know (TypeScript, Python, Go, C#), and let a runtime translate that into the same underlying cloud API calls.
+
+Here's the same kind of resource — an S3 bucket, parameterized — as a minimal Pulumi program in Python:
+
+```python
+# __main__.py
+import pulumi
+import pulumi_aws as aws
+
+config = pulumi.Config()
+environment = config.get("environment") or "dev"
+
+bucket = aws.s3.Bucket("reports",
+    bucket=f"acme-reports-{environment}",
+    tags={
+        "Environment": environment,
+        "ManagedBy": "pulumi",
+    },
+)
+
+pulumi.export("bucket_arn", bucket.arn)
+pulumi.export("bucket_id", bucket.id)
+```
+
+```bash
+pulumi config set environment prod
+pulumi up
+```
+
+```text
+Previewing update (prod)
+
+     Type                 Name            Plan
+ +   pulumi:pulumi:Stack  reports-prod    create
+ +   └─ aws:s3:Bucket     reports         create
+
+Resources:
+    + 2 to create
+
+Do you want to perform this update? yes
+
+Updating (prod)
+
+     Type                 Name            Status
+ +   pulumi:pulumi:Stack  reports-prod    created
+ +   └─ aws:s3:Bucket     reports         created
+
+Outputs:
+    bucket_arn: "arn:aws:s3:::acme-reports-prod"
+    bucket_id : "acme-reports-prod"
+
+Resources:
+    + 2 created
+```
+
+Line by line, this maps directly onto what you already built: `pulumi.Config()` plus `config.get(...)` is Terraform's `variable` block with a default; `aws.s3.Bucket(...)` is the `resource` block; `pulumi.export(...)` is `output`; and Pulumi's own **stacks** (`pulumi stack init dev`, `pulumi stack init prod`) are its direct equivalent of Terraform workspaces — each stack gets isolated state, stored by default in Pulumi's managed backend (their version of the S3+DynamoDB problem, solved for you out of the box, though you can point it at your own S3 bucket instead).
+
+The concrete contrast, now that you've built the same thing twice:
+
+| | Terraform (HCL) | Pulumi (Python/TS/Go) |
+|---|---|---|
+| Language | Declarative, Terraform-specific | Real general-purpose language |
+| Looping over 5 near-identical buckets | `for_each`/`count` meta-arguments, limited | A literal `for` loop, `if`, functions, classes |
+| Type safety / IDE help | HCL has basic validation; weak autocomplete | Full IDE autocomplete, type checking, real unit tests |
+| Ecosystem | Huge, mature, provider-agnostic | Smaller, but you reuse your existing language's package ecosystem |
+| Team already fluent in | Nothing extra to learn beyond HCL | Whatever language your app is already written in |
+| State handling | You own the backend choice explicitly | Managed backend by default, same underlying idea |
+
+Neither is "better" in the abstract. HCL's constraint — it can't do arbitrary computation — is also its safety feature: a Terraform file is close to impossible to make do something sneaky or non-obvious, because the language can't express much beyond "describe resources and simple expressions." A Pulumi program is a real Python/TypeScript/Go program, which means it can also contain a real bug, a real infinite loop, or a real accidental side effect that has nothing to do with infrastructure. Teams pick HCL when infrastructure code should stay boring and auditable by people who aren't full-time programmers; teams pick Pulumi/CDK when the infrastructure logic is genuinely complex enough that they want real control flow, real tests, and to stop context-switching out of their primary language. AWS CDK (TypeScript/Python/Java, AWS-only, synthesizes to CloudFormation underneath rather than calling the API directly) follows the same code-first philosophy as Pulumi, scoped specifically to AWS.
+
+## Where This Sits Relative to the Rest of the Curriculum
+
+This module is about the *mechanics* of scaling Terraform itself — modules, remote state, workspaces, and one alternative paradigm. It is not where you learn Kubernetes manifests (that's this tier's dedicated module), CI/CD pipeline design (Tier 2 covered the fundamentals; later Tier 3 modules build multi-environment pipelines on top of exactly this workspace pattern), or secrets management inside Terraform (Tier 2's secrets module already covers keeping values like `bucket_name` overrides and provider credentials out of git — that guidance is unchanged here, it just now also applies to `.tfvars` per workspace).
+
+## Exercise
+
+Take the `reports-bucket` module you extracted above and add a `aws_s3_bucket_versioning` resource inside it (same resource type from Tier 2's exercise), controlled by a new module input `enable_versioning` (bool, default `false`). Then:
+
+1. Add an S3+DynamoDB backend block to a throwaway test configuration (you can point `bucket`/`dynamodb_table` at resources you create by hand for this exercise, or use `terraform init -backend=false` to skip real remote state and just inspect the plan).
+2. Create `dev` and `prod` workspaces. In `dev`, set `enable_versioning = false`; in `prod`, set it `true` — wire this the same way `bucket_name` is wired to `terraform.workspace` in the lesson above.
+3. Run `terraform plan` in both workspaces and confirm the diff: dev shows no versioning resource (or a `Suspended` one), prod shows an `Enabled` one — and confirm switching workspaces never shows the *other* workspace's bucket in the plan at all.
+4. Write one paragraph (for yourself, not for grading) on what would have gone wrong if you'd tried to get this same dev/prod split using two differently-named `.tfvars` files and the `default` workspace instead of real workspaces — specifically, what happens to state.
+
+**Hint:** You'll pass `enable_versioning` into the module the same way `environment` is passed in the workspace example — through the `local.env_config[terraform.workspace]` map, adding a new key per environment. Inside the module, the conditional mapping the bool to the API's expected string is identical to Tier 2's: `var.enable_versioning ? "Enabled" : "Suspended"`.

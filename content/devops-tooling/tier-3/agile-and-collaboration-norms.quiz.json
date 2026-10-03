@@ -1,0 +1,98 @@
+[
+  {
+    "id": "devops-tooling/tier-3/agile-and-collaboration-norms/q1",
+    "type": "multiple_choice",
+    "prompt": "A ticket gets blocked for 3 days waiting on another team. In Scrum, how does this typically get surfaced?",
+    "choices": [
+      "The card moves to a visible 'Blocked' column/state and is called out by name in daily standup",
+      "It is silently left in 'In Progress' until the sprint ends",
+      "It is automatically removed from the sprint backlog",
+      "The team immediately starts a retro to discuss it"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "devops-tooling/tier-3/agile-and-collaboration-norms/q2",
+    "type": "multiple_choice",
+    "prompt": "What does a WIP (work-in-progress) limit do on a Kanban board?",
+    "choices": [
+      "Caps how many items can be in a given column at once, forcing the team to finish work before pulling more",
+      "Sets the maximum story points a team can commit to in a sprint",
+      "Limits how many people can comment on a pull request",
+      "Defines how long a sprint retro can last"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "devops-tooling/tier-3/agile-and-collaboration-norms/q3",
+    "type": "multiple_choice",
+    "prompt": "In Kanban, which metric is most directly used to flag that something unusual happened to a specific ticket (like an unexpected blocker)?",
+    "choices": [
+      "Cycle time for that ticket compared to the team's rolling average",
+      "Story points estimated during grooming",
+      "The sprint burndown chart",
+      "The number of comments on the pull request"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "devops-tooling/tier-3/agile-and-collaboration-norms/q4",
+    "type": "multiple_choice",
+    "prompt": "A 2000-line PR mixes Terraform changes, new unused middleware code, route wiring, and test rewrites in one diff. What is the most effective fix?",
+    "choices": [
+      "Split it into separate PRs, each answering one reviewable question (e.g., infra correctness, algorithm correctness, integration safety)",
+      "Ask the reviewer to spend more time on it since the change is important",
+      "Add more comments inside the code to explain each section",
+      "Merge it as-is since splitting would create merge conflicts"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "devops-tooling/tier-3/agile-and-collaboration-norms/q5",
+    "type": "multiple_choice",
+    "prompt": "Why does wiring a new feature in behind a feature flag (default off) make it easier to split a large PR?",
+    "choices": [
+      "It decouples merging the code from activating its behavior, so the risky integration step can be reviewed and shipped separately from the unused new logic",
+      "It makes the code run faster in production",
+      "It removes the need for any tests on the new code path",
+      "It automatically shortens the diff reported by git"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "devops-tooling/tier-3/agile-and-collaboration-norms/q6",
+    "type": "multiple_choice",
+    "prompt": "On a team using the 'nit:' comment-prefix convention in code review, what does an unprefixed review comment typically signal?",
+    "choices": [
+      "It is a blocking comment that should be resolved before merge",
+      "It is purely optional and can be ignored",
+      "It is an automated bot comment, not a human one",
+      "It means the reviewer approved the PR"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "devops-tooling/tier-3/agile-and-collaboration-norms/q7",
+    "type": "multiple_choice",
+    "prompt": "What does a CODEOWNERS file combined with a 'require_code_owner_reviews' branch protection setting accomplish?",
+    "choices": [
+      "It enforces, via tooling, that specific teams must review changes to the paths they own, instead of relying on people remembering to loop them in",
+      "It automatically merges pull requests once tests pass",
+      "It deletes stale branches after a set period",
+      "It assigns story points to a ticket automatically"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "devops-tooling/tier-3/agile-and-collaboration-norms/q8",
+    "type": "multiple_choice",
+    "prompt": "In a lightweight RFC document, which section is specifically meant to record options that were NOT chosen, and why?",
+    "choices": [
+      "Alternatives considered",
+      "Rollout plan",
+      "Status",
+      "Open questions"
+    ],
+    "correctIndex": 0
+  }
+]

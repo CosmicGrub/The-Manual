@@ -1,0 +1,221 @@
+---
+trackId: devops-tooling
+tier: 3
+title: "Advanced CI/CD Patterns"
+order: 1
+estimatedHours: 10
+slug: advanced-cicd-patterns
+---
+
+## Where This Picks Up
+
+Tier 2's CI/CD module got you a working pipeline: build, test, and a `deploy` job gated by `needs` and a tag trigger. That pipeline had one implicit environment — "prod, eventually." Real teams don't ship that way. They run a build through at least two gates before it touches a paying customer, and they switch traffic over with a specific, named mechanism rather than just "kubectl apply and hope." This module adds four things on top of what you already have: a real multi-environment promotion pipeline, the actual traffic-switching mechanics behind blue-green and canary deploys, a versioning scheme that survives promotion without lying to you, and the discipline to review a workflow-file change like it's the production code it actually is.
+
+## Multi-Environment Pipelines: One Build, Three Gates
+
+The rule that makes multi-environment promotion work is simple to state and easy to violate: **build the artifact once, deploy that exact artifact to every environment.** If `dev` builds from one commit and `staging` rebuilds from a slightly newer one because someone pushed in between, "it worked in staging" tells you nothing about what's running in prod.
+
+GitHub Actions has a first-class feature for this: **Environments** (`Settings → Environments` on the repo). Each environment can carry its own secrets (same secret *name*, different *value* per environment) and, critically, **protection rules** — a list of required reviewers who must click "Approve" before a job targeting that environment is allowed to run. Here's a real pipeline built on Tier 2's `needs`-chaining pattern, extended across three environments:
+
+```yaml
+name: Promote
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.vars.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: vars
+        run: echo "tag=1.5.0-$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+      - run: docker build -t ghcr.io/acme/api:${{ steps.vars.outputs.tag }} .
+      - run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+      - run: docker push ghcr.io/acme/api:${{ steps.vars.outputs.tag }}
+
+  deploy-dev:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - run: ./deploy.sh ghcr.io/acme/api:${{ needs.build.outputs.image_tag }} dev
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+
+  deploy-staging:
+    needs: deploy-dev
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - run: ./deploy.sh ghcr.io/acme/api:${{ needs.build.outputs.image_tag }} staging
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+
+  deploy-prod:
+    needs: deploy-staging
+    runs-on: ubuntu-latest
+    environment: prod
+    steps:
+      - run: ./deploy.sh ghcr.io/acme/api:${{ needs.build.outputs.image_tag }} prod
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+```
+
+Two things make this an actual promotion pipeline rather than three copies of the same deploy:
+
+1. **Every `deploy-*` job references `needs.build.outputs.image_tag`.** Nobody rebuilds. The bits that land in `prod` are byte-identical to the bits that were validated in `staging`.
+2. **`environment: prod` with a protection rule configured in the repo settings makes the job pause.** If you've required a reviewer, the Actions log for `deploy-prod` literally shows `Waiting for review` and the pipeline does not proceed — no steps execute — until someone with permission clicks Approve in the "Review deployments" panel. `deploy-dev` and `deploy-staging` can run unattended; `prod` is the one gate a human owns.
+
+Environment-scoped secrets matter here too: `KUBE_CONFIG` is the same name in all three jobs, but GitHub resolves it against whichever environment that job declared — the `dev` job gets the dev cluster's kubeconfig, the `prod` job gets prod's, and a workflow-file reader can't tell which cluster a given run touched just by looking at the YAML. That's by design: credentials live in environment config, not in the pipeline logic.
+
+## Blue-Green vs. Canary: Two Different Traffic-Switching Mechanisms
+
+Both strategies answer "how do I get users onto the new version without an outage," but they flip the switch in physically different ways.
+
+**Blue-green: one atomic cutover, both versions fully running first.** You run the new version (`green`) at full scale, side by side with the current version (`blue`), before anyone sees it. The switch is a single change to whatever decides where traffic goes. In Kubernetes, that's typically the `Service` selector:
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: api
+spec:
+  selector:
+    app: api
+    version: blue    # <- every pod with this label gets traffic; nothing else does
+  ports:
+    - port: 80
+      targetPort: 8080
+```
+
+With `Deployment` objects for both `version: blue` (current, serving) and `version: green` (new, idle but healthy and passing readiness probes), the cutover is one command:
+
+```bash
+kubectl patch service api -p '{"spec":{"selector":{"version":"green"}}}'
+```
+
+That's it. The instant this patch applies, the Service's endpoint list is recomputed from the new selector, and **100% of traffic moves in one step** — not gradually, not partially. Rollback is the same command in reverse, equally instant, because `blue`'s pods are still running, untouched. The cost is that you're paying for two full-scale environments during the overlap window.
+
+**Canary: a gradual percentage ramp, one version at a time, under observation.** Instead of a full second environment, you run a small number of new-version pods alongside the stable version and shift an increasing *percentage* of traffic to them, pausing between steps to check real metrics. A rollout controller like Argo Rollouts expresses this directly:
+
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: api
+spec:
+  replicas: 10
+  strategy:
+    canary:
+      steps:
+        - setWeight: 10
+        - pause: {duration: 5m}
+        - setWeight: 50
+        - pause: {duration: 10m}
+        - setWeight: 100
+```
+
+`setWeight: 10` means the controller adjusts the ratio of old-version to new-version pods (or a service-mesh routing weight) so roughly 10% of live requests hit the new version — the other 90% never touch it. During each `pause`, you watch the canary's actual error rate before letting the next step fire:
+
+```promql
+sum(rate(http_requests_total{version="canary",status=~"5.."}[5m]))
+/
+sum(rate(http_requests_total{version="canary"}[5m]))
+```
+
+If that ratio spikes past your threshold, you abort (`kubectl argo rollouts abort api`) and traffic falls back to 100% stable — only the 10% ever exposed to the bad version, for five minutes, instead of everyone. That's the real contrast: **blue-green trades cost (two full environments) for an instant, binary switch and an instant rollback; canary trades a slower rollout for a shrinking blast radius, because the bad version is never serving 100% of traffic at once.** Blue-green catches nothing *during* the cutover — it relies on pre-cutover testing of green. Canary is designed to catch problems *during* the rollout itself, using production traffic as the test.
+
+## Artifact Versioning: Why "latest" Is Still Wrong, Now For a New Reason
+
+Tier 2's image-hygiene module already banned `:latest` from deploy manifests because it's a mutable pointer that can get silently repointed by a later build before anyone deploys. Multi-environment promotion gives you a second, independent reason it's wrong: **a promoted artifact's entire value is that it's the same bits that already passed a gate.** If `dev`, `staging`, and `prod` all pulled `api:latest`, then between the moment `staging` validates a build and the moment `prod` deploys it, a new push to `main` could retag `latest` out from under you — `prod` would deploy a build that was never in staging at all. The pipeline above sidesteps this entirely by building once and passing the immutable tag (`needs.build.outputs.image_tag`) through every stage — the tag itself, not a floating alias, is what gets promoted.
+
+Semantic versioning (`MAJOR.MINOR.PATCH`) is the human-facing half of that tag, and the version bump is a decision, not a formality:
+
+- `1.4.2 -> 1.4.3` (**PATCH**) — fixed a bug, no interface change. A null-check that was missing.
+- `1.4.2 -> 1.5.0` (**MINOR**) — added a new `/v1/orders/export` endpoint. Existing clients are unaffected; new capability is additive.
+- `1.4.2 -> 2.0.0` (**MAJOR**) — renamed a field in an existing response body, or removed an endpoint. Any client built against `1.x` can break.
+
+In the pipeline, the build job tags with both the semver (`1.5.0`, for changelogs and "what's in staging right now" conversations) and the git-SHA suffix (`1.5.0-a1b2c3d`, for the thing that actually gets referenced by `needs.build.outputs.image_tag` and deployed). The semver communicates intent to humans; the SHA suffix makes the tag immutable and traceable to one exact commit, same discipline Tier 2 taught you for a single environment, now load-bearing across three.
+
+## Pipeline-as-Code Review: The Workflow File Is Production Code
+
+A `.github/workflows/*.yml` change deserves the same review rigor as a change to application logic — the general mechanics of a good code review (what to look for, how to give useful feedback) are covered in depth by the Software Engineering track's code-review module; apply that discipline here. What's different is the blast radius: a bad review of a workflow file doesn't just ship a bug, it can hand your secrets to an attacker.
+
+Here's a real, well-documented failure pattern. A contributor opens a PR with an innocuous-sounding title — "run integration tests with real API keys so we catch more" — and this diff:
+
+```yaml
+# BEFORE
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm test
+```
+
+```yaml
+# AFTER
+on:
+  pull_request_target:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - run: npm test
+        env:
+          STRIPE_TEST_KEY: ${{ secrets.STRIPE_TEST_KEY }}
+```
+
+Two changes, each individually plausible, combine into a real hole. `pull_request_target` (unlike `pull_request`) runs in the context of the *base* repository, so it has access to the base repo's secrets even when triggered by a fork. That's normally safe, because `pull_request_target` checks out the base branch by default, not the fork's code. But this diff explicitly overrides that with `ref: ${{ github.event.pull_request.head.sha }}` — now it checks out the **fork's** code, with the base repo's secrets available in the job environment. Anyone can open a PR whose `package.json` has a malicious `postinstall` script that reads `process.env.STRIPE_TEST_KEY` and POSTs it to an attacker's server, and `npm test` (which runs `npm install` first) executes it — with your real secret attached. No merge required; opening the PR is enough to trigger the run.
+
+A reviewer who only reads the PR description and skims for "does this still run tests" approves this. A reviewer applying the same rigor they'd apply to a payments-code change asks: *does this diff change the trigger, especially to or from `pull_request_target`? Does it introduce a secret into a step that executes code influenced by the PR author? Does it widen `permissions:`?* Those three questions catch this specific exploit, and most of its variants, every time.
+
+Two mechanical habits enforce this without relying on everyone remembering to ask the right questions on every review:
+
+```text
+# CODEOWNERS
+/.github/workflows/ @acme/platform-team
+```
+
+A `CODEOWNERS` entry for the workflows directory means any change to pipeline YAML requires platform-team sign-off before merge, the same way a change to a billing module might require a specific team's review — the workflow file controls deploys and holds references to every production secret, so it earns the same gate.
+
+## Exercise
+
+You've inherited this pipeline, currently deploying straight to prod on every merge:
+
+```yaml
+name: Deploy
+on:
+  push:
+    branches: [main]
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t registry.acme.com/api:latest .
+      - run: docker push registry.acme.com/api:latest
+      - run: kubectl set image deployment/api api=registry.acme.com/api:latest -n prod
+```
+
+Rewrite it so that:
+
+1. There is exactly one build job that tags the image with a semver plus git-SHA (no `latest`), and every later job references that same tag.
+2. The build promotes through `dev -> staging -> prod` as separate jobs using GitHub Environments, each one depending on the previous via `needs`.
+3. The `prod` environment is configured (describe where, you don't need the UI) to require a human reviewer's approval before that job's steps run.
+4. Instead of a hard `kubectl set image` cutover to 100% of prod traffic, describe (one `setWeight` step is enough) how you'd ramp prod traffic to the new version gradually instead.
+
+**Hint:** the build job's `outputs:` block is what every other job should read the tag from — if you find yourself writing `docker build` more than once, or typing `:latest` anywhere in a `deploy-*` job, you've broken the "build once, promote identically" rule this module is built around.

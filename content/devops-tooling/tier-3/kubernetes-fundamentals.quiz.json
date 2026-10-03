@@ -1,0 +1,98 @@
+[
+  {
+    "id": "devops-tooling/tier-3/kubernetes-fundamentals/q1",
+    "type": "multiple_choice",
+    "prompt": "Why is the Pod, not the container, Kubernetes' smallest schedulable unit?",
+    "choices": [
+      "Containers inside a pod share a network namespace and storage volumes and are scheduled, started, and killed together as one fate-sharing unit",
+      "Kubernetes cannot run a single container without wrapping it in at least two containers",
+      "Pods are required because containers cannot expose network ports on their own",
+      "A pod is just a renamed container with no technical difference in scheduling behavior"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "devops-tooling/tier-3/kubernetes-fundamentals/q2",
+    "type": "multiple_choice",
+    "prompt": "What object does a Deployment create and manage in order to run and update pods?",
+    "choices": [
+      "A DaemonSet",
+      "A ReplicaSet",
+      "A StatefulSet",
+      "A Job"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-3/kubernetes-fundamentals/q3",
+    "type": "multiple_choice",
+    "prompt": "A Deployment has replicas: 4, maxSurge: 1, and maxUnavailable: 1. During a rolling update, what is true?",
+    "choices": [
+      "All 4 old pods are deleted immediately before any new pods are created",
+      "The cluster may briefly run up to 5 total pods and will never drop below 3 ready pods",
+      "The rollout pauses until all 4 new pods are ready, then kills all old pods at once",
+      "maxSurge and maxUnavailable only apply to StatefulSets, not Deployments"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-3/kubernetes-fundamentals/q4",
+    "type": "multiple_choice",
+    "prompt": "How does a Kubernetes Service know which pods to send traffic to?",
+    "choices": [
+      "It is manually configured with a static list of pod IP addresses",
+      "It matches pods whose labels satisfy the Service's label selector, and tracks their IPs as Endpoints",
+      "It sends traffic to every pod in the cluster regardless of labels",
+      "It relies on each pod registering itself with DNS at startup"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-3/kubernetes-fundamentals/q5",
+    "type": "multiple_choice",
+    "prompt": "What is required for an Ingress resource's routing rules to actually take effect in a cluster?",
+    "choices": [
+      "Nothing else; Ingress resources are self-executing",
+      "An Ingress controller (e.g. ingress-nginx) must be running in the cluster to read the rules and configure a proxy",
+      "The Ingress must be declared inside every Deployment manifest it routes to",
+      "Ingress only works with NodePort Services, never ClusterIP"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-3/kubernetes-fundamentals/q6",
+    "type": "multiple_choice",
+    "prompt": "Why isn't a native Kubernetes Secret, by itself, an adequate secrets management solution for sensitive production credentials?",
+    "choices": [
+      "Secrets cannot be mounted as files inside a pod",
+      "Its data field is base64-encoded, not encrypted, and is stored in etcd in plaintext unless encryption at rest is separately configured",
+      "Secrets can only be used by pods in the kube-system namespace",
+      "Kubernetes deletes all Secrets automatically every 24 hours"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-3/kubernetes-fundamentals/q7",
+    "type": "multiple_choice",
+    "prompt": "A pod's readiness probe starts failing while the container process is still running normally. What happens?",
+    "choices": [
+      "The kubelet immediately kills and restarts the container",
+      "The pod is removed from the Service's Endpoints so it stops receiving traffic, but the container keeps running and is not restarted",
+      "The entire node is cordoned and drained",
+      "Nothing happens until the liveness probe also fails"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-3/kubernetes-fundamentals/q8",
+    "type": "multiple_choice",
+    "prompt": "You run `kubectl get pods` and see a pod in CrashLoopBackOff with 0/1 ready and increasing restarts. Which command retrieves the logs from the crashed container instance to find the root cause?",
+    "choices": [
+      "kubectl logs <pod> --previous",
+      "kubectl describe deployment <name>",
+      "kubectl get events --field-selector involvedObject.name=<pod> --watch",
+      "kubectl top pod <pod>"
+    ],
+    "correctIndex": 0
+  }
+]

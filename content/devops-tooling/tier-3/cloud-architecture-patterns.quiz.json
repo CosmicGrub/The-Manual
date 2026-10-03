@@ -1,0 +1,98 @@
+[
+  {
+    "id": "devops-tooling/tier-3/cloud-architecture-patterns/q1",
+    "type": "multiple_choice",
+    "prompt": "An ALB target group has three registered targets. One target's database connection pool is exhausted, so its /health endpoint starts returning 503, while the other two targets are fine. With unhealthy_threshold = 3 and interval = 15, what happens?",
+    "choices": [
+      "The entire target group is marked unhealthy and all traffic to orders-api stops",
+      "After 45 seconds of continuous failed health checks, the ALB stops routing new requests to just that one target while the other two keep serving traffic normally",
+      "The ALB automatically restarts the failing container itself",
+      "Nothing happens until a human manually deregisters the target"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-3/cloud-architecture-patterns/q2",
+    "type": "multiple_choice",
+    "prompt": "A target-tracking auto-scaling policy uses ALBRequestCountPerTarget with target_value = 1000. What does this policy actually do when traffic rises?",
+    "choices": [
+      "It restarts all existing tasks to free up memory",
+      "It adds enough tasks to bring the average per-target request rate back down near 1000 requests/minute, rather than always adding exactly one task",
+      "It immediately scales to max_capacity regardless of how much traffic increased",
+      "It lowers the ALB's health check interval to detect failures faster"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-3/cloud-architecture-patterns/q3",
+    "type": "multiple_choice",
+    "prompt": "Why does the auto-scaling policy use a longer scale_in_cooldown (120s) than scale_out_cooldown (60s)?",
+    "choices": [
+      "AWS requires scale_in_cooldown to always be exactly double scale_out_cooldown",
+      "Scaling in is technically slower to execute than scaling out",
+      "To avoid thrashing: reacting fast to real load increases is useful, but removing capacity too quickly after a brief traffic dip risks needing it again moments later",
+      "Shorter cooldowns on scale-in reduce AWS billing costs"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "devops-tooling/tier-3/cloud-architecture-patterns/q4",
+    "type": "multiple_choice",
+    "prompt": "A Kubernetes HorizontalPodAutoscaler is configured with averageUtilization: 70 on the cpu resource, for a service whose actual bottleneck is database connection pool exhaustion under concurrent load, not CPU cycles. What's the problem with this setup?",
+    "choices": [
+      "HPA cannot use CPU as a metric at all",
+      "CPU utilization is a weak proxy for this service's real bottleneck, so the HPA may fail to scale out before the service degrades even though CPU looks fine",
+      "minReplicas and maxReplicas cannot both be set in the same HPA",
+      "HorizontalPodAutoscaler only works with Deployments, never with services under load"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-3/cloud-architecture-patterns/q5",
+    "type": "multiple_choice",
+    "prompt": "A team deploys orders-api's containers to both us-east-1 and eu-west-1, each pointed at its own independent writable Postgres primary, and calls it done. What's the real problem with this specific setup?",
+    "choices": [
+      "Nothing \u2014 two independent writable primaries in two regions is a complete, production-ready multi-region design",
+      "Two independent writable primaries for the same logical data can diverge with no conflict-resolution mechanism, risking silent data inconsistency between regions",
+      "ECS Fargate cannot run in more than one AWS region at all",
+      "Terraform cannot provision resources in two regions in the same configuration"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-3/cloud-architecture-patterns/q6",
+    "type": "multiple_choice",
+    "prompt": "In the Route 53 latency-based routing setup, what does evaluate_target_health = true actually accomplish?",
+    "choices": [
+      "It makes DNS queries resolve faster by skipping health checks entirely",
+      "It ties routing to the same ALB target-group health checks from the load balancing section, so a region whose targets are all unhealthy is automatically excluded from DNS answers, enabling real regional failover",
+      "It forces all traffic to always go to us-east-1 regardless of latency",
+      "It only affects which region's replica receives replicated data, not DNS routing"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-3/cloud-architecture-patterns/q7",
+    "type": "multiple_choice",
+    "prompt": "A customer in Frankfurt updates their shipping address (write goes to the us-east-1 primary), then immediately loads a confirmation page served from the eu-west-1 read replica and sees the old address. What does this demonstrate?",
+    "choices": [
+      "A bug in the application's write logic that needs to be fixed",
+      "Cross-region read replicas introduce a real replication lag window during which reads in the replica's region can be stale relative to a very recent write elsewhere",
+      "Route 53 latency-based routing sent the write to the wrong region",
+      "The ALB health check for eu-west-1 is misconfigured"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-3/cloud-architecture-patterns/q8",
+    "type": "multiple_choice",
+    "prompt": "For a workload of 50,000 short, spiky Lambda-style invocations per month, an always-on Fargate worker costs a fixed $8.89/month while Lambda costs about $0.84/month for the same work. What does the crossover-point calculation in this module show about this comparison?",
+    "choices": [
+      "Lambda is always cheaper than an always-on container at any volume, with no exception",
+      "Fargate is always cheaper once you account for Lambda's per-request fee, regardless of volume",
+      "There's a specific invocation volume (around 527,000/month for that workload's duration and memory) above which the fixed-cost always-on option becomes cheaper, so the right choice depends on where the actual workload volume falls relative to that point",
+      "Cost is identical between the two options at every volume because both run on AWS"
+    ],
+    "correctIndex": 2
+  }
+]

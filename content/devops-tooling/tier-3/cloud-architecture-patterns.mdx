@@ -1,0 +1,239 @@
+---
+trackId: devops-tooling
+tier: 3
+title: "Cloud Architecture Patterns"
+order: 7
+estimatedHours: 8
+slug: cloud-architecture-patterns
+---
+
+## Where This Picks Up
+
+Every module so far in this tier assumed a single region, a single environment topology, and "scale" meaning "add more of the same container." You've got multi-environment pipelines (Advanced CI/CD Patterns), a working Kubernetes mental model, Terraform modules and workspaces (Advanced IaC), and real metrics/logs/traces (Observability Deep Dive). This module is where those pieces combine into actual architecture decisions: how traffic gets distributed across backend instances and when new ones get created, what breaks when you try to serve two regions instead of one, and how to choose between two technically-valid designs using real numbers instead of a gut feeling.
+
+The running example is still `orders-api`, the ECS Fargate service behind an ALB from Tier 2's Deploying a Container to the Cloud module, with the `/health` endpoint from Basic Observability that actually checks Postgres connectivity. Nothing here is hypothetical — it's the same service, three decisions deeper.
+
+## Load Balancing That Actually Checks Health
+
+An ALB target group doesn't know your containers exist until you tell it how to ask. Here's the target group for `orders-api`, pointed at the exact `/health` endpoint you built in Tier 2:
+
+```hcl
+resource "aws_lb_target_group" "orders_api" {
+  name        = "orders-api-tg"
+  port        = 8080
+  protocol    = "HTTP"
+  vpc_id      = aws_vpc.main.id
+  target_type = "ip"
+
+  health_check {
+    path                = "/health"
+    protocol            = "HTTP"
+    interval            = 15
+    timeout             = 5
+    healthy_threshold   = 2
+    unhealthy_threshold = 3
+    matcher             = "200"
+  }
+}
+```
+
+That's not decoration. Every 15 seconds, the ALB sends an independent GET to `/health` on every registered target — not a sample, every single one. Three consecutive failures (`unhealthy_threshold = 3`, so 45 seconds of continuous failure) and the ALB stops routing new requests to that target. Two consecutive successes bring it back. Because your `/health` endpoint from Basic Observability returns 503 the moment its Postgres connection fails, a target whose database connection pool gets exhausted — while its two siblings are fine — gets pulled out of rotation automatically, without anyone paging anyone.
+
+Here's three real targets, one of them mid-failure:
+
+```bash
+$ aws elbv2 describe-target-health --target-group-arn arn:aws:elasticloadbalancing:us-east-1:123456789012:targetgroup/orders-api-tg/9f3a1b2c
+```
+
+```text
+TARGETS  10.0.1.15:8080  healthy
+TARGETS  10.0.1.42:8080  healthy
+TARGETS  10.0.2.7:8080   unhealthy  Target.FailedHealthChecks
+```
+
+`10.0.2.7` is still running — the ECS task hasn't crashed, the process hasn't died — but its database pool is exhausted, so `/health` has been returning 503 for the last 45 seconds and the ALB has written it off. The other two keep serving 100% of traffic with zero user-visible impact. This is the entire point of a health check that checks something real instead of `return "OK", 200`: a load balancer with multiple backends is only as useful as its ability to tell *which* backends are actually good right now, and "the process is running" and "the process can serve a correct response" are different facts.
+
+## Auto-Scaling on a Real Metric, Not a Guess
+
+Health checks decide *which* instances get traffic. Auto-scaling decides *how many* instances exist. The naive version — "add a task when CPU feels high" — is vague enough to be useless. Here's a target-tracking policy wired to an actual metric the ALB already emits, requests per target:
+
+```hcl
+resource "aws_appautoscaling_target" "orders_api" {
+  max_capacity       = 10
+  min_capacity       = 2
+  resource_id        = "service/orders-cluster/orders-api-svc"
+  scalable_dimension = "ecs:service:DesiredCount"
+  service_namespace  = "ecs"
+}
+
+resource "aws_appautoscaling_policy" "orders_api_requests" {
+  name               = "orders-api-scale-on-requests"
+  policy_type        = "TargetTrackingScaling"
+  resource_id        = aws_appautoscaling_target.orders_api.resource_id
+  scalable_dimension = aws_appautoscaling_target.orders_api.scalable_dimension
+  service_namespace  = aws_appautoscaling_target.orders_api.service_namespace
+
+  target_tracking_scaling_policy_configuration {
+    target_value = 1000
+
+    predefined_metric_specification {
+      predefined_metric_type = "ALBRequestCountPerTarget"
+      resource_label         = "${aws_lb.orders_api.arn_suffix}/${aws_lb_target_group.orders_api.arn_suffix}"
+    }
+
+    scale_in_cooldown  = 120
+    scale_out_cooldown = 60
+  }
+}
+```
+
+Read `target_value = 1000` as: "keep the average request rate per target near 1000 requests/minute." If a flash sale pushes traffic up and the current task count would mean 2,400 requests/minute per target, the scaling policy adds tasks until the per-target rate comes back down near 1,000 — concretely, roughly 2–3 more tasks, not a fixed "add one." The two cooldowns matter as much as the threshold: `scale_out_cooldown = 60` lets it react fast when load actually climbs, while `scale_in_cooldown = 120` is deliberately longer so a brief dip in traffic doesn't immediately kill a task you'll need again in ninety seconds — without it, you get a service that thrashes between 4 and 6 tasks every few minutes, which is worse for cold-start latency than just running 6.
+
+You already have the metric this policy depends on from the Observability Deep Dive module — whether you're reading it as a CloudWatch metric here or as a Prometheus series scraped off the ALB/ingress in a Grafana dashboard, it's the same signal: real traffic volume per backend, not a CPU proxy for it.
+
+**The same mental model in Kubernetes.** If `orders-api` were a Deployment instead of an ECS service (Kubernetes Fundamentals, earlier in this tier), the equivalent object is a HorizontalPodAutoscaler:
+
+```yaml
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: orders-api
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: orders-api
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+```
+
+```bash
+$ kubectl get hpa orders-api
+NAME         REFERENCE               TARGETS   MINPODS   MAXPODS   REPLICAS
+orders-api   Deployment/orders-api   45%/70%   2         10        3
+```
+
+Different mechanism (Kubernetes' metrics-server polling pod CPU vs. CloudWatch polling ALB request counts), same decision structure: a target value, a metric that reflects real load, a floor and a ceiling. Whichever platform you're on, the question to ask about any auto-scaling policy is the same one: "what real, observable signal is this reacting to, and is that signal actually correlated with the thing that's about to fall over?" CPU utilization is a weak proxy for an I/O-bound service waiting on a database; request count per target is a much better one for `orders-api` specifically, because its bottleneck is connection pool exhaustion under concurrent load, not CPU cycles.
+
+## What "Multi-Region" Actually Requires
+
+"Just deploy it twice" is the answer people give before they've thought about where the data lives. Deploying `orders-api`'s containers to both `us-east-1` and `eu-west-1` is the easy 20% — a second copy of the same ECS service and ALB from a Terraform module you already wrote in Advanced IaC. The hard 80% is everything downstream of "where does a write actually land."
+
+**Data replication.** `orders-api` has one Postgres primary. It cannot have two independent writable primaries in two regions without solving distributed conflict resolution — a genuinely hard problem, not a config flag. The practical first step is a cross-region read replica:
+
+```hcl
+resource "aws_db_instance" "orders_db_eu_replica" {
+  replicate_source_db = aws_db_instance.orders_db_us.identifier
+  instance_class       = "db.r6g.large"
+  identifier           = "orders-db-eu-replica"
+}
+```
+
+This lets `eu-west-1` serve *reads* locally — fast for European customers browsing orders. It does nothing for writes: every write still has to cross the Atlantic to the `us-east-1` primary, round-trip included. A customer in Frankfurt updating a shipping address is not getting a faster write just because there's a European deployment; they're getting a faster *read* of everyone else's data, and their own write still pays the cross-region latency tax. "Multi-region" without a plan for writes is "multi-region reads, same-region writes" — which is a legitimate and common architecture, but it is not what people usually picture when they say "multi-region," and it needs to be named as such in a design doc so nobody is surprised later.
+
+**Replication lag is a real, measurable number, not a theoretical risk.** CloudWatch exposes it directly:
+
+```bash
+$ aws cloudwatch get-metric-statistics \
+  --namespace AWS/RDS --metric-name ReplicaLag \
+  --dimensions Name=DBInstanceIdentifier,Value=orders-db-eu-replica \
+  --start-time 2026-10-03T00:00:00Z --end-time 2026-10-03T01:00:00Z \
+  --period 300 --statistics Average,Maximum
+```
+
+```text
+Average: 1.2 seconds
+Maximum: 46.8 seconds
+```
+
+The average is fine. The maximum is the part that bites you: during a bulk import or a vacuum on the primary, lag spikes to 45+ seconds. Concretely: the Frankfurt customer updates their address (write goes to `us-east-1`), and 1.5 seconds later loads their order confirmation page, which reads from the `eu-west-1` replica — and sees the *old* address, because replication hasn't caught up yet. That's not a bug in your code. It's the architecture working exactly as designed, and if nobody on the team knows this is the tradeoff of cross-region read replicas, it gets reported as a bug anyway. If your workload genuinely cannot tolerate that staleness window, the answer isn't "tune the replica harder" — it's a different data layer entirely (DynamoDB Global Tables, Aurora Global Database, or a true multi-master system like CockroachDB), each of which trades the staleness problem for higher write latency or real per-GB cross-region replication cost.
+
+**Routing.** The other half is getting each user to the *nearest healthy* region, not a hardcoded one:
+
+```hcl
+resource "aws_route53_record" "orders_api_us" {
+  zone_id        = aws_route53_zone.primary.zone_id
+  name           = "api.orders.example.com"
+  type           = "A"
+  set_identifier = "us-east-1"
+
+  latency_routing_policy {
+    region = "us-east-1"
+  }
+
+  alias {
+    name                   = aws_lb.orders_api_us.dns_name
+    zone_id                = aws_lb.orders_api_us.zone_id
+    evaluate_target_health = true
+  }
+}
+
+resource "aws_route53_record" "orders_api_eu" {
+  zone_id        = aws_route53_zone.primary.zone_id
+  name           = "api.orders.example.com"
+  type           = "A"
+  set_identifier = "eu-west-1"
+
+  latency_routing_policy {
+    region = "eu-west-1"
+  }
+
+  alias {
+    name                   = aws_lb.orders_api_eu.dns_name
+    zone_id                = aws_lb.orders_api_eu.zone_id
+    evaluate_target_health = true
+  }
+}
+```
+
+Two records, same name, different `set_identifier` and region. Route 53 answers each DNS query with whichever region has lower measured latency from that resolver's location. `evaluate_target_health = true` is what makes this a real failover mechanism rather than just a performance optimization: it's checking the health of the exact ALB target group from the first section of this module, so if every target in `eu-west-1` goes unhealthy, Route 53 stops handing out that region's address at all and every query resolves to `us-east-1` instead — the same health-check plumbing you already built, now also deciding which continent a request lands on.
+
+## Cost Is an Architecture Decision, Not an Afterthought
+
+Two architectures can both be technically correct and differ by 10x in monthly cost for the exact same workload. Say `orders-api` needs a background worker that sends an order-confirmation email after each checkout — a small, short-lived unit of work triggered by an SQS message. Two valid designs:
+
+**Option A — always-on ECS Fargate worker**, polling the queue continuously. Minimum Fargate task size is 0.25 vCPU / 0.5 GB, and it runs 24/7 whether or not there's anything in the queue:
+
+```text
+vCPU:   0.25 vCPU × $0.04048/vCPU-hr × 720 hr/mo  = $7.29
+Memory: 0.5 GB    × $0.004445/GB-hr  × 720 hr/mo  = $1.60
+Total:                                              $8.89 / month, fixed
+```
+
+**Option B — AWS Lambda**, triggered directly by the SQS message, 512 MB memory, ~2 seconds of execution per email:
+
+```text
+Requests: 50,000/mo  × $0.20 / 1,000,000           = $0.01
+Duration: 50,000 × 2s × 0.5 GB = 50,000 GB-s
+          50,000 GB-s × $0.0000166667/GB-s          = $0.83
+Total:                                                $0.84 / month
+```
+
+For this volume — 50,000 confirmation emails a month, a spiky, low-duty-cycle workload — Lambda costs about $0.84 against Fargate's fixed $8.89, and Lambda's perpetual free tier (1M requests + 400,000 GB-s/month, not a 12-month trial) means the real bill is closer to $0. The always-on worker is paying for idle time around the clock to handle work that takes a few hours a day, spread thin, to do.
+
+That's not a universal verdict in Lambda's favor — it's a statement about *this volume*. Set the two costs equal and solve for the invocation count where they cross:
+
+```text
+8.89 = n × (0.0000002 + (2s × 0.5 GB × 0.0000166667))
+8.89 = n × 0.0000168667
+n    ≈ 527,000 invocations/month  (~12/minute, sustained around the clock)
+```
+
+Below ~527,000 emails/month, Lambda is cheaper. Above it, the always-on Fargate task wins, because Lambda's per-invocation pricing stops beating a flat fee once the workload is dense and continuous enough to actually use the capacity you're paying for. The architecture question isn't "serverless vs. containers" in the abstract — it's "where does this specific workload's volume sit relative to that crossover point," and that number only exists if you do the arithmetic instead of defaulting to whichever pattern is more fashionable. This is exactly the kind of tradeoff that belongs in the lightweight RFC you practiced writing in the Agile and Collaboration Norms module: lay out both options with their real costs before anyone applies Terraform, not after the first invoice arrives.
+
+## Exercise
+
+`receipts-service` is a new webhook processor: 300,000 invocations/month, 400ms average execution time, 256 MB memory. Using the same two architectures as above (an always-on 0.25 vCPU / 0.5 GB Fargate task vs. a Lambda function sized to the workload):
+
+1. Calculate the monthly cost of each option at 300,000 invocations/month.
+2. Find the invocation-volume crossover point for *this specific* duration/memory profile — the point above which the always-on task becomes cheaper than Lambda.
+3. State which option you'd actually pick for `receipts-service` at its current volume, and under what future volume you'd revisit that decision.
+
+**Hint:** the Fargate side of the equation doesn't change — it's the same minimum task size regardless of workload, so its monthly cost is identical to the worked example above. Only the Lambda per-invocation cost changes, because the duration (400ms, not 2s) and memory (256 MB, not 512 MB) are different — recompute the GB-seconds per invocation for *this* profile, then set up the same `n × per_invocation_cost = fixed_fargate_cost` equation and solve for `n` rather than reusing the 527,000 figure, which was specific to the previous workload's duration and memory.

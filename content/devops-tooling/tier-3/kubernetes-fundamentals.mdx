@@ -1,0 +1,361 @@
+---
+trackId: devops-tooling
+tier: 3
+title: "Kubernetes Fundamentals"
+order: 2
+estimatedHours: 16
+slug: kubernetes-fundamentals
+---
+
+## Why the Pod, Not the Container, Is the Unit
+
+In Tier 2 you ran containers directly with Docker Compose: one container, one process, networked by container name on a user-defined bridge network. Kubernetes never schedules a bare container. It schedules a **Pod** — one or more containers that share a network namespace (same IP, same `localhost`), share storage volumes, and are scheduled, started, and killed together. That bundling is the whole point.
+
+Here's a real pod spec with two containers that need to share state: a web app and a sidecar that tails its logs to a remote collector.
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: web-with-logshipper
+  labels:
+    app: web
+spec:
+  containers:
+    - name: web
+      image: myorg/web-app:1.4.2
+      ports:
+        - containerPort: 8080
+      volumeMounts:
+        - name: logs
+          mountPath: /var/log/app
+    - name: log-shipper
+      image: myorg/fluent-bit-sidecar:2.1
+      volumeMounts:
+        - name: logs
+          mountPath: /var/log/app
+          readOnly: true
+  volumes:
+    - name: logs
+      emptyDir: {}
+```
+
+Both containers see `localhost:8080` as the same address — no Docker bridge, no container-name DNS lookup, because they're in one network namespace. They share the `logs` volume without a bind mount from the host. And critically: if the node reschedules this workload, both containers move together, restart together, and die together. That's fate-sharing, and it's why Kubernetes' scheduler unit is the pod — a container alone has no concept of "these two things live or die as a set."
+
+In practice you'll mostly run single-container pods, but you'll almost never write a bare Pod manifest in production. You'll use a Deployment, which owns pods for you.
+
+## Deployments: ReplicaSets and Rolling Updates
+
+A Deployment doesn't touch pods directly. It creates and owns a **ReplicaSet**, and the ReplicaSet creates and owns the Pods. The Deployment's job is to manage the transition between ReplicaSets when you change the pod template — that's what a rolling update is.
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-app
+  labels:
+    app: web
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: web
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        app: web
+    spec:
+      containers:
+        - name: web
+          image: myorg/web-app:1.4.2
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+```
+
+Apply it, then bump the image tag to `1.4.3` and apply again. Watch what actually happens:
+
+```bash
+kubectl apply -f deployment.yaml
+kubectl set image deployment/web-app web=myorg/web-app:1.4.3
+kubectl rollout status deployment/web-app
+kubectl get rs -l app=web
+```
+
+```
+NAME                   DESIRED   CURRENT   READY   AGE
+web-app-7d9f8c6b5d     0         0         0       14m
+web-app-6b4d8f9c7a      3         3         3       8s
+```
+
+The old ReplicaSet (`7d9f8c6b5d`, hashed from the old pod template) scales to zero while the new one (`6b4d8f9c7a`) scales to three. With `maxSurge: 1` and `maxUnavailable: 1` on 3 replicas, Kubernetes never drops below 2 ready pods and never exceeds 4 total — it creates one new pod, waits for it to pass readiness, kills one old pod, and repeats. That's the mechanism that makes a deploy zero-downtime instead of a hard cutover. `kubectl rollout undo deployment/web-app` reverts to the previous ReplicaSet if the new version is bad — it doesn't rebuild anything, it just scales the old ReplicaSet back up and the new one down.
+
+## Services: Stable Networking Over Churning Pods
+
+In Tier 2's container networking you relied on a container's name resolving on a shared bridge network. Pods don't give you that stability — every rollout, every crash restart, every reschedule gives a pod a new IP. A **Service** is the fix: a stable virtual IP and DNS name that load-balances across whatever pods currently match a label selector.
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: web-app
+spec:
+  selector:
+    app: web
+  ports:
+    - port: 80
+      targetPort: 8080
+  type: ClusterIP
+```
+
+This Service doesn't point at specific pods. It watches for any pod with label `app: web` and keeps a live list of their IPs as `Endpoints` (or `EndpointSlices` on newer clusters):
+
+```bash
+kubectl get endpoints web-app
+```
+
+```
+NAME      ENDPOINTS                                   AGE
+web-app   10.244.1.12:8080,10.244.2.9:8080,10.244.3.4:8080   2m
+```
+
+Other pods in the cluster reach it at `web-app.default.svc.cluster.local:80` (or just `web-app` from the same namespace), and `kube-proxy` — running on every node, programming iptables or IPVS rules — transparently load-balances requests to whichever pod IPs are currently in that endpoint list. Pods restart, reschedule to different nodes, get replaced during a rollout; the Service name and ClusterIP never change. This is exactly the problem Docker Compose's bridge-network DNS solved for a single host — a Service solves it cluster-wide, backed by a selector instead of a static container name, and it only sends traffic to pods that are passing readiness checks (more on that below).
+
+`ClusterIP` is internal-only. `NodePort` exposes a port on every node's IP. `LoadBalancer` provisions a cloud load balancer. For real external HTTP routing with hostnames and paths, you want Ingress, not a `LoadBalancer` Service per app.
+
+## Ingress: Routing by Host and Path
+
+An Ingress resource is a set of routing rules; it does nothing by itself — it requires an Ingress controller (commonly `ingress-nginx`) running in the cluster to actually read these rules and configure a reverse proxy.
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: app-routes
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: app.example.com
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: api-service
+                port:
+                  number: 80
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: web-app
+                port:
+                  number: 80
+    - host: admin.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: admin-service
+                port:
+                  number: 80
+```
+
+One controller, one external load balancer, three routing rules. Requests to `app.example.com/api/*` go to `api-service`, everything else on `app.example.com` goes to `web-app`, and an entirely different host, `admin.example.com`, goes to `admin-service`. This is the layer that replaces hand-rolled nginx reverse-proxy configs from Tier 2 — same concept (host/path-based routing to upstreams), now declarative and reconciled by a controller instead of a config file you SSH in to edit.
+
+## ConfigMaps and Secrets
+
+Tier 2's secrets-management module covered the real problem: secrets need encryption at rest, access auditing, and rotation, which is why you reached for Vault or a cloud secrets manager. Kubernetes' native Secret object does **not** solve that problem by itself — it's worth being precise about what it actually does.
+
+A ConfigMap holds non-sensitive config as key-value data:
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+data:
+  LOG_LEVEL: "info"
+  FEATURE_FLAG_NEW_UI: "true"
+  app.properties: |
+    max.connections=100
+    timeout.ms=3000
+```
+
+A Secret looks structurally identical but stores `data` as base64:
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: db-credentials
+type: Opaque
+data:
+  username: cG9zdGdyZXM=
+  password: c3VwZXJzZWNyZXRwYXNz
+```
+
+Base64 is encoding, not encryption — anyone with `kubectl get secret db-credentials -o jsonpath='{.data.password}' | base64 -d` and RBAC access to read Secrets in that namespace reads the plaintext instantly. By default these are stored in etcd unencrypted unless the cluster has encryption-at-rest configured. This is exactly why Tier 2 pushed you toward Vault, AWS Secrets Manager, or sealed-secrets for anything that actually matters: in production, a Secret object is typically populated by an External Secrets Operator pulling from that real secrets store, not written by hand. Treat native Kubernetes Secrets as "slightly-more-restricted ConfigMaps," not as a secrets vault.
+
+Mounting both into one pod, side by side, shows the contrast in access patterns — ConfigMap as an env var, Secret as a mounted file (the more common pattern for secrets, since env vars leak into process listings and crash dumps more easily):
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: app-pod
+spec:
+  containers:
+    - name: app
+      image: myorg/app:2.0
+      env:
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: LOG_LEVEL
+      volumeMounts:
+        - name: db-creds
+          mountPath: /etc/secrets
+          readOnly: true
+  volumes:
+    - name: db-creds
+      secret:
+        secretName: db-credentials
+```
+
+Inside the container, `/etc/secrets/username` and `/etc/secrets/password` exist as individual files with the decoded values — the app reads files, never an env var, and `kubectl describe pod` won't print the values the way it would for an env-based secret.
+
+## kubectl Workflows: Diagnosing a Real Pod Issue
+
+Here's an actual debugging sequence, not a list of commands in isolation. You just deployed and pods aren't coming up healthy.
+
+```bash
+kubectl apply -f deployment.yaml
+kubectl get pods -l app=web
+```
+
+```
+NAME                       READY   STATUS             RESTARTS   AGE
+web-app-6b4d8f9c7a-k2xmq   0/1     CrashLoopBackOff   4          3m
+web-app-6b4d8f9c7a-pz9lt   0/1     CrashLoopBackOff   4          3m
+```
+
+Both pods are restarting in a loop. Describe one to get the event history:
+
+```bash
+kubectl describe pod web-app-6b4d8f9c7a-k2xmq
+```
+
+```
+...
+Containers:
+  web:
+    State:          Waiting
+      Reason:       CrashLoopBackOff
+    Last State:     Terminated
+      Reason:       Error
+      Exit Code:    1
+Events:
+  Warning  BackOff    30s (x8 over 3m)  kubelet  Back-off restarting failed container
+```
+
+Exit code 1, not an OOMKill (would show `Reason: OOMKilled`, exit 137) and not a probe failure (would show `Unhealthy` events). So the process itself is dying. Pull the logs from the crashed container — note `--previous`, since the current container instance hasn't produced logs yet if it just restarted:
+
+```bash
+kubectl logs web-app-6b4d8f9c7a-k2xmq --previous
+```
+
+```
+Error: missing required environment variable DATABASE_URL
+panic: cannot connect to database
+```
+
+The ConfigMap or Secret reference is wrong, or missing entirely. Check what's actually wired up:
+
+```bash
+kubectl get configmap app-config -o yaml
+kubectl exec -it web-app-6b4d8f9c7a-k2xmq -- env | grep DATABASE
+```
+
+If the pod won't even start long enough to exec into, drop `envFrom`/`valueFrom` temporarily or check `kubectl get events --sort-by=.lastTimestamp` cluster-wide for a scheduling-level problem (e.g., the ConfigMap doesn't exist, which shows up as `CreateContainerConfigError` instead of `CrashLoopBackOff` — a different, earlier failure mode worth distinguishing). Once you fix the manifest:
+
+```bash
+kubectl apply -f deployment.yaml
+kubectl rollout status deployment/web-app
+kubectl get pods -l app=web
+```
+
+```
+NAME                       READY   STATUS    RESTARTS   AGE
+web-app-7f8a9c5e3b-m4nxc   1/1     Running   0          20s
+web-app-7f8a9c5e3b-q8vwz   1/1     Running   0          18s
+```
+
+That five-command loop — `apply`, `get pods`, `describe pod`, `logs --previous`, `exec` — is what you'll run dozens of times a week once you're operating real clusters.
+
+## Readiness vs. Liveness Probes: Different Failures, Different Responses
+
+These two probes are configured almost identically and do completely different things when they fail, which is the part people get wrong under pressure.
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: probe-demo
+spec:
+  containers:
+    - name: web
+      image: myorg/web-app:1.4.2
+      ports:
+        - containerPort: 8080
+      readinessProbe:
+        httpGet:
+          path: /healthz/ready
+          port: 8080
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        failureThreshold: 3
+      livenessProbe:
+        httpGet:
+          path: /healthz/live
+          port: 8080
+        initialDelaySeconds: 15
+        periodSeconds: 10
+        failureThreshold: 3
+```
+
+**Readiness probe fails** (e.g., `/healthz/ready` returns 503 because the app lost its database connection pool): the pod is pulled out of every Service's Endpoints list. The container keeps running, nothing restarts, but no traffic routes to it until the probe passes again. This is a traffic-routing decision.
+
+**Liveness probe fails** (e.g., `/healthz/live` stops responding because the process deadlocked): the kubelet kills the container and restarts it, same pod, fresh process. This is a process-health decision, and getting it wrong is dangerous — if your liveness probe checks something slow or external (like a downstream API), a blip in that dependency causes the kubelet to kill and restart a perfectly healthy process, which can cascade into a restart storm. Liveness should only check "is this process itself stuck," not "are my dependencies up" — that's what readiness is for.
+
+Run it and watch the difference directly:
+
+```bash
+kubectl get pods probe-demo -o wide
+kubectl describe pod probe-demo | grep -A3 Events
+```
+
+A readiness failure shows up in `kubectl get endpoints <service>` (the pod's IP disappears) with `RESTARTS` unchanged. A liveness failure shows up as `RESTARTS` incrementing and an event: `Killing container with id ...: Container failed liveness probe. Container will be killed and recreated.`
+
+## Exercise
+
+Write manifests for a two-service app: an `api` Deployment (2 replicas) reading a `DATABASE_HOST` value from a ConfigMap and a `DB_PASSWORD` from a Secret, a `ClusterIP` Service in front of it, a `web` Deployment (2 replicas) with its own Service, and an Ingress routing `/api` to the api Service and `/` to the web Service on host `myapp.local`. Give the `api` container a readiness probe hitting `/ready` and a liveness probe hitting `/live` with different failure thresholds. Then deliberately break it: set the ConfigMap's `DATABASE_HOST` to a host that doesn't resolve, apply, and use the `kubectl get pods` / `describe` / `logs --previous` sequence from this lesson to find and name the exact failure mode before fixing it.
+
+Hint: a DNS resolution failure inside the app typically panics the process (exit code 1, `CrashLoopBackOff`) rather than failing a probe — because the app never gets far enough to start serving `/ready` or `/live` at all. Check whether you're looking at a probe failure or a startup crash before you touch the probe config.

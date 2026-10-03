@@ -1,0 +1,311 @@
+---
+trackId: devops-tooling
+tier: 3
+title: "Security Fundamentals for Engineers"
+order: 5
+estimatedHours: 10
+slug: security-fundamentals-for-engineers
+---
+
+## Scope: What This Module Covers (And What It Deliberately Doesn't)
+
+You already know why committing a `.env` file is an incident, why env vars show up in `ps` and `docker inspect`, and why a secrets manager beats both (Tier 2, "Secrets and Config Management Basics"). You already have a working GitHub Actions pipeline from Tier 2's CI/CD fundamentals module. This module adds the security *gates* that belong in that pipeline and in the systems it deploys: recognizing the application-level bug classes that get exploited in the wild (OWASP Top 10), catching known-vulnerable dependencies before they ship, catching known-vulnerable OS packages inside your container images before they ship, and catching secrets in a pull request before it merges.
+
+What this module is not: a course in how to actually exploit a SQL injection against a live target, write a buffer-overflow payload, or run a penetration test. That depth — exploit development, real offensive tooling, red-team methodology — belongs to the Cybersecurity & Ethical Hacking track, and you should go there if that's the direction you want to go. Here, the goal is narrower and more universal: every engineer, on every team, needs to recognize these bug classes in a code review and know which automated gate should have caught them. That's an infra/pipeline job, not an exploit-writing job.
+
+## OWASP Top 10: Walkthrough With Real Code
+
+The OWASP Top 10 is a ranked list of the most common and most damaging web application vulnerability categories, maintained from real breach data. You don't need to memorize all ten verbatim, but you do need to recognize the shape of the three or four categories that show up constantly in real pull requests. Here are three, with the vulnerable code, the exploit in one sentence, and the fix.
+
+### A03:2021 — Injection
+
+Vulnerable (Python, Flask, raw string formatting into SQL):
+
+```python
+@app.route("/users/search")
+def search_users():
+    name = request.args.get("name")
+    query = f"SELECT id, email FROM users WHERE name = '{name}'"
+    cursor.execute(query)
+    return jsonify(cursor.fetchall())
+```
+
+Hit this with `?name=' OR '1'='1`, and the query becomes `WHERE name = '' OR '1'='1'` — every row in the table comes back. A slightly more aggressive payload (`'; DROP TABLE users; --`) can delete data outright, depending on driver and permissions. The bug isn't "SQL is dangerous"; it's that user input was concatenated directly into a command string that the database then parses as code.
+
+Fixed — parameterized query, user input never enters the SQL string itself:
+
+```python
+@app.route("/users/search")
+def search_users():
+    name = request.args.get("name")
+    query = "SELECT id, email FROM users WHERE name = %s"
+    cursor.execute(query, (name,))
+    return jsonify(cursor.fetchall())
+```
+
+The driver sends `name` as a bound parameter, not as text spliced into the SQL. `' OR '1'='1` is now just a literal string the database searches for, not executable syntax. Every major DB driver and ORM supports this — there is no excuse for string-formatted SQL in 2026.
+
+### A01:2021 — Broken Access Control
+
+Vulnerable (Node/Express, fetches an order by ID with no ownership check):
+
+```javascript
+app.get("/api/orders/:orderId", async (req, res) => {
+  const order = await Order.findById(req.params.orderId);
+  res.json(order);
+});
+```
+
+This is an Insecure Direct Object Reference (IDOR). The endpoint authenticates the request (you need a valid session to call it at all) but never *authorizes* it — it never checks that the order belongs to the logged-in user. Any logged-in user can enumerate `orderId` values (`/api/orders/1001`, `/api/orders/1002`, ...) and read every other customer's order history. This is one of the most common real-world breaches precisely because it's invisible in a quick glance — the endpoint "works."
+
+Fixed — authorization check against the authenticated user:
+
+```javascript
+app.get("/api/orders/:orderId", requireAuth, async (req, res) => {
+  const order = await Order.findById(req.params.orderId);
+  if (!order || order.userId !== req.user.id) {
+    return res.status(404).json({ error: "Not found" });
+  }
+  res.json(order);
+});
+```
+
+Returning `404` rather than `403` for "exists but not yours" is deliberate — a `403` confirms the ID exists for someone, which is itself a minor information leak.
+
+### A02:2021 — Cryptographic Failures
+
+Vulnerable (storing passwords with a fast, unsalted hash):
+
+```python
+import hashlib
+
+def store_password(password: str) -> str:
+    return hashlib.md5(password.encode()).hexdigest()
+```
+
+MD5 is fast by design — which is exactly wrong for password storage. A GPU can compute billions of MD5 hashes per second, so a leaked table of MD5 hashes can be brute-forced or looked up in precomputed rainbow tables almost immediately. There's no per-user salt either, so two users with the password `password123` get the identical hash, visibly, in the leaked table.
+
+Fixed — a deliberately slow, salted, adaptive hash:
+
+```python
+import bcrypt
+
+def store_password(password: str) -> bytes:
+    # bcrypt generates and embeds a random salt per call,
+    # and the cost factor (12) can be raised as hardware gets faster.
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt(rounds=12))
+
+def check_password(password: str, stored_hash: bytes) -> bool:
+    return bcrypt.checkpw(password.encode(), stored_hash)
+```
+
+`bcrypt` (or `argon2`, `scrypt`) is intentionally expensive to compute, which is irrelevant for the one legitimate login attempt per second a real user makes, and devastating for an attacker trying billions of guesses against a stolen hash dump.
+
+The other seven categories (Security Misconfiguration, Vulnerable and Outdated Components, Identification and Authentication Failures, Software and Data Integrity Failures, Security Logging and Monitoring Failures, SSRF, Insecure Design) follow the same pattern: a specific, recognizable code shape, a specific fix. The two you'll spend the rest of this module on — Vulnerable and Outdated Components, and parts of Security Misconfiguration — are exactly what dependency scanning and container scanning exist to catch automatically, because no human reviewer reliably remembers which of your 400 transitive dependencies has a disclosed CVE this week.
+
+## Dependency Scanning: Dependabot and Renovate
+
+Your application code might be clean. Your dependencies are a different story — a typical Node or Python service pulls in hundreds of transitive packages you never directly chose. Dependency scanning diffs your manifest against a vulnerability database (GitHub Advisory Database, OSV) and tells you when one of them has a disclosed CVE.
+
+A real Dependabot config, enabled per-repo:
+
+```yaml
+# .github/dependabot.yml
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    open-pull-requests-limit: 10
+    groups:
+      production-dependencies:
+        dependency-type: "production"
+    labels:
+      - "dependencies"
+      - "security"
+
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+```
+
+With that in place, a real alert looks like this when `lodash` is pinned below the patched version:
+
+```text
+Dependabot alert #42
+lodash: Command Injection in lodash
+─────────────────────────────────────
+Package:            lodash (npm)
+Affected versions:  < 4.17.21
+Patched version:    4.17.21
+Severity:           High (CVSS 7.2)
+Identifiers:        CVE-2021-23337, GHSA-35jh-r3h4-6jhm
+Manifest:           package.json (production dependency, depth 3)
+```
+
+GHSA-35jh-r3h4-6jhm / CVE-2021-23337 is real: a command-injection flaw in `lodash`'s template-compilation path, fixed in 4.17.21. Dependabot opens a pull request bumping `lodash` to `4.17.21` automatically; your job is to review the diff (it's usually just a `package.json`/lockfile version bump) and merge it like any other PR.
+
+Renovate is the more configurable alternative, often preferred on teams running many repos, because one shared config file defines update policy everywhere:
+
+```json
+{
+  "extends": ["config:recommended"],
+  "schedule": ["before 6am on monday"],
+  "packageRules": [
+    { "matchUpdateTypes": ["patch", "minor"], "automerge": true },
+    { "matchUpdateTypes": ["major"], "automerge": false }
+  ],
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "labels": ["security"],
+    "schedule": ["at any time"]
+  }
+}
+```
+
+The `vulnerabilityAlerts` block is the important part for security purposes: it overrides the normal weekly schedule so a disclosed-CVE fix PR opens immediately, regardless of the batching schedule used for routine version bumps.
+
+## Container Image Scanning: Trivy
+
+Dependency scanning covers your application's package manifest. It says nothing about the operating system packages baked into your base image — `openssl`, `zlib`, `curl`, `glibc` — which also accumulate disclosed CVEs over time. Trivy scans the actual filesystem layers of a built image against the same class of vulnerability databases.
+
+```bash
+$ trivy image python:3.9-slim
+```
+
+Real, representative output:
+
+```text
+python:3.9-slim (debian 11.3)
+==============================
+Total: 112 (UNKNOWN: 0, LOW: 68, MEDIUM: 31, HIGH: 11, CRITICAL: 2)
+
+┌─────────┬────────────────┬──────────┬────────────────────┬──────────────────────────┬─────────────────────────────────────────┐
+│ Library │ Vulnerability  │ Severity │ Installed Version   │ Fixed Version            │                 Title                      │
+├─────────┼────────────────┼──────────┼────────────────────┼──────────────────────────┼─────────────────────────────────────────┤
+│ zlib1g  │ CVE-2022-37434 │ CRITICAL │ 1:1.2.11.dfsg-2     │ 1:1.2.11.dfsg-2+deb11u1  │ zlib: heap-based buffer over-read and      │
+│         │                │          │                     │                          │ overflow in inflate() via large gzip header│
+└─────────┴────────────────┴──────────┴────────────────────┴──────────────────────────┴─────────────────────────────────────────┘
+```
+
+CVE-2022-37434 is a real, well-documented zlib vulnerability: a crafted gzip header can trigger a heap buffer over-read (and in some builds, overflow) inside `inflate()`, which shipped in the version of `zlib1g` bundled in Debian 11 images until the `deb11u1` patch. It's CRITICAL because `zlib` decompression runs on untrusted, attacker-controlled input constantly — any service that decompresses user-supplied gzip data is directly exposed.
+
+The read is: `Installed Version` is what's in your image today; `Fixed Version` is what you need. The fix is never "patch zlib inside the running container" — it's rebuild the image from an updated base (`FROM python:3.9-slim` pulls the patched Debian point release once it's published) or add an explicit `apt-get upgrade zlib1g` step, then re-scan to confirm `0 CRITICAL`:
+
+```bash
+$ trivy image --severity CRITICAL,HIGH --exit-code 1 myapp:1.4.1
+```
+
+That `--exit-code 1` flag is what turns this into a real CI gate rather than an FYI report — the build step fails the pipeline when a CRITICAL or HIGH vulnerability is present, the same way a failing test fails it.
+
+## Secrets Scanning In CI: Catching It Before It Merges, Not After It Ships
+
+Tier 2 covered the incident-response side: if a secret lands in a commit on `main`, rotation is mandatory and history cleanup doesn't undo the exposure. The better intervention is earlier — catch the secret in the pull request, before it ever reaches `main`, so there's no incident to respond to at all.
+
+```yaml
+# .github/workflows/secrets-scan.yml
+name: secrets-scan
+on:
+  pull_request:
+
+jobs:
+  gitleaks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
+
+Walk through the exact scenario from Tier 2: a developer opens a PR that adds a `.env` file containing `DATABASE_PASSWORD=Sup3rS3cr3t!` and `STRIPE_API_KEY=sk_live_51HcAbC123xyz`. The `gitleaks` job runs on that PR automatically and produces this:
+
+```text
+Finding:     STRIPE_API_KEY=sk_live_51HcAbC123xyz
+Secret:      sk_live_51HcAbC123xyz
+RuleID:      stripe-access-token
+Entropy:     4.42
+File:        .env
+Line:        2
+Commit:      a1b2c3d4
+Author:      dev@example.com
+
+○
+    │╲
+    │ ○
+    ○ ░
+    ░    gitleaks
+
+15:04:05 ERR 2 leaks detected
+
+Error: Process completed with exit code 1.
+```
+
+Two things make this the right intervention, not just a nice-to-have: the job runs on `pull_request`, before the merge, and it exits non-zero, which fails the required status check and blocks the "Merge" button from being clickable at all — no branch-protection override, no secret ever lands on `main`. Compare this to the Tier 2 scenario, where the secret was discovered only after it was already pushed and reachable in history forever. Same leaked value, two very different outcomes, and the only difference is where in the pipeline the check runs.
+
+One honest caveat: this only catches secrets gitleaks recognizes the *shape* of (API key prefixes, high-entropy strings, known provider formats) at PR time. It is not a substitute for the secrets-manager pattern from Tier 2 — it's the tripwire that catches the mistake *before* rotation becomes necessary, not a reason to go back to `.env` files.
+
+## Putting The Gates Together
+
+A real `pull_request`-triggered security stage chains all three gates before a merge is even allowed:
+
+```yaml
+# .github/workflows/pr-security-gates.yml
+name: pr-security-gates
+on: [pull_request]
+
+jobs:
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: gitleaks/gitleaks-action@v2
+        env: { GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
+
+  image-scan:
+    runs-on: ubuntu-latest
+    needs: secrets
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t myapp:pr-${{ github.event.number }} .
+      - uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: "myapp:pr-${{ github.event.number }}"
+          severity: "CRITICAL,HIGH"
+          exit-code: "1"
+```
+
+Dependabot/Renovate runs continuously against the default branch rather than per-PR, so it's configured once (the YAML/JSON above) rather than wired into this workflow. Together, these three gates mean: no secret merges, no known-critical OS CVE ships in the image, and no known-critical dependency CVE sits unpatched for more than a day.
+
+## Exercise
+
+You're handed a repo with this `Dockerfile`:
+
+```dockerfile
+FROM node:14-alpine
+WORKDIR /app
+COPY . .
+RUN npm install
+CMD ["node", "server.js"]
+```
+
+...and this route in `server.js`:
+
+```javascript
+app.get("/api/invoices/:id", requireAuth, async (req, res) => {
+  const invoice = await Invoice.findById(req.params.id);
+  res.json(invoice);
+});
+```
+
+1. Identify the OWASP Top 10 category the route is vulnerable to, and rewrite it with the fix.
+2. Write the `.github/dependabot.yml` entries needed to cover both the `npm` ecosystem and the Docker base image.
+3. Run (or describe precisely, if you don't have Docker handy) `trivy image node:14-alpine`, and explain, from the output, which column tells you whether a fix is even available yet for a given finding.
+4. Add a `gitleaks`-based job to this repo's PR workflow that would have caught an `AWS_SECRET_ACCESS_KEY` accidentally committed in a `config.js` file.
+
+**Hint:** step 1 is the same bug class as the orders example above — `requireAuth` proves *who* the caller is, not *what* they're allowed to touch. The fix needs a second check, not a different first one.

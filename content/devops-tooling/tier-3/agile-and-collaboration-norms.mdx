@@ -1,0 +1,222 @@
+---
+trackId: devops-tooling
+tier: 3
+title: "Agile and Collaboration Norms"
+order: 6
+estimatedHours: 6
+slug: agile-and-collaboration-norms
+---
+
+## Scrum vs Kanban: the same ticket, two processes
+
+Take one real ticket and run it through both systems. That's the fastest way to see what actually differs — it isn't "post-its vs no post-its," it's how work gets pulled, bounded, and measured.
+
+**The ticket:** `JIRA-482: Add rate limiting to /checkout (100 req/min per IP)`. It needs a new Redis instance (infra team dependency), a rate-limiter middleware, wiring into the checkout route, and tests.
+
+### How it moves through Scrum
+
+- **Backlog grooming (2 weeks before):** Ticket is written up with acceptance criteria, estimated at 5 story points by the team during planning poker.
+- **Sprint planning (Monday):** Pulled into Sprint 34, a fixed 2-week box (Oct 6–17). The sprint commitment is now "this plus 34 other points," and the team doesn't renegotiate scope mid-sprint without a conversation.
+- **Day 4:** Blocked — infra hasn't provisioned the Redis instance yet. The card physically moves to a "Blocked" column on the sprint board. This gets called out by name in daily standup: "482 is blocked on infra, no update since yesterday."
+- **Day 7:** Unblocked, PR opened.
+- **Day 10 (sprint boundary):** Merged and deployed to staging through the pipeline from Tier 2. Demoed live in **sprint review**.
+- **Sprint retro:** The team flags that the Redis dependency should have surfaced during grooming, not day 4. Action item: add "external dependency?" to the Definition of Ready checklist for the next sprint.
+
+The defining trait: work is batched into a fixed time box, and the box's boundary forces two ceremonies — a demo (review) and a process check (retro) — whether or not any individual ticket is "done" early or late.
+
+### How it moves through Kanban
+
+Same ticket, different team, continuous board: `Ready → In Progress → Code Review → Staging → Done`, with a **WIP limit of 3** on "In Progress" per engineer.
+
+- Ticket is pulled from `Ready` the moment an engineer has capacity under the WIP limit — no waiting for a sprint boundary.
+- Blocked on Redis on day 1 of work. It doesn't sit disguised as "in progress" — it moves into an explicit `Blocked` swimlane. Some teams stop the cycle-time clock here; others deliberately let it keep running, because "blocked time" is real elapsed time a customer is waiting, and hiding it would make the metric lie. Pick one convention and write it down — this is a frequent source of team arguments.
+- Unblocked on day 6, flows through `Code Review → Staging → Done` without waiting for anything except reviewer availability and the WIP limit on the next column.
+- **Cycle time** (In Progress → Done) comes out to 9 days against a rolling team average of 4. That's the signal — not a retro ceremony tied to this ticket, but a data point on the team's **cumulative flow diagram (CFD)**. If the CFD shows the "Blocked" band widening across tickets, that's the prompt to go fix the infra-provisioning bottleneck, independent of any sprint calendar.
+
+### Choosing between them
+
+| | Scrum | Kanban |
+|---|---|---|
+| Unit of planning | Sprint (fixed time box) | Continuous flow |
+| Scope mid-cycle | Protected, renegotiated explicitly | Changes anytime, limited by WIP |
+| Core metric | Velocity (points/sprint) | Cycle time / lead time |
+| Forces a checkpoint | Yes — sprint review/retro | No — improvement is continuous, driven by CFD/metrics |
+| Good fit | Roadmap-driven product work with stakeholder demos | Ops/platform/support teams with interrupt-driven and planned work mixed |
+
+Plenty of real teams run **Scrumban**: sprint-length planning and retros for cadence, but a continuous Kanban board with WIP limits instead of sprint-locked commitments. That's not cheating — it's picking the parts of each that solve a problem you actually have.
+
+## Writing a reviewable pull request
+
+A PR is a unit of *review*, not a unit of *work*. Those are different sizes. Here's the same feature as the ticket above, done wrong and done right.
+
+### Before: the 2000-line diff
+
+```
+$ git diff --stat main...feature/rate-limiting
+ infra/redis.tf                      |  48 +++
+ infra/variables.tf                  |  12 +
+ app/middleware/rate_limiter.py      | 210 +++++++
+ app/routes/checkout.py              |  85 +++---
+ app/config.py                       |  34 +-
+ app/metrics.py                      |  58 +++
+ tests/test_rate_limiter.py          | 340 ++++++++
+ tests/test_checkout.py              | 180 +++---
+ requirements.txt                    |   3 +-
+ docs/runbooks/checkout.md           |  95 +-
+ 10 files changed, 1847 insertions(+), 352 deletions(-)
+```
+
+A reviewer opens this and faces Terraform, app logic, a config refactor, new metrics, and test rewrites *simultaneously*. There's no way to hold all of that in working memory at once, so review degrades into skimming — exactly the failure mode the Software Engineering track's Code Review module describes as a checklist problem: reviewers stop checking for the things that matter (correctness of the limiter's edge cases, the blast radius of the config change) and start rubber-stamping because the diff is too large to engage with honestly.
+
+### After: the same change, five PRs
+
+```
+PR 1  infra: provision Redis for rate limiting           (+60 / -0,  2 files)
+PR 2  feat: add RateLimiter middleware (unwired, tested)  (+340 / -0, 2 files)
+PR 3  feat: wire RateLimiter into checkout behind flag    (+95 / -40, 3 files)
+PR 4  obs: emit rate_limit_rejected_total metric          (+58 / -5,  1 file)
+PR 5  chore: flip flag on in prod, remove flag code       (+10 / -85, 2 files)
+```
+
+Each PR has exactly one reviewable question:
+
+- PR 1 — "Is this the right Redis topology and does the Terraform plan match?" (reviewed by whoever owns infra)
+- PR 2 — "Is the rate-limiting algorithm correct?" (pure logic, fully unit-tested, zero production impact because nothing calls it yet)
+- PR 3 — "Is the integration point correct, and is the flag truly off by default?" (small diff, high scrutiny on the default)
+- PR 4 — "Does this metric mean what the name says?" (an observability reviewer can approve this in minutes)
+- PR 5 — "Is it safe to delete the flag now that it's been at 100% for two weeks?" (a near-trivial cleanup diff)
+
+Same total amount of code. The difference is that every PR can be reviewed in under fifteen minutes with real attention, each one is independently revertible, and a bad review on PR 3 doesn't block the Terraform work in PR 1 from shipping. This is also why the flag in PR 3 matters structurally, not just as a feature-flag best practice: it decouples *merging* the code from *activating* the behavior, which is what makes it possible to split the PR at all.
+
+A good rule of thumb: if you can't write a one-sentence description of what a reviewer is being asked to verify, the PR is doing too many things.
+
+## Code review etiquette, in a team-process context
+
+The mechanics of giving good review feedback — what to flag, how to phrase it, what belongs in a checklist — are covered in depth in the Software Engineering track's Code Review module. Don't re-derive that here. What's specific to the *team-process* layer on top of it:
+
+- **Make blocking vs. non-blocking explicit in-line.** Convention seen on most mature teams: prefix a comment with `nit:` for something the author can take or leave, and leave unprefixed comments as things that must be resolved before merge. Without this convention, authors can't tell if a comment is a blocker or a drive-by thought, and PRs stall waiting for clarification that was never needed.
+- **Put a review SLA in the team's working agreement** — e.g., "first response within one business day." A PR with no SLA rots; rot is what produces the next 2000-line diff, because the author keeps stacking commits onto a branch nobody has looked at.
+- **Enforce reviewers with tooling, not memory.** A `CODEOWNERS` file plus branch protection turns "someone from the infra team should review Terraform changes" from a norm people forget into something GitHub enforces:
+
+```
+# .github/CODEOWNERS
+/infra/           @org/platform-team
+/app/middleware/  @org/backend-team
+/docs/runbooks/   @org/sre-team
+```
+
+```yaml
+# branch protection rule (applied via repo settings / API)
+required_pull_request_reviews:
+  required_approving_review_count: 1
+  require_code_owner_reviews: true
+  dismiss_stale_reviews: true
+required_status_checks:
+  strict: true
+  contexts: ["ci/test", "ci/lint"]
+```
+
+- **Review is part of the Definition of Done, not a side quest.** If "merged" counts as done but "reviewed" doesn't appear anywhere in your sprint board's column names, review will always lose to the next sprint's new work. Put a `Code Review` column on the board (Kanban) or make "approved by 1 reviewer" a literal line item in your Definition of Done (Scrum).
+
+## Writing a lightweight RFC / design doc
+
+Not every decision needs a meeting. A one-to-two-page RFC lets a decision get made asynchronously, with a written record of *why*, so nobody has to re-litigate it six months later ("why did we do it this way?" — read the RFC).
+
+### Template
+
+```markdown
+# RFC-014: Move RDS credentials from Terraform variables to Vault dynamic secrets
+
+- Status: Proposed | Accepted | Rejected | Superseded
+- Author: @ctsolomon95
+- Date: 2026-10-03
+- Reviewers: @platform-team, @security-lead
+
+## Context
+What's true today, and why are we even discussing a change.
+
+## Problem
+The specific pain this causes, stated concretely, not vaguely.
+
+## Proposed solution
+What we'd do instead, concretely enough to estimate.
+
+## Alternatives considered
+Other options and why they were not chosen.
+
+## Tradeoffs / risks
+What gets worse, not just what gets better.
+
+## Rollout plan
+How this ships without a flag day.
+
+## Open questions
+Things not yet resolved — explicitly, so reviewers know what to weigh in on.
+```
+
+### Filled in, for real
+
+```markdown
+# RFC-014: Move RDS credentials from Terraform variables to Vault dynamic secrets
+
+- Status: Proposed
+- Author: @ctsolomon95
+- Date: 2026-10-03
+- Reviewers: @platform-team, @security-lead
+
+## Context
+Our RDS master password is currently stored as a Terraform variable,
+sourced from an encrypted tfvars file and injected via CI secrets
+(the pattern from Tier 2's secrets-management module). It's a static
+30-day-rotated credential shared across all app instances in an
+environment.
+
+## Problem
+Static, long-lived DB credentials mean: (1) a leaked credential is
+valid for up to 30 days before rotation, (2) rotation requires a
+coordinated redeploy of every service using it, (3) we have no way
+to attribute a DB connection to a specific service in an audit.
+
+## Proposed solution
+Adopt Vault's database secrets engine. Vault generates short-lived
+(1-hour TTL) Postgres credentials per service on request, using a
+Vault role scoped to that service's least-privilege DB grants. Each
+service authenticates to Vault via its existing Kubernetes service
+account (Vault's k8s auth method), already running since Tier 2.
+
+## Alternatives considered
+- AWS Secrets Manager rotation: simpler, but rotation is still
+  scheduled (not per-request), so a leaked credential is still live
+  for the rotation window.
+- Keep static creds, shorten rotation to 24h: cheap, but doesn't
+  solve attribution and still requires coordinated redeploys.
+
+## Tradeoffs / risks
+- Added dependency on Vault's availability for every new DB
+  connection — a Vault outage becomes a DB-connection outage.
+  Mitigation: cache leased credentials locally with a renewal buffer
+  before TTL expiry.
+- Migration requires every service to switch from reading
+  `DB_PASSWORD` from env to calling the Vault agent sidecar.
+
+## Rollout plan
+1. Stand up Vault's DB secrets engine against a read replica first.
+2. Migrate one low-traffic service, measure lease renewal under load.
+3. Roll remaining services one at a time, env by env (dev → staging → prod).
+4. Remove the static master-password tfvar once all services are migrated.
+
+## Open questions
+- Who owns Vault lease-renewal alerting once this is live?
+- Does the read-replica test environment need its own Vault role, or
+  can it share staging's?
+```
+
+Note what this buys you that a Slack thread doesn't: a timestamped, reviewable artifact with named reviewers, a rollout plan that someone can actually execute from, and an explicit alternatives section that stops the second-guessing after the fact.
+
+## Exercise
+
+Pick a real (or plausible) infrastructure change you could make on a project you work on — something like "move CI secrets into a vault," "switch a service's logging format," "change an alerting threshold," or "split a monorepo package." Write a one-page RFC for it using the template above, filled in completely — every section, no placeholders.
+
+Then take your most recently merged PR (or imagine one if you're between projects) and ask honestly: would a reviewer need more than fifteen minutes to review it in one pass? If yes, write out how you'd split it into two or more PRs, and name the single reviewable question each split PR would answer.
+
+**Hint:** if you can't find a clean split point, look for anywhere your diff mixes *infrastructure* changes (Terraform, config) with *application logic* changes, or mixes a *new, unused* code path with the change that *activates* it. Those two seams are the most common places a large diff splits cleanly, as shown in the checkout rate-limiting example above.

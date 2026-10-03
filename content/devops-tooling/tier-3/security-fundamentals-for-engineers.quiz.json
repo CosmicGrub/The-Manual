@@ -1,0 +1,98 @@
+[
+  {
+    "id": "devops-tooling/tier-3/security-fundamentals-for-engineers/q1",
+    "type": "multiple_choice",
+    "prompt": "A Flask route builds a SQL query with f\"SELECT * FROM users WHERE name = '{name}'\" using unsanitized user input. Which OWASP Top 10 category does this fall under, and what is the correct fix?",
+    "choices": [
+      "A01 Broken Access Control; fix by adding a login requirement to the route",
+      "A03 Injection; fix by using a parameterized query instead of string concatenation",
+      "A02 Cryptographic Failures; fix by hashing the 'name' parameter before use",
+      "A05 Security Misconfiguration; fix by disabling the route in production"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-3/security-fundamentals-for-engineers/q2",
+    "type": "multiple_choice",
+    "prompt": "An authenticated endpoint GET /api/orders/:orderId returns any order by ID with no check that the order belongs to the logged-in user, so one user can read another user's orders by changing the ID. Which category is this, and what's missing?",
+    "choices": [
+      "A03 Injection; the query needs to be parameterized",
+      "A01 Broken Access Control (IDOR); an authorization check against the authenticated user's ID is missing",
+      "A02 Cryptographic Failures; the order ID should be encrypted",
+      "This is not a real vulnerability as long as the user must be logged in"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-3/security-fundamentals-for-engineers/q3",
+    "type": "multiple_choice",
+    "prompt": "Why is hashing passwords with unsalted MD5 classified as a Cryptographic Failure (A02) rather than an acceptable password storage method?",
+    "choices": [
+      "MD5 produces hashes that are too short to store in most databases",
+      "MD5 is fast to compute and has no built-in per-user salt, so leaked hashes can be brute-forced or rainbow-tabled extremely quickly",
+      "MD5 cannot process passwords longer than 8 characters",
+      "MD5 encrypts the password reversibly, so anyone with the hash can recover the plaintext directly"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-3/security-fundamentals-for-engineers/q4",
+    "type": "multiple_choice",
+    "prompt": "A Dependabot alert reports lodash < 4.17.21 is affected by CVE-2021-23337 (Command Injection), with a patched version of 4.17.21. What is the correct remediation?",
+    "choices": [
+      "Remove lodash from the project entirely, since any flagged package must be dropped",
+      "Ignore the alert unless the CVE has a public exploit proof-of-concept",
+      "Merge Dependabot's PR (or manually bump) to lodash 4.17.21 or later",
+      "Rotate the application's database credentials"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "devops-tooling/tier-3/security-fundamentals-for-engineers/q5",
+    "type": "multiple_choice",
+    "prompt": "A `trivy image` scan against a built container shows a CRITICAL finding for zlib1g (CVE-2022-37434) with Installed Version 1:1.2.11.dfsg-2 and Fixed Version 1:1.2.11.dfsg-2+deb11u1. What's the correct way to resolve this, and how do you confirm it's resolved?",
+    "choices": [
+      "Rebuild the image from an updated base image (or upgrade the package) to pick up the fixed version, then re-run trivy to confirm 0 CRITICAL findings",
+      "Nothing is needed; zlib vulnerabilities only affect compression tools, not application containers",
+      "Delete the Dockerfile's FROM line so no base image is used",
+      "Add zlib1g to a .gitignore file so Trivy stops scanning it"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "devops-tooling/tier-3/security-fundamentals-for-engineers/q6",
+    "type": "multiple_choice",
+    "prompt": "A gitleaks job is configured to run `on: pull_request` and exits with code 1 when it finds a high-entropy secret-shaped string. Why does this meaningfully improve on the Tier 2 remediation flow (rotate, then clean history) for a leaked API key?",
+    "choices": [
+      "It encrypts the secret automatically so rotation is never required",
+      "It blocks the merge before the secret ever reaches the default branch, so there is no exposure to remediate in the first place",
+      "It automatically rotates the credential at the provider",
+      "It replaces the need for a .gitignore entry on .env files"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-3/security-fundamentals-for-engineers/q7",
+    "type": "multiple_choice",
+    "prompt": "What is the key difference in what Dependabot/Renovate scan versus what Trivy scans on a containerized application?",
+    "choices": [
+      "They scan the exact same things; running both is redundant",
+      "Dependabot/Renovate scan application-level package manifests (npm, pip, etc.); Trivy additionally scans the OS packages baked into the built image's filesystem layers",
+      "Trivy only scans source code for syntax errors, unrelated to security",
+      "Dependabot scans container images; Trivy scans source code dependencies"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-3/security-fundamentals-for-engineers/q8",
+    "type": "multiple_choice",
+    "prompt": "This module covers OWASP Top 10 awareness, dependency scanning, container scanning, and CI secrets scanning. Which topic does it explicitly leave to the Cybersecurity & Ethical Hacking track instead of covering here?",
+    "choices": [
+      "Writing Dependabot configuration files",
+      "Penetration testing and exploit development against live targets",
+      "Reading Trivy scan output",
+      "Configuring a GitHub Actions workflow trigger"
+    ],
+    "correctIndex": 1
+  }
+]

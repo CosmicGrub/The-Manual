@@ -1,0 +1,98 @@
+[
+  {
+    "id": "devops-tooling/tier-3/advanced-infrastructure-as-code/q1",
+    "type": "multiple_choice",
+    "prompt": "In the module example, why does modules/reports-bucket/main.tf omit the provider \"aws\" block that the Tier 2 root configuration had?",
+    "choices": [
+      "Modules are not allowed to create any AWS resources at all.",
+      "A module doesn't configure its own provider; the calling root configuration supplies the provider, so the same module can be reused across different regions or accounts without modification.",
+      "The provider block is automatically copied into every module by terraform init.",
+      "Provider blocks are deprecated in modern Terraform and should never be used anywhere."
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-3/advanced-infrastructure-as-code/q2",
+    "type": "multiple_choice",
+    "prompt": "A root configuration calls the same module twice: module \"team_reports\" and module \"billing_reports\", each with a different bucket_name. What does terraform plan show?",
+    "choices": [
+      "An error, because a module can only be called once per configuration.",
+      "Two independent resources, addressed as module.team_reports.aws_s3_bucket.reports and module.billing_reports.aws_s3_bucket.reports, each with its own real bucket name.",
+      "A single merged resource combining both bucket_name values.",
+      "Only the second module call takes effect; the first is silently overwritten."
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-3/advanced-infrastructure-as-code/q3",
+    "type": "multiple_choice",
+    "prompt": "Tier 2 named the single-laptop state risk: losing your local terraform.tfstate means Terraform might recreate or orphan real infrastructure. Concretely, how does an S3+DynamoDB remote backend fix this, beyond just moving the file off your laptop?",
+    "choices": [
+      "It doesn't fix anything beyond storage location; locking is unrelated to the state-loss risk.",
+      "DynamoDB encrypts the state file so it can never be read even if leaked.",
+      "S3 gives durable, shared storage so no single machine is the only copy, and the DynamoDB lock table ensures only one apply can run against that state at a time, preventing the exact concurrent-write corruption Tier 2 described.",
+      "It replaces terraform.tfstate with a SQL database that enforces foreign key constraints on resource IDs."
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "devops-tooling/tier-3/advanced-infrastructure-as-code/q4",
+    "type": "multiple_choice",
+    "prompt": "You run terraform apply while a CI job already holds the DynamoDB state lock for the same backend key. What happens?",
+    "choices": [
+      "Your apply proceeds normally; DynamoDB only logs a warning.",
+      "Your apply fails immediately with a state lock error naming who holds the lock, until that lock is released.",
+      "Terraform automatically queues your apply and runs it after the CI job finishes, with no error shown.",
+      "The state file is duplicated so both applies can proceed independently."
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-3/advanced-infrastructure-as-code/q5",
+    "type": "multiple_choice",
+    "prompt": "What does terraform.workspace provide, and how is it typically used?",
+    "choices": [
+      "It's a manually-set string variable with no built-in meaning; you must declare it yourself in variables.tf.",
+      "It's a built-in reference to the currently selected workspace name (e.g. \"dev\" or \"prod\"), commonly used to look up per-environment values such as bucket_name from a local map, without needing a separate input variable for the environment name.",
+      "It's the local path to the current working directory, used only for logging.",
+      "It only exists inside Terraform Cloud and has no equivalent for local or S3-backed state."
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-3/advanced-infrastructure-as-code/q6",
+    "type": "multiple_choice",
+    "prompt": "You are in the dev workspace and run terraform destroy. What happens to the prod workspace's infrastructure, assuming both share the same backend?",
+    "choices": [
+      "Both dev and prod resources are destroyed, since destroy always affects the whole backend.",
+      "Nothing - each workspace has its own isolated state (e.g. stored separately as env:/dev/... vs env:/prod/... under the same backend), so destroy in one workspace only affects that workspace's tracked resources.",
+      "Terraform prompts you to choose which workspace to destroy, but defaults to destroying all of them.",
+      "prod is destroyed instead of dev, because destroy always targets the last-created workspace."
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-3/advanced-infrastructure-as-code/q7",
+    "type": "multiple_choice",
+    "prompt": "In the Pulumi Python example, which Terraform concept does pulumi.export(...) most directly correspond to?",
+    "choices": [
+      "A provider block.",
+      "A resource block.",
+      "A variable block.",
+      "An output block."
+    ],
+    "correctIndex": 3
+  },
+  {
+    "id": "devops-tooling/tier-3/advanced-infrastructure-as-code/q8",
+    "type": "multiple_choice",
+    "prompt": "What is the concrete tradeoff the module draws between HCL-first Terraform and code-first Pulumi/CDK?",
+    "choices": [
+      "HCL is strictly obsolete and every team should migrate to Pulumi or CDK immediately.",
+      "They are functionally identical in every respect, so the choice never matters.",
+      "HCL's limited expressiveness makes it harder to write complex logic but keeps configs boring and auditable; Pulumi/CDK use a real general-purpose language, giving full control flow and tooling at the cost of also being able to introduce real programming bugs into infrastructure code.",
+      "Pulumi and CDK cannot manage remote state at all, so they are only suitable for local experimentation."
+    ],
+    "correctIndex": 2
+  }
+]
