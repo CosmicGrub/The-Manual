@@ -1,0 +1,98 @@
+[
+  {
+    "id": "cybersecurity-ethical-hacking/tier-3/detection-engineering-and-logging-basics-for-ad/q1",
+    "type": "multiple_choice",
+    "prompt": "Which Windows Security Event ID is written on a domain controller when a Kerberos service ticket (TGS) is requested \u2014 the event you filter on to detect Kerberoasting?",
+    "choices": [
+      "4768",
+      "4769",
+      "4624",
+      "4776"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-3/detection-engineering-and-logging-basics-for-ad/q2",
+    "type": "multiple_choice",
+    "prompt": "In Event ID 4769, which TicketEncryptionType value indicates RC4-HMAC was used \u2014 the classic signal of a kerberoastable low-encryption ticket request?",
+    "choices": [
+      "0x12",
+      "0x17",
+      "0x1",
+      "0x3"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-3/detection-engineering-and-logging-basics-for-ad/q3",
+    "type": "multiple_choice",
+    "prompt": "Which Sysmon event ID logs outbound network connections made by a process, letting you catch a tool like Rubeus reaching out to port 88 on your domain controller?",
+    "choices": [
+      "Event ID 1",
+      "Event ID 3",
+      "Event ID 5",
+      "Event ID 11"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-3/detection-engineering-and-logging-basics-for-ad/q4",
+    "type": "multiple_choice",
+    "prompt": "Which Logon Type value appears in Event ID 4624 for a pass-the-hash style NTLM network logon, as opposed to an interactive console or RDP logon?",
+    "choices": [
+      "Logon Type 2",
+      "Logon Type 3",
+      "Logon Type 10",
+      "Logon Type 11"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-3/detection-engineering-and-logging-basics-for-ad/q5",
+    "type": "multiple_choice",
+    "prompt": "Which Advanced Audit Policy subcategory must be enabled on a domain controller for Event ID 4769 to actually be written to the Security log?",
+    "choices": [
+      "Audit Kerberos Service Ticket Operations",
+      "Audit Logon",
+      "Audit Credential Validation",
+      "Audit Directory Service Access"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-3/detection-engineering-and-logging-basics-for-ad/q6",
+    "type": "multiple_choice",
+    "prompt": "Why can local auditpol.exe settings on a domain controller appear to silently revert after you set them?",
+    "choices": [
+      "Group Policy audit settings overwrite local auditpol settings on the next policy refresh",
+      "auditpol settings automatically expire after 24 hours",
+      "Installing Sysmon disables auditpol",
+      "Domain controllers ignore auditpol entirely and only read the registry"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-3/detection-engineering-and-logging-basics-for-ad/q7",
+    "type": "multiple_choice",
+    "prompt": "In the pass-the-hash detection logic, which AuthenticationPackageName value appears in the 4624 event instead of Kerberos, distinguishing NTLM hash replay from a normal domain logon?",
+    "choices": [
+      "NTLM",
+      "Negotiate",
+      "Kerberos",
+      "CredSSP"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-3/detection-engineering-and-logging-basics-for-ad/q8",
+    "type": "multiple_choice",
+    "prompt": "What is the purpose of re-running the exact same Kerberoasting attack against your own lab after deploying the detection script?",
+    "choices": [
+      "To confirm the detection logic actually fires on the real attack telemetry it was designed to catch, closing the attack-instrument-reattack loop",
+      "To generate extra AS-REQ traffic for load testing the domain controller",
+      "To automatically rotate the krbtgt account password",
+      "To verify Sysmon's own service is still running"
+    ],
+    "correctIndex": 0
+  }
+]

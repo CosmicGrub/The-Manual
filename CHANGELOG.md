@@ -623,3 +623,14 @@ All notable changes to The Manual (curriculum + app) are logged here. This file 
 **Result:** `npm run build` passed clean — 262 unique slugs verified repo-wide.
 
 **Status:** Cybersecurity & Ethical Hacking Tier 2 complete (75h, 5 lessons). Cybersecurity is now 3/6 tiers content-complete (Tiers 0-2, 168h); Tiers 3-5 remain.
+
+## [0.50.0] — 2026-10-03 — Cybersecurity & Ethical Hacking Tier 3: complete (AD home lab, attack-then-detect, closed loop)
+
+**Context:** Continuing the tier-by-tier pattern, same non-negotiable authorized-targets framing and manual end-to-end review as every prior tier in this track. This tier's centerpiece is the attack-then-detect loop promised in the syllabus: the exact Kerberoasting and pass-the-hash techniques run against the learner's own 3-VM Active Directory home lab get re-run after the detection-engineering module, against the learner's own new Sysmon/Event-Log instrumentation, to confirm the detections actually fire.
+
+**Added**
+- `content/cybersecurity-ethical-hacking/tier-3/*.mdx` (6 files) + matching quizzes: Formal Pentest Methodology & Reporting (PTES's 7 phases mapped onto work already done in Tiers 1-2), Active Directory & Internal Network Pentesting (a real `lab.local` 3-VM domain built from scratch, BloodHound mapping a real attack-path graph, a real Kerberoasting and pass-the-hash chain against it), Detection Engineering & Logging Basics for AD (Sysmon + Windows Event Logs written to detect those exact same attacks, then re-run to confirm the alerts fire), Advanced Web & API Security (JWT algorithm-confusion against a PortSwigger lab), Mobile App Security Basics (OWASP's own InsecureBankv2 decompiled and intercepted), HackTheBox/TryHackMe Intermediate Practice (composite attack-pattern archetypes only, no specific active room/machine spoiled, "retired machines only" policy reinforced).
+
+**Result:** `npm run build` passed clean — 268 unique slugs verified repo-wide.
+
+**Status:** Cybersecurity & Ethical Hacking Tier 3 complete (108h, 6 lessons). Cybersecurity is now 4/6 tiers content-complete (Tiers 0-3, 276h); Tiers 4-5 remain.

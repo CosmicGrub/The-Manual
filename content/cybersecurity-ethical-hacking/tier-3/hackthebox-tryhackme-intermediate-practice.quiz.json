@@ -1,0 +1,98 @@
+[
+  {
+    "id": "cybersecurity-ethical-hacking/tier-3/hackthebox-tryhackme-intermediate-practice/q1",
+    "type": "multiple_choice",
+    "prompt": "What primarily distinguishes an intermediate-difficulty HTB/TryHackMe box from an easy one?",
+    "choices": [
+      "Intermediate boxes require chaining multiple lower-severity findings together rather than exploiting one obvious CVE",
+      "Intermediate boxes always run Windows Server",
+      "Intermediate boxes never require privilege escalation",
+      "Intermediate boxes always involve a web application"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-3/hackthebox-tryhackme-intermediate-practice/q2",
+    "type": "multiple_choice",
+    "prompt": "A service on an intermediate target returns a generic banner with no version string. What is the correct next step?",
+    "choices": [
+      "Give up on that service and brute-force every other open port instead",
+      "Fingerprint it manually using response headers, error page wording, and default behavior, then correlate with known framework/CVE fingerprints",
+      "Assume it is running the newest version and try the latest public CVE",
+      "Re-run nmap -sV repeatedly until it eventually returns a version"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-3/hackthebox-tryhackme-intermediate-practice/q3",
+    "type": "multiple_choice",
+    "prompt": "Why does time-boxing each attack avenue (e.g., 20-30 minutes) matter on intermediate-difficulty targets?",
+    "choices": [
+      "It is a scoring rule enforced automatically by the platform",
+      "It prevents red herrings and rabbit holes from consuming the entire available time",
+      "It is required so nmap scans do not time out",
+      "It guarantees the first vulnerability found is always the correct path"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-3/hackthebox-tryhackme-intermediate-practice/q4",
+    "type": "multiple_choice",
+    "prompt": "In a Kerberoasting workflow against your own AD lab, what does a hash extracted with impacket-GetUserSPNs and cracked with `hashcat -m 13100` actually represent?",
+    "choices": [
+      "The domain administrator's NTLM hash",
+      "A TGS-REP (service ticket) encrypted with the target service account's own password hash",
+      "The KRBTGT account's secret key",
+      "An AS-REP pre-authentication hash"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-3/hackthebox-tryhackme-intermediate-practice/q5",
+    "type": "multiple_choice",
+    "prompt": "Per the platform write-up policy conventions covered earlier in this track, when is it acceptable to publish a full step-by-step write-up of an HTB or TryHackMe machine?",
+    "choices": [
+      "At any time, as long as the platform is credited",
+      "Only after the platform has officially retired that specific machine, confirmed before publishing",
+      "Only if the machine has fewer than 100 solves",
+      "Only if the write-up omits the machine's name"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-3/hackthebox-tryhackme-intermediate-practice/q6",
+    "type": "multiple_choice",
+    "prompt": "What is the primary purpose of running a tool like linPEAS or winPEAS after obtaining an initial low-privileged shell?",
+    "choices": [
+      "It automatically grants root or administrator access",
+      "It performs the full network reconnaissance for other hosts",
+      "It enumerates common local privilege-escalation vectors (SUID binaries, sudo misconfigurations, writable cron jobs, stored credentials) for manual follow-up",
+      "It cracks any password hashes found on disk"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-3/hackthebox-tryhackme-intermediate-practice/q7",
+    "type": "multiple_choice",
+    "prompt": "BloodHound shows that a cracked service account in your lab has GenericAll rights over the Domain Admins group. What does this mean?",
+    "choices": [
+      "Nothing exploitable, since GenericAll only applies to organizational units",
+      "A viable privilege-escalation path: that right lets the account add itself (or another controlled principal) directly into Domain Admins",
+      "BloodHound misreported the edge and it should be ignored",
+      "The finding only matters if the account also has local administrator rights on the DC"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-3/hackthebox-tryhackme-intermediate-practice/q8",
+    "type": "multiple_choice",
+    "prompt": "In a PTES-style report adapted into a retired-machine CTF write-up, what should the Scope section include that a standard client-engagement report would not?",
+    "choices": [
+      "Nothing; the Scope section is written identically either way",
+      "A statement that this is independent training practice (not an authorized client engagement), the platform name, and confirmation the machine is retired",
+      "The client organization's legal name and signed authorization letter",
+      "A non-disclosure agreement"
+    ],
+    "correctIndex": 1
+  }
+]

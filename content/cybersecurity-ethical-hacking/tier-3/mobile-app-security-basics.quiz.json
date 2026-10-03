@@ -1,0 +1,86 @@
+[
+  {
+    "id": "cybersecurity-ethical-hacking/tier-3/mobile-app-security-basics/q1",
+    "type": "multiple_choice",
+    "prompt": "Which OWASP Mobile Top 10 category has no clean analog in the OWASP Web Top 10 2021, specifically because the attacker holds a full copy of the compiled client binary?",
+    "choices": [
+      "M9 Insecure Data Storage",
+      "M7 Insufficient Binary Protections",
+      "M5 Insecure Communication",
+      "M3 Insecure Authentication/Authorization"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-3/mobile-app-security-basics/q2",
+    "type": "multiple_choice",
+    "prompt": "Which tool reconstructs readable Java-like source directly from an APK's DEX bytecode, as opposed to producing a readable manifest plus smali and raw resources?",
+    "choices": [
+      "apktool",
+      "jadx",
+      "adb",
+      "Burp Suite"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-3/mobile-app-security-basics/q3",
+    "type": "multiple_choice",
+    "prompt": "InsecureBankv2 stores the user's password in shared_prefs as AES ciphertext, yet it's trivially recoverable. Why?",
+    "choices": [
+      "The AES key is hardcoded in the decompiled source, so anyone with the APK can derive it and decrypt the value",
+      "The value is actually stored completely unencrypted despite the field name",
+      "The password is hashed with bcrypt, which is reversible with a rainbow table",
+      "Android automatically decrypts all shared_prefs values for any app with INTERNET permission"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-3/mobile-app-security-basics/q4",
+    "type": "multiple_choice",
+    "prompt": "What technique lets you land directly in InsecureBankv2's logged-in PostLogin screen without ever submitting valid credentials?",
+    "choices": [
+      "SQL injection against the backend's /login endpoint",
+      "adb shell am start -n com.android.insecurebankv2/.PostLogin -e usrname <name>, exploiting the exported activity",
+      "A Frida script that patches the APK's signature check",
+      "Rooting the emulator and editing the app's process memory"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-3/mobile-app-security-basics/q5",
+    "type": "multiple_choice",
+    "prompt": "Which AndroidManifest.xml attribute, when set to true, lets you extract an app's private data with adb backup even without root or run-as access?",
+    "choices": [
+      "android:allowBackup=\"true\"",
+      "android:exported=\"true\"",
+      "android:debuggable=\"true\"",
+      "android:testOnly=\"true\""
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-3/mobile-app-security-basics/q6",
+    "type": "multiple_choice",
+    "prompt": "To intercept InsecureBankv2's login request in Burp, what must you configure on the emulator before logging in?",
+    "choices": [
+      "Install a rooted system image, since Burp cannot see traffic on a stock AVD",
+      "Set the emulator's global HTTP proxy to Burp's listening address (e.g. adb shell settings put global http_proxy 10.0.2.2:8080)",
+      "Disable the backend Python server so Burp becomes the only reachable host",
+      "Recompile the APK with networking permissions removed"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-3/mobile-app-security-basics/q7",
+    "type": "multiple_choice",
+    "prompt": "ViewStatement's WebView calls setJavaScriptEnabled(true) and addJavascriptInterface(new JavaScriptInterface(this), \"Android\"). Why is this combination specifically dangerous, beyond ordinary web XSS?",
+    "choices": [
+      "It disables the device's screen lock while the WebView is open",
+      "It silently uploads the statement HTML to a third-party ad network",
+      "Script running in the WebView gets a callable bridge into native Java methods on the host app, not just DOM access",
+      "It forces the WebView to load content over plaintext HTTP regardless of the URL scheme"
+    ],
+    "correctIndex": 2
+  }
+]
