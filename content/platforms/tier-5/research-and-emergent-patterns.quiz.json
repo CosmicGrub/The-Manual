@@ -1,0 +1,98 @@
+[
+  {
+    "id": "platforms/tier-5/research-and-emergent-patterns/q1",
+    "type": "multiple_choice",
+    "prompt": "A vendor blog post claims its on-device LLM demo hit a given time-to-first-token. What's the biggest reason to independently verify that number before relying on it?",
+    "choices": [
+      "The demo almost certainly ran on the newest flagship chip, not the older hardware the median shipped device actually has",
+      "On-device latency numbers are illegal to publish without third-party audit",
+      "Blog posts go through the same peer review as academic papers, so the number is already verified",
+      "Time-to-first-token cannot be measured accurately on mobile hardware"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-5/research-and-emergent-patterns/q2",
+    "type": "multiple_choice",
+    "prompt": "Per this module's verification method (extending Tier 3's 'Reading & Contributing to Real Codebases'), where should you look instead of just trusting a vendor's launch-post claim?",
+    "choices": [
+      "The vendor's social media follower count",
+      "A competitor's unrelated blog post",
+      "The model card/technical report, the project's issue tracker, and independent benchmarks",
+      "The app store star rating alone"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "platforms/tier-5/research-and-emergent-patterns/q3",
+    "type": "multiple_choice",
+    "prompt": "In the state-sync core, what problem does a Hybrid Logical Clock solve that a raw wall-clock timestamp does not?",
+    "choices": [
+      "It makes network transfer of ops smaller",
+      "It eliminates the need for any conflict resolution logic",
+      "It produces a consistent total order for merging even when devices' physical clocks drift or disagree",
+      "It automatically compacts tombstones in an OR-Set"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "platforms/tier-5/research-and-emergent-patterns/q4",
+    "type": "multiple_choice",
+    "prompt": "Why can't the three-runtime sync layer use one single 'keep a connection open and sync instantly' strategy across web, mobile, and desktop?",
+    "choices": [
+      "WebSockets are not supported on any mobile operating system",
+      "CRDTs can only be transmitted over HTTP, never a persistent connection",
+      "Mobile operating systems suspend or throttle background networking, so mobile needs push-triggered wake-ups that desktop doesn't need",
+      "JavaScript cannot run on mobile devices at all"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "platforms/tier-5/research-and-emergent-patterns/q5",
+    "type": "multiple_choice",
+    "prompt": "According to the position paper's framing, why doesn't an existing library like Automerge or Yjs already make the three-runtime sync pattern a fully solved, standardized problem?",
+    "choices": [
+      "Those libraries only work with SQL databases and cannot represent JSON-like app state",
+      "They give you the CRDT merge algorithm, but the OS-specific background-wake asymmetry and compaction tradeoffs across runtimes are still unresolved integration problems",
+      "They cannot be compiled to WebAssembly under any circumstances",
+      "They require a paid enterprise license to use on mobile"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-5/research-and-emergent-patterns/q6",
+    "type": "multiple_choice",
+    "prompt": "What is the real tradeoff of compiling the shared sync core to WebAssembly for the web build instead of hand-writing an equivalent implementation directly in JavaScript?",
+    "choices": [
+      "WebAssembly eliminates the need for a relay server entirely",
+      "Identical conflict-resolution semantics across every platform, at the cost of a larger web bundle download than a small JS port would add",
+      "JavaScript is physically incapable of implementing CRDT merge logic",
+      "WebAssembly modules cannot call exported functions from JavaScript"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-5/research-and-emergent-patterns/q7",
+    "type": "multiple_choice",
+    "prompt": "How does this module's state-sync case study differ from Tier 3's React Native vs. Flutter architecture comparison?",
+    "choices": [
+      "It is the same comparison between React Native and Flutter repeated at greater length",
+      "Tier 3 compared how two frameworks render UI on a single device; this module addresses keeping one app's state consistent across multiple devices and runtimes at once",
+      "Tier 3 covered only desktop apps, while this module covers only web apps",
+      "This module proposes replacing React Native and Flutter with an entirely new rendering engine"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-5/research-and-emergent-patterns/q8",
+    "type": "multiple_choice",
+    "prompt": "Why is a relay server that only forwards opaque CRDT operation blobs harder to debug than a typical REST backend when a client reports a wrong value?",
+    "choices": [
+      "The relay never materializes real application state, so diagnosing the bug requires replaying the client-side op log rather than querying a database row",
+      "Opaque blobs are always encrypted and can never be inspected under any circumstances",
+      "REST backends are architecturally immune to this entire class of bug",
+      "The relay deletes all logs immediately after forwarding each message"
+    ],
+    "correctIndex": 0
+  }
+]

@@ -1,0 +1,240 @@
+---
+trackId: platforms
+tier: 5
+title: "WebAssembly & Novel Runtimes"
+order: 2
+estimatedHours: 20
+slug: webassembly-and-novel-runtimes
+---
+
+## Three architectures for "write once, run everywhere" — and where Wasm actually differs
+
+Tier 3's "Cross-Platform Deep Dive: React Native vs. Flutter Architecture" took the roof off two cross-platform models. React Native: a JS thread talking to native `UIView`/`View` instances across a bridge (JSON-serialized, batched, flushed per tick) or, on the New Architecture, across JSI's direct C++ object references. Flutter: no bridge at all, because there's nothing on the other side to synchronize with — Dart compiles ahead-of-time to native machine code and paints every pixel itself through Skia or Impeller, with platform channels as the narrow, serialized exception when it truly needs the OS.
+
+WebAssembly is not a third entry in that same category. Both of Tier 3's frameworks ship a UI runtime — a JS engine plus native bridge code, or a Dart AOT compiler plus a rendering engine — compiled separately for each target OS, and each framework's whole job is getting pixels on screen consistently across those separately-built runtimes. Wasm doesn't bridge to anything and doesn't render anything. It's a portable compilation *target*: a small, typed instruction set with one shared block of linear memory, and a sandbox boundary that any conforming engine — V8 in Chrome, Wasmtime on a server, a plugin host inside another app — implements identically. The same compiled bytes run, unmodified, in a browser tab or standalone on a server with no OS-specific binary at all. That's the actual novelty this module is about: not a better bridge, no bridge.
+
+## Compiling Rust to Wasm: two real builds, two real sizes
+
+Start at the floor, no toolkit, just `rustc`. A Mandelbrot-escape-iteration kernel (the classic CPU-bound benchmark target), exported as a raw `extern "C"` function that writes into caller-supplied memory:
+
+```toml
+# Cargo.toml
+[package]
+name = "mandelbrot_wasm"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[profile.release]
+opt-level = 3
+lto = true
+```
+
+```rust
+// src/lib.rs
+#![no_std]
+
+#[panic_handler]
+fn panic(_: &core::panic::PanicInfo) -> ! { loop {} }
+
+#[no_mangle]
+pub extern "C" fn mandelbrot_row(py: u32, width: u32, height: u32, max_iter: u32, out_ptr: *mut u8) {
+    let row = unsafe { core::slice::from_raw_parts_mut(out_ptr, width as usize) };
+    let y0 = (py as f64 / height as f64) * 2.0 - 1.0;
+    for px in 0..width {
+        let x0 = (px as f64 / width as f64) * 3.5 - 2.5;
+        let (mut x, mut y) = (0.0_f64, 0.0_f64);
+        let mut iter = 0u32;
+        while x * x + y * y <= 4.0 && iter < max_iter {
+            let xt = x * x - y * y + x0;
+            y = 2.0 * x * y + y0;
+            x = xt;
+            iter += 1;
+        }
+        row[px as usize] = ((iter as f64 / max_iter as f64) * 255.0) as u8;
+    }
+}
+```
+
+```bash
+$ cargo build --release --target wasm32-unknown-unknown
+   Compiling mandelbrot_wasm v0.1.0
+    Finished `release` profile [optimized] target(s) in 5.29s
+$ wc -c target/wasm32-unknown-unknown/release/mandelbrot_wasm.wasm
+794 target/wasm32-unknown-unknown/release/mandelbrot_wasm.wasm
+```
+
+794 bytes, zero dependencies. `wasm32-unknown-unknown` is a built-in rustc compilation target, and marking the crate `crate-type = ["cdylib"]` is enough for rustc to emit a `.wasm` binary straight from an `extern "C"` export — no Wasm-specific crate, no runtime, no allocator. The caller owns all memory; the function just reads and writes bytes at a pointer it's handed, which is the entire Wasm memory model in miniature: one contiguous block, addressed by plain integers.
+
+That rawness is also why nobody ships real projects this way. The idiomatic path is `wasm-bindgen`, which generates the JS-facing glue for you at the cost of pulling in an allocator and marshalling code:
+
+```toml
+[dependencies]
+wasm-bindgen = "0.2"
+```
+
+```rust
+use wasm_bindgen::prelude::*;
+
+#[wasm_bindgen]
+pub fn mandelbrot_row(py: u32, width: u32, height: u32, max_iter: u32) -> Vec<u8> {
+    // identical math, now returning an owned Vec<u8> instead of writing
+    // into caller memory
+    let mut out = vec![0u8; width as usize];
+    let y0 = (py as f64 / height as f64) * 2.0 - 1.0;
+    for px in 0..width {
+        let x0 = (px as f64 / width as f64) * 3.5 - 2.5;
+        let (mut x, mut y) = (0.0_f64, 0.0_f64);
+        let mut iter = 0u32;
+        while x * x + y * y <= 4.0 && iter < max_iter {
+            let xt = x * x - y * y + x0;
+            y = 2.0 * x * y + y0;
+            x = xt;
+            iter += 1;
+        }
+        out[px as usize] = ((iter as f64 / max_iter as f64) * 255.0) as u8;
+    }
+    out
+}
+```
+
+```bash
+$ cargo build --release --target wasm32-unknown-unknown
+$ wc -c target/wasm32-unknown-unknown/release/bindgen_demo.wasm
+27850 target/wasm32-unknown-unknown/release/bindgen_demo.wasm
+
+$ wasm-bindgen --target web --out-dir pkg target/wasm32-unknown-unknown/release/bindgen_demo.wasm
+$ wc -c pkg/bindgen_demo_bg.wasm
+9487 pkg/bindgen_demo_bg.wasm
+
+$ wasm-opt -Oz pkg/bindgen_demo_bg.wasm -o pkg/bindgen_demo_bg.opt.wasm
+$ wc -c pkg/bindgen_demo_bg.opt.wasm
+7865 pkg/bindgen_demo_bg.opt.wasm
+```
+
+Three real numbers for the exact same algorithm: 794 bytes hand-rolled, 9487 bytes through the standard `wasm-bindgen` pipeline (the CLI strips the custom description sections it used to generate JS and moves that work into actual JS source), 7865 after `wasm-opt -Oz` runs a separate binary-to-binary size pass (dead-code elimination, instruction-level shrinking) on top. The gap between 794 and 7865 is the price of `Vec<u8>`, an allocator, and generated marshalling code — ergonomics bought with bytes, which matters a lot once you're shipping to a cold-start edge function later in this module, and barely at all shipping to a desktop browser.
+
+## What actually crosses the boundary: linear memory, not a message queue
+
+Here's a real slice of what `wasm-bindgen --target web` generated for that function:
+
+```js
+export function mandelbrot_row(py, width, height, max_iter) {
+    const ret = wasm.mandelbrot_row(py, width, height, max_iter);
+    var v1 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+    wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+    return v1;
+}
+function getArrayU8FromWasm0(ptr, len) {
+    ptr = ptr >>> 0;
+    return getUint8ArrayMemory0().subarray(ptr / 1, ptr / 1 + len);
+}
+```
+
+Wasm functions can only pass and return numbers — `i32`/`i64`/`f32`/`f64`. There is no string type, no array type, no object type at the instruction-set level. So `mandelbrot_row` on the Wasm side doesn't actually return a `Vec<u8>` across the boundary; it returns a pointer and a length (packed into `ret[0]`/`ret[1]`) into the module's one linear memory buffer — the same `ArrayBuffer` that JS's `getUint8ArrayMemory0()` is a view over. `getArrayU8FromWasm0` builds a JS typed-array view over those bytes *in place*, `.slice()` copies them out into a JS-owned array, and `__wbindgen_free` tells the Rust side's allocator to release the original buffer. No JSON, no message format, no queue — two programs reading and writing the same block of bytes, with a thin convention for who owns which range of it at which moment.
+
+That's the sharpest possible contrast with Tier 3's bridge. React Native's old bridge serializes a call into `{moduleID, methodID, args}`, batches it, flushes it, and deserializes a reply on the other side — two full round trips for one `measure()` call. JSI removes serialization for small synchronous calls, but JS still only holds a *reference* to a C++ object across a thread boundary, not the same bytes. Flutter's platform channels are closer in spirit to a real marshal step (a binary codec, still async) precisely because Dart's heap and the native side's heap are genuinely separate worlds. Wasm/JS interop skips all of that: compiled Rust and the JS engine are reading the exact same memory region, and "crossing the boundary" is pointer arithmetic, not a protocol.
+
+## Running it in the browser — measured honestly against pure JS
+
+Node and every major browser implement the identical `WebAssembly.instantiate` API, so a Node benchmark is a legitimate stand-in for what a browser tab does. Pure-JS equivalent of the same kernel, and the Wasm version loaded and called directly:
+
+```js
+function mandelbrotRowJS(py, width, height, maxIter, out) {
+  const y0 = (py / height) * 2.0 - 1.0;
+  for (let px = 0; px < width; px++) {
+    const x0 = (px / width) * 3.5 - 2.5;
+    let x = 0.0, y = 0.0, iter = 0;
+    while (x * x + y * y <= 4.0 && iter < maxIter) {
+      const xt = x * x - y * y + x0;
+      y = 2.0 * x * y + y0;
+      x = xt;
+      iter++;
+    }
+    out[px] = Math.floor((iter / maxIter) * 255);
+  }
+}
+
+const { instance } = await WebAssembly.instantiate(bytes, {});
+const { memory, mandelbrot_row } = instance.exports;
+const rowView = new Uint8Array(memory.buffer, 0, WIDTH); // a view into Wasm's own linear memory
+mandelbrot_row(py, WIDTH, HEIGHT, MAX_ITER, 0); // writes directly into rowView's backing bytes
+```
+
+Real output, 800x600 grid, `max_iter = 1000`, five runs each, same image checksum both ways:
+
+```
+pure JS   ms: 391.4, 372.6, 371.2, 372.2, 373.4
+wasm      ms: 367.5, 367.2, 366.8, 367.8, 367.8
+checksums match: true (26919050)
+
+best-of-5: JS 371.2ms vs Wasm 366.8ms -> 1.01x
+```
+
+That's it — a roughly 1% gap, not the 10-20x figure that older blog posts (and most people's intuition) still carry around. The honest explanation: this kernel is a tight loop over plain `f64` doubles with no object allocation and no polymorphism inside the hot path, which is exactly the shape V8's TurboFan JIT is best at. After a handful of iterations it compiles that loop to machine code that's already close to what Rust's LLVM backend produces. Wasm doesn't have a large gap to close here because JS's JIT wasn't leaving much on the table to begin with. The one real asymmetry visible in the data: JS's first run (391.4ms) is slower than its later runs (~372ms) while Wasm is flat from the first call — Wasm has no warm-up curve, because it's compiled ahead of time to one fixed set of instructions rather than tiered up by a JIT watching it run.
+
+That's also where Wasm's real advantages actually live, and they are not "it's always faster": a JIT's speed depends on staying monomorphic — a stray shape change or type mix anywhere in a hot path can trigger a deopt that silently drops back to slower code, a failure mode Wasm's ahead-of-time compilation doesn't have at all. Wasm wins decisively when you're reusing an existing non-JS codebase (an image codec, a physics engine, a cryptography library) without a rewrite, when you need the SIMD proposal's data-parallel vector instructions JS has no equivalent for, or when predictable, GC-pause-free memory behavior matters more than peak throughput on a simple loop. Treat "Wasm is just always faster than JS" as the thing this benchmark disproves, not confirms.
+
+## Wasm outside the browser: WASI and Wasmtime
+
+WASI — the WebAssembly System Interface — is a standardized set of imports a Wasm module can call for OS-like operations (open a file, read the clock, read `argv`/environment variables) without ever embedding a Linux syscall number or linking against glibc. The module declares it needs these imports; the *host* runtime decides what, if anything, actually answers them. Same Rust, ordinary `std::fs`/`std::env` this time, targeting `wasm32-wasip1` instead of the browser target:
+
+```rust
+use std::{env, fs};
+
+fn main() {
+    println!("args: {:?}", env::args().collect::<Vec<_>>());
+    for (k, v) in env::vars() { println!("env: {k}={v}"); }
+    match fs::read_to_string("/sandbox/greeting.txt") {
+        Ok(s) => println!("read /sandbox/greeting.txt: {}", s.trim()),
+        Err(e) => println!("read /sandbox/greeting.txt failed: {e}"),
+    }
+    match fs::read_to_string("/etc/hostname") {
+        Ok(s) => println!("read /etc/hostname: {}", s.trim()),
+        Err(e) => println!("read /etc/hostname failed: {e}"),
+    }
+}
+```
+
+```bash
+$ cargo build --release --target wasm32-wasip1
+$ wc -c target/wasm32-wasip1/release/wasi_demo.wasm
+91871 target/wasm32-wasip1/release/wasi_demo.wasm
+
+$ wasmtime run target/wasm32-wasip1/release/wasi_demo.wasm
+args: ["wasi_demo.wasm"]
+read /sandbox/greeting.txt failed: No such file or directory (os error 44)
+read /etc/hostname failed: No such file or directory (os error 44)
+```
+
+`/etc/hostname` genuinely exists on this machine — `cat /etc/hostname` prints `vm`. The module still can't see it, with no capability granted at all. Now grant exactly one directory:
+
+```bash
+$ echo "hello from the host filesystem" > /tmp/sandboxdir/greeting.txt
+$ wasmtime run --env MY_VAR=hello --dir /tmp/sandboxdir::/sandbox \
+    target/wasm32-wasip1/release/wasi_demo.wasm arg1 arg2
+args: ["wasi_demo.wasm", "arg1", "arg2"]
+env: MY_VAR=hello
+read /sandbox/greeting.txt: hello from the host filesystem
+read /etc/hostname failed: No such file or directory (os error 44)
+```
+
+`/sandbox/greeting.txt` now resolves — `--dir /tmp/sandboxdir::/sandbox` mapped exactly that host subtree to that guest path. `/etc/hostname` *still* fails, in the same run, with a capability already granted. That's the concrete point: WASI isn't POSIX's "everything is reachable by path, access control is a permission check" model. It's an object-capability model — a path that was never handed to the module as a preopened directory doesn't exist from inside the sandbox, full stop, and holding one capability grants nothing beyond exactly what it names. There's no global filesystem to be denied access to; there's only the specific, finite set of handles the host chose to hand over on the command line. (This track's broadest shipped version today is `wasip1`, built on `wasi_snapshot_preview1`; `wasip2`, built on the Component Model with typed WIT interfaces instead of a flat C-style ABI, is where the standard is heading next — worth knowing the name even though `wasip1` is still what most runtimes ship by default.)
+
+## Why this is a genuinely different cross-platform axis
+
+Tier 3's module closed on "four implementations of one idea" — a habit tracker built natively in SwiftUI, natively in Compose, in React Native, and in Flutter — each requiring its own engine compiled per target: RN's JS engine plus native bridge code per OS, Flutter's Dart AOT compiler plus Skia/Impeller built per target triple, Electron bundling the whole of Chromium per OS. Every one of those is still "ship a platform-specific runtime, then run your code inside it."
+
+Wasm plus WASI inverts that. There's exactly one artifact — the `.wasm` bytes — and it runs correctly under any conforming engine, because the spec defines the instruction set and the sandbox boundary, not a per-OS ABI. The *same* compiled Rust runs in a browser tab via `WebAssembly.instantiate`, standalone under Wasmtime on a server, inside a Cloudflare Worker or a Fastly Compute instance, or embedded as a plugin inside another application (Envoy's Wasm filters, Figma's plugin sandbox) — and in every one of those hosts, what the module is allowed to touch is an explicit, auditable list of capabilities the host chose to hand it, not a trust decision about the code itself. That's the real payoff for a cross-platform future: not "write the UI once," which RN and Flutter already do well with real tradeoffs either way, but "compile the logic once and let the host decide exactly what it's allowed to touch," which is a security property, not just a portability one.
+
+## Exercise
+
+Build a second WASI program: it reads every file in an input directory, applies a byte-rotation (Caesar-cipher-style: `byte.wrapping_add(shift)`) using a shift amount read from `argv`, and writes the results into an output directory. Run it with `wasmtime run --dir ./in::/in --dir ./out::/out your_program.wasm 3` — two separate, narrowly-scoped capabilities, neither overlapping the other. Then make the program also attempt to read a path like `/in/../../etc/passwd` or `/out/../secrets.txt` and see what happens.
+
+**Hint:** the interesting result isn't that the traversal attempt is "denied" — check exactly what error comes back, and compare it to what a real `/etc/passwd` read failure looks like versus a path that's merely outside a preopened directory. A capability bound to a directory *handle*, not a path string, makes `..`-escaping meaningless rather than forbidden: there's no global namespace for `..` to walk upward into in the first place.
+
+## What to actually retain
+
+Compiling to Wasm costs you ergonomics for size (794 bytes raw vs. 7865+ through the standard `wasm-bindgen`/`wasm-opt` pipeline) and buys you a shared-memory interop model with JS that has no serialization step at all — categorically different from React Native's bridge/JSI or Flutter's platform channels, because JS and Wasm read the same bytes instead of crossing between separate worlds. In the browser, don't expect automatic 10x wins over JIT'd JS on simple numeric loops — expect consistency, no warm-up curve, and a path to reuse non-JS code, which is a different and more durable value proposition than raw speed. Outside the browser, WASI's preopen model is the actual headline: a module gets exactly the capabilities a host handed it, nothing ambient, nothing implied — which is what makes "run this untrusted code safely, on any host, with an audit trail of what it can touch" a solved problem instead of an ongoing judgment call.

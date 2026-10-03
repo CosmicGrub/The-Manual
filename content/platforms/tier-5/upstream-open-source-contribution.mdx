@@ -1,0 +1,145 @@
+---
+trackId: platforms
+tier: 5
+title: "Upstream Open Source Contribution"
+order: 3
+estimatedHours: 30
+slug: upstream-open-source-contribution
+---
+
+## Building on Tier 3 — and why this tier is different
+
+Tier 3 gave you two things you're now going to push past. First, a conceptual architecture comparison: React Native's JS-to-native bridge (and its newer JSI/Fabric replacement) versus Flutter's widget/element/render-object tree painted directly by Skia or Impeller. Second, a "good first issue" contribution: a maintainer pre-scoped the problem, tagged it `good first issue` or `help wanted`, told you roughly what file to touch, and a single reviewer approved your patch in one round because the blast radius was small — a typo, a missing null check, a doc fix, a lint rule.
+
+Neither of those is enough at Tier 5. Here's the actual delta:
+
+- **Architecture, operationally, not conceptually.** Tier 3 you could describe the Fabric component model or the RenderObject layout/paint cycle in a paragraph. Tier 5 you have to *change behavior inside them* and defend that change to someone who maintains it full time. If you touch a Fabric native component, you need to know what crosses the JSI boundary synchronously versus what gets batched into a mount instruction; if you touch a RenderObject, you need to know whether your change happens during `performLayout`, `performResize`, or `paint`, because getting that wrong produces a layout that's correct on the first frame and wrong on relayout.
+- **No pre-scoping.** Nobody taped a `good first issue` label on your work. You find a real bug or gap, confirm it's real, scope it yourself, and often have to argue for your proposed fix *before* anyone will review code.
+- **Review is adversarial-by-default, not rubber-stamp.** Expect 2–5 rounds, pushback on your *approach* (not just your syntax), and a maintainer who tests edge cases you didn't think of.
+
+This module is about doing the second half of Tier 3 again, except for real, on a system whose maintainers you don't know yet and whose CI will actively reject sloppy work.
+
+## Step 1: Choosing a framework by judging a tractable, non-trivial issue
+
+Pick from React Native, Flutter, Electron, Tauri, or .NET MAUI based on a tractability scorecard, not vibes. For every candidate issue, check:
+
+1. **Reproducibility** — can you reproduce it locally in under 30 minutes, or does the issue thread already contain a minimal repro? If three people comment "can't repro," skip it.
+2. **Scope** — does the fix plausibly live in one subsystem (one widget, one native module, one renderer pass), or does it smell like it needs a cross-cutting redesign? The latter is a Tier 5+ RFC, not a Tier 5 PR.
+3. **Owner activity** — does the area have an active CODEOWNER who merges things monthly, or is it an abandoned corner of the repo? Check `git log --since="3 months ago" -- <path>` on your clone before committing time.
+4. **No competing PR** — search `is:pr <keyword>` in the repo. If someone opened a PR eight months ago that stalled, read why before you duplicate it; often it stalled because the maintainers wanted a different approach, which is exactly the information you need.
+5. **Real behavior change, not cosmetic** — the issue should describe something the framework *does wrong*, not "could be nicer." "Clicking X does Y when it should do Z" is a non-trivial-track issue. "Rename this variable" is not, no matter how large the diff.
+
+Worked example, side by side:
+
+- **React Native candidate:** an issue reporting that `Pressable`'s `hitSlop` doesn't account for RTL layout flips — the expanded hit area shifts to the wrong side when `I18nManager.isRTL` is true. Reproducible with a five-line snippet. Touches one file (`Pressable.js`) plus possibly the native `View` hit-testing on Android (`ReactViewGroup`). Area has had commits in the last month. No open competing PR. This is tractable: it's a real behavior bug, scoped to a known subsystem, with an owner who's active.
+- **Flutter candidate:** an issue reporting that `ScrollablePositionedList`-style scroll views misbehave when `reverse: true` is combined with a non-zero `anchor` — initial scroll offset lands on the wrong item. Reproducible, but touches `RenderViewport`'s layout math, which is dense and has almost no margin for being "roughly right." Higher difficulty, same tractability if you're comfortable in that file.
+- **Tauri candidate:** an issue where a `tauri::command` invoked from the frontend silently drops a custom error type instead of surfacing it to JS, because the error doesn't implement `serde::Serialize`. Scoped to the IPC serialization layer, Rust-only, no platform-specific toolchain needed (unlike an Electron native-module issue that might require a Windows box to even reproduce).
+
+Score all three against the checklist above *for issues currently open in front of you* — the specific numbers will be different whenever you do this, which is the point: you're learning the judgment, not memorizing a ticket number.
+
+## Step 2: Learning the actual contribution process
+
+Generic "open an issue, fork, PR" advice is useless at this level. Here's what two of these projects *actually* require, documented in their own repos.
+
+### React Native's documented process
+
+React Native is maintained by Meta inside an internal monorepo (`fbsource`) and mirrored out to `facebook/react-native` on GitHub. This has real, non-obvious consequences:
+
+- **Significant API or architecture changes go through a public RFC first**, in `react-native-community/discussions-and-proposals`. You open a PR against that repo adding a markdown proposal; it's discussed in the PR thread and sometimes in the public Discord's `#contributors` channel; a core contributor has to accept it before an implementation PR against the main repo has any chance.
+- **PR descriptions follow Meta's internal Phabricator convention**, not a free-form GitHub template. The required sections are `Summary:`, `Changelog:`, and `Test Plan:`, and the changelog line has a specific bracketed format:
+
+```
+Summary:
+Fixes Pressable's hitSlop calculation to respect RTL layout direction.
+Previously, hitSlop.left/right were applied in physical coordinates even
+when I18nManager.isRTL was true, so the expanded hit area appeared on the
+wrong side of the element.
+
+Changelog:
+[General] [Fixed] - Pressable now applies hitSlop logically under RTL
+
+Test Plan:
+Added a unit test in Pressable-test.js asserting hitSlop.left is applied
+to the trailing edge under RTL. Manually verified on iOS and Android
+simulators with I18nManager.forceRTL(true).
+```
+
+  Skip the `Changelog:` line and a bot will block the merge until you add it — this isn't a style suggestion, it's enforced.
+- **Your PR may get closed and re-landed as a different commit.** Because the source of truth is the internal monorepo, a maintainer often "imports" your diff internally, runs Meta's internal test suite against it, and lands it there; a bot then closes your GitHub PR and pushes the commit back out with your authorship preserved but a different hash. If you don't know this is normal, it looks like your work got silently discarded. It didn't.
+- **CI is a real gate**: Flow and TypeScript type-checking, ESLint, and a native build matrix across iOS/Android configurations (old and new architecture) all have to pass before a human even looks closely.
+
+### Flutter's documented process
+
+Flutter (and its engine, now merged into the `flutter/flutter` monorepo) is Google-governed with a more externally visible review machine:
+
+- **Breaking or widely-used API changes require registering against the documented breaking-change policy** (`docs/contributing/Tree-hygiene.md` and the "Updating actively used APIs" guide in the repo) — you typically need a deprecation period with `@Deprecated` annotations rather than a direct removal, and for anything with real design surface you're expected to post a design doc discussed with the relevant team before code.
+- **The PR template itself enforces process**: Flutter's `.github/PULL_REQUEST_TEMPLATE.md` ships a "Pre-launch Checklist" with boxes you have to honestly check — tests added, documentation updated, breaking-change label applied if relevant, and the CLA signed (a bot, `google-cla`, blocks merge until it sees a signature on file for your GitHub account).
+- **Golden-file testing is a real, concrete review gate that React Native has no equivalent of.** If your change alters pixels — even anti-aliasing — Flutter's "Flutter Gold" service flags the diff and a human has to triage it: approve the new golden image as intentional, or treat the pixel diff as evidence your change broke rendering. This is the single most Flutter-specific thing to learn before you touch any `RenderObject` or widget `build()` method.
+- **Coverage is enforced by bot, not convention.** A codecov check on the PR will show whether your diff's lines are covered by the new or existing tests, and reviewers routinely block merge on uncovered branches, not just "no tests at all."
+
+### The pattern elsewhere: Tauri, Electron, .NET MAUI
+
+You don't need to master all five, but know the shape of the others so you can correctly judge a sixth framework later in your career:
+
+- **Tauri** requires a changeset file (`.changes/` entry consumed by its changesets-based release bot) alongside almost every code PR, describing the user-facing effect of your change for the next release notes — miss it and CI fails the "changeset check," independent of whether your code is correct.
+- **Electron** routes any new or changed public API through its API Working Group, which holds recorded public meetings; a `semver-major` or new-API PR gets an `api-review` label and effectively can't land without the working group's sign-off, documented in the repo's `WORKING_GROUPS.md`.
+- **.NET MAUI** gates new or changed public APIs behind an "API review" label and a livestreamed .NET API review meeting; you open the API shape as a GitHub issue using the proposal template before anyone will review an implementation PR.
+
+The common thread, and the thing Tier 3's "good first issue" work never exposed you to: **every one of these projects has a formal gate specifically for changes that affect public behavior**, separate from ordinary code review. Finding that gate and going through it on purpose is the actual skill.
+
+## Step 3: What "non-trivial" means in code, review, and tests
+
+Concretely, continuing the React Native `Pressable` example — here's the shape of a real fix and what ships with it:
+
+```js
+// Before: hitSlop applied in physical left/right regardless of writing direction
+function normalizeRect(hitSlop) {
+  return {
+    top: hitSlop.top ?? 0,
+    left: hitSlop.left ?? 0,
+    right: hitSlop.right ?? 0,
+    bottom: hitSlop.bottom ?? 0,
+  };
+}
+
+// After: swap left/right when the surrounding context is RTL, matching how
+// Yoga already flips `start`/`end` padding and margin for RTL layouts.
+function normalizeRect(hitSlop, isRTL) {
+  const start = hitSlop.start ?? hitSlop.left ?? 0;
+  const end = hitSlop.end ?? hitSlop.right ?? 0;
+  return {
+    top: hitSlop.top ?? 0,
+    left: isRTL ? end : start,
+    right: isRTL ? start : end,
+    bottom: hitSlop.bottom ?? 0,
+  };
+}
+```
+
+```js
+// Pressable-test.js — the test a reviewer will actually look for
+test('hitSlop flips start/end edges under RTL', () => {
+  I18nManager.allowRTL(true);
+  I18nManager.forceRTL(true);
+  const rect = normalizeRect({ start: 10, end: 20 }, I18nManager.isRTL);
+  expect(rect.left).toBe(20); // 'end' becomes physical left under RTL
+  expect(rect.right).toBe(10);
+  I18nManager.forceRTL(false);
+});
+```
+
+A maintainer reviewing this expects: the test to exercise the *specific* bug (RTL flip), not just "function runs without throwing"; a note in the PR about what happens to existing callers passing `left`/`right` directly (backward compatibility — this is why the fix falls back to `hitSlop.left`/`hitSlop.right` when `start`/`end` aren't given); and, per the convention above, the `Changelog:` line filled in correctly because it becomes the user-facing release note.
+
+Review rounds you should expect, and that Tier 3's one-round good-first-issue reviews never produced:
+
+- **Round 1 — approach pushback.** A maintainer says "this should live in the gesture responder system, not in `Pressable` itself, because `TouchableOpacity`'s legacy path has the same bug and won't get your fix." You now have to decide whether to widen scope, or explicitly note in the PR why you're deliberately *not* fixing the legacy path (a reasonable answer maintainers accept, if stated).
+- **Round 2 — edge cases.** "What happens when `hitSlop` is a single number instead of an object?" You add a test for that branch too.
+- **Round 3 — process, not code.** CI is green, code is approved, but the `Changelog:` line gets nitpicked for category (`[Fixed]` vs `[Changed]`) because it affects what users see in the next release's notes.
+
+Compare that to the Tier 3 good-first-issue shape: one file, one reviewer, one round, no design pushback, tests optional or already written for you in the issue. The difference isn't line count — a one-line fix can still be non-trivial if it changes public behavior and needs a design justification; a 200-line typo-fixing PR across many files is still trivial.
+
+## Exercise
+
+Pick one framework from the five. Using the scorecard in Step 1, find a real currently-open issue and write a short written judgment (not code yet) covering: reproducibility, scope, owner activity, and whether a competing PR already exists. Then read that project's actual contribution documentation (the RFC repo for React Native, the breaking-change policy and PR template for Flutter, `WORKING_GROUPS.md` for Electron, the changesets guide for Tauri, or the API-review process for .NET MAUI) and write the first comment you'd post on the issue — not a PR yet, a comment proposing your approach, in the format and tone that project's maintainers actually expect (check five recently-merged PRs in that area for the house style).
+
+**Hint:** the comment that gets a maintainer to say "sounds good, go ahead" almost always does three things in under 150 words: states the root cause precisely (not just the symptom), proposes one specific fix location, and asks one clarifying question about scope — that question is usually what triggers the "Round 1" design pushback described above, except now it happens *before* you've written code instead of after.

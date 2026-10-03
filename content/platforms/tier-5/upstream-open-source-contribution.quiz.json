@@ -1,0 +1,98 @@
+[
+  {
+    "id": "platforms/tier-5/upstream-open-source-contribution/q1",
+    "type": "multiple_choice",
+    "prompt": "What distinguishes a Tier-5 'non-trivial' PR from Tier-3's good-first-issue work most fundamentally?",
+    "choices": [
+      "It must be written in a different programming language than the Tier 3 fix",
+      "You self-identify and scope the issue yourself (no pre-applied label), and it goes through design-approach pushback and multiple review rounds instead of one quick approval",
+      "It must be submitted by email to the maintainer instead of via GitHub",
+      "The diff must be larger than 500 lines"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-5/upstream-open-source-contribution/q2",
+    "type": "multiple_choice",
+    "prompt": "In React Native's contribution process, what PR description convention mirrors Meta's internal Phabricator workflow and is enforced by a bot?",
+    "choices": [
+      "Summary / Changelog / Test Plan sections, with the Changelog line in a bracketed category format like '[General] [Fixed] - ...'",
+      "A notarized signature uploaded as a PDF attachment",
+      "A merged RFC is required before any PR, with no description needed",
+      "A Jira ticket number pasted into the PR title"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-5/upstream-open-source-contribution/q3",
+    "type": "multiple_choice",
+    "prompt": "What does Flutter's 'Flutter Gold' service check during PR review that React Native's CI has no equivalent of?",
+    "choices": [
+      "TypeScript type coverage percentage",
+      "Rust borrow-checker compliance",
+      "Golden-image pixel comparisons that flag any rendering diff for human triage",
+      "npm published package size"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "platforms/tier-5/upstream-open-source-contribution/q4",
+    "type": "multiple_choice",
+    "prompt": "Which statement accurately contrasts how Flutter and React Native handle proposals for significant new APIs or breaking changes?",
+    "choices": [
+      "Both require a paid Google Developer license before any proposal is considered",
+      "Flutter requires registering against its documented breaking-change policy and design-doc review; React Native funnels significant proposals through the public react-native-community RFC repo",
+      "Neither project has any formal process; all changes are merged ad hoc by whichever maintainer is online",
+      "React Native requires passing Dart static analysis on every proposal"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-5/upstream-open-source-contribution/q5",
+    "type": "multiple_choice",
+    "prompt": "Why can't a lesson module reliably hand you one specific 'currently open, tractable' GitHub issue number to go fix?",
+    "choices": [
+      "GitHub automatically deletes issues after 30 days",
+      "Only project maintainers are permitted to view open issues",
+      "These frameworks don't track issues on GitHub",
+      "Issue status, assignment, and competing PRs change continuously, so you must learn and apply the tractability judgment (reproducibility, scope, active owner, no competing PR, real behavior change) yourself at the moment you look"
+    ],
+    "correctIndex": 3
+  },
+  {
+    "id": "platforms/tier-5/upstream-open-source-contribution/q6",
+    "type": "multiple_choice",
+    "prompt": "Tauri's contribution workflow requires which concrete artifact alongside most code PRs?",
+    "choices": [
+      "A changeset file describing the user-facing, version-relevant effect of the change, consumed by its changesets-based release bot",
+      "A Phabricator diff link",
+      "A Flutter golden image",
+      "A notarized affidavit from a Rust Foundation member"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-5/upstream-open-source-contribution/q7",
+    "type": "multiple_choice",
+    "prompt": "Tier 3 compared React Native's bridge/JSI model and Flutter's widget/render-tree model at a conceptual level. What does Tier 5's contribution work add to that comparison?",
+    "choices": [
+      "Working knowledge deep enough to implement and justify an actual behavior change inside those internals (e.g. a Fabric component's JSI boundary, or a RenderObject's layout/paint cycle), because reviewers will test that knowledge during review",
+      "It replaces Dart with Kotlin across the whole comparison",
+      "It removes the need to know any internals since maintainers write the code for contributors",
+      "The two architectures turn out to be identical, so no new knowledge is required"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-5/upstream-open-source-contribution/q8",
+    "type": "multiple_choice",
+    "prompt": "Which is a realistic signal during review of a non-trivial PR that you would not see on a good-first-issue PR?",
+    "choices": [
+      "A single reviewer approves instantly with no comments",
+      "A maintainer pushes back on the implementation approach itself (e.g. 'this belongs in the gesture arena, not the touch handler'), sometimes after requesting a design discussion first, requiring rework across multiple review rounds",
+      "A bot auto-merges the PR with no human review at all",
+      "The maintainer states no tests are needed because it's a bug fix"
+    ],
+    "correctIndex": 1
+  }
+]

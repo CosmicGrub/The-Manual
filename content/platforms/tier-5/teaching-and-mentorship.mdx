@@ -1,0 +1,123 @@
+---
+trackId: platforms
+tier: 5
+title: "Teaching & Mentorship"
+order: 6
+estimatedHours: 15
+slug: teaching-and-mentorship
+---
+
+## What this module builds on
+
+Three pieces of earlier material get reused here, not re-taught: Tier 3's "Cross-Platform Deep Dive: React Native vs. Flutter Architecture" (the bridge/JSI serialization cost, and the Habit Tracker checkpoint's `toggleDone` implementations in both frameworks), Tier 3's "Reading & Contributing to Real Codebases" (the "good first issue" tractability checklist), and this curriculum's own mentoring material in the languages, hardware-systems, and AI/ML tracks' Tier 5 "Teaching & Mentoring" modules (the observation-to-mechanism-to-path-forward feedback shape, the "inventory what the audience already has" anchoring technique, and the "any questions?" failure mode). Where this module uses any of that, it names it, because the whole point of this tier is that you stop re-deriving things from scratch and start citing your own prior work the way a real practitioner does.
+
+## Designing and running a workshop: a 90-minute FlatList jank clinic
+
+Pick a real, narrow topic before you design a single slide: "diagnosing why a React Native `FlatList` drops frames on scroll, using Flipper's profiler, on the Habit Tracker codebase from Tier 2/3." Not "React Native performance" in the abstract — a specific, reproducible symptom in a specific codebase every attendee can open on their own machine.
+
+**Seed a real bug on purpose.** You're not waiting to find a naturally-occurring issue the way Tier 3's "good first issue" triage did — you're manufacturing one, which means you control its tractability directly. Use the same bar that module used for judging a real issue (scoped to one file, reproducible on a simulator, no physical hardware or paid account required, a clear before/after) and build a bug that clears it on purpose:
+
+```jsx
+<FlatList
+  data={habits}
+  keyExtractor={(h) => h.id}
+  renderItem={({ item }) => (
+    <HabitRow
+      habit={item}
+      onToggle={() => toggleDone(item.id)}   // new function identity every render
+      style={{ padding: 12 }}                 // new object identity every render
+    />
+  )}
+/>
+```
+
+`HabitRow` is wrapped in `React.memo`, but `memo` only bails out of re-rendering when every prop is reference-equal to last time. `onToggle` and `style` are both freshly allocated on every render of the parent list, so `memo` never bails, and every row's native UI-update commands cross the bridge (or JSI, on the New Architecture) on every re-render — exactly the serialization cost Tier 3's architecture module traced in detail. You don't re-derive that mechanism live; you point back at it and spend the workshop's time on the diagnosis skill instead.
+
+**Timing, for real, not aspirational:**
+
+| Time | Segment | What happens |
+|---|---|---|
+| 0:00–0:10 | Framing | State the one symptom they'll be able to diagnose by 1:30, live-demo the janky scroll once, no explanation yet |
+| 0:10–0:15 | Live pre-flight verify | Everyone runs the seeded app once, confirms it boots, confirms Flipper connects — even though you sent setup instructions 48 hours ahead |
+| 0:15–0:35 | Guided repro | Walk through attaching Flipper's React DevTools profiler together, one keystroke at a time, projected |
+| 0:35–1:05 | Paired diagnosis | Pairs read their own flame graph, identify which row re-rendered and why, using `git checkout workshop/step-2-profiler-attached` as a rescue branch |
+| 1:05–1:20 | Reveal + fix together | `useCallback` for `onToggle`, a module-level constant for `style`, re-profile, watch the flame graph flatten |
+| 1:20–1:30 | Wrap | Name the transferable rule, point back at Tier 3's material for the "why," collect the confusion log |
+
+**Pitfalls that actually eat workshops, specifically on mobile:**
+
+- **Setup divergence eats the first 15–20 minutes if you let it.** A web workshop's biggest risk is a missing npm package; a mobile one adds Xcode-only-on-Mac, an Android emulator that takes four minutes to cold-boot, and SDK version drift between attendees' machines. Send a pre-flight checklist 48 hours out (exact Node/Expo/Xcode/Android Studio versions, "run the app once and confirm you see the seeded habit list before you arrive"), and still budget live verify time — people skip pre-flight instructions at a predictable, nonzero rate.
+- **Mismatched starting state.** If someone already poked at the app before the session, their "before" doesn't match your screen. Have everyone `git checkout` a known tag at the start, not just `git pull`, so the seeded bug is bit-for-bit identical on every device.
+- **Silent falling-behind is worse on mobile than on web**, because the feedback loop (rebuild, reinstall on simulator) is slower, so someone who's thirty seconds behind during live-coding is often five full minutes behind by the next checkpoint. Checkpoint branches (`workshop/step-N-*`) exist precisely so a stuck participant can jump to the current step instead of silently falling further back while re-typing an import no one can see over your shoulder.
+- **"Any questions?" fails here the same way it fails everywhere**, per the AI/ML track's Tier 5 module — but the platform-specific replacement is concrete: have people paste the exact number from their own flame graph (render count, time in ms) into a shared doc rather than say "I'm stuck." The number is a diagnostic; "I'm stuck" is not.
+- **Don't demo on a physical device live** unless the demo is specifically about something a simulator can't show (haptics, a real camera). Bluetooth pairing hiccups and flaky USB debugging connections are real failure modes that have nothing to do with your lesson and will burn ten minutes of a ninety-minute session if you let them.
+
+## Mentoring through a real checkpoint bug: reference equality, not willpower
+
+A real mentee, a few weeks into Tier 2/3, working on exactly the Habit Tracker checkpoint from Tier 3's cross-platform module, sends you this:
+
+```jsx
+function HabitListScreen() {
+  const [habits, setHabits] = useState(initialHabits);
+
+  function toggleDone(id) {
+    const habit = habits.find((h) => h.id === id);
+    habit.done = !habit.done;   // mutates the object in place
+    setHabits(habits);          // same array reference as before
+  }
+
+  return (
+    <FlatList
+      data={habits}
+      keyExtractor={(h) => h.id}
+      renderItem={({ item }) => (
+        <CheckBox value={item.done} onValueChange={() => toggleDone(item.id)} />
+      )}
+    />
+  );
+}
+```
+
+Their report: "The checkbox doesn't update when I tap it, but if I add a `console.log(habit.done)` right after I flip it, it prints the new value. So the data's changing, the screen just isn't." That's a precise, honest symptom — don't correct it yet.
+
+**Don't hand them `setHabits([...habits])`.** That fixes this one line and teaches them nothing about the next ten bugs shaped exactly like it. Use the same move this curriculum's hardware-systems Tier 5 module used on a two's-complement misconception: validate the true premise, hand them a trace they run themselves, let their own model collide with a counter-example.
+
+1. **Validate what's actually true.** "You're right that the underlying data changed — your log proves it. So the bug isn't in your toggle logic at all. It's somewhere between 'state changed' and 'screen redraws.' That's a useful thing to have ruled out."
+2. **Hand them a trace, not a correction.** "Add one more log, right where you call `setHabits`: `console.log(habits === initialHabits)`" — wait, have them capture the array reference before the mutation and compare it to the one they're passing into `setHabits`. They'll find it's the literal same object, every time.
+3. **Make them find the rule themselves.** "React's `useState` setter skips re-rendering when the new value is `Object.is`-equal to the current value — that's a real, documented optimization, not a bug in React. Given that, what would have to be different about what you pass into `setHabits` for React to even notice?" Let them arrive at "it has to be a *different* array, not the same one with different contents inside it."
+
+They'll write something like:
+
+```jsx
+function toggleDone(id) {
+  setHabits((prev) =>
+    prev.map((h) => (h.id === id ? { ...h, done: !h.done } : h))
+  );
+}
+```
+
+Now point out something they didn't ask about, which is the actual payoff of this exercise: this is the identical shape as Flutter's `HabitListNotifier.toggleDone` from Tier 3's cross-platform deep dive — `state = [for (final habit in state) if (habit.id == id) habit.copyWith(done: !habit.done) else habit]`. If your mentee is on the Flutter side of that checkpoint instead, the parallel bug is `habit.done = !habit.done;` with no `state = ...` reassignment at all afterward — and it's worth being precise with them that this isn't the *same* mechanism wearing a different syntax, even though it looks like it from the UI: React's bailout is an explicit `Object.is` equality check on the value you pass in; Riverpod's `StateNotifier` has no such check — it simply never notifies listeners unless you assign through the `state` setter at all. One is "I noticed you gave me the same thing twice, so I'm skipping work"; the other is "you never actually used the thing that triggers notification." Different root cause, same silent symptom. That distinction is worth making explicit precisely because a mentee who thinks "it's all just reference equality" will misdiagnose the Flutter version of this bug later.
+
+Close the loop the way this tier's own assessment expects: have them explain back, unprompted, why the original code looked correct and wasn't. If they can say "I was mutating the existing object, so even though the data was right, React never got a signal that anything had changed" in their own words, you've confirmed transfer. If they can only recite "use spread syntax," you haven't — you've handed them a syntax, not a model, and the next bug shaped like this one will stump them again.
+
+## Writing a public explainer for a specific platform audience
+
+Audience sentence first, the way the AI/ML track's Tier 5 module insists on — not "beginners," a specific person: *a React web developer, comfortable with Fast Refresh in a Next.js app, who has started a Flutter side project and has never worked with a compiled, non-JS mobile runtime before.*
+
+**The hook, a real confusing moment, not an abstract claim.** They're mid-edit on a `Text` widget's string, save the file, and the string updates on their running simulator in under a second with scroll position intact. They've seen this exact perceptual effect before — Fast Refresh does the same visible thing — so the natural (and wrong) conclusion is "these are the same trick with two names." Open there, because that's the belief you're about to dismantle, and it's a reasonable belief, not a dumb one.
+
+**Anchor to what they already have, don't invent an analogy.** This is the same move hardware-systems' Tier 5 module uses to teach virtual memory off a learner's own completed `RAM4K` address-decode project instead of a "hotel key cards" metaphor: find the thing already installed in this specific audience's head and build off *that*. Here, the anchor is Fast Refresh's own real mechanism, which this audience already has: Metro re-bundles the changed JS module, React's reconciler diffs the new component tree against the one already mounted, and Hooks-based state survives because the Fiber tree itself never got torn down. Flutter's hot reload does something structurally different: the Dart VM takes the newly compiled kernel code and injects it directly into the already-running process's memory, then re-runs `build()` methods on the existing widget tree — no bundler, no reconciliation diff, no JS runtime at all. Both *feel* instant. Neither is the other wearing a different name.
+
+**Test the model against a real counter-example, in both directions, because a model that only explains the hook isn't done yet.** Add a new top-level `const` in `main.dart` and hot reload silently doesn't pick it up — you need a full hot *restart* — because top-level and static field initializers in Dart only run once, at first load, and injecting new code into a running process doesn't re-run them. Fast Refresh has its own asymmetric failure the Flutter side doesn't: edit a class component (not a function component) and React remounts it from scratch, losing all its state, because Fast Refresh's state-preservation guarantee is explicitly scoped to Hooks-based function components by React's own design, not a bug anyone forgot to fix. A reader who only gets the hook and the happy-path mechanism, with no counter-example, walks away with "they're basically the same" reinforced instead of corrected — which is the exact failure the hook was supposed to prevent.
+
+**One explicit myth-correction, stated as its own sentence:** "Hot reload and Fast Refresh are not the same feature ported across ecosystems — one injects compiled machine code into a live process and skips static initializers by construction, the other re-bundles source and relies on React's own tree-diffing and Hooks semantics to decide what survives. They converge on the same demo-able effect from two unrelated mechanisms, which is exactly why they fail in different, unpredictable-feeling places." That sentence is the one to leave a reader with, because it's the one that changes what they expect the *next* time either tool surprises them.
+
+## Exercise
+
+Design and write up a 60-minute workshop outline (timing table, a deliberately seeded bug with real code, and at least two platform-specific pitfalls you'd anticipate) for a topic this module didn't use: diagnosing why a Flutter `ListView` rebuilds every item on every frame because a `Consumer`/`ref.watch` is scoped too high in the widget tree instead of around just the row that needs it. Then write the three-step mentoring script (validate → trace → let them find the rule) you'd use if a mentee brought you that exact bug and said "the whole screen flickers when I check one box," without ever telling them directly to narrow the `Consumer`'s scope.
+
+**Hint:** the Flutter bug's "reference equality" analogue is scope, not identity — a `Consumer` wrapping the entire `ListView` re-runs its `build()` for every row whenever *any* row's provider changes, the same way wrapping too much JSX in one component forces an oversized re-render in React even with `memo` further down. Have the mentee find which widget's `build()` method is printing on every single toggle (a `print()` at the top of the suspect `build()` is the trace), before you ever say the word "scope" out loud.
+
+## What to actually retain
+
+A workshop's real failure mode on mobile is setup time, not content difficulty — a pre-seeded repo, a pinned tag, and checkpoint branches buy back the minutes tooling divergence would otherwise eat. Mentoring a platform-specific bug well means tracing the mechanism with the mentee rather than naming the fix for them — the same observation-to-mechanism-to-path-forward shape this curriculum uses in every other track, applied here to reference equality in React and setter-bypass in Riverpod, which look identical from the UI and aren't the same thing underneath. And a public explainer earns its audience by anchoring a new mechanism to something that specific reader already has installed — Fast Refresh, for this one — and then deliberately testing the resulting model against a case where the two things it's being compared to diverge, because a hook without a counter-example teaches a "they're the same" intuition it was supposed to correct.

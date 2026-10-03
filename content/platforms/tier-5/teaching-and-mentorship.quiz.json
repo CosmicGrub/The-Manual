@@ -1,0 +1,98 @@
+[
+  {
+    "id": "platforms/tier-5/teaching-and-mentorship/q1",
+    "type": "multiple_choice",
+    "prompt": "In the 90-minute FlatList jank workshop timing plan, what is the main reason the schedule includes a 'live pre-flight verify' step even after sending setup instructions 48 hours in advance?",
+    "choices": [
+      "Attendees skip pre-flight instructions at a predictable, nonzero rate, so live verification catches that before it eats the main segments",
+      "Flipper requires a live network handshake with the workshop organizer's server before every session",
+      "React Native apps cannot be built ahead of time and must always be compiled live in front of attendees",
+      "It is required by React Native's licensing terms for any live demonstration"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-5/teaching-and-mentorship/q2",
+    "type": "multiple_choice",
+    "prompt": "Why does the seeded jank bug persist even though HabitRow is wrapped in React.memo?",
+    "choices": [
+      "React.memo only works inside FlatList if keyExtractor is also memoized",
+      "The onToggle callback and style object are freshly created on every render, so they are never reference-equal across renders, and memo never bails out",
+      "React.memo is ignored entirely on React Native's old bridge architecture",
+      "FlatList disables React.memo for any row containing a CheckBox component"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-5/teaching-and-mentorship/q3",
+    "type": "multiple_choice",
+    "prompt": "In the mentee's buggy toggleDone function (mutating habit.done in place, then calling setHabits(habits)), what is the precise reason the checkbox UI never updates even though the console.log shows the correct new value?",
+    "choices": [
+      "setHabits is passed the same array reference as the current state, so React's useState setter bails out via an Object.is equality check and skips re-rendering",
+      "CheckBox components in React Native never respond to the value prop at all",
+      "console.log statements prevent React from scheduling a re-render in development builds",
+      "The habits array was declared with const, so it can never trigger a state update"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-5/teaching-and-mentorship/q4",
+    "type": "multiple_choice",
+    "prompt": "The module argues the mentor should NOT immediately hand the mentee the fixed spread-syntax version of toggleDone. What is the stated reason?",
+    "choices": [
+      "Spread syntax is deprecated and a different fix should be taught instead",
+      "Handing over the fix teaches a syntax fix for this one line but not the underlying model, so the same class of bug will stump the mentee again later",
+      "It would violate the open-source contribution license of the Habit Tracker checkpoint project",
+      "Spread syntax does not actually fix the described bug"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-5/teaching-and-mentorship/q5",
+    "type": "multiple_choice",
+    "prompt": "According to the module, how does the Flutter/Riverpod parallel bug (mutating habit.done without reassigning state) actually differ in root cause from the React useState bug, even though both produce the same silent 'UI doesn't update' symptom?",
+    "choices": [
+      "They are exactly the same mechanism; only the syntax differs",
+      "React's bailout is an explicit Object.is equality check on the new value passed in, while Riverpod's StateNotifier simply never notifies listeners unless you assign through the state setter at all \u2014 no equality check is involved",
+      "Riverpod bugs are always caused by network latency, unlike React state bugs",
+      "Flutter widgets cannot mutate objects in place under any circumstances, so this bug is impossible in Flutter"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-5/teaching-and-mentorship/q6",
+    "type": "multiple_choice",
+    "prompt": "In the hot reload vs. Fast Refresh explainer example, what counter-example exposes a real limitation of Flutter's hot reload specifically?",
+    "choices": [
+      "Editing any Text widget's string requires a full hot restart",
+      "Adding a new top-level const declaration in main.dart is not picked up by hot reload, because top-level/static initializers only run once at first load, requiring a hot restart instead",
+      "Hot reload only works on Android, never on iOS simulators",
+      "Hot reload cannot preserve scroll position under any circumstances"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-5/teaching-and-mentorship/q7",
+    "type": "multiple_choice",
+    "prompt": "What counter-example does the module give for a real limitation of React Native's Fast Refresh specifically?",
+    "choices": [
+      "Fast Refresh fails on any component that imports more than one external library",
+      "Editing a class component causes a full remount that loses its state, because Fast Refresh's state-preservation guarantee is explicitly scoped to Hooks-based function components",
+      "Fast Refresh cannot be used together with FlatList under any configuration",
+      "Fast Refresh requires a physical device and never works in a simulator"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-5/teaching-and-mentorship/q8",
+    "type": "multiple_choice",
+    "prompt": "The module's explainer-writing technique says to 'anchor to what the audience already has' rather than inventing an analogy. For the specific audience described (a React web developer new to Flutter), what serves as that anchor?",
+    "choices": [
+      "A generic 'notebook with one writer' analogy borrowed from an unrelated topic",
+      "The audience's own existing understanding of how Fast Refresh works in their React/Next.js projects",
+      "A formal computer-science definition of process memory injection",
+      "A diagram of Flutter's full widget tree with no reference to anything the audience already knows"
+    ],
+    "correctIndex": 1
+  }
+]

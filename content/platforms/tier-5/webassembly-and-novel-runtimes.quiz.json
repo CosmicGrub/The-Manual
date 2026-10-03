@@ -1,0 +1,98 @@
+[
+  {
+    "id": "platforms/tier-5/webassembly-and-novel-runtimes/q1",
+    "type": "multiple_choice",
+    "prompt": "The no_std Rust crate in the lesson compiled to a working 794-byte wasm32-unknown-unknown module with zero Wasm-specific dependencies. Why did that work?",
+    "choices": [
+      "wasm32-unknown-unknown is a built-in rustc compilation target, and crate-type = [\"cdylib\"] is enough for rustc to emit a .wasm binary directly from a plain extern \"C\" export",
+      "rustc automatically vendors a hidden copy of wasm-bindgen whenever it detects a wasm32 target",
+      "Cargo rewrites extern \"C\" functions into JavaScript source code at compile time",
+      "The #![no_std] attribute is what makes a crate wasm-compatible; without it no Rust program can target wasm32"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-5/webassembly-and-novel-runtimes/q2",
+    "type": "multiple_choice",
+    "prompt": "In the wasm-bindgen-generated JS glue shown in the lesson, what do getArrayU8FromWasm0 and __wbindgen_free actually do?",
+    "choices": [
+      "They build a JS typed-array view over a pointer+length region of the Wasm module's shared linear memory, then free that region on the Rust side -- manual marshalling over shared bytes, not message serialization",
+      "They open a network connection back to the Rust compiler to request additional heap memory at runtime",
+      "They transpile the Wasm module into asm.js for browsers that lack WebAssembly support",
+      "They implement React Native's bridge protocol so React Native apps can call Wasm modules directly"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-5/webassembly-and-novel-runtimes/q3",
+    "type": "multiple_choice",
+    "prompt": "The Node.js benchmark showed only a roughly 1% gap between the compiled Wasm kernel and the hand-written pure-JS equivalent. What explanation does the lesson give for that small gap?",
+    "choices": [
+      "V8's TurboFan JIT already compiles this kind of tight, monomorphic, pure-double-arithmetic loop close to native speed, so there wasn't a large gap for Wasm to close on this specific workload",
+      "WebAssembly.instantiate silently falls back to interpreting JS instead of real Wasm bytecode whenever it runs under Node instead of a browser",
+      "The benchmark is invalid because Node.js does not implement the WebAssembly API",
+      "Rust's release profile disables all optimizations by default, so the Wasm binary was effectively unoptimized"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-5/webassembly-and-novel-runtimes/q4",
+    "type": "multiple_choice",
+    "prompt": "With no --dir or --env flags granted, the WASI demo failed to read /etc/hostname with \"No such file or directory,\" even though cat /etc/hostname on the host confirmed the file genuinely exists. What does this show about WASI?",
+    "choices": [
+      "WASI grants no ambient filesystem authority at all -- a path outside an explicitly preopened directory doesn't exist from the module's point of view, not merely \"exists but access is denied\"",
+      "WASI reimplements POSIX permission bits, so the failure means the Wasm module's user ID lacked read permission on /etc/hostname",
+      "Wasmtime maintains a hardcoded blocklist of specific system files, including /etc/hostname, that it always hides from guests",
+      "The failure proves the wasm32-wasip1 target cannot perform any file I/O under any circumstances"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-5/webassembly-and-novel-runtimes/q5",
+    "type": "multiple_choice",
+    "prompt": "After granting --dir /tmp/sandboxdir::/sandbox, the program could read /sandbox/greeting.txt but still failed to read /etc/hostname in that same run. What does that specific result demonstrate about WASI's capability model?",
+    "choices": [
+      "A granted capability is scoped to exactly the subtree it names; holding one directory capability grants no broader or ambient access elsewhere, even within the same process invocation",
+      "Wasmtime capabilities expire after the first successful file read, so any second read in the same run always fails regardless of path",
+      "--dir grants access to the entire host filesystem by default unless a separate --deny flag is also passed",
+      "The /etc/hostname read failed only because its host-side file permissions differed from /tmp/sandboxdir/greeting.txt's permissions"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-5/webassembly-and-novel-runtimes/q6",
+    "type": "multiple_choice",
+    "prompt": "Running wasm-opt -Oz on the wasm-bindgen-built binary took it from 9487 bytes to 7865 bytes. What did that step actually do?",
+    "choices": [
+      "It ran a separate, post-compilation binary-to-binary optimization pass (dead-code elimination, instruction-level size reduction) directly on the .wasm module, independent of the Rust compiler that produced it",
+      "It recompiled the original Rust source code from scratch at a different optimization level",
+      "It stripped out the WASI imports, converting a wasip1 binary into a wasm32-unknown-unknown one",
+      "It minified the generated JavaScript glue file rather than the .wasm binary itself"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-5/webassembly-and-novel-runtimes/q7",
+    "type": "multiple_choice",
+    "prompt": "What is the key difference between building for wasm32-unknown-unknown versus wasm32-wasip1, per the lesson?",
+    "choices": [
+      "wasm32-unknown-unknown assumes no host interface at all, so the embedder (JS) must supply whatever imports it needs, while wasm32-wasip1 links against a standardized set of OS-like imports (files, clock, env, args) that a standalone runtime like Wasmtime implements directly",
+      "wasm32-wasip1 produces a binary format incompatible with the WebAssembly spec that browsers implement",
+      "wasm32-unknown-unknown can only return 32-bit integers and cannot produce floating-point results",
+      "wasm32-wasip1 is required for every Wasm module, including ones that will only ever run in a browser tab"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-5/webassembly-and-novel-runtimes/q8",
+    "type": "multiple_choice",
+    "prompt": "Per the lesson's explicit contrast with Tier 3's React Native/Flutter architecture module, what makes Wasm's cross-platform model fundamentally different from both the bridge/JSI approach and the Skia/Impeller rendering approach?",
+    "choices": [
+      "Wasm isn't a UI framework bridging to a native rendering layer -- it's a portable compilation target where the identical compiled bytes run unmodified under any conforming engine, because the spec defines the instruction set and sandbox rather than a per-OS native ABI",
+      "Wasm replaces JSI and platform channels with an even faster JSON-based message bridge",
+      "Wasm only exists inside React Native's New Architecture and has no standalone runtime outside of it",
+      "Flutter and React Native both compile internally to WebAssembly, so Wasm is simply their shared internal format"
+    ],
+    "correctIndex": 0
+  }
+]

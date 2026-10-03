@@ -1,0 +1,176 @@
+---
+trackId: platforms
+tier: 5
+title: "Research & Emergent Patterns"
+order: 5
+estimatedHours: 20
+slug: research-and-emergent-patterns
+---
+
+## Where this module sits
+
+Every module before this one in the Platforms track handed you a target someone else had already validated: build this app, read this codebase, land this PR, specialize in this platform's internals. Tier 3's "Cross-Platform Deep Dive: React Native vs. Flutter Architecture" and Tier 4's "Deep Platform Specialization" both taught you to reason precisely about systems that already exist and are already documented by people who've used them for years. This module is different in kind, not just difficulty: the artifacts you're reading now are six months old at best, often wrong, and frequently written by someone with a product to sell. The skill isn't "learn the fact" — it's "figure out, from a source that has every incentive to oversell itself, what's actually true and what's missing." Then: find a gap nobody has closed yet and sketch, concretely, what closing it would cost.
+
+## Reading industry writing without getting played
+
+### Walkthrough: an on-device LLM launch post
+
+Google's AI Edge team (and Apple's Core ML team, and Qualcomm's AI Hub, and a dozen startups) have all shipped some version of the same announcement in the last few years: a multi-billion-parameter language model, quantized down, running directly on a phone's NPU or GPU, with a demo video and a latency number. Strip the branding and the claim structure is always close to this:
+
+> "[Model] now runs fully on-device on Android, iOS, and the web — private, offline, and fast, with no server round trip required."
+
+Four words in that sentence are doing marketing work, not reporting work, and each one needs a separate check before you build anything on top of it.
+
+**"Fully on-device."** Check whether the model weights themselves ship inside the app bundle, or get pulled down over the network on first launch and cached — which is extremely common, because a 1–4GB model in every app-store download would tank install conversion. If the weights are fetched lazily, "on-device" describes inference, not the full user journey; a user's first run, or a model-update push, is still a network dependency the post didn't mention.
+
+**"Android, iOS, and the web."** This is the cross-platform claim, and it deserves exactly the skepticism Tier 3 gave Flutter's router for "looking native without being native." "Runs everywhere" almost always means three different inference backends under one label — NNAPI or a vendor NPU delegate on Android, Core ML on iOS, WebGPU-via-WASM in the browser — each with different quantization support, different numerical precision, and different real-world speed. The same prompt can produce a measurably different output on two of the three, because it's not the same compiled model executing the same math; it's three separate runtime integrations that happen to load the same weights file (or sometimes don't — a web build is frequently limited to a smaller/more aggressively quantized checkpoint than the native builds, because WASM+WebGPU is slower than a native NPU path). "Cross-platform" in a launch post means "we did the integration work three times," not "this is one implementation."
+
+**The latency number.** It's almost always time-to-first-token or tokens/sec from a short, single-turn prompt, on the newest flagship chip (an A17 Pro, a Snapdragon 8 Gen 3) — not the chip that's actually in the median device your users own, which could be two to three years older with roughly half the NPU throughput. It also rarely reports what happens past turn one: a multi-turn chat grows a KV cache that eats RAM and can force the OS to kill a background app, or throttle the chip thermally after thirty seconds of sustained inference. A single demo clip can't show degradation over a five-minute session; a blog post has no incentive to film one.
+
+**The accuracy cost that's never mentioned.** Int4 or int8 quantization has a real, measurable perplexity and task-accuracy cost versus the fp16 checkpoint the lab trained and published benchmarks for. That number exists — it's usually in a separate model card, a technical report, or nowhere public at all — but it is essentially never in the launch post, because "half the size, almost as good" is a weaker headline than "now runs on your phone."
+
+The verification move, concretely, is the same one Tier 3's "Reading & Contributing to Real Codebases" module taught you to use when a README oversold a project: stop reading the text someone wrote to persuade you, and go read what actually shipped. Pull the model card or technical report (not the blog post) for the quantization scheme and its reported accuracy delta. Search the project's GitHub issue tracker for the actual model name plus "battery" or "thermal" or "OOM" — real developers who shipped it in production will have filed exactly those complaints, and they're dated and specific in a way a launch post never is. If there's an independent benchmark (Hugging Face's Open LLM Leaderboard, MLPerf Mobile, or just someone's own measured numbers in a GitHub issue thread), weight that over the vendor's own slide.
+
+### The same method, two more domains
+
+A cross-platform UI toolkit's blog post claiming "92% code sharing across iOS and Android" needs the same question Tier 3's architecture module effectively asked about Flutter's "looks native" router: *shared compared to what, measured how?* Does that 92% count only the UI layer, or does it fold in the native glue code every cross-platform app still needs (push notification handlers, deep-link routers, native modules)? Is the denominator a from-scratch native rewrite, or a strawman nobody would actually write? Most "% shared" numbers are measuring lines of code, not engineering effort — a single line of platform-specific camera permission handling can cost a day, while a thousand shared lines of list-rendering logic can be free after the first platform.
+
+An edge-computing vendor claiming "under 50ms, globally" is reporting from a synthetic benchmark hitting a point-of-presence near the testing machine, almost certainly p50 (median), not p99 — the number that actually determines whether your slowest 1% of real users have a bad time. It also tends to omit cold-start cost on routes that aren't warm (a function that hasn't run in your region in the last few minutes), and the egress/compute pricing that makes "runs everywhere" financially different from "runs in us-east-1."
+
+## A position paper: a state-sync layer for the same app, three runtimes at once
+
+### The gap this closes
+
+Tier 3 built the identical habit tracker twice — once in React Native, once in Flutter — both hitting the same Express/Flask REST API, and the module's own conclusion was that the backend doesn't know or care which client is talking to it. That's true and it's also the whole problem: nothing in that work had to handle the same habit, open on two devices at once, with one of them offline. Local-first sync across heterogeneous runtimes is not a solved, standardized pattern the way "REST backend + mobile client" is. Automerge, Yjs, Electric SQL, PowerSync, and Replicache all exist and all give you a real CRDT or sync-protocol implementation — but none of them make the actual integration problem below disappear; they just hand you the merge algorithm and leave the runtime-wake and compaction tradeoffs to you. That's the genuinely underexplored part, and it's where a position paper actually has to take a stance instead of reciting a library's README.
+
+```markdown
+# Position Paper: One Sync Core, Three Runtimes
+
+## Problem
+The same app ships as a React Native/Flutter mobile client, a browser-based
+web client, and (new) a Tauri desktop client. All three need to read and
+mutate the same habit records, including while offline, and converge to
+the same state without a human resolving conflicts.
+
+## Why existing tools don't fully close this
+Automerge/Yjs solve CRDT merge semantics well on a single runtime (usually
+JS). They do not prescribe how a mobile OS that suspends background
+networking, a browser tab that can be evicted, and a desktop process that
+can stay connected indefinitely should each decide *when* to attempt a
+sync — and that asymmetry, not the merge math, is where real apps break.
+
+## Proposal
+Implement the merge core once, in Rust, with no I/O and no platform
+dependency. Compile it to three targets (wasm32 for web, a cdylib behind
+a C ABI for desktop, and FFI bindings for the two mobile OSes) so every
+platform runs byte-identical merge logic. Each platform owns only its own
+wake-up strategy and transport.
+
+## Non-goals
+Replacing the existing REST API for data the app doesn't need offline.
+Solving multi-user permissions/ACLs (tracked separately).
+```
+
+### The core, written once
+
+A habit's `done` flag is a last-writer-wins register tagged with a Hybrid Logical Clock, not a raw timestamp — because two phones' system clocks routinely disagree by seconds and occasionally by hours, and a plain `Date.now()` comparison will silently let an older edit win a conflict just because one device's clock runs fast.
+
+```rust
+// sync_core/src/lib.rs
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct HybridClock {
+    pub physical: u64, // ms since epoch, from the local wall clock
+    pub logical: u32,  // tiebreaker, incremented on same-millisecond events
+}
+
+impl HybridClock {
+    pub fn tick(&self, now_ms: u64) -> HybridClock {
+        if now_ms > self.physical {
+            HybridClock { physical: now_ms, logical: 0 }
+        } else {
+            // clock didn't advance (or went backward) — still move forward
+            HybridClock { physical: self.physical, logical: self.logical + 1 }
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct LwwRegister<T: Clone> {
+    pub value: T,
+    pub clock: HybridClock,
+}
+
+impl<T: Clone> LwwRegister<T> {
+    pub fn merge(&self, other: &LwwRegister<T>) -> LwwRegister<T> {
+        if self.clock >= other.clock { self.clone() } else { other.clone() }
+    }
+}
+```
+
+`HybridClock` derives `Ord` from the tuple `(physical, logical)`, so `merge` is a total order comparison — every replica that sees both values picks the same winner, regardless of which order the two updates actually arrive in. This is the entire conflict-resolution story for a single boolean field; a habit's list of completion-history entries needs a proper CRDT (an OR-Set, so a delete on one device can't resurrect an item added concurrently on another), which is more code but the same underlying idea: every operation carries a clock, and merge is commutative and idempotent no matter what order ops show up in.
+
+### Three compile targets, one binary of logic
+
+Web, through `wasm-bindgen`:
+
+```rust
+use wasm_bindgen::prelude::*;
+
+#[wasm_bindgen]
+pub fn merge_habit_done(
+    a_val: bool, a_phys: u64, a_log: u32,
+    b_val: bool, b_phys: u64, b_log: u32,
+) -> JsValue {
+    let a = LwwRegister { value: a_val, clock: HybridClock { physical: a_phys, logical: a_log } };
+    let b = LwwRegister { value: b_val, clock: HybridClock { physical: b_phys, logical: b_log } };
+    serde_wasm_bindgen::to_value(&a.merge(&b)).unwrap()
+}
+```
+
+```js
+// web build — same merge logic running compiled Rust, not a JS port of it
+import init, { merge_habit_done } from './sync_core.js';
+
+await init();
+const resolved = merge_habit_done(
+  localDone, localClock.physical, localClock.logical,
+  remoteDone, remoteClock.physical, remoteClock.logical,
+);
+```
+
+Desktop, through a plain C ABI (what `cbindgen` generates from the same crate, and what a Tauri or Electron native addon links against):
+
+```c
+/* sync_core.h — generated by cbindgen from the Rust crate above */
+typedef struct {
+    bool value;
+    uint64_t physical;
+    uint32_t logical;
+} HabitDoneRegister;
+
+HabitDoneRegister merge_habit_done_ffi(HabitDoneRegister a, HabitDoneRegister b);
+```
+
+Mobile reuses the same compiled core through exactly the FFI/platform-channel seam Tier 3's architecture module already named — a `MethodChannel` on the Flutter side or a JSI `HostObject` on the React Native side, except now it's carrying sync-core calls instead of a battery-level read, and the function on the other side of that channel is the identical Rust logic the web build calls through Wasm and the desktop build calls through the C ABI. One merge function, three different host languages talking to it — the opposite failure mode from "92% code shared" marketing: here the actual conflict-resolution logic is 100% shared, verified by the fact that it's the same compiled artifact everywhere, not three people's good-faith reimplementation of the same algorithm in three languages.
+
+### The tradeoffs a demo video skips
+
+**Background wake is not symmetric, and the architecture can't pretend otherwise.** A desktop client can hold a WebSocket open indefinitely and sync the instant an op arrives. A web tab can register for the Background Sync API in Chrome, but Safari doesn't implement it, so the honest fallback is "sync on focus and on visibility change." A mobile app gets neither: iOS suspends background networking after roughly 30 seconds unless a silent push wakes it, and Android's Doze mode batches and delays it similarly — so the only reliable mobile wake-up is a silent push notification (APNs/FCM) that tells the app "new ops are waiting," triggered by the relay the moment another device pushes a change. Three platforms, three genuinely different transport strategies, none of them optional.
+
+**Full-state transfer doesn't scale, but delta transfer costs the relay storage.** Shipping the whole CRDT document on every reconnect is simple and wasteful; shipping only the ops a replica is missing requires the relay to retain op history (or at least a compact per-field "last clock seen per replica" vector) long enough to compute the delta — which means the relay isn't the dumb pass-through it looks like, it's now a system with its own retention and compaction policy.
+
+**Tombstones grow forever without compaction.** An OR-Set needs a tombstone for every delete so a concurrent, not-yet-seen "add" from another device can't resurrect it — but tombstones never shrink on their own. A long-lived habit list that's had a thousand items added and removed over a year accumulates a thousand tombstones unless something periodically garbage-collects ones every replica has already acknowledged, and that GC step itself needs every replica to have checked in, which an intermittently-offline mobile client makes genuinely hard to guarantee.
+
+**Shipping the real core to the web costs real bytes.** A hand-rolled JS reimplementation of the same merge logic would be a few KB; the compiled Wasm module, even minimal, is tens of KB before gzip. The payoff is that web, mobile, and desktop are provably running the same conflict-resolution semantics — no "the JS port had an off-by-one in the tiebreak that the Rust original didn't." That's a real engineering tradeoff, not a settled one: correctness-by-construction against a slower first paint on a mobile web connection.
+
+**A relay that only forwards opaque ops is hard to debug.** The server never materializes real application state — it just stores and relays blobs of ops. That's good for privacy and for keeping the backend simple, but it means "why did my habit's name revert to an old value" can't be answered with a database query; you have to replay the op log client-side, in order, and watch where the merge picked the wrong winner.
+
+## What to actually retain
+
+A vendor's launch post and a research paper fail for different reasons and need different checks — a paper's numbers can be right but not generalize; a vendor post's numbers are usually true on the exact device and exact prompt they chose, and silent about everything else. Verify the second kind by going around the prose entirely: model cards, issue trackers, and independent benchmarks over marketing copy, the same instinct Tier 3 taught you by grepping real source instead of trusting a README. And the state-sync core above isn't a finished design — it's a stance: one compiled merge implementation reused through the exact bridge/JSI/platform-channel/C-ABI seams this track has spent two tiers teaching you to see through, with the real cost (background-wake asymmetry, tombstone growth, binary size) written down instead of hidden behind "it just syncs."
+
+## Exercise
+
+Pick a real, currently-circulating piece of industry writing — a framework release blog post, a chip vendor's on-device AI benchmark page, or an edge-platform's latency claim — and do the walkthrough above on it in writing: name the exact claim, name what's independently checkable and where you'd check it (a model card, a GitHub issues search, an independent benchmark site), and name the one thing you're confident the post didn't tell you and why it's commercially inconvenient for it to. Then take the state-sync sketch one step further than this lesson did: pick one data type your own project (or the Tier 2/3 habit tracker) actually needs beyond a boolean toggle — a free-text note field, or an ordered list — and write down, concretely, which CRDT type it needs (LWW register, OR-Set, RGA/sequence CRDT for text) and the one new failure mode that type introduces that the `done` boolean above didn't have.
+
+**Hint:** free-text fields are the hard case on purpose — two people editing the same note offline and merging character-by-character is a sequence CRDT (like RGA, what Automerge and Yjs actually implement under the hood for text), not a last-writer-wins register; LWW on a whole text field means one edit wins and the other vanishes completely, which is correct code but a bad product experience.

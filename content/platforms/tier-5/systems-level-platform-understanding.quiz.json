@@ -1,0 +1,98 @@
+[
+  {
+    "id": "platforms/tier-5/systems-level-platform-understanding/q1",
+    "type": "multiple_choice",
+    "prompt": "Why must UIKit/AppKit views only be mutated from the main thread?",
+    "choices": [
+      "UIView and CALayer mutations are batched into an implicit transaction committed by the main run loop before each display refresh; concurrent mutation corrupts that pending transaction",
+      "Swift's automatic reference counting is not thread-safe for any object",
+      "UIKit holds a single global lock on the entire view hierarchy that would cause contention if used from multiple threads",
+      "Apple disabled multithreaded UI updates to simplify debugging in Xcode"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-5/systems-level-platform-understanding/q2",
+    "type": "multiple_choice",
+    "prompt": "In the React Native old-bridge deadlock described in this module, what is the exact lock-ordering pattern that causes the hang?",
+    "choices": [
+      "The JS thread leaks memory until the app is killed by the OS for excessive memory use",
+      "The main thread blocks synchronously waiting on the JS thread, while the JS thread simultaneously blocks synchronously waiting on the main thread (an AB-BA deadlock)",
+      "The Shadow thread computes an infinite Yoga layout loop that never resolves",
+      "The JS thread crashes with a stack overflow from recursive bridge calls"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-5/systems-level-platform-understanding/q3",
+    "type": "multiple_choice",
+    "prompt": "A Flutter MethodChannel handler blocks Android's main Looper for 8 seconds doing synchronous file I/O. What user-visible failure results, and why does iOS have no exact equivalent?",
+    "choices": [
+      "An ANR dialog, because Android's system server (a separate process) can paint a wait/kill dialog over the frozen app; iOS runs one process per app with no such external surface, so it silently kills the app via the watchdog instead",
+      "A kernel panic, because Android treats UI thread blocks as fatal system errors",
+      "Nothing happens on Android either, since Looper-based threading tolerates indefinite blocking by design",
+      "The app automatically restarts on both platforms with no dialog shown"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-5/systems-level-platform-understanding/q4",
+    "type": "multiple_choice",
+    "prompt": "Since Android 10's Scoped Storage, why can't a cross-platform file-picker plugin return a plain filesystem path on Android the way it can on iOS?",
+    "choices": [
+      "Android deprecated the File class entirely in favor of a string-based API",
+      "Scoped Storage routes access to other apps' files through content:// URIs resolved via ContentResolver, which may have no backing path on disk at all, unlike iOS's container-relative file:// paths",
+      "Android file paths are always encrypted and cannot be represented as strings",
+      "iOS also stopped returning real paths at the same time, making this no longer a real divergence"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-5/systems-level-platform-understanding/q5",
+    "type": "multiple_choice",
+    "prompt": "What OS-level mechanism do iOS App Extensions within the same app use to share data without inter-process IPC, and what is Android's structurally closest equivalent?",
+    "choices": [
+      "iOS uses an App Group's shared container directory; Android's closest equivalent is a ContentProvider exposed over Binder IPC between components",
+      "Both platforms use the exact same shared-memory API, since both are POSIX-based",
+      "iOS uses XPC exclusively for this; Android has no comparable mechanism at all",
+      "iOS apps share data via public cloud sync only; there is no local mechanism"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-5/systems-level-platform-understanding/q6",
+    "type": "multiple_choice",
+    "prompt": "Why does iOS require schemes to be pre-declared in LSApplicationQueriesSchemes before calling canOpenURL:, while Android's queryIntentActivities() allows open-ended discovery of installed apps?",
+    "choices": [
+      "iOS treats enumerating installed apps as a sensitive, fingerprinting-adjacent capability and restricts it to an explicit allowlist; Android's Binder-mediated Intent system treats declared capabilities as open, queryable by design",
+      "Android's PackageManager API is simply older and was never updated for privacy",
+      "LSApplicationQueriesSchemes is an App Store review formality with no runtime enforcement",
+      "Both platforms behave identically at runtime; the difference is purely in compile-time tooling"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-5/systems-level-platform-understanding/q7",
+    "type": "multiple_choice",
+    "prompt": "A shared Rust core (built with uniffi-rs) calls a callback trait implemented in Swift and Kotlin to notify the UI of a state change. Why must both the Swift and Kotlin binding code hop onto their respective main thread/Looper before updating a view, even though the Rust core itself has no concept of 'main thread'?",
+    "choices": [
+      "UniFFI automatically performs the hop inside the generated Rust code, so this is unnecessary in practice",
+      "The Rust core runs the callback on whatever thread triggered it, and the OS-level main-thread-only UI rule still applies regardless of what layer initiated the call",
+      "Rust callbacks are always already running on the main thread by construction",
+      "This hop is only needed on Android; iOS callbacks are thread-safe for UIKit by default"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-5/systems-level-platform-understanding/q8",
+    "type": "multiple_choice",
+    "prompt": "Why can't a cross-platform framework offer one unified 'share this file with another app' API that behaves identically on iOS and Android under the hood?",
+    "choices": [
+      "Because the underlying OS sandbox primitives genuinely differ in kind, not just in syntax: Android's Binder/Intent/ContentProvider system allows open declared-capability discovery and content-URI-based access grants, while iOS mediates everything through pre-declared schemes, extensions, and security-scoped URLs",
+      "Because Dart and JavaScript cannot call native file APIs at all, only Kotlin and Swift can",
+      "Because sharing files is disabled by default on both platforms for security reasons",
+      "Because this is purely a historical limitation that modern framework versions have already fully resolved with one shared implementation"
+    ],
+    "correctIndex": 0
+  }
+]

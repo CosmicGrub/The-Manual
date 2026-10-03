@@ -1,0 +1,303 @@
+---
+trackId: platforms
+tier: 5
+title: "Building Developer Tools & Frameworks"
+order: 1
+estimatedHours: 30
+slug: building-developer-tools-and-frameworks
+---
+
+## Beyond the architecture diagram
+
+Tier 3's React Native/Flutter comparison stopped at the diagram level: boxes labeled "JS thread," "bridge," "native modules," "Skia," "widget tree," with arrows between them. That's the right altitude for choosing a framework. It is the wrong altitude for building one, extending one, or debugging why a production app drops frames on exactly one Android OEM's GPU driver. This module goes under the diagram on both sides of that comparison — JSI instead of the bridge, Impeller instead of Skia's lazy shader compilation — and then has you build the kind of tool a framework team actually ships internally: a code generator and a lint rule, not a toy.
+
+## Part 1: What the JSON bridge actually cost you
+
+The pre-2022 React Native bridge worked like this: JS and native code run on separate threads with no shared memory. Every cross-language call — calling a native module method, or native firing an event back into JS — gets serialized into a JSON-compatible array, pushed onto a queue, and flushed in a batch, asynchronously, usually on the next tick of the run loop or next animation frame. A reconstruction of the core of that mechanism (`MessageQueue.js` in the old implementation) looked roughly like this:
+
+```js
+// simplified reconstruction of the legacy bridge's batching behavior
+class MessageQueue {
+  constructor() {
+    this._queue = [[], [], [], 0]; // moduleIDs, methodIDs, params, callID
+    this._callbacks = [];
+  }
+
+  enqueueNativeCall(moduleID, methodID, params, onFail, onSucc) {
+    this._queue[0].push(moduleID);
+    this._queue[1].push(methodID);
+    this._queue[2].push(params); // must be JSON-serializable -- no functions,
+                                  // no typed arrays, no native handles
+    const callID = this._queue[3]++;
+    this._callbacks[callID] = [onFail, onSucc];
+
+    if (this._queue[0].length === 1) {
+      // nothing flushes immediately -- it waits for the next frame
+      requestAnimationFrame(() => this.__callImmediates());
+    }
+  }
+}
+```
+
+Three costs fall out of that directly: every argument and return value pays a JSON stringify/parse tax; every call is async even when the underlying native operation is trivially synchronous (reading a constant, checking a permission flag); and nothing in that path can touch a shared buffer — images, for instance, had to be base64-encoded into the JSON payload. None of that is a tuning problem you can fix with a faster JSON parser. It's structural.
+
+## Part 2: JSI — synchronous, direct, typed
+
+JSI (JavaScript Interface) deletes the queue by giving C++ a direct handle into the JS engine's object model. Instead of a module being an opaque ID that the queue dispatches JSON at, a native module is installed as a real JS object — a `HostObject` — whose properties are backed by C++ functions that execute on whichever thread calls them, synchronously, in the same call stack.
+
+```cpp
+// MathModule.h -- a minimal JSI host object with one synchronous method
+#include <jsi/jsi.h>
+using namespace facebook::jsi;
+
+class MathModule : public HostObject {
+ public:
+  Value get(Runtime& rt, const PropNameID& name) override {
+    auto propName = name.utf8(rt);
+
+    if (propName == "multiply") {
+      return Function::createFromHostFunction(
+          rt, name, /* arity */ 2,
+          [](Runtime& rt, const Value&, const Value* args, size_t count) -> Value {
+            if (count != 2 || !args[0].isNumber() || !args[1].isNumber()) {
+              throw JSError(rt, "multiply() expects two numbers");
+            }
+            double a = args[0].asNumber();
+            double b = args[1].asNumber();
+            return Value(a * b); // returned on THIS call stack -- no queue,
+                                  // no JSON, no next tick
+          });
+    }
+    return Value::undefined();
+  }
+
+  void set(Runtime&, const PropNameID&, const Value&) override {}
+
+  std::vector<PropNameID> getPropertyNames(Runtime& rt) override {
+    return {PropNameID::forAscii(rt, "multiply")};
+  }
+};
+
+// installed once, at startup:
+void install(Runtime& rt) {
+  rt.global().setProperty(
+      rt, "MathModule", Object::createFromHostObject(rt, std::make_shared<MathModule>()));
+}
+```
+
+From JS, that's indistinguishable from calling a normal function:
+
+```js
+const result = global.MathModule.multiply(6, 7); // 42, synchronously, right here
+```
+
+Compare that to the equivalent legacy call, which has to take a callback because the result cannot possibly be ready in the same tick:
+
+```js
+NativeModules.MathModule.multiply(6, 7, (result) => {
+  console.log(result); // arrives later, after a JSON round trip through the queue
+});
+```
+
+This is the mechanism underneath two things Tier 3's comparison only named: TurboModules (native modules that are lazily instantiated and then called as JSI host objects, instead of every module in the app being eagerly constructed at startup over the bridge) and Fabric (the new renderer, which uses JSI to commit shadow-tree mutations to the native view hierarchy synchronously instead of batching them through the same async queue). Both get their performance story from the same root cause: a direct C++ binding has no serialization boundary to pay for, and can hold a `shared_ptr` to a real buffer instead of copying it through JSON.
+
+## Part 3: Skia's shader-compilation jank, concretely
+
+Flutter's renderer (pre-Impeller) sits on Skia's Ganesh GPU backend. Ganesh is an immediate-mode-ish renderer: when the widget tree produces a drawing command — a rounded rect with a specific blend mode, color filter, and anti-aliasing setting — Ganesh builds a `GrFragmentProcessor` tree describing exactly that combination of effects, turns it into GLSL (or SPIR-V/MSL depending on backend), and compiles it:
+
+```cpp
+// conceptual: what Ganesh does the FIRST time a given draw-state combination appears
+sk_sp<GrFragmentProcessor> fp = BuildFragmentProcessorFor(drawState);
+
+if (!shaderCache.contains(fp->getKey())) {
+  // this exact combination of shape + blend + filter has never been drawn
+  // on this device before -- compile it RIGHT NOW, on the thread doing the draw
+  GLuint compiled = CompileShader(fp->toGLSL()); // 10-100+ ms on a slow mobile driver
+  shaderCache.insert(fp->getKey(), compiled);     // the stall happens here
+}
+```
+
+The cache means it's a one-time cost per unique shader *per device, per process*, not per frame — but "one-time" still means the first time a user opens a screen with a new combination of effects (a new gradient, a new blur, a new clip shape), the frame renders late. On Android in particular, driver-side GLSL compilers are slow and inconsistent across GPU vendors, so this showed up constantly as visible stutter the first time any new widget shape, shadow, or blend mode hit the screen — famously on things like opening a bottom sheet or a page transition for the first time in a session.
+
+## Part 4: Impeller — compiling pipelines ahead of time
+
+Impeller's fix is structural, not a cache tweak: never compile a shader at runtime, period. At Flutter engine build time, a tool called `impellerc` takes the engine's fixed, finite library of shaders (Flutter ships a bounded set of rendering effects — it is not an arbitrary-shader system like a general game engine) and cross-compiles every variant into backend-specific bytecode — SPIR-V for Vulkan, MSL for Metal — baking the result into a shader archive that ships inside the app binary. At runtime there is no `glCompileShader` call on the hot path at all; there's a lookup into an already-compiled table:
+
+```cpp
+// Impeller: every pipeline the engine can need is enumerated and compiled
+// OFFLINE, at engine-build time, by impellerc -- not lazily, not on first draw.
+struct PipelineKey {
+  ShaderID vertex;
+  ShaderID fragment;
+  BlendMode blend;
+  SampleCount samples;
+};
+
+std::shared_ptr<Pipeline> PipelineCache::get(const PipelineKey& key) {
+  auto it = precompiled_.find(key); // populated at process start from the
+                                     // shader archive impellerc produced at
+                                     // BUILD time -- nothing compiles here
+  assert(it != precompiled_.end() &&
+         "missing pipeline variant: add it to the engine's shader manifest");
+  return it->second;
+}
+```
+
+That assert is the actual tradeoff Impeller made: because the shader set is closed and enumerated ahead of time, there is no "unknown combination" case to fall back to at runtime the way Ganesh had one. Everything Impeller can draw, it already knows how to draw before the app launches, which is exactly why first-use jank disappears — there's no "first use" from the compiler's point of view, only reuse of a pipeline built at compile time. Impeller shipped as Flutter's default rendering backend on iOS starting with Flutter 3.10, and later became the default on Android too, retiring the legacy OpenGL ES/Skia path there in favor of Vulkan-backed Impeller.
+
+## Part 5: Build it — a lint rule that catches legacy bridge calls
+
+A framework team doesn't just fix the bridge once; it builds tooling that keeps people from regressing back into it. Here's a real, runnable ESLint rule that flags any `NativeModules.*` access as a signal someone is writing against the legacy bridge instead of a TurboModule:
+
+```js
+// no-legacy-native-bridge.js
+'use strict';
+
+module.exports = {
+  meta: {
+    type: 'suggestion',
+    docs: {
+      description:
+        'disallow NativeModules.* access; migrate to a JSI-backed TurboModule',
+    },
+    schema: [],
+    messages: {
+      legacyBridge:
+        "'{{name}}' is accessed via the legacy async bridge (NativeModules.{{name}}). " +
+        'Generate a TurboModule spec instead so this call goes through JSI.',
+    },
+  },
+  create(context) {
+    return {
+      MemberExpression(node) {
+        if (node.object.type === 'Identifier' && node.object.name === 'NativeModules') {
+          const moduleName = node.property.name || node.property.value;
+          context.report({ node, messageId: 'legacyBridge', data: { name: moduleName } });
+        }
+      },
+    };
+  },
+};
+```
+
+Proving it actually works, with ESLint's own test harness:
+
+```js
+// no-legacy-native-bridge.test.js
+const { RuleTester } = require('eslint');
+const rule = require('./no-legacy-native-bridge');
+
+new RuleTester({ parserOptions: { ecmaVersion: 2020, sourceType: 'module' } }).run(
+  'no-legacy-native-bridge',
+  rule,
+  {
+    valid: ['TurboModuleRegistry.getEnforcing("MathModule").multiply(6, 7);'],
+    invalid: [
+      {
+        code: 'NativeModules.MathModule.multiply(6, 7, cb);',
+        errors: [{ messageId: 'legacyBridge', data: { name: 'MathModule' } }],
+      },
+    ],
+  }
+);
+```
+
+Run it with `npx mocha no-legacy-native-bridge.test.js` (RuleTester throws on failure, so any test runner that doesn't swallow exceptions works) and you have a CI gate that keeps an entire codebase off the pattern this lesson just spent two sections explaining the cost of.
+
+## Part 6: Build it — a JSI host-object code generator
+
+The more interesting tool is the one that makes the *correct* pattern the path of least resistance. Real TurboModule codegen (the actual `react-native-codegen` package) reads TypeScript specs and emits C++/ObjC/Java glue. Here's a minimal version of the same idea you can run today: a CLI that reads a JSON method spec and emits a JSI `HostObject` header.
+
+```json
+// MathModule.spec.json
+{
+  "name": "MathModule",
+  "methods": [
+    { "name": "add", "params": ["double", "double"], "returns": "double" },
+    { "name": "shout", "params": ["string"], "returns": "string" }
+  ]
+}
+```
+
+```js
+#!/usr/bin/env node
+// gen-turbo-host-object.js
+'use strict';
+const fs = require('fs');
+const path = require('path');
+
+const TYPES = {
+  double: { check: 'isNumber', get: 'asNumber()', cpp: 'double' },
+  string: { check: 'isString', get: 'asString(rt).utf8(rt)', cpp: 'std::string' },
+};
+
+function genMethod(m) {
+  const checks = m.params.map((t, i) => `!args[${i}].${TYPES[t].check}()`).join(' || ') || 'false';
+  const reads = m.params
+    .map((t, i) => `auto p${i} = args[${i}].${TYPES[t].get};`)
+    .join('\n            ');
+  const callArgs = m.params.map((_, i) => `p${i}`).join(', ');
+
+  return `
+    if (propName == "${m.name}") {
+      return Function::createFromHostFunction(
+          rt, name, ${m.params.length},
+          [](Runtime& rt, const Value&, const Value* args, size_t count) -> Value {
+            if (count != ${m.params.length} || ${checks}) {
+              throw JSError(rt, "${m.name}: bad arguments");
+            }
+            ${reads}
+            return Value(${m.name}Impl(${callArgs}));
+          });
+    }`;
+}
+
+function generate(spec) {
+  const body = spec.methods.map(genMethod).join('\n');
+  const names = spec.methods.map((m) => `PropNameID::forAscii(rt, "${m.name}")`).join(', ');
+  return `// AUTO-GENERATED by gen-turbo-host-object.js -- do not hand-edit
+#include <jsi/jsi.h>
+using namespace facebook::jsi;
+
+class ${spec.name} : public HostObject {
+ public:
+  Value get(Runtime& rt, const PropNameID& name) override {
+    auto propName = name.utf8(rt);
+${body}
+    return Value::undefined();
+  }
+  void set(Runtime&, const PropNameID&, const Value&) override {}
+  std::vector<PropNameID> getPropertyNames(Runtime& rt) override {
+    return { ${names} };
+  }
+};
+`;
+}
+
+const specPath = process.argv[2];
+if (!specPath) {
+  console.error('usage: gen-turbo-host-object.js <spec.json>');
+  process.exit(1);
+}
+const spec = JSON.parse(fs.readFileSync(specPath, 'utf8'));
+const outPath = path.join(path.dirname(specPath), `${spec.name}.g.h`);
+fs.writeFileSync(outPath, generate(spec));
+console.log(`wrote ${outPath}`);
+```
+
+```bash
+node gen-turbo-host-object.js MathModule.spec.json
+# wrote MathModule.g.h
+```
+
+What comes out is the same shape of code you hand-wrote in Part 2, minus the hand-writing, minus the chance someone forgets the argument-count check or the type guard. That's the actual job of "building a framework's tooling": not inventing new runtime behavior, but encoding the correct, performance-safe pattern once so a hundred engineers can't individually get it wrong. `${m.name}Impl` is deliberately left as a hook — the generator owns the JSI marshalling boilerplate (the part that's tedious and error-prone to hand-write) and leaves the actual business logic to a human-written implementation function, which is exactly how real native-module codegen divides the work.
+
+## Upstream contribution at this altitude
+
+Tier 3's contribution work was "find a `good first issue` label, scope a self-contained fix, get it merged" — valuable, but bounded by design: the maintainers tagged it precisely because it doesn't touch architecture. A change to JSI's host-function dispatch path, or to which pipeline variants `impellerc` enumerates, is a different category of change entirely. It affects every app built on the framework, has to hold up under ABI constraints across engine versions, and gets reviewed against benchmarks, not just test coverage. Landing one requires the internals-level understanding this module just walked through, a written case for why the tradeoff is worth it, and surviving review from the people who own that subsystem's long-term design — which is the actual meaning of "contributing meaningfully upstream" that this tier is building toward, as distinct from the entry-level contribution model Tier 3 taught.
+
+## Exercise
+
+Extend `gen-turbo-host-object.js` to support an `"array<double>"` parameter type. Your generator needs to emit JSI code that reads a JS array argument and converts it to a `std::vector<double>` before calling the impl function.
+
+Hint: JSI arrays are read through `args[i].asObject(rt).asArray(rt)`, which gives you an `Array` with `.size(rt)` and `.getValueAtIndex(rt, j)` — you'll generate a small loop over that, not a single expression like the scalar types use. Don't try to make the template string handle it inline; write a separate code-generation helper for array params and splice its output into the method body, the same way `reads` is spliced in now.

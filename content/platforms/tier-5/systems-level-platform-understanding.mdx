@@ -1,0 +1,174 @@
+---
+trackId: platforms
+tier: 5
+title: "Systems-Level Platform Understanding"
+order: 4
+estimatedHours: 15
+slug: systems-level-platform-understanding
+---
+
+## Why this module doesn't start with a framework
+
+Tier 3 taught you React Native's bridge versus Flutter's Skia-based rendering engine as two competing *framework* architectures — different answers to "how do we draw native-feeling UI from one codebase." That comparison stayed at the framework's own API surface. Tier 5 asks a different question: **why were those two architectures forced to look the way they do?** The answer isn't in React Native's docs or Flutter's docs. It's in Apple's and Google's OS documentation — the actual contract the operating system gives any process, cross-platform or not. A framework author who hasn't read that contract can't explain their own architecture's constraints, and can't make a credible upstream contribution when a bug report turns out to be an OS-level invariant violation rather than a framework bug.
+
+This module has two parts: the main-thread affinity rule that shapes every cross-platform UI framework's threading model, and the sandboxing model that shapes every cross-platform framework's access to the filesystem, other processes, and the system.
+
+## What the OS actually guarantees: single-threaded UI
+
+Apple's Threading Programming Guide states it plainly: UIKit (and AppKit) are **not thread-safe**, and nearly every object in them must be created, read, and mutated only on the main thread. This is not a lock Apple forgot to add. It's the opposite of a lock — deliberately removing synchronization for speed, and pushing the thread-safety problem onto the call site.
+
+The mechanism: `UIView`/`CALayer` mutations don't take effect immediately. They're recorded into an **implicit CATransaction** that batches up over the current main-thread run loop iteration and gets committed (flushed to the render server, `backboardd`/`WindowServer`) at the end of that iteration, right before the next display refresh. If a background thread mutates a layer's `frame` or `backgroundColor` concurrently with the main thread committing that same transaction, you get a torn write on the transaction's property list — not a crash every time, which is exactly what makes this class of bug vicious. Sometimes it's a silently corrupted layer tree; sometimes it's:
+
+```swift
+// Called from a background queue — e.g. inside a URLSession completion handler
+DispatchQueue.global().async {
+    let image = downloadImage()
+    self.imageView.image = image   // mutating UIKit off the main thread
+}
+```
+
+```
+*** Terminating app due to uncaught exception 'NSInternalInconsistencyException',
+reason: 'UICollectionView must be used from main thread only'
+```
+
+or the layout-engine variant:
+
+```
+This application is modifying the autolayout engine from a background thread,
+which can lead to engine corruption and weird crashes.
+```
+
+Android's `View` hierarchy enforces the same invariant for a near-identical reason: a single `Looper`-bound main thread owns the view tree and the rendering pipeline that submits draw commands to `SurfaceFlinger`. `ViewRootImpl.checkThread()` throws explicitly:
+
+```kotlin
+Thread {
+    textView.text = "updated"   // CalledFromWrongThreadException
+}.start()
+```
+
+```
+android.view.ViewRootImpl$CalledFromWrongThreadException:
+Only the original thread that created a view hierarchy can touch its views.
+```
+
+Neither OS is being arbitrary. Both made the same engineering trade: single-threaded, unsynchronized UI trees are dramatically faster and simpler than lock-protected ones, and the OS pushes the coordination cost onto every framework built on top — including React Native, Flutter, Compose Multiplatform, and whatever you build next.
+
+## The deadlock this constraint actually causes
+
+Here's the concrete failure mode, taken from how React Native's pre-JSI "old bridge" was structured — three threads: **Main** (owns `UIView`s), **JS** (single-threaded, runs your application code), **Shadow** (computes Yoga layout off-thread). Native module calls crossed thread boundaries via the bridge's message queue, and a handful of native modules were written as *synchronous* calls for historical reasons (`RCT_EXTERN_METHOD` variants that block waiting for a reply rather than firing a callback).
+
+The deadlock is a textbook **AB-BA lock-ordering violation**, just expressed as thread message queues instead of mutexes:
+
+1. The **main thread**, mid-touch-handling, needs JS to compute something synchronously (e.g. resolving a responder-chain question) and blocks on `dispatch_sync` waiting for the JS thread's answer.
+2. The **JS thread**, processing a prior queued call, invokes a synchronous native module method that internally does `dispatch_sync(dispatch_get_main_queue()) { return someUIView.frame }` — because the only reliable way to read a live `UIView` property is from the main thread.
+3. JS thread is now blocked waiting on main. Main thread is blocked waiting on JS. Neither queue will ever drain. The app hangs, then the iOS watchdog kills it.
+
+```objc
+// Inside a "synchronous" native module method — looks innocent in isolation
+RCT_EXPORT_SYNCHRONOUS_TYPED_METHOD(NSNumber *, getViewWidth:(nonnull NSNumber *)reactTag)
+{
+    __block CGFloat width = 0;
+    dispatch_sync(dispatch_get_main_queue(), ^{      // (B) waits on main
+        UIView *view = [self.bridge.uiManager viewForReactTag:reactTag];
+        width = view.frame.size.width;
+    });
+    return @(width);
+}
+```
+
+```objc
+// Meanwhile, triggered from a UIKit touch callback, already ON the main thread
+- (void)touchesBegan:(NSSet *)touches withEvent:(UIEvent *)event {
+    [self.bridge.batchedBridge callFunction:@"handleTouch" arguments:@[...]
+                                withCallback:^(NSArray *result) { ... }];
+    // Internally this does dispatch_sync onto the JS thread's queue (A) waits on JS
+}
+```
+
+If (A) and (B) are both in flight at once — main waiting for JS, JS waiting for main — you have classic deadlock, and it's exactly why Facebook moved to **JSI** (JavaScript Interface) and the New Architecture: JSI lets native code hold a direct `HostObject` reference into the JS runtime and call back and forth without routing through a serialized message queue at all, eliminating most of the *need* for blocking synchronous bridge calls in the first place. That redesign is a direct, traceable response to this OS-level constraint, not a performance nice-to-have.
+
+Flutter sidesteps part of this by rendering its own widget tree with Skia/Impeller instead of composing `UIView`/`View` objects — but the moment a `PlatformView` (an actual native map view, an actual native video player) enters the tree, or a plugin's `MethodChannel` handler touches a native widget, the same rule reasserts itself. On Android specifically, a `MethodChannel` handler that blocks the main `Looper` for more than ~5 seconds while input events are queued produces an **ANR** (Application Not Responding) — a *visible, user-facing* dialog, because Android's process model lets the system server show that dialog from outside your process:
+
+```kotlin
+override fun onMethodCall(call: MethodCall, result: Result) {
+    if (call.method == "readLargeFile") {
+        val bytes = File(path).readBytes()   // blocking I/O on the main Looper
+        result.success(bytes)                // ANR if this takes too long
+    }
+}
+```
+
+iOS has no equivalent dialog. A blocked main run loop during a state transition gets silently killed by the watchdog (`0x8badf00d` in the crash report — "ate bad food," a blocked watchdog timeout), because iOS runs one process per app and has no system-server-owned surface to paint a "wait/kill" dialog over a frozen app. Same underlying constraint — main-thread-only UI — two completely different *user-visible* failure modes, because the two OSes' process models differ. That difference is itself something you only learn by reading Apple's crash-report technical notes and Android's ANR documentation side by side, not from either framework's guide.
+
+## Sandboxing: what each OS actually restricts, and why a framework can't paper over it
+
+Where the threading constraint shapes a framework's *internal* architecture, the sandbox shapes what a framework's *public API* is even allowed to offer.
+
+**iOS App Sandbox.** Every app runs inside a container: `~/Documents`, `~/Library`, `~/tmp`, created by the OS and walled off from every other app's container. There is no shared filesystem view. Reaching outside your container requires an OS-mediated path: a `UIDocumentPickerViewController` grants a **security-scoped URL** (`file://...`) that you must bracket with `startAccessingSecurityScopedResource()`/`stopAccessingSecurityScopedResource()`; an **App Group** entitlement shares one specific container directory between your own app's extensions; inter-app communication is custom URL schemes, Universal Links, or XPC services — all declared in entitlements the system enforces, not conventions your code can route around.
+
+**Android App Sandbox.** Every app gets its own Linux UID/GID and an SELinux domain — genuine OS-process isolation, not just a convention-based container. Since API 29 ("Scoped Storage"), direct file paths to another app's files are gone by default too, but the *replacement mechanism is structurally different*: a `content://` URI backed by a `ContentProvider`, resolved through `ContentResolver`, with permissions grantable per-URI (`FLAG_GRANT_PERSISTABLE_URI_PERMISSION`) independent of any app-group-style shared container. Inter-process communication is **Binder**, a kernel-mediated IPC transport, exposed to app code as `Intent`s, `Service`s, `BroadcastReceiver`s, and `ContentProvider`s — a general-purpose, declarable "any app can offer a capability to any other app" system with no iOS equivalent.
+
+That structural difference is why a cross-platform "pick a document" plugin can't return one unified type:
+
+```dart
+// Flutter's file_picker / share plugins, in effect, under the hood:
+// iOS   -> a real file:// path you must wrap in security-scoped access calls
+// Android -> a content:// Uri you must read via ContentResolver.openInputStream(),
+//            because there may be no backing File on disk at all
+final path = result.files.single.path;      // non-null, meaningful on iOS
+final uri  = result.files.single.identifier; // the thing you actually need on Android
+```
+
+Querying "can another app handle this?" has the same asymmetry. Android's `PackageManager.queryIntentActivities()` lets you enumerate every installed app that declares an `<intent-filter>` matching your `Intent` — open-ended discovery, because Binder-mediated IPC is a first-class, declared-capability system. iOS requires each queried URL scheme to be explicitly listed in `Info.plist` under `LSApplicationQueriesSchemes` and checked with `canOpenURL:` — a strictly enumerated, pre-declared allowlist, because the sandbox treats "does app X exist and respond to this" as sensitive fingerprinting information, not a free system query.
+
+```kotlin
+// Android: open-ended discovery, no pre-declaration required
+val intent = Intent(Intent.ACTION_SEND).apply { type = "text/plain" }
+val handlers = packageManager.queryIntentActivities(intent, 0)  // however many exist
+```
+
+```swift
+// iOS: must be pre-declared, capped, and explicit
+// Info.plist: LSApplicationQueriesSchemes = ["twitter", "instagram"]
+if UIApplication.shared.canOpenURL(URL(string: "twitter://")!) { ... }
+```
+
+No cross-platform framework can abstract this into one `canShareTo(app)` call that behaves identically, because the two OSes made opposite policy decisions about whether "what else is installed" is a capability an app gets by default. Any abstraction a framework offers here is necessarily a leaky one — which is exactly why Flutter's and React Native's platform-integration plugins ship separate Kotlin/Java and Swift/Objective-C implementations behind one Dart/JS API, instead of one shared implementation: the OS-level primitives underneath genuinely don't unify.
+
+## Where this connects to upstream contribution (and to Tier 3)
+
+In Tier 3 you did "good first issue" work in a cross-platform framework's repo — typically a scoped, framework-API-level fix. The upstream work this tier expects is a level deeper: the actual backlog of unresolved issues in React Native's and Flutter's trackers includes a long tail of "crashes on background thread" and "ANR in plugin X" reports that are *exactly* the two failure classes above, misfiled as framework bugs. Being able to read a stack trace, recognize `NSInternalInconsistencyException`/`CalledFromWrongThreadException`/an ANR trace for what it is, and point to the specific OS doc section explaining *why* the constraint exists, is the difference between a patch that silences the symptom (wrap it in a try/catch, swallow the exception) and one a maintainer merges because it fixes the actual thread-affinity violation at its source.
+
+A modern variant worth knowing: many teams now ship a shared **Rust core** (via `uniffi-rs` or raw `cbindgen` FFI) underneath both their iOS and Android native layers, with the Rust layer calling back into platform code through callback traits. That core has *no* visibility into which thread it's running on relative to each OS's main thread — it's the generated Swift/Kotlin binding glue's job to hop the callback back onto the main thread before touching any UI, which looks like this on each side:
+
+```swift
+// Swift side of a UniFFI-generated callback interface
+class UiCallback: CoreCallback {
+    func onStateChanged(newState: CoreState) {
+        DispatchQueue.main.async {         // mandatory hop — Rust doesn't know about UIKit's rule
+            self.label.text = newState.text
+        }
+    }
+}
+```
+
+```kotlin
+// Kotlin side of the same callback interface
+class UiCallback(private val mainHandler: Handler) : CoreCallback {
+    override fun onStateChanged(newState: CoreState) {
+        mainHandler.post { textView.text = newState.text }   // post to the main Looper
+    }
+}
+```
+
+The Rust core is thread-affinity-agnostic by design; every cross-platform architecture, no matter how novel, still terminates in this same main-thread hop on both OSes, because the OS-level rule never goes away — frameworks can only change *where* in the stack the hop happens.
+
+## Exercise
+
+Pick one real open-source cross-platform project — React Native, Flutter engine, or Compose Multiplatform. Do both of the following:
+
+1. **Reproduce a main-thread violation on purpose.** Write a minimal native module/plugin that mutates a native view from a background thread (a `DispatchQueue.global().async` block on iOS, a raw `Thread{}.start()` on Android) and capture the real crash/exception. Then fix it with the correct primitive (`DispatchQueue.main.async`, a `Handler(Looper.getMainLooper())`) and confirm it's gone.
+2. **Find the sandbox leak in a real plugin.** Pick any plugin that touches "pick or share a file" (a document picker, a share sheet) and trace its source for the point where its Android implementation and iOS implementation diverge — the `content://` URI handling versus the security-scoped `file://` handling. Write down, in your own words, which specific OS sandbox rule from this module forces that divergence, citing the Apple or Android doc section that states it.
+
+*Hint: for part 1, the fastest real repro is a one-line `imageView.image = ...` inside a `URLSession` completion handler with no `DispatchQueue.main.async` wrapper — this is a bug real apps ship by accident constantly. For part 2, search the plugin's Android source for `ContentResolver` or `openInputStream` and its iOS source for `startAccessingSecurityScopedResource` — if a plugin is well-written, both will be present and nowhere near each other's conditional branches.*

@@ -1,0 +1,98 @@
+[
+  {
+    "id": "platforms/tier-5/building-developer-tools-and-frameworks/q1",
+    "type": "multiple_choice",
+    "prompt": "What was the primary runtime cost that JSI eliminates compared to React Native's legacy bridge?",
+    "choices": [
+      "The need to write any native code at all",
+      "JSON serialization of every argument/return value plus asynchronous queued dispatch across the bridge",
+      "The JavaScript thread's garbage collector",
+      "Support for TypeScript type checking"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-5/building-developer-tools-and-frameworks/q2",
+    "type": "multiple_choice",
+    "prompt": "In JSI, how does a native module expose a callable method to JavaScript without going through a message queue?",
+    "choices": [
+      "By registering a REST endpoint the JS thread polls",
+      "By serializing the method signature into a .proto file",
+      "By implementing a HostObject whose get() returns a Function created from a C++ host function, installed directly as a JS global/property",
+      "By writing the method in JavaScript and transpiling it to C++"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "platforms/tier-5/building-developer-tools-and-frameworks/q3",
+    "type": "multiple_choice",
+    "prompt": "Historically, why did Skia (via its Ganesh GPU backend) cause visible jank the first time a new shape/effect combination appeared on screen?",
+    "choices": [
+      "Skia redraws the entire screen on every frame regardless of changes",
+      "The exact shader for that draw-state combination hadn't been seen before, so it was compiled on the render thread at that moment",
+      "Flutter's widget tree has to be rebuilt from scratch for new effects",
+      "The Dart garbage collector pauses during GPU operations"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-5/building-developer-tools-and-frameworks/q4",
+    "type": "multiple_choice",
+    "prompt": "How does Impeller avoid the runtime shader-compilation jank that affected Skia?",
+    "choices": [
+      "It disables shaders entirely and uses only solid colors",
+      "It enumerates the needed shader variants ahead of time and compiles them at engine-build time (via impellerc) into backend-specific bytecode bundled with the app",
+      "It compiles shaders on a background thread so the jank is invisible",
+      "It downloads precompiled shaders from a CDN on first launch"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-5/building-developer-tools-and-frameworks/q5",
+    "type": "multiple_choice",
+    "prompt": "In the custom ESLint rule built in this lesson, what AST condition flags legacy bridge usage like NativeModules.Foo?",
+    "choices": [
+      "Any CallExpression anywhere in the file",
+      "A MemberExpression whose object is an Identifier named 'NativeModules'",
+      "A string literal containing the word 'Native'",
+      "An import statement from 'react-native'"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-5/building-developer-tools-and-frameworks/q6",
+    "type": "multiple_choice",
+    "prompt": "What is the main architectural advantage TurboModules get from being built on JSI, versus legacy Native Modules?",
+    "choices": [
+      "They can be written in Python instead of Java/Objective-C",
+      "They are lazily loaded and called synchronously through direct host-object bindings instead of being eagerly initialized and invoked over the async JSON bridge",
+      "They no longer need to be registered with the native module registry",
+      "They automatically generate their own UI components"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-5/building-developer-tools-and-frameworks/q7",
+    "type": "multiple_choice",
+    "prompt": "Why is landing a JSI-level or Impeller-pipeline-level change upstream categorically harder than the kind of 'good first issue' contribution covered in this track's Tier 3?",
+    "choices": [
+      "Upstream maintainers don't accept any pull requests from outside contributors",
+      "It requires no JavaScript knowledge, only C++",
+      "It touches engine internals and performance/ABI tradeoffs that affect every app on the framework, so it demands internals-level understanding, benchmarking evidence, and surviving core-team architectural review rather than a self-contained, well-scoped bug fix",
+      "It can only be done by employees of Meta or Google"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "platforms/tier-5/building-developer-tools-and-frameworks/q8",
+    "type": "multiple_choice",
+    "prompt": "In the code-generator CLI built in this lesson, what are its input and output?",
+    "choices": [
+      "Input: a running app's crash logs. Output: a bug report.",
+      "Input: a JSON spec describing a module's methods and types. Output: a generated C++ HostObject header implementing those methods via JSI.",
+      "Input: compiled shader bytecode. Output: GLSL source",
+      "Input: a React component. Output: a Flutter widget"
+    ],
+    "correctIndex": 1
+  }
+]

@@ -509,3 +509,14 @@ All notable changes to The Manual (curriculum + app) are logged here. This file 
 **Result:** `npm run build` passed clean — 220 pages, 203 unique slugs verified repo-wide.
 
 **Status:** Platforms Tier 4 complete (140h, 6 lessons). Platforms is now 5/6 tiers content-complete (Tiers 0-4, 499h); only Tier 5 (Expert/Innovator) remains.
+
+## [0.40.0] — 2026-10-03 — Platforms Tier 5: track is now fully content-complete
+
+**Context:** The final tier of the sixth track. Per The Manual's uniform Tier-5 policy, the real checkpoint is portfolio/peer/maintainer review rather than quizzes, but each module still ships its usual comprehension-check quiz. This tier goes under the diagrams Tier 3 and Tier 4 stopped at — JSI's synchronous binding model instead of the old JSON bridge, Impeller's ahead-of-time shader compilation instead of Skia's runtime jank — and ends with real tool-building, not just description.
+
+**Added**
+- `content/platforms/tier-5/*.mdx` (6 files) + matching quizzes: Building Developer Tools & Frameworks (a real minimal JSI HostObject in C++ contrasted against the legacy async bridge's `MessageQueue`, Impeller's shader pre-compilation explained concretely), WebAssembly & Novel Runtimes (a real Rust/C-to-Wasm compile, WASI outside the browser), Upstream Open Source Contribution (real contribution-process contrasts across frameworks, scoped above Tier 3's "good first issue" work), Systems-Level Platform Understanding (the UIKit main-thread constraint a cross-platform bridge has to work around), Research & Emergent Patterns, Teaching & Mentorship.
+
+**Result:** `npm run build` passed clean — 226 pages, 209 unique slugs verified repo-wide.
+
+**Status:** Platforms complete (all 6 tiers, 629h, 31 lessons). This is the sixth fully content-complete track in The Manual, alongside CS Foundations, Language Mastery, Software Engineering, AI/ML & Prompt Engineering, and Hardware & Computer Systems. Remaining tracks: DevOps, Cybersecurity & Ethical Hacking, Capstones & Career.
