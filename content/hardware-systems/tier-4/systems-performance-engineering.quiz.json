@@ -1,0 +1,98 @@
+[
+  {
+    "id": "hardware-systems/tier-4/systems-performance-engineering/q1",
+    "type": "multiple_choice",
+    "prompt": "A perf stat run reports 12,673,112,480 cycles and 8,430,221,760 instructions for a loop. What is the IPC (instructions per cycle), and what does that value suggest?",
+    "choices": [
+      "About 0.67 IPC \u2014 low for a superscalar core, suggesting the loop is stalling on something other than ALU throughput (likely memory)",
+      "About 1.50 IPC \u2014 typical, suggesting the loop is well-optimized and compute-bound",
+      "About 2.00 IPC \u2014 the theoretical maximum for any x86 core, suggesting peak efficiency",
+      "About 0.067 IPC \u2014 suggesting the CPU is mostly idle waiting on I/O"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-4/systems-performance-engineering/q2",
+    "type": "multiple_choice",
+    "prompt": "perf stat reports 1,342,210,048 cache-references and 83,901,312 cache-misses for the same run. What percentage of cache references missed?",
+    "choices": [
+      "6.25%",
+      "62.5%",
+      "0.625%",
+      "25%"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-4/systems-performance-engineering/q3",
+    "type": "multiple_choice",
+    "prompt": "In a flame graph built from sampled stacks, what does the width of a frame represent?",
+    "choices": [
+      "The proportion of total samples in which that function appeared on the call stack (i.e., its share of CPU time)",
+      "The chronological duration the function ran, left to right in time order",
+      "The number of threads concurrently executing that function",
+      "The depth of that function's call stack"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-4/systems-performance-engineering/q4",
+    "type": "multiple_choice",
+    "prompt": "A folded stack file for a 700-sample profile contains these lines:\nmain;saxpy_scalar 620\nmain;verify_checksum 70\nmain;_start;main 10\nWhat percentage of total CPU time does saxpy_scalar represent?",
+    "choices": [
+      "About 88.6%",
+      "50%",
+      "620%",
+      "About 7.1%"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-4/systems-performance-engineering/q5",
+    "type": "multiple_choice",
+    "prompt": "An AVX2 __m256 register is 256 bits wide. How many 32-bit single-precision floats fit into one register, and therefore how many a single _mm256_fmadd_ps instruction processes at once?",
+    "choices": [
+      "8",
+      "4",
+      "16",
+      "2"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-4/systems-performance-engineering/q6",
+    "type": "multiple_choice",
+    "prompt": "SAXPY does 2 FLOPs per element (1 multiply, 1 add) while moving 12 bytes per element (4-byte read of x, 4-byte read-modify-write of y). After vectorizing to AVX2, instruction count dropped ~8x but wall-clock time only dropped ~2.3x, with cache-misses essentially unchanged. What explains this?",
+    "choices": [
+      "The kernel's arithmetic intensity (FLOPs per byte) is low, so it's memory-bandwidth bound, not compute bound \u2014 fewer instructions don't reduce the bytes that must cross the memory bus",
+      "The compiler failed to emit a real FMA instruction, so no vectorization actually occurred",
+      "AVX2 only supports 4 lanes for single-precision floats, not 8",
+      "Vectorizing a loop always increases the cache-miss count, which offset the gains"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-4/systems-performance-engineering/q7",
+    "type": "multiple_choice",
+    "prompt": "perf stat -r 10 ./prog reruns the binary 10 times and reports mean \u00b1 stddev instead of a single elapsed-time number. Why is this preferable, consistent with the repeated-trial habit used in the Tier 2 cache-latency pointer-chasing microbenchmark?",
+    "choices": [
+      "A single run can be skewed by cold caches, frequency ramp-up, first-touch page faults, and OS scheduling noise; repeated trials reveal the true variance instead of one possibly-unrepresentative sample",
+      "perf cannot compute hardware counters at all unless the command is run at least 10 times",
+      "Repeating the run increases the sampling frequency used by perf record",
+      "It disables address space layout randomization, which perf stat requires"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-4/systems-performance-engineering/q8",
+    "type": "multiple_choice",
+    "prompt": "Why does perf record -g -F 99 sample at 99 Hz instead of a round number like 100 Hz?",
+    "choices": [
+      "To avoid lockstep aliasing with other periodic system activity (like a 100Hz timer tick) that could systematically bias which code gets caught in samples",
+      "99 Hz is the maximum sampling rate the Linux kernel allows for any profiler",
+      "It matches the AVX2 execution unit's internal clock divider",
+      "It caps the output file to exactly 99 bytes per sample for storage efficiency"
+    ],
+    "correctIndex": 0
+  }
+]

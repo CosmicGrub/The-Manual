@@ -1,0 +1,98 @@
+[
+  {
+    "id": "hardware-systems/tier-4/advanced-networking-beyond-the-basics/q1",
+    "type": "multiple_choice",
+    "prompt": "A TCP sender starts slow start with cwnd = 10 segments and no losses occur. Assuming cwnd doubles every RTT (never hitting ssthresh), what is cwnd, in segments, after 3 full RTTs of growth?",
+    "choices": [
+      "40",
+      "60",
+      "80",
+      "100"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "hardware-systems/tier-4/advanced-networking-beyond-the-basics/q2",
+    "type": "multiple_choice",
+    "prompt": "A CUBIC sender experiences a loss event at cwnd = 50 segments. Using CUBIC's standard multiplicative decrease factor (beta = 0.7), what is cwnd immediately after the decrease?",
+    "choices": [
+      "25 segments",
+      "35 segments",
+      "40 segments",
+      "45 segments"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "hardware-systems/tier-4/advanced-networking-beyond-the-basics/q3",
+    "type": "multiple_choice",
+    "prompt": "What is the key structural difference between CUBIC's congestion-avoidance growth and Reno's?",
+    "choices": [
+      "CUBIC grows cwnd as a cubic function of wall-clock time since the last congestion event, independent of RTT, while Reno grows by a fixed +1 MSS per RTT",
+      "CUBIC only runs in slow start and never does additive increase",
+      "CUBIC decreases cwnd multiplicatively by 0.5 just like Reno, so the two are functionally identical",
+      "CUBIC requires explicit congestion notification (ECN) to grow at all, while Reno does not"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-4/advanced-networking-beyond-the-basics/q4",
+    "type": "multiple_choice",
+    "prompt": "What signal does BBR primarily use to size its congestion window, in contrast to Reno and CUBIC's primary signal?",
+    "choices": [
+      "BBR waits for three duplicate ACKs just like Reno, but reacts more gently",
+      "BBR models bottleneck bandwidth and round-trip propagation time (BtlBw x RTprop) rather than reacting to packet loss",
+      "BBR uses only the receiver's advertised window and ignores the network path entirely",
+      "BBR relies exclusively on ECN-marked packets and never estimates bandwidth"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "hardware-systems/tier-4/advanced-networking-beyond-the-basics/q5",
+    "type": "multiple_choice",
+    "prompt": "In a TLS 1.3 full handshake (no PSK), which flight is the first to carry the server's authentication (Certificate and CertificateVerify)?",
+    "choices": [
+      "The ClientHello itself",
+      "A second, separate round trip sent only after the client's Finished message",
+      "The encrypted server flight sent immediately after ServerHello, in the same round trip",
+      "TLS 1.3 never sends a Certificate message; authentication is implicit in the ECDHE exchange"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "hardware-systems/tier-4/advanced-networking-beyond-the-basics/q6",
+    "type": "multiple_choice",
+    "prompt": "Besides the source IP and port, what else must a NAT router recompute when rewriting an outbound TCP packet, and why?",
+    "choices": [
+      "Nothing else; only the address fields need to change",
+      "The Ethernet frame's CRC only, since IP and TCP checksums are optional",
+      "The IP header checksum and the TCP checksum, because the TCP checksum's pseudo-header includes the IP source and destination addresses",
+      "The TCP sequence number, since NAT renumbers every byte stream"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "hardware-systems/tier-4/advanced-networking-beyond-the-basics/q7",
+    "type": "multiple_choice",
+    "prompt": "Why does NAT break IPsec AH (Authentication Header) but not ESP in NAT-T mode?",
+    "choices": [
+      "AH's HMAC integrity check covers the outer IP header, so NAT's address rewrite invalidates it; ESP's integrity check doesn't cover the outer IP header and is UDP-encapsulated under NAT-T",
+      "AH is never routable through any router, NAT or otherwise",
+      "ESP doesn't use checksums at all, so it is immune to any header modification",
+      "NAT only rewrites TCP and UDP headers, and both AH and ESP use a different transport, so neither should be affected"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-4/advanced-networking-beyond-the-basics/q8",
+    "type": "multiple_choice",
+    "prompt": "What is the key structural difference between an L4 load balancer and an L7 load balancer?",
+    "choices": [
+      "L4 terminates TLS and parses HTTP headers for routing; L7 only rewrites IP addresses",
+      "There is no real difference; both always parse the full application protocol",
+      "L4 routes per IP/port tuple (e.g., via DNAT) without parsing the application protocol, keeping one connection pinned to one backend; L7 terminates the connection and parses the application protocol to route per request and can multiplex client connections onto fewer backend connections",
+      "L7 is simply a faster implementation of L4 with no behavioral differences"
+    ],
+    "correctIndex": 2
+  }
+]

@@ -1,0 +1,251 @@
+---
+trackId: hardware-systems
+tier: 4
+title: "Bare-Metal Embedded Systems"
+order: 4
+estimatedHours: 25
+slug: bare-metal-embedded-systems
+---
+
+Tier 2's microcontroller module gave you `DDRB`/`PORTB` on an ATmega328P — memory-mapped registers you poked directly, but underneath a bootloader (Arduino's) and an IDE that silently handled where your code lived, how the stack got set up, and what ran before `setup()`. That scaffolding is gone starting now. You're building a Cortex-M3 program with no CMSIS, no HAL, no vendor startup file, no bootloader — just a cross-compiler, a linker script you write yourself, and a datasheet. Everything that was invisible before (where `.data` lives, who sets the stack pointer, what the CPU runs in the first microsecond after reset) is now something you write by hand.
+
+The target is a real, cheap, well-documented board: the "Blue Pill," an STM32F103C8T6 — Cortex-M3 core, 64 KB flash, 20 KB RAM, running at 8 MHz on its internal oscillator at power-on with zero clock configuration. All addresses below come from ST's RM0008 reference manual.
+
+## The memory map you're actually targeting
+
+| Region | Address range | Size |
+|---|---|---|
+| Flash | `0x08000000` – `0x0800FFFF` | 64 KB |
+| SRAM | `0x20000000` – `0x20004FFF` | 20 KB |
+| Peripheral bus (APB1/APB2) | `0x40000000` – `0x5FFFFFFF` | — |
+| Cortex-M core peripherals (NVIC, SysTick) | `0xE0000000` – `0xE00FFFFF` | — |
+
+Two peripherals you'll touch directly, with real register offsets from their base addresses:
+
+| Peripheral | Base | Register | Offset | Address |
+|---|---|---|---|---|
+| RCC (clock control) | `0x40021000` | `APB2ENR` | `0x18` | `0x40021018` |
+| GPIOC | `0x40011000` | `CRH` (config, pins 8–15) | `0x04` | `0x40011004` |
+| GPIOC | `0x40011000` | `ODR` (output data) | `0x0C` | `0x4001100C` |
+| GPIOC | `0x40011000` | `BSRR` (bit set/reset) | `0x10` | `0x40011010` |
+
+No chip in this family runs a peripheral's clock by default — `APB2ENR` bit 4 (`IOPCEN`) gates the bus clock to GPIOC. Write `CRH` before enabling that bit and the write is silently ignored; the register still reads back its reset value, because the bus clock that would let it latch a new value isn't running. This is the same "nothing happens and there's no error" failure mode you'd get forgetting `pinMode()` on Arduino, except here there's no friendly runtime check — you get a pin that just never changes, and you find out by reading the register back in gdb.
+
+## The linker script: where `.text`/`.data`/`.bss` actually live
+
+A C program has three kinds of data the linker has to place somewhere real: code and constants (`.text`), initialized globals (`.data`), and zero-initialized globals (`.bss`). On a desktop, the OS loader handles this. Here, you write the placement yourself:
+
+```ld
+MEMORY
+{
+    FLASH (rx)  : ORIGIN = 0x08000000, LENGTH = 64K
+    RAM   (rwx) : ORIGIN = 0x20000000, LENGTH = 20K
+}
+
+ENTRY(Reset_Handler)
+
+SECTIONS
+{
+    .isr_vector :
+    {
+        . = ALIGN(4);
+        KEEP(*(.isr_vector))
+    } > FLASH
+
+    .text :
+    {
+        . = ALIGN(4);
+        *(.text*)
+        *(.rodata*)
+        . = ALIGN(4);
+    } > FLASH
+
+    .data :
+    {
+        . = ALIGN(4);
+        _sdata = .;
+        *(.data*)
+        . = ALIGN(4);
+        _edata = .;
+    } > RAM AT> FLASH
+    _sidata = LOADADDR(.data);
+
+    .bss :
+    {
+        . = ALIGN(4);
+        _sbss = .;
+        *(.bss*)
+        *(COMMON)
+        . = ALIGN(4);
+        _ebss = .;
+    } > RAM
+
+    _estack = ORIGIN(RAM) + LENGTH(RAM);  /* 0x20005000 */
+}
+```
+
+`.text` only needs one address because flash is readable in place — the CPU's instruction fetch can execute straight out of it, so its load address (where the linker puts the bytes) and its virtual address (where the CPU reads it from at runtime) are identical. `.data` is different: a global like `int counter = 42;` has to live in writable RAM at runtime (flash can't be written by an ordinary `str` instruction), but RAM holds garbage at power-on, so the value `42` has to be stored *somewhere nonvolatile* until startup code can move it. `AT> FLASH` tells the linker: give `.data` a runtime address (VMA) in RAM, but place its actual initializer bytes (LMA) in flash, right after `.text`. `_sidata = LOADADDR(.data)` captures that flash address as a symbol so startup code can find it. `.bss` needs none of this — it has no initializer image at all, because "zero" doesn't need to be stored anywhere; startup code just writes zero into the RAM range directly.
+
+This is why "`.data` needs a startup-time copy from flash to RAM" isn't a rule to memorize, it's a direct consequence of flash being execute/read-only and RAM being uninitialized at boot.
+
+## Startup code: what runs before `main()`
+
+At reset, the Cortex-M3 core does exactly two hardware actions before executing a single instruction: it loads the stack pointer from word 0 of the vector table, and loads the program counter from word 1. Word 1 points here:
+
+```asm
+.syntax unified
+.cpu cortex-m3
+.thumb
+
+.global Reset_Handler
+.global Default_Handler
+
+.section .text.Reset_Handler
+.type Reset_Handler, %function
+Reset_Handler:
+    ldr   sp, =_estack          @ redundant with hardware load, but explicit
+
+    /* copy .data: flash (_sidata) -> RAM (_sdata .. _edata) */
+    ldr   r0, =_sdata
+    ldr   r1, =_edata
+    ldr   r2, =_sidata
+copy_data_loop:
+    cmp   r0, r1
+    bge   copy_data_done
+    ldr   r3, [r2], #4
+    str   r3, [r0], #4
+    b     copy_data_loop
+copy_data_done:
+
+    /* zero .bss */
+    ldr   r0, =_sbss
+    ldr   r1, =_ebss
+zero_bss_loop:
+    cmp   r0, r1
+    bge   zero_bss_done
+    movs  r2, #0
+    str   r2, [r0], #4
+    b     zero_bss_loop
+zero_bss_done:
+
+    bl    main
+hang:
+    b     hang
+    .size Reset_Handler, .-Reset_Handler
+
+.section .text.Default_Handler
+.type Default_Handler, %function
+Default_Handler:
+    b     Default_Handler
+    .size Default_Handler, .-Default_Handler
+```
+
+Skip the `.data` copy and `counter` reads back whatever garbage happened to be in SRAM at power-on, not `42` — a bug that's invisible in simulation (where RAM is often zeroed by the simulator) and real on hardware (where it isn't). Skip the `.bss` zero and every uninitialized global starts in an undefined state instead of 0, which is exactly the kind of bug that works on your desk and fails three builds later when a capacitor's charge state at power-on happens to differ.
+
+## GPIO with no HAL: the register table, straight into pointer casts
+
+Every register in the tables above becomes one line of C — a `volatile uint32_t` at a fixed address, `volatile` because the hardware (not the compiler) can change these out from under you, and the compiler must not cache or reorder away a read or write to one:
+
+```c
+#include <stdint.h>
+
+#define RCC_APB2ENR  (*(volatile uint32_t *)0x40021018)
+#define GPIOC_CRH    (*(volatile uint32_t *)0x40011004)
+#define GPIOC_ODR    (*(volatile uint32_t *)0x4001100C)
+#define GPIOC_BSRR   (*(volatile uint32_t *)0x40011010)
+
+volatile uint32_t ms_ticks = 0;
+
+void SysTick_Handler(void) {
+    ms_ticks++;
+    if (ms_ticks % 500 == 0) {
+        GPIOC_ODR ^= (1u << 13);   /* toggle PC13 every 500 ms */
+    }
+}
+
+int main(void) {
+    RCC_APB2ENR |= (1u << 4);         /* IOPCEN: gate GPIOC's bus clock on */
+
+    GPIOC_CRH &= ~(0xFu << 20);       /* clear pin 13's 4-bit MODE/CNF field */
+    GPIOC_CRH |=  (0x2u << 20);       /* MODE13=10 (output, 2MHz), CNF13=00 (push-pull) */
+
+    for (;;) {
+        __asm__ volatile ("wfi");     /* sleep until the next interrupt */
+    }
+}
+```
+
+`CRH` packs eight pins (8–15) into 32 bits, four bits each: pin 13's field sits at bits 23:20. `0x2 << 20` sets `MODE13 = 10` (output, max 2 MHz) and `CNF13 = 00` (general-purpose push-pull) — you clear the field first because a bare `|=` would only ever set bits, never clear ones left over from reset (`CNF=01`, floating input, is the reset default on most pins).
+
+`BSRR` is worth pointing at specifically because it solves a real race: a naive `GPIOC_ODR |= (1<<13)` is a read-modify-write — if an interrupt fires between the read and the write and changes another bit in `ODR`, that change gets clobbered when your write lands. `BSRR`'s low 16 bits (`BSx`) set a pin, its high 16 bits (`BRx`, `x+16`) reset a pin, and writing 0 to any bit does nothing in either half — so `GPIOC_BSRR = (1<<29)` (bit 13+16) resets PC13 atomically, in one bus write, with no read involved at all.
+
+## The interrupt vector table, by hand
+
+The vector table is just an array of code addresses, placed at the exact spot `.isr_vector` claims in the linker script (the first bytes of flash, so it's what the core reads at reset):
+
+```c
+typedef void (*isr_t)(void);
+
+extern uint32_t _estack;
+void Reset_Handler(void);
+void Default_Handler(void);
+void SysTick_Handler(void);
+
+__attribute__((section(".isr_vector")))
+const isr_t vector_table[] = {
+    (isr_t)&_estack,     /* 0:  initial SP        <- hardware loads this at reset */
+    Reset_Handler,        /* 1:  Reset              <- hardware loads PC from here */
+    Default_Handler,      /* 2:  NMI */
+    Default_Handler,      /* 3:  HardFault */
+    Default_Handler,      /* 4:  MemManage */
+    Default_Handler,      /* 5:  BusFault */
+    Default_Handler,      /* 6:  UsageFault */
+    0, 0, 0, 0,            /* 7-10: reserved */
+    Default_Handler,      /* 11: SVCall */
+    Default_Handler,      /* 12: Debug Monitor */
+    0,                      /* 13: reserved */
+    Default_Handler,      /* 14: PendSV */
+    SysTick_Handler,      /* 15: SysTick */
+    Default_Handler,      /* 16: IRQ0 = WWDG, and so on through IRQ67... */
+};
+```
+
+Index 0 and 1 are the two hardware-loaded values; every index after that is read by the NVIC when the matching exception/interrupt fires, with index `16+N` corresponding to IRQ number `N` on this part (STM32F103's reference manual lists `IRQ6 = EXTI0`, `IRQ37 = USART1`, and so on — the offset is fixed by the architecture, the assignment of IRQ numbers to peripherals is per-chip).
+
+SysTick is a core peripheral (fixed address regardless of vendor) you configure with three registers at `0xE000E010`–`0xE000E018`:
+
+```c
+#define SYST_CSR  (*(volatile uint32_t *)0xE000E010)
+#define SYST_RVR  (*(volatile uint32_t *)0xE000E014)
+#define SYST_CVR  (*(volatile uint32_t *)0xE000E018)
+/* add inside main(), before the for(;;) loop above */
+SYST_RVR = 7999;                         /* reload: counts down, fires at 0 */
+SYST_CVR = 0;
+SYST_CSR = (1u<<2) | (1u<<1) | (1u<<0);  /* CLKSOURCE=core clock, TICKINT=1, ENABLE=1 */
+```
+
+SysTick counts down from `SYST_RVR` to 0 and fires on that transition, so the period is `(RVR+1)` clock cycles. At the chip's default 8 MHz (no PLL touched — HSI straight out of reset), a 1 ms tick needs `8,000,000 × 0.001 = 8000` cycles, so `RVR = 7999`. `SysTick_Handler` is exactly the function sitting at vector table index 15 — there's no registration call, no "attach interrupt" API; the function's address *is* the hookup, decided entirely by where you put it in the array.
+
+## Building, inspecting, and flashing it for real
+
+```bash
+arm-none-eabi-gcc -mcpu=cortex-m3 -mthumb -nostdlib -nostartfiles \
+    -T linker.ld -o blink.elf startup.s main.c
+arm-none-eabi-objdump -h blink.elf
+```
+
+```
+Idx Name          Size      VMA       LMA       File off  Algn
+  0 .isr_vector   00000044  08000000  08000000  00001000  2**2
+  1 .text         00000178  08000044  08000044  00001044  2**2
+  2 .data         00000004  20000000  080001bc  000021c0  2**2
+  3 .bss          00000008  20000004  20000004  000021c4  2**0
+```
+
+That's the proof the linker script worked: `.data`'s VMA (`0x20000000`, where `ms_ticks` actually lives while the program runs) and LMA (`0x080001bc`, where its 4-byte initial image sits in flash) are different addresses, exactly as `AT> FLASH` specified — and that gap is precisely what `Reset_Handler`'s copy loop closes before `main()` ever runs. Flash it with `arm-none-eabi-objcopy -O binary blink.elf blink.bin && st-flash write blink.bin 0x08000000`, and the onboard LED on PC13 blinks once a second, driven entirely by a 1 ms SysTick interrupt, with not one line of vendor code anywhere in the build.
+
+## Exercise
+
+Extend this build: wire a pushbutton to PA0 and make it fire an interrupt (`EXTI0`, IRQ6) that toggles the LED immediately, instead of waiting on the SysTick-driven blink. You'll need to: enable GPIOA's clock (`IOPAEN`, a different `APB2ENR` bit than the one used here), configure PA0 as an input in `GPIOA_CRL` (pin 0 lives in `CRL`, not `CRH`), route PA0 to `EXTI0` via the `AFIO_EXTICR1` register, unmask `EXTI0` in `EXTI_IMR` and set its trigger edge in `EXTI_FTSR`/`EXTI_RTSR`, and — the step this lesson's vector table makes concrete — put `EXTI0_Handler` at index `16 + 6 = 22` in `vector_table`, matching where the NVIC will actually look for IRQ6.
+
+Hint: inside any EXTI handler you must clear the pending bit yourself by writing a 1 to the corresponding bit in `EXTI_PR` (`0x40010414`) before returning — the interrupt is level-latched in that register, not auto-cleared by the hardware, and if you skip this step the handler will fire once and then immediately re-fire forever, which looks like a hang.

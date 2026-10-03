@@ -1,0 +1,209 @@
+---
+trackId: hardware-systems
+tier: 4
+title: "Advanced Networking: Beyond the Basics"
+order: 6
+estimatedHours: 15
+slug: advanced-networking-beyond-the-basics
+---
+
+## TCP Congestion Control: A Real Trace
+
+You already know the three-way handshake and basic socket mechanics from Tier 3's canonical networking module — this section starts where that one stopped: what happens to the *send window* once data is actually flowing.
+
+Two state variables drive everything: `cwnd` (congestion window, how much the sender is allowed to have in flight) and `ssthresh` (the threshold where the sender switches growth strategy). Every TCP implementation also tracks the receiver's advertised window (`rwnd`); the actual send limit is `min(cwnd, rwnd)`. We're focused on `cwnd`.
+
+### Slow start, with real numbers
+
+Assume MSS = 1460 bytes, initial `cwnd` = 10 segments (RFC 6928's default), `ssthresh` = 44 segments (≈64 KB / 1460). No losses yet.
+
+| RTT | cwnd (segments) | cwnd (bytes) | Phase |
+|---|---|---|---|
+| 0 | 10 | 14,600 | slow start |
+| 1 | 20 | 29,200 | slow start |
+| 2 | 40 | 58,400 | slow start |
+| 3 | 44 (clamped at ssthresh, would've been 80) | 64,240 | **enters congestion avoidance** |
+| 4 | 45 | 65,700 | congestion avoidance |
+| 5 | 46 | 67,160 | congestion avoidance |
+
+Slow start doubles `cwnd` every RTT because every ACK increases `cwnd` by one MSS, and a full window's worth of ACKs arrives per RTT. The moment `cwnd` would cross `ssthresh`, the sender clamps to `ssthresh` and switches to **congestion avoidance**: now it's additive increase, +1 MSS per RTT, not per ACK. This is the "AI" half of AIMD.
+
+### Reno: multiplicative decrease on loss
+
+Suppose growth continues linearly and at RTT 12, `cwnd` = 50 segments, and three duplicate ACKs arrive (a receiver signaling "I got segment N+2 but not N+1" three times = fast retransmit trigger). Classic Reno:
+
+```
+ssthresh = cwnd / 2        // 50 / 2 = 25
+cwnd     = ssthresh        // 25 (fast recovery, not back to slow start)
+```
+
+Growth resumes linearly from 25. This is the "MD" half: one loss event, halve, crawl back up linearly. Over a long-haul, high-bandwidth link this is brutal — a single loss on a 10 Gbps path with 100ms RTT costs you tens of seconds of recovered throughput, because the additive increase of +1 MSS/RTT is tiny relative to the window you need.
+
+### CUBIC: decouple growth from RTT
+
+CUBIC (Linux's default since 2.6.19) uses a different decrease factor and a fundamentally different growth function. Decrease factor `beta = 0.7` (not 0.5):
+
+```
+Wmax  = 50                         // cwnd at the moment of loss
+cwnd  = Wmax * beta = 35           // 50 * 0.7, not 50 * 0.5
+```
+
+Then growth is **cubic in elapsed time**, not per-ACK or per-RTT:
+
+```
+W(t) = C * (t - K)^3 + Wmax
+K = cbrt(Wmax * (1 - beta) / C)
+```
+
+With `C = 0.4`: `K = cbrt(50 * 0.3 / 0.4) = cbrt(37.5) ≈ 3.34` seconds. `W(t)` sits flat near `Wmax` for the first few seconds (concave region — cautious, since this is where the last loss happened), then accelerates convexly past `Wmax` to probe for more bandwidth once enough time has passed without a loss. This is the structural break from Reno: **CUBIC's growth is a function of wall-clock time since the last congestion event, independent of RTT and independent of how many ACKs arrive.** On a long-RTT path, Reno's ACK-clocked +1 MSS/RTT growth is punishingly slow; CUBIC's clock-driven growth doesn't care how long the RTT is, so it reclaims bandwidth far faster on long-haul links. That's precisely why it became the default.
+
+### BBR: stop reacting to loss, model the pipe
+
+Reno and CUBIC are both **loss-based**: they only know they went too fast after a packet already died in a buffer. BBR (Google, 2016) is **model-based**. It continuously estimates two numbers from ACK timing:
+
+- `BtlBw` — bottleneck bandwidth, the max observed delivery rate
+- `RTprop` — the minimum observed RTT (the propagation delay with no queueing)
+
+Then it sets `cwnd ≈ BtlBw × RTprop` (the bandwidth-delay product) and paces packets out at a rate near `BtlBw`, instead of just lifting a window limit and bursting. It cycles through states — `STARTUP` (exponential probe), `DRAIN` (dump the queue it just built), `PROBE_BW` (steady state, periodically probes for more bandwidth), `PROBE_RTT` (every ~10s, drop to a tiny window for 200ms to get a fresh, unqueued RTT sample). The structural difference: **BBR tries to run the link at `BtlBw` with a queue depth near zero, rather than deliberately filling buffers until something drops.** This is also why BBR flows historically out-competed CUBIC flows sharing a bottleneck — CUBIC backs off only when the buffer actually overflows, so a non-loss-reactive BBR flow can crowd it out. BBRv2/v3 added loss and ECN response specifically to fix that fairness problem.
+
+## TLS 1.3 Handshake: What Each Round Trip Buys You
+
+Tier 3's module covered the TCP byte stream this rides on top of; TLS 1.3 negotiates keys and authentication inside that stream in exactly **one round trip** before application data flows (down from TLS 1.2's two).
+
+```
+Client                                               Server
+
+ClientHello
+  + key_share: x25519, <client pubkey Cx>
+  + supported_versions: 0x0304
+  + signature_algorithms: ecdsa_secp256r1_sha256, ...
+  + cipher_suites: TLS_AES_128_GCM_SHA256 (0x1301)      -------->
+
+                                              ServerHello
+                                      + key_share: x25519, <server pubkey Sx>
+                                      + cipher_suite chosen: 0x1301
+                             {EncryptedExtensions}
+                             {Certificate}
+                             {CertificateVerify}
+                             {Finished}                 <--------
+
+{Finished}                                               -------->
+[Application Data]                                       <------->
+```
+
+What each piece establishes:
+
+- **ClientHello/ServerHello key_shares**: an X25519 ECDHE exchange. Both sides now compute the same shared secret `Z` without it ever crossing the wire.
+- **Key schedule**: `Z` feeds HKDF-Extract to derive a *handshake secret*, which derives separate client/server *handshake traffic secrets*. Everything from `EncryptedExtensions` onward is already symmetrically encrypted under these — **the server's certificate is encrypted**, unlike TLS 1.2.
+- **Certificate + CertificateVerify**: the cert chain, then a signature over the entire handshake transcript so far using the cert's private key. This is what proves the server actually holds the key for that cert (not just that it owns a cert file).
+- **Finished (both sides)**: an HMAC over the transcript using a key derived from the handshake secret. This is the integrity check that nothing was tampered with or downgraded in transit.
+- After both Finished messages, a *master secret* derives the *application traffic secrets* used for actual data.
+
+So by the end of **one round trip**, you have: a fresh ECDHE shared secret, server authentication via signature, transcript integrity, and encrypted application-data keys ready to use. With a valid session ticket (PSK) from a prior connection, TLS 1.3 supports **0-RTT**: the client sends encrypted application data in its very first flight, accepting a replay risk the application must tolerate (idempotent requests only).
+
+## NAT: What Actually Gets Rewritten, and Why That Breaks Things
+
+NAT isn't just "change the IP." A real translation table entry:
+
+| Field | Internal | Translated |
+|---|---|---|
+| Source IP | 192.168.1.50 | 203.0.113.9 |
+| Source port | 51413 | 40001 |
+| Dest IP | 93.184.216.34 | 93.184.216.34 (unchanged) |
+| Dest port | 443 | 443 (unchanged) |
+
+When the packet leaves, the router rewrites the source IP/port **and must recompute two checksums**: the IP header checksum (covers the IP header, which just changed), and the TCP/UDP checksum — because that checksum's pseudo-header includes the source and destination IP addresses. Skip either recompute and the packet gets silently dropped by the next honest stack that validates it. The return packet gets the reverse rewrite applied by looking up the table by `(dst_ip, dst_port)` = the public-side tuple.
+
+This breaks protocols that embed addressing information *inside the payload*, where NAT can't see it:
+
+- **FTP active mode**: the client sends a `PORT` command containing its own private IP/port in the payload, asking the server to connect back to it. The server tries to connect to `192.168.1.50`, which is unroutable from the internet. Fix requires either passive mode or a NAT box with an FTP-aware ALG that rewrites the payload too.
+- **IPsec AH (Authentication Header)**: AH's HMAC integrity check covers the *entire IP header*, including source/dest addresses. NAT rewriting those addresses invalidates the HMAC — the packet fails integrity check at the far end. (ESP in NAT-T mode sidesteps this: its integrity check doesn't cover the outer IP header, and it's wrapped in UDP, so NAT can mangle the outer addressing freely.)
+- **SIP/VoIP**: session descriptions (SDP) embed the caller's private IP for the media stream; the callee tries to send RTP packets to an unroutable address unless a SIP-aware ALG or STUN/TURN relay fixes it up.
+
+And structurally: a single public IP has ~64,000 usable ports, so a NAT device is capacity-limited in concurrent translated flows per public IP — this is why carrier-grade NAT (CGNAT) pools multiple customers behind shared public IPs and still runs into port exhaustion under load.
+
+## L4 vs L7 Load Balancing
+
+**L4** (e.g., IPVS/LVS, a cloud "Network Load Balancer"): decides per-*connection*, based on IP/port tuples, typically via DNAT:
+
+| VIP | Rewritten to | Method |
+|---|---|---|
+| 203.0.113.10:443 | 10.0.1.5:443 | round robin |
+| 203.0.113.10:443 | 10.0.1.6:443 | round robin |
+
+It never terminates TLS or parses HTTP — it just rewrites the destination IP/port (or uses direct server return) and lets the backend see (nearly) the original packet. Fast, cheap, protocol-agnostic, but one TCP connection sticks to one backend for its lifetime and the LB can't make decisions based on URL path, headers, or cookies.
+
+**L7** (e.g., HAProxy in HTTP mode, Envoy, nginx): terminates the TCP connection — and the TLS session if HTTPS — and actually parses the HTTP request: method, path, `Host` header, cookies. This buys content-based routing (`/api/*` → backend pool A, `/static/*` → backend pool B), and connection multiplexing: thousands of client connections can be funneled onto a small pool of persistent backend connections (keep-alive reuse), which a pure L4 box can't do because it isn't speaking the application protocol. The cost: it must hold the TLS private key (or do passthrough-and-re-encrypt), and every request pays CPU for parsing and an extra hop of connection termination.
+
+## Building It: Raw-Socket Packet Construction
+
+A minimal Python TCP SYN built by hand, byte-for-byte, no socket-layer TCP stack involved:
+
+```python
+import socket, struct
+
+def checksum(data: bytes) -> int:
+    if len(data) % 2:
+        data += b'\x00'
+    total = sum(struct.unpack('!%dH' % (len(data) // 2), data))
+    total = (total >> 16) + (total & 0xffff)
+    total += total >> 16
+    return ~total & 0xffff
+
+def build_ip_header(src_ip, dst_ip, payload_len, ident=54321):
+    ver_ihl = (4 << 4) | 5
+    hdr = struct.pack('!BBHHHBBH4s4s', ver_ihl, 0, 20 + payload_len,
+                       ident, 0, 64, socket.IPPROTO_TCP, 0,
+                       socket.inet_aton(src_ip), socket.inet_aton(dst_ip))
+    csum = checksum(hdr)
+    return struct.pack('!BBHHHBBH4s4s', ver_ihl, 0, 20 + payload_len,
+                        ident, 0, 64, socket.IPPROTO_TCP, csum,
+                        socket.inet_aton(src_ip), socket.inet_aton(dst_ip))
+
+def build_tcp_syn(src_ip, dst_ip, src_port, dst_port, seq):
+    data_off_res = 5 << 4
+    no_csum = struct.pack('!HHLLBBHHH', src_port, dst_port, seq, 0,
+                           data_off_res, 0x02, 64240, 0, 0)
+    pseudo = struct.pack('!4s4sBBH', socket.inet_aton(src_ip),
+                          socket.inet_aton(dst_ip), 0,
+                          socket.IPPROTO_TCP, len(no_csum))
+    csum = checksum(pseudo + no_csum)
+    return struct.pack('!HHLLBBHHH', src_port, dst_port, seq, 0,
+                        data_off_res, 0x02, 64240, csum, 0)
+
+def send_syn(src_ip, dst_ip, src_port, dst_port):
+    seg = build_tcp_syn(src_ip, dst_ip, src_port, dst_port, seq=1000)
+    pkt = build_ip_header(src_ip, dst_ip, len(seg)) + seg
+    s = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_TCP)
+    s.setsockopt(socket.IPPROTO_IP, socket.IP_HDRINCL, 1)
+    s.sendto(pkt, (dst_ip, dst_port))
+    s.close()  # requires root / CAP_NET_RAW
+```
+
+A mini-router's forwarding core in C — the part that matters is the TTL decrement and checksum recompute between `recvfrom` on one interface and `sendto` on another:
+
+```c
+static unsigned short ip_checksum(void *hdr, int len) {
+    unsigned long sum = 0;
+    unsigned short *p = hdr;
+    for (; len > 1; len -= 2) sum += *p++;
+    if (len == 1) sum += *(unsigned char *)p;
+    sum = (sum >> 16) + (sum & 0xffff);
+    sum += (sum >> 16);
+    return (unsigned short)~sum;
+}
+
+/* buf holds a captured Ethernet frame from an AF_PACKET/SOCK_RAW socket */
+struct iphdr *ip = (struct iphdr *)(buf + sizeof(struct ethhdr));
+if (ip->ttl <= 1) { /* send ICMP TTL-exceeded instead */ continue; }
+ip->ttl -= 1;
+ip->check = 0;
+ip->check = ip_checksum(ip, ip->ihl * 4);
+sendto(tx_sock, buf, frame_len, 0, (struct sockaddr *)&egress_ll, sizeof(egress_ll));
+```
+
+## Exercise
+
+Write a Python program with two raw `AF_PACKET` sockets (or two pcap files if you don't have two interfaces to test with) that implements a minimal NAT: maintain a translation table keyed by `(internal_ip, internal_port)` → `(public_ip, public_port)`, rewrite outbound TCP SYNs accordingly, and correctly rewrite the reply (SYN-ACK) back to the internal tuple. Verify with a packet capture that both the IP and TCP checksums are valid on the rewritten packets — a validating stack will silently drop anything you got wrong.
+
+*Hint: you need the reverse lookup for the return path, and you must recompute both checksums on both directions — the thing people forget is that the TCP checksum's pseudo-header changes whenever the IP addresses change, independent of whatever you did to the IP header's own checksum.*

@@ -1,0 +1,98 @@
+[
+  {
+    "id": "hardware-systems/tier-4/bare-metal-embedded-systems/q1",
+    "type": "multiple_choice",
+    "prompt": "In the linker script pattern `.data : { ... } > RAM AT> FLASH`, what do the section's VMA and LMA represent, and why does `.bss` need no LMA at all?",
+    "choices": [
+      "VMA is the runtime address the CPU reads/writes through (RAM); LMA is where the section's initial byte image is stored in flash for startup code to copy from. .bss has no LMA because it holds no initializer image -- it's just zeroed in place.",
+      "VMA and LMA are always identical; `AT> FLASH` only changes where `.text` is linked.",
+      "LMA is the RAM address used at runtime; VMA is the flash address used only during linking.",
+      "VMA is where the CPU executes code from; it only applies to `.text`, and `.data`/`.bss` never have a VMA."
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-4/bare-metal-embedded-systems/q2",
+    "type": "multiple_choice",
+    "prompt": "GPIOC_CRH packs pins 8-15 into 32 bits, 4 bits per pin, so pin 13's MODE/CNF field sits at bits 23:20. Which code correctly configures PC13 as a push-pull output at 2 MHz (MODE13=10, CNF13=00), starting from an unknown reset state?",
+    "choices": [
+      "GPIOC_CRH |= (0x2 << 20);",
+      "GPIOC_CRH &= ~(0xF << 20); GPIOC_CRH |= (0x2 << 20);",
+      "GPIOC_CRH = 0x2;",
+      "GPIOC_CRH |= (0xF << 20);"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "hardware-systems/tier-4/bare-metal-embedded-systems/q3",
+    "type": "multiple_choice",
+    "prompt": "GPIOC_BSRR sets pin x via bit x (BSx, bits 0-15) and resets pin x via bit x+16 (BRx, bits 16-31), with 0 having no effect in either half. Which single write atomically drives PC13 LOW?",
+    "choices": [
+      "GPIOC_BSRR = (1 << 13);",
+      "GPIOC_BSRR = (1 << 16);",
+      "GPIOC_BSRR = (1 << 29);",
+      "GPIOC_BSRR = 0xFFFF;"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "hardware-systems/tier-4/bare-metal-embedded-systems/q4",
+    "type": "multiple_choice",
+    "prompt": "At reset, what does the Cortex-M3 core do with the first two words of the vector table?",
+    "choices": [
+      "It loads the program counter from word 0 and the stack pointer from word 1.",
+      "It loads the stack pointer from word 0 and the program counter from word 1.",
+      "Both words are ignored until the first interrupt fires.",
+      "Word 0 holds the NMI handler and word 1 holds the reset handler; the stack pointer defaults to zero."
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "hardware-systems/tier-4/bare-metal-embedded-systems/q5",
+    "type": "multiple_choice",
+    "prompt": "Why must startup code explicitly zero `.bss` rather than relying on RAM already being zero at power-on?",
+    "choices": [
+      "RAM contents at power-on are not guaranteed to be zero or known, so skipping this step leaves uninitialized globals holding garbage.",
+      ".bss is stored in flash as a block of zero bytes that must be copied in, just like .data.",
+      "The linker already zeroes .bss at link time, so this step is purely defensive and never actually matters.",
+      "Cortex-M3 hardware zeroes SRAM automatically on every reset, so this step only matters on other architectures."
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-4/bare-metal-embedded-systems/q6",
+    "type": "multiple_choice",
+    "prompt": "SysTick's SYST_RVR counts down to 0 before reloading and firing, so the period is (RVR+1) clock cycles. At an 8 MHz core clock with no PLL configured, what SYST_RVR value produces a 1 ms (1 kHz) tick?",
+    "choices": [
+      "8000",
+      "7999",
+      "1000",
+      "999"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "hardware-systems/tier-4/bare-metal-embedded-systems/q7",
+    "type": "multiple_choice",
+    "prompt": "You write to GPIOC_CRH before setting the IOPCEN bit in RCC_APB2ENR. What actually happens?",
+    "choices": [
+      "The write is ignored -- GPIOC's bus clock is gated off, so the register doesn't latch the new value and reads back its reset state.",
+      "The CPU immediately raises a HardFault exception.",
+      "The write succeeds normally; the clock gate only affects the ADC and timers, not GPIO.",
+      "The write succeeds, but only takes effect after the next reset."
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-4/bare-metal-embedded-systems/q8",
+    "type": "multiple_choice",
+    "prompt": "What is the correct order of operations inside Reset_Handler before branching to main()?",
+    "choices": [
+      "Zero .bss, then copy .data from flash to RAM, then set the stack pointer.",
+      "Call main() first, then initialize .data and .bss from within main().",
+      "Set the stack pointer, copy .data's initializer image from flash to its RAM address, then zero .bss.",
+      "Copy .bss from flash to RAM, then zero .data."
+    ],
+    "correctIndex": 2
+  }
+]

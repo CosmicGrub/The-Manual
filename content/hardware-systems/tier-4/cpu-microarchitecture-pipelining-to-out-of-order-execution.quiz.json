@@ -1,0 +1,98 @@
+[
+  {
+    "id": "hardware-systems/tier-4/cpu-microarchitecture-pipelining-to-out-of-order-execution/q1",
+    "type": "multiple_choice",
+    "prompt": "Two instructions in the pipeline both need the single shared memory port in the same cycle \u2014 one for instruction fetch, one for a data access. What type of hazard is this?",
+    "choices": [
+      "Structural hazard",
+      "Data hazard (RAW)",
+      "Control hazard",
+      "Name hazard (WAW)"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-4/cpu-microarchitecture-pipelining-to-out-of-order-execution/q2",
+    "type": "multiple_choice",
+    "prompt": "In the classic 5-stage pipeline (IF ID EX MEM WB) with EX/MEM and MEM/WB forwarding paths, a LW is immediately followed by an ADD that uses the loaded register. How many stall cycles are required?",
+    "choices": [
+      "0 \u2014 forwarding alone covers it",
+      "1 stall cycle",
+      "2 stall cycles",
+      "3 stall cycles"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "hardware-systems/tier-4/cpu-microarchitecture-pipelining-to-out-of-order-execution/q3",
+    "type": "multiple_choice",
+    "prompt": "A 2-bit saturating branch counter starts in state 11 (strongly-taken). The branch then resolves as Taken, Taken, Not-taken, Not-taken, in that order. What state is the counter in after all four updates?",
+    "choices": [
+      "00 (strongly-not-taken)",
+      "01 (weakly-not-taken)",
+      "10 (weakly-taken)",
+      "11 (strongly-taken)"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "hardware-systems/tier-4/cpu-microarchitecture-pipelining-to-out-of-order-execution/q4",
+    "type": "multiple_choice",
+    "prompt": "The Backward-Taken, Forward-Not-Taken (BTFNT) static prediction heuristic predicts a branch is taken when:",
+    "choices": [
+      "The branch target address is lower than the branch's own address",
+      "The branch target address is higher than the branch's own address",
+      "The branch has executed more than once before",
+      "The branch compares two equal registers"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-4/cpu-microarchitecture-pipelining-to-out-of-order-execution/q5",
+    "type": "multiple_choice",
+    "prompt": "In Tomasulo's algorithm, register renaming via reservation station tags primarily eliminates which hazards?",
+    "choices": [
+      "WAR and WAW (name) hazards",
+      "RAW (true data) hazards",
+      "Structural hazards on execution units",
+      "Control hazards from branch misprediction"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-4/cpu-microarchitecture-pipelining-to-out-of-order-execution/q6",
+    "type": "multiple_choice",
+    "prompt": "Given: (1) MUL F0,F2,F4  (2) ADD F6,F0,F8  (3) MUL F0,F10,F12  (4) ADD F2,F0,F14 \u2014 with full register renaming via reservation stations, which instruction pairs still have a genuine dependency that forces one to wait for the other?",
+    "choices": [
+      "(1\u21922) and (3\u21924) only",
+      "(1\u21923) and (2\u21924) only, because both touch F0",
+      "(2\u21923) only, a WAR hazard on F0",
+      "All four instructions are mutually dependent"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-4/cpu-microarchitecture-pipelining-to-out-of-order-execution/q7",
+    "type": "multiple_choice",
+    "prompt": "In a Spectre v1 attack, the bounds check ultimately fails and the pipeline squashes the out-of-bounds load's architectural effects. Why can the attacker still recover the secret byte afterward?",
+    "choices": [
+      "The cache line touched by the speculative load is not rolled back along with the squashed architectural state",
+      "The secret byte is left in a general-purpose register that survives the squash",
+      "The branch predictor itself stores the secret value in its counter",
+      "The TLB logs the faulting address for later retrieval"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-4/cpu-microarchitecture-pipelining-to-out-of-order-execution/q8",
+    "type": "multiple_choice",
+    "prompt": "What distinguishes Meltdown's root cause from Spectre v1's?",
+    "choices": [
+      "Meltdown exploits out-of-order execution continuing past a privileged-memory load before its fault is architecturally delivered, rather than a mispredicted branch",
+      "Meltdown exploits a structural hazard in the load-store unit",
+      "Meltdown relies on a static always-taken branch predictor",
+      "Meltdown requires physical access to flush the cache with specialized hardware"
+    ],
+    "correctIndex": 0
+  }
+]

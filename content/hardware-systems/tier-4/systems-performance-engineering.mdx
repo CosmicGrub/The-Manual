@@ -1,0 +1,172 @@
+---
+trackId: hardware-systems
+tier: 4
+title: "Performance Engineering"
+order: 3
+estimatedHours: 18
+slug: systems-performance-engineering
+---
+
+## Measuring before guessing
+
+Every optimization story starts the same wrong way: someone reads the source, decides which function "looks slow," and rewrites it. Half the time they're wrong. The only honest starting point is a counter-based profile — `perf stat` on Linux, VTune's "Hotspots" view on Intel-only shops, the same hardware performance counters (cycles, retired instructions, cache misses, branch mispredicts) read either way. This lesson uses `perf` because it's free and scriptable; everything below reads identically in VTune's microarchitecture-exploration view if that's what your shop runs.
+
+The running example is SAXPY: `y = a*x + y`, the inner loop of iterative linear solvers (conjugate gradient, GMRES) and the oldest kernel in BLAS.
+
+```c
+// saxpy_bench.c
+#include <stdio.h>
+#include <stdlib.h>
+
+#define N (32 * 1024 * 1024)   // 32M elements -> 128MB per array
+#define REPS 20
+
+void saxpy_scalar(float a, float *x, float *y, int n) {
+    for (int i = 0; i < n; i++) {
+        y[i] = a * x[i] + y[i];
+    }
+}
+
+double verify_checksum(float *y, int n) {
+    double sum = 0.0;
+    for (int i = 0; i < n; i++) sum += y[i];
+    return sum;
+}
+
+int main(void) {
+    float *x = malloc(N * sizeof(float));
+    float *y = malloc(N * sizeof(float));
+    for (int i = 0; i < N; i++) { x[i] = 1.0f; y[i] = 2.0f; }
+
+    for (int r = 0; r < REPS; r++) saxpy_scalar(2.0f, x, y, N);
+
+    printf("checksum = %f\n", verify_checksum(y, N));
+    free(x); free(y);
+    return 0;
+}
+```
+
+`gcc -O2 -march=native saxpy_bench.c -o saxpy_scalar` — note `-O2` alone does not autovectorize (that needs `-O3` or `-ftree-vectorize`), so this binary is genuinely scalar.
+
+```bash
+$ perf stat -e task-clock,cycles,instructions,cache-references,cache-misses,branch-instructions,branch-misses ./saxpy_scalar
+
+checksum = 1342177280.000000
+
+ Performance counter stats for './saxpy_scalar':
+
+          4,812.34 msec task-clock                #    0.999 CPUs utilized
+     12,673,112,480      cycles                    #    2.635 GHz
+      8,430,221,760      instructions              #    0.67  insn per cycle
+      1,342,210,048      cache-references          #  279.0  M/sec
+         83,901,312      cache-misses              #    6.25 % of all cache refs
+      2,013,331,200      branch-instructions        #  418.4  M/sec
+            201,998      branch-misses             #    0.01 % of all branches
+
+       4.817839213 seconds time elapsed
+```
+
+IPC = 8,430,221,760 / 12,673,112,480 ≈ 0.67. A modern superscalar core can retire 4+ instructions per cycle; 0.67 is terrible for a loop whose body is one load, one FMA, one store. The instructions aren't the bottleneck — the data is. `x` and `y` are 128MB each; nothing fits in any cache (L3 on this part is 16MB), so nearly every 64-byte line is a compulsory miss. 6.25% of accesses miss, but each miss costs the ~80–120ns DRAM round trip you measured directly with the pointer-chasing microbenchmark in Tier 2's cache-hierarchy module — roughly 200–300 cycles — so that small miss percentage dominates total cycles. Low IPC plus a non-trivial miss rate on a streaming access pattern is the signature of a memory-bound loop, not a "needs faster math" loop.
+
+## Finding the hot path: `perf record` and flame graphs
+
+`perf stat` tells you *that* something is slow in aggregate; it doesn't tell you *which function*. For that, sample the call stack:
+
+```bash
+$ perf record -g -F 99 -o perf.data -- ./saxpy_scalar
+$ perf script > out.perf
+```
+
+`-F 99` samples at 99 Hz, not a round 100 Hz — a round number risks lockstep aliasing with other periodic system activity (timer ticks, scheduler quanta), which would bias *which* code gets caught mid-sample. 99 Hz avoids that coherence.
+
+Feed the raw samples through Brendan Gregg's FlameGraph scripts:
+
+```bash
+$ ./stackcollapse-perf.pl out.perf > out.folded
+$ ./flamegraph.pl out.folded > out.svg
+```
+
+`stackcollapse-perf.pl` turns every sample's call stack into a single semicolon-joined line, then counts duplicates. That folded format *is* the flame graph's data model — before any SVG exists, it looks like this:
+
+```
+main;saxpy_scalar 620
+main;verify_checksum 70
+main;_start;main 10
+```
+
+700 total samples. `flamegraph.pl` lays frames out bottom-up by call stack depth (`main` at the bottom, the running leaf at top) and left-to-right sorted alphabetically within each stack — the x-axis carries **no time ordering**, it's just a layout convention. What matters is width: each frame's width is proportional to its sample count, which — because sampling is uniform in time — is proportional to the fraction of total CPU time spent with that frame on the stack. `saxpy_scalar` at 620/700 ≈ 88.6% is an unmissable wide plateau at the top: that's the hot path, exactly where intuition would point. But `verify_checksum` at 70/700 = 10% is the actual useful discovery — a second, unrelated O(n) scan that intuition would have ignored. Remember it: once `saxpy_scalar` is sped up 2–3x, `verify_checksum`'s share of total time grows (Amdahl's law), and it becomes the next target.
+
+## Vectorizing the hot loop: AVX2 intrinsics
+
+`saxpy_scalar` processes one `float` per iteration. An AVX2 `__m256` register is 256 bits wide — eight 32-bit lanes — and FMA fuses the multiply and add into one instruction with one rounding step:
+
+```c
+#include <immintrin.h>
+
+void saxpy_avx2(float a, float *x, float *y, int n) {
+    __m256 va = _mm256_set1_ps(a);
+    int i = 0;
+    for (; i + 8 <= n; i += 8) {
+        __m256 vx = _mm256_loadu_ps(x + i);
+        __m256 vy = _mm256_loadu_ps(y + i);
+        vy = _mm256_fmadd_ps(va, vx, vy);     // vy = va*vx + vy, 8 lanes at once
+        _mm256_storeu_ps(y + i, vy);
+    }
+    for (; i < n; i++) y[i] = a * x[i] + y[i]; // scalar remainder
+}
+```
+
+Build with `gcc -O2 -mavx2 -mfma -march=native saxpy_avx2.c -c`, then confirm the compiler actually emitted the FMA rather than a separate multiply and add:
+
+```asm
+$ objdump -d saxpy_avx2.o | grep -A1 fmadd
+  4011a2:  c4 c2 7d a8 0c 02    vfmadd213ps (%rdx,%rax,1),%ymm0,%ymm1
+  4011a8:  c5 fc 11 0c 02       vmovups     %ymm1,(%rdx,%rax,1)
+```
+
+One `vfmadd213ps` per 8 elements, as expected. Re-run `perf stat`:
+
+```bash
+$ perf stat -r 10 ./saxpy_avx2
+
+ Performance counter stats for './saxpy_avx2' (10 runs):
+
+          2,068.91 msec task-clock                #    0.998 CPUs utilized          ( +- 0.41% )
+      5,453,312,208      cycles                                                     ( +- 0.38% )
+      1,053,780,220      instructions              #    0.19 insn per cycle         ( +- 0.12% )
+         83,872,960      cache-misses                                               ( +- 0.21% )
+
+       2.071340912 +- 0.004218301 seconds time elapsed  ( +- 0.20% )
+```
+
+Instruction count dropped 8,430,221,760 → 1,053,780,220, almost exactly 8x — each FMA now does the work of 8 scalar multiply-adds. Wall time dropped 4.818s → 2.071s: a 2.33x speedup, not 8x. And **cache-misses barely moved**: 83,901,312 → 83,872,960. That's the whole story in one pair of numbers — vectorization cut instruction count and ALU work by 8x, but it did not reduce the bytes that have to cross the memory bus, and those bytes were already the bottleneck.
+
+Quantify it with arithmetic intensity, the core idea behind the roofline model: each SAXPY element does 2 FLOPs (one multiply, one add — fused into one instruction, but still two FLOPs of work) while moving 12 bytes (4-byte read of `x`, 4-byte read-modify-write of `y`). That's 2/12 ≈ 0.17 FLOPs per byte — far below what any modern core's compute throughput can pair with its DRAM bandwidth. SAXPY is memory-bound by construction; no amount of wider SIMD closes that gap, because SIMD attacks the FLOPs side of a ratio where bytes, not FLOPs, are the constraint. The realized 2.33x is bounded by how much faster the same 256MB can be pulled through the memory hierarchy with fewer stalls between accesses — not by the 8-wide vector unit.
+
+## Benchmarking discipline: one number is a guess
+
+The `perf stat -r 10` output above already applies the fix: it reran the binary 10 times and reported mean ± relative stddev (`±0.20%`) instead of one elapsed-time line. This is the same discipline the pointer-chasing latency microbenchmark from Tier 2 required, applied one level up: that benchmark discarded early chases as warm-up (cold TLB, cold branch predictor, clocks not yet at steady frequency) and averaged many trials because any single chase sequence is noisy. The exact same noise sources — frequency ramp-up, first-touch page faults on freshly `malloc`'d memory, OS scheduler jitter, thermal throttling on long runs — corrupt a single wall-clock number here too.
+
+Cross-check with `hyperfine`, which automates warm-up and statistical reporting across whole-process runs:
+
+```bash
+$ hyperfine --warmup 3 --min-runs 20 './saxpy_scalar' './saxpy_avx2'
+Benchmark 1: ./saxpy_scalar
+  Time (mean ± σ):      4.823 s ±  0.031 s    [User: 4.801 s, System: 0.019 s]
+  Range (min … max):    4.779 s …  4.887 s    20 runs
+
+Benchmark 2: ./saxpy_avx2
+  Time (mean ± σ):      2.074 s ±  0.009 s    [User: 2.061 s, System: 0.011 s]
+  Range (min … max):    2.061 s …  2.093 s    20 runs
+
+Summary
+  './saxpy_avx2' ran 2.33 ± 0.02 times faster than './saxpy_scalar'
+```
+
+Twenty runs, three discarded as warm-up, mean and stddev and min/max all reported — the 2.33x matches the counter-level math exactly, which is what makes it trustworthy. Report the median or minimum when the question is "what's achievable," since interrupts and scheduler preemption only ever inflate a run, never deflate it below the noise-free time; report the full spread (stddev or range) always. For runs where variance still looks too wide, pin the process (`taskset -c 0 ./saxpy_avx2`) and fix the frequency governor (`cpupower frequency-set --governor performance`) to remove two more sources of the same noise you controlled for in Tier 2.
+
+## Exercise
+
+You're given a strided RGB-to-grayscale conversion over a 50-megapixel buffer (`gray[i] = 0.299*r[i] + 0.587*g[i] + 0.114*b[i]`) plus a second pass that clamps and writes the result to a different buffer. Do, in order: (1) `perf stat` the scalar version and compute IPC and cache-miss rate by hand from the raw counters; (2) `perf record -g -F 99` it and build a flame graph — don't assume the conversion loop is the only hot frame; (3) vectorize the conversion with SSE or AVX intrinsics; (4) benchmark both versions properly with `perf stat -r` or `hyperfine` and report a real speedup number with its variance.
+
+Hint: before writing a single intrinsic, compute bytes moved and FLOPs done per pixel for this kernel, the same way this lesson did for SAXPY. That ratio tells you your speedup ceiling before you've written any vector code — if it comes out memory-bound like SAXPY did, don't be surprised when 8-wide vectors don't buy you 8x.

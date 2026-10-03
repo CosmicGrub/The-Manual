@@ -1,0 +1,208 @@
+---
+trackId: hardware-systems
+tier: 4
+title: "Cache Coherence & Memory Consistency"
+order: 2
+estimatedHours: 15
+slug: cache-coherence-and-memory-consistency
+---
+
+## Building on Tier 2: from private lines to shared lines
+
+Tier 2's cache-hierarchy module gave you the physical facts: L1/L2 are private per core, L3 is shared, and everything moves in 64-byte lines. That module never had to ask what happens when *two different cores* cache the *same* line. Once you have more than one core, that question is unavoidable — and the answer is a hardware protocol running underneath every multi-threaded program you write: cache coherence.
+
+This module builds directly on that foundation. We're not re-deriving cache sizes or latencies; we're asking what the coherence hardware does when core 0 and core 1 both have a copy of the line containing a shared variable, and one of them writes to it.
+
+## The coherence problem, concretely
+
+Say two cores each have a private L1 cache, and both have cached the 64-byte line containing `int counter = 0`. Without any coordination:
+
+- Core 0 does `counter++`. It reads 0 from its own L1, computes 1, writes 1 back to its own L1. Core 0's cache now says 1.
+- Core 1's L1 still says 0 — nothing told it anything changed.
+- If core 1 now does `counter++`, it reads its stale 0, computes 1, writes 1. The real result should have been 2. It's 1. One increment was silently lost.
+
+This is the coherence problem: multiple cached copies of the same data can diverge, and nothing in the ISA fixes it by itself. The fix is a hardware protocol that every core's cache controller runs on every bus transaction: **MESI**.
+
+## MESI: the four states
+
+Every cache line, in every core's cache, is tagged with one of four states:
+
+| State | Meaning | Data valid? | Other caches may hold it? | Can write without telling anyone? |
+|---|---|---|---|---|
+| **M**odified | This core changed the line; it's dirty, memory is stale | Yes | No | Yes (already exclusive) |
+| **E**xclusive | Clean, and this is the *only* cached copy | Yes | No | Yes (just flip to M) |
+| **S**hared | Clean, and other caches may also hold it | Yes | Maybe | No — must broadcast first |
+| **I**nvalid | Not present / stale | No | — | No — must fetch first |
+
+The transitions are driven by two kinds of events: a local processor read/write (`PrRd`/`PrWr`), and a bus transaction snooped from another core (`BusRd` — "I want to read this," `BusRdX`/`BusUpgr` — "I'm about to write this, invalidate your copy"). A core in **M** that snoops a `BusRd` must supply (flush) its dirty data before it drops to **S**; a core in **M** or **E** that snoops a `BusRdX`/`BusUpgr` must drop straight to **I**.
+
+## Worked trace: two cores, one line
+
+Address `0x1000` holds `counter`. Two cores, C0 and C1, start with the line absent from both caches (Invalid). Here's every step, in order:
+
+| # | Action | Bus transaction | C0 state | C1 state | What happened on the bus |
+|---|---|---|---|---|---|
+| 0 | — | — | I | I | cold: not cached anywhere |
+| 1 | C0 reads `counter` | `BusRd` | I → **E** | I | no other cache responds; memory supplies data; C0 is the sole holder, so it goes Exclusive |
+| 2 | C1 reads `counter` | `BusRd` | **E → S** | I → **S** | C0 snoops the `BusRd`, sees it holds the line, supplies it cache-to-cache, and drops to Shared; C1 lands in Shared too |
+| 3 | C0 writes `counter` (`counter++`) | `BusUpgr` | **S → M** | **S → I** | C0 already has valid data, so it only needs to invalidate everyone else — it issues an *upgrade*, not a full read. C1 snoops it and invalidates its copy |
+| 4 | C1 reads `counter` again | `BusRd` | **M → S** | **I → S** | C1's line is Invalid, so it misses and issues `BusRd`. C0 snoops this, sees its own copy is dirty (M), **flushes** the modified value (writeback / cache-to-cache supply), and drops to Shared. C1 now has the correct, up-to-date value |
+
+Notice step 3: going from Shared to Modified does not require re-fetching data (C0 already has it) — it only needs permission, hence `BusUpgr` rather than `BusRdX`. And notice step 4: a read that targets a line sitting in Modified elsewhere is the expensive case — it forces a flush, which is exactly the mechanism that keeps C1 correct. This flush-on-snoop is also the entire performance story of the next section.
+
+## False sharing: when correctness is fine, performance isn't
+
+MESI guarantees correctness. It says nothing about speed. If two threads on two different cores repeatedly write to **different variables that happen to live on the same 64-byte line**, the protocol above runs on *every single write*, even though the threads never touch each other's data.
+
+```c
+#include <stdio.h>
+#include <stdint.h>
+#include <pthread.h>
+#include <time.h>
+
+#define N 200000000UL
+
+/* BAD: two hot fields, 8 bytes apart, inside one 64-byte cache line */
+struct bad_pair {
+    uint64_t a;   /* offset 0  */
+    uint64_t b;   /* offset 8 -- same line as a */
+};
+struct bad_pair shared_bad;
+
+void *bump_a(void *arg) { for (uint64_t i = 0; i < N; i++) shared_bad.a++; return NULL; }
+void *bump_b(void *arg) { for (uint64_t i = 0; i < N; i++) shared_bad.b++; return NULL; }
+
+/* GOOD: each field padded out to its own 64-byte line */
+struct padded_pair {
+    uint64_t a;
+    char     pad_a[56];   /* pushes b onto the next line */
+    uint64_t b;
+    char     pad_b[56];
+};
+struct padded_pair shared_good;
+
+void *bump_a_good(void *arg) { for (uint64_t i = 0; i < N; i++) shared_good.a++; return NULL; }
+void *bump_b_good(void *arg) { for (uint64_t i = 0; i < N; i++) shared_good.b++; return NULL; }
+```
+
+Thread A only ever touches `a`; thread B only ever touches `b`. There is no race, no shared state in the logical sense — but in the `bad_pair` layout, `a` and `b` sit in the *same cache line*. Every time A writes `a`, that line goes to **M** in A's cache and **I** in B's — per the trace above. The instant B then writes `b`, it has to issue a `BusRdX`, force A to flush, pull the line over, and invalidate A. Then A writes again and the cycle repeats. The line ping-pongs between the two caches' Modified state on every single increment, even though each thread's own data never changes in response to the other's.
+
+Representative measured numbers (two threads pinned to separate physical cores, `-O2`, `N = 2×10^8`):
+
+```
+$ perf stat -e cache-misses,L1-dcache-load-misses ./false_sharing_bad
+
+ Performance counter stats for './false_sharing_bad':
+
+     612,458,311      cache-misses
+   1,845,220,109      L1-dcache-load-misses
+
+       3.84 seconds time elapsed
+
+$ perf stat -e cache-misses,L1-dcache-load-misses ./false_sharing_good
+
+ Performance counter stats for './false_sharing_good':
+
+      18,204,552      cache-misses
+      41,998,773      L1-dcache-load-misses
+
+       0.41 seconds time elapsed
+```
+
+Same arithmetic, same number of increments, ~9x slower — purely from two unrelated counters sharing a line. The fix is the padding shown above: push each hot field onto its own line (`alignas(64)` in C11/C++11 is the portable spelling: `alignas(64) uint64_t a;`). Once `a` and `b` live on different lines, each core's line stays in **E**/**M** permanently and the bus traffic disappears.
+
+## Memory ordering: why a store isn't instantly visible
+
+MESI describes *what eventually happens* to a line. It says nothing about *when*. Real cores don't wait for a write to fully propagate through the coherence protocol before moving on — that would stall the pipeline on every store. Instead:
+
+- Every core has a **store buffer**: a small FIFO sitting between the execute stage and the cache. A store is written into the buffer and the core moves on immediately; the buffer drains to the coherent cache (acquiring the line, invalidating other copies) in the background.
+- Every core has an **invalidate queue**: an incoming invalidate message (from some other core's `BusUpgr`/`BusRdX`) can sit queued for a few cycles before it's actually applied to the local cache, rather than being processed synchronously.
+
+Both are real hardware, not a simplification. Their effect: a value a core just stored can be invisible to another core for some number of cycles after the store instruction retires, and a core can keep reading a soon-to-be-stale value for a few cycles after another core's invalidate was sent. This is the mechanical answer to "why isn't a store instantly visible": *because the hardware buffers both ends of the coherence protocol for performance.*
+
+### Sequential consistency vs relaxed models
+
+**Sequential consistency (SC)**, Lamport's definition: there exists one global total order over *all* cores' memory operations such that (1) it's consistent with each core's own program order, and (2) every load returns the value of the most recent store to that address in that total order. Intuitively: as if every core executed one instruction at a time against one shared memory, interleaved, with no reordering at all.
+
+No real multi-core CPU is purely SC — it's too slow. Instead:
+
+| Model | StoreStore reorder? | LoadLoad reorder? | LoadStore reorder? | StoreLoad reorder? | Real examples |
+|---|---|---|---|---|---|
+| Sequential consistency | No | No | No | No | theoretical ideal only |
+| x86-64 (TSO) | No | No | No | **Yes** | Intel/AMD |
+| ARM / POWER / RISC-V (weak/RVWMO) | Yes | Yes | Yes | Yes | ARMv7/v8, POWER, RISC-V without fences |
+
+x86 is "strongly ordered" in the sense that it preserves StoreStore, LoadLoad, and LoadStore order — but it still allows **StoreLoad** reordering, because of the store buffer above. This is directly observable, not theoretical. The classic **store-buffering (SB) litmus test**:
+
+```
+initially: x = 0, y = 0
+
+Core 0:                    Core 1:
+mov [x], 1                 mov [y], 1
+mov r1, [y]                mov r2, [x]
+```
+
+Sequential consistency says at least one of `r1`, `r2` must end up 1 — whichever store "happened first" should be visible to the other core's read. On real x86 hardware, `r1 == 0 && r2 == 0` is a measurable outcome: each core's store sits in its own store buffer when that core executes its load, so neither core sees the other's write yet. Fix: drain the store buffer before the load with `mfence`:
+
+```asm
+; core 0                    ; core 1
+mov [x], 1                  mov [y], 1
+mfence                      mfence
+mov r1, [y]                 mov r2, [x]
+```
+
+`mfence` forces the store to retire out of the buffer and become globally visible before the following load executes, restoring the SC guarantee that at least one read observes a 1.
+
+### A producer/consumer bug, and the C11 fix
+
+The same class of bug shows up constantly in ordinary multi-threaded C, usually without an explicit `mfence` in sight:
+
+```c
+int data = 0;
+int flag = 0;
+
+void producer(void) { data = 42; flag = 1; }          /* thread A */
+void consumer(void) {
+    while (flag == 0) { }       /* spin */
+    printf("%d\n", data);       /* thread B */
+}
+```
+
+Two independent failure modes, both real: (1) the **compiler** sees no aliasing between `flag` and anything else, is free to reorder the two stores, and may even cache `flag` in a register inside the spin loop and never reload it — an infinite loop. (2) On a weakly-ordered CPU (ARM, POWER), even compiler-correct code can let the store to `flag` become visible to core B *before* the store to `data` does, because nothing ties the two stores together across cores without a barrier. Either way, `consumer` can print garbage, or 0, or spin forever.
+
+The portable fix is C11 atomics with acquire/release semantics:
+
+```c
+#include <stdatomic.h>
+
+int data = 0;
+atomic_int flag = 0;
+
+void producer(void) {
+    data = 42;                                              /* (1) plain store */
+    atomic_store_explicit(&flag, 1, memory_order_release);   /* (2) release */
+}
+
+void consumer(void) {
+    while (atomic_load_explicit(&flag, memory_order_acquire) == 0) { }  /* acquire */
+    printf("%d\n", data);     /* guaranteed to see 42 */
+}
+```
+
+`memory_order_release` on the store to `flag` guarantees every write that happened *before* it in program order (including `data = 42`) becomes visible to any thread whose `memory_order_acquire` load observes that stored value. On x86 this compiles to plain `mov` instructions (TSO already provides the ordering; the annotation mainly stops the compiler from reordering or eliding the reload). On ARM it compiles to real barrier instructions — `stlr`/`dmb ish` for the release, `ldar` for the acquire — because the hardware itself needs telling.
+
+## Exercise
+
+Build the `bad_pair`/`padded_pair` benchmark above, pin the two threads to separate physical cores (`taskset` or `pthread_setaffinity_np`), and reproduce the slowdown with `perf stat -e cache-misses,L1-dcache-load-misses`. Then add a third version: keep the fields **unpadded** (back in one cache line) but make them `atomic<uint64_t>` (C11 `atomic_uint_fast64_t` with `fetch_add`) instead of plain `uint64_t`. Measure it.
+
+Does making the access atomic, without padding, fix the false-sharing slowdown?
+
+Hint: correctness (atomic read-modify-write) and cache-line placement are separate problems. Think about which MESI state each thread's `fetch_add` forces the shared line into, regardless of whether the increment itself is atomic — then decide whether atomicity could ever substitute for padding.
+
+## Key takeaways
+
+- MESI keeps caches correct by making every write either exclusive (no bus traffic) or preceded by invalidating every other copy (`BusUpgr`/`BusRdX`), and every read of a dirty (M) line force a flush from whoever holds it.
+- False sharing is a pure performance bug, not a correctness bug: unrelated variables on the same 64-byte line force the full MESI invalidation dance on every write, even with zero logical contention. Padding/`alignas(64)` fixes it by giving each hot variable its own line.
+- Store buffers and invalidate queues are why a store isn't instantly visible to other cores — they're real latency-hiding hardware, not an abstraction.
+- x86 (TSO) forbids StoreStore/LoadLoad/LoadStore reordering but still permits StoreLoad reordering (the SB litmus test is real and observable); ARM/POWER/RISC-V permit all four without explicit barriers.
+- `memory_order_release`/`memory_order_acquire` (or explicit fences like `mfence`/`dmb ish`) are what actually close these reordering windows — a plain store/load gives you none of these guarantees on a relaxed-ordering machine.

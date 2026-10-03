@@ -1,0 +1,189 @@
+---
+trackId: hardware-systems
+tier: 4
+title: "CPU Microarchitecture: Pipelining to Out-of-Order Execution"
+order: 1
+estimatedHours: 20
+slug: cpu-microarchitecture-pipelining-to-out-of-order-execution
+---
+
+## Pipelining Recap and the Three Hazard Types
+
+A classic 5-stage pipeline overlaps instruction execution across five stages: **IF** (fetch), **ID** (decode + register read), **EX** (ALU/branch resolution), **MEM** (data memory access), **WB** (register writeback). In steady state, one instruction *completes* per cycle even though each individual instruction takes five cycles to get through the pipe. That overlap is where all three hazard types come from: two instructions in the pipe at once can fight over hardware (**structural**), over a value (**data**), or over which instructions should even be in the pipe (**control**).
+
+### Structural Hazards: When Hardware Can't Keep Up
+
+A structural hazard happens when two instructions need the same piece of hardware in the same cycle. The textbook case is a single unified memory port shared by instruction fetch and data access:
+
+```
+I1: LW  R1, 0(R2)
+I2: ADD R3, R4, R5
+I3: SUB R6, R7, R8
+I4: OR  R9, R10, R11
+```
+
+| Cycle | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 |
+|---|---|---|---|---|---|---|---|---|---|
+| I1 LW  | IF | ID | EX | **MEM** | WB | | | | |
+| I2 ADD |    | IF | ID | EX | MEM | WB | | | |
+| I3 SUB |    |    | IF | ID | EX | MEM | WB | | |
+| I4 OR  |    |    |    | **stall** | IF | ID | EX | MEM | WB |
+
+At cycle 4, I1 needs the memory port for its `MEM` stage at the exact same moment I4 would normally need it for `IF`. One port, two requesters, same cycle — that's the definition of a structural hazard. I4's fetch is held for one cycle until the port is free. This is precisely why real CPUs split L1 into a separate instruction cache and data cache instead of using one unified memory, a point you already have the vocabulary for from Tier 2's cache hierarchy module: splitting the cache removes this exact structural conflict at the cost of duplicated tag/data arrays.
+
+### Data Hazards: The Load-Use Stall
+
+A data hazard happens when an instruction needs a value that a prior, still-in-flight instruction hasn't produced yet. Forwarding (bypassing the result straight from one pipeline latch to another) resolves most of these for free. The one that *forwarding alone can't fix* in the classic 5-stage pipeline is load-use:
+
+```
+LW  R1, 0(R2)
+ADD R3, R1, R4
+```
+
+| Cycle | 1 | 2 | 3 | 4 | 5 | 6 |
+|---|---|---|---|---|---|---|
+| LW  R1,0(R2)  | IF | ID | EX | MEM | WB | |
+| ADD R3,R1,R4  |    | IF | ID | **stall** | EX | MEM/WB |
+
+`LW` doesn't have R1's value until the *end* of its `MEM` stage (cycle 4). `ADD` wants R1 at the *start* of its `EX` stage. Without the stall, that would be cycle 4 for both — `ADD` would need a value that doesn't exist yet. The hazard-detection unit inserts one bubble, delaying `ADD`'s `EX` to cycle 5, at which point the MEM/WB forwarding path can hand it R1 just in time. This is why "load immediately followed by a use" is the one hazard every compiler's instruction scheduler tries hard to separate with independent instructions.
+
+### Control Hazards: Paying for Not Knowing the Future
+
+A control hazard comes from not knowing, at fetch time, which instruction comes next after a branch. If the pipeline guesses and guesses wrong, every instruction fetched down the wrong path has to be thrown away:
+
+```
+0x1000: BEQ R1, R2, 0x1020   ; predicted not-taken
+0x1004: ADD R3, R4, R5       ; fetched speculatively
+0x1008: SUB R6, R7, R8       ; fetched speculatively
+...
+0x1020: MUL R9, R10, R11     ; actual target
+```
+
+| Cycle | 1 | 2 | 3 | 4 |
+|---|---|---|---|---|
+| BEQ (resolves in EX)   | IF | ID | EX | — |
+| ADD (wrong-path fetch) | | IF | **squash** | |
+| SUB (wrong-path fetch) | | | IF **squash** | |
+| MUL (correct target)   | | | | IF |
+
+`BEQ` resolves in cycle 3. By then, two wrong-path instructions have already entered the pipe and must be squashed — a 2-cycle branch penalty here. The entire point of branch prediction is to make that squash the *exception*, not the *rule*.
+
+## Static Branch Prediction
+
+Static prediction picks a direction before the program ever runs, using no runtime history. Two common heuristics:
+
+- **Always-not-taken**: cheap, wrong roughly as often as branches are actually taken (bad for loop bodies, which are taken most of the time).
+- **Backward-Taken, Forward-Not-Taken (BTFNT)**: predict taken if the branch target address is *lower* than the branch's own address (a backward branch — typical of a loop's back-edge), predict not-taken if the target is *higher* (a forward branch — typical of an `if` skip). This single heuristic gets loop back-edges right almost automatically, because loop bodies really are "jump backward to repeat."
+
+Static prediction is still used today as the *fallback* for a branch the dynamic predictor has never seen (cold BTB entry).
+
+## Dynamic Branch Prediction: The 2-bit Saturating Counter
+
+A 1-bit predictor (last-outcome-wins) has a specific failure mode: a loop that runs N times then falls through mispredicts **twice** per loop execution — once when the loop's last iteration unexpectedly doesn't repeat, and once again on the *next* entry into the loop, because the single bit just got flipped to "not-taken" by that one exception.
+
+The 2-bit saturating counter fixes this with hysteresis. States: `00` strongly-not-taken (SN), `01` weakly-not-taken (WN), `10` weakly-taken (WT), `11` strongly-taken (ST). Predict taken iff state ≥ `10`. On an actual "taken" outcome, increment (saturating at `11`); on "not-taken," decrement (saturating at `00`).
+
+Trace it against a real branch history: a 4-trip loop executed 3 times produces the per-branch outcome sequence `T T T N` repeated three times — 12 branch instances total. Start the counter at state `10` (WT):
+
+| i | state before | predict | actual | correct? | state after |
+|---|---|---|---|---|---|
+| 1 | 10 WT | T | T | yes | 11 ST |
+| 2 | 11 ST | T | T | yes | 11 ST |
+| 3 | 11 ST | T | T | yes | 11 ST |
+| 4 | 11 ST | T | **N** | **no** | 10 WT |
+| 5 | 10 WT | T | T | yes | 11 ST |
+| 6 | 11 ST | T | T | yes | 11 ST |
+| 7 | 11 ST | T | T | yes | 11 ST |
+| 8 | 11 ST | T | **N** | **no** | 10 WT |
+| 9 | 10 WT | T | T | yes | 11 ST |
+| 10 | 11 ST | T | T | yes | 11 ST |
+| 11 | 11 ST | T | T | yes | 11 ST |
+| 12 | 11 ST | T | **N** | **no** | 10 WT |
+
+Result: **3 mispredictions out of 12** — exactly one per loop exit, never a second one on re-entry, because the state only drops to WT (still predicts taken) instead of flipping all the way to not-taken. Run the same sequence through a 1-bit predictor (state = last outcome) and you get mispredictions at i = 4, 5, 8, 9, 12 — **5 out of 12** — because after each exit the 1-bit predictor is now pointed at "not-taken" and gets burned again the instant the loop restarts. That gap is the entire reason real branch predictors (and their much larger two-level/TAGE descendants) use saturating, multi-bit state instead of a single flip-flop.
+
+## Superscalar Issue and the Out-of-Order Problem
+
+A superscalar machine can issue and execute more than one instruction per cycle, using multiple ALUs/FPUs/load-store units. But issuing *in program order* still stalls the whole machine the moment one instruction isn't ready, even if a later, independent instruction has everything it needs. Out-of-order (OOO) execution lets the machine issue instructions as soon as their *operands*, not their *position in the program*, are ready.
+
+OOO execution reintroduces two hazards that don't exist in simple in-order pipelines, because now instructions can race past each other:
+
+- **WAR (write-after-read)**: a later instruction writes a register before an earlier instruction has read the *old* value.
+- **WAW (write-after-write)**: two instructions write the same register out of order, and the wrong one ends up as the "final" value.
+
+Neither is a real data dependency — they're **name dependencies**, artifacts of only having a fixed, small set of architectural register names. The fix is register renaming.
+
+## Tomasulo's Algorithm: Register Renaming and Reservation Stations
+
+Consider this instruction stream, where `F0` is reused for two unrelated computations:
+
+```
+1: MUL  F0, F2, F4    ; long-latency FP multiply
+2: ADD  F6, F0, F8    ; true RAW dependency on instr 1's F0
+3: MUL  F0, F10, F12  ; unrelated multiply — WAW on F0 if done naively
+4: ADD  F2, F0, F14   ; true RAW dependency on instr 3's F0
+```
+
+Each reservation station (RS) entry carries the operation, operand values *or* tags to wait on, and a destination tag — not a destination register name. At issue time, a register-alias table (RAT) maps each architectural register to whichever RS will next produce it:
+
+```
+RAT after issuing all four:
+  F0 -> RS3   (most recent producer of F0)
+  F6 -> RS2
+  F2 -> RS4
+```
+
+Reservation stations at issue time:
+
+| RS  | Op  | Vj (value) | Qj (tag to wait on) | Vk (value) | Qk (tag to wait on) | dest |
+|---|---|---|---|---|---|---|
+| RS1 | MUL | F2 | — | F4 | — | RS1 (for old F0) |
+| RS2 | ADD | — | RS1 | F8 | — | RS2 (for F6) |
+| RS3 | MUL | F10 | — | F12 | — | RS3 (for new F0) |
+| RS4 | ADD | — | RS3 | F14 | — | RS4 (for F2) |
+
+Notice what renaming actually bought here, concretely: instruction 3 (`MUL F0, F10, F12`) does **not** wait for instruction 2 to finish reading the old `F0`. Its result is tagged `RS3`, a completely different piece of storage from `RS1`. There is no WAW stall and no WAR stall at all — RS1 and RS3 can execute on two separate multiply units in the same cycle if both are ready, because "F0" as a name has been erased from the hardware's bookkeeping. The *only* waits left are RS2 on RS1 and RS4 on RS3 — both genuine RAW dependencies that renaming cannot and should not remove, because the values really are needed.
+
+When RS1 finishes, it broadcasts its tag and result on the **Common Data Bus (CDB)**. Every reservation station snoops the CDB; RS2, whose `Qj` matches, captures the value into `Vj`, clears `Qj`, and becomes ready to issue to the adder the next cycle. That broadcast-and-snoop step is what lets execution order diverge completely from program order while still guaranteeing every true dependency is respected exactly once.
+
+## Speculative Execution's Dark Side: Spectre and Meltdown
+
+Branch prediction and OOO execution both mean the CPU routinely executes instructions *before* it's certain they should run. When a misprediction (or, for Meltdown, a permission fault) is eventually caught, the pipeline squashes the wrong-path instructions' effect on **architectural state**: registers don't get written, memory doesn't get written, exceptions fire correctly. Recall from Tier 2's cache hierarchy module that an L1 hit costs roughly 4 cycles while a main-memory access costs on the order of 200+ cycles — that few-hundred-cycle gap is **microarchitectural state**, and squashing an instruction does *not* roll the cache back. This is the entire mechanism behind Spectre and Meltdown: turn a value the CPU briefly touched speculatively into a cache footprint, then read that footprint out through timing.
+
+**Spectre v1 (bounds-check bypass).** The victim code:
+
+```c
+unsigned char array1[16] = { /* ... */ };
+unsigned int  array1_size = 16;
+unsigned char array2[256 * 512];   // 512B stride avoids false cache sharing
+
+void victim_function(size_t x) {
+    if (x < array1_size) {
+        unsigned char value = array1[x];
+        unsigned char temp  = array2[value * 512];  // touches 1 of 256 cache lines
+    }
+}
+```
+
+An attacker first calls `victim_function` thousands of times with legitimate, in-bounds `x`, training the branch predictor's saturating counter for this `if` up to strongly-taken (exactly the mechanism traced above). Then the attacker calls it once with a malicious, out-of-bounds `x` chosen so that `&array1[x]` lands on a secret byte elsewhere in the process's address space. Because the predictor says "this branch is taken" with high confidence, the CPU speculatively executes `array1[x]` and `array2[value * 512]` *before* the bounds check's comparison has actually resolved in EX. That speculative load pulls the secret byte's value into `value`, and the second speculative load pulls exactly one 512-byte-aligned line of `array2` into L1 — the line at offset `secret_byte * 512`. Microseconds later the bounds check resolves, the branch is recognized as mispredicted, and the pipeline squashes `value` and `temp` — but the one cache line that got touched in `array2` is still sitting in L1.
+
+The attacker now runs **Flush+Reload**: `clflush` all 256 candidate lines of `array2` (one per possible byte value, each 512 bytes apart so they map to distinct cache lines), then re-read each of the 256 lines and time it. 255 of them take ~200 cycles (cold miss, straight to memory). Exactly one — the one the speculative load touched — comes back in ~4 cycles (L1 hit). Its index *is* the secret byte's value. Repeat per byte to exfiltrate arbitrary memory the victim process can reach but the bounds check was supposed to forbid.
+
+**Meltdown** uses the same cache-timing back end but a different front end: instead of abusing a mispredicted *branch*, it abuses the gap between when an OOO core *executes* a faulting instruction and when it *architecturally delivers* the fault (faults are only raised at retirement):
+
+```asm
+; kernel_addr is mapped but not permitted for this user-mode process
+mov al, [kernel_addr]          ; executes speculatively before the #PF is delivered
+shl rax, 12                    ; multiply by page size to spread across cache lines
+mov rbx, [probe_array + rax]   ; speculative load — leaves one footprint in probe_array
+```
+
+The `mov al, [kernel_addr]` will ultimately fault and `al`'s architectural value is discarded — but the two dependent instructions behind it have already executed speculatively in the shadow of that not-yet-delivered fault, and the `probe_array` load already left its single-cache-line footprint exactly as in Spectre. Flush+Reload on `probe_array` recovers the forbidden byte. The fix (KPTI, kernel page-table isolation) doesn't patch the speculation — it removes the kernel's mapping from the user page table entirely, so there's no `kernel_addr` translation left to speculate past.
+
+## Exercise
+
+A different nested loop produces this branch-outcome history for a single conditional branch (read left to right, one character per dynamic branch instance): `T T T T N T T N T T T T N T T N`. Hand-trace a 2-bit saturating counter against this exact sequence, starting from state `01` (weakly-not-taken). For each of the 16 instances, write down the predicted outcome, the actual outcome, and the resulting state. Report the total misprediction count and the index (1-16) of the *first* misprediction.
+
+Then, separately: write a 3-4 instruction pseudo-assembly gadget that leaks a secret bit (not a whole byte) through cache timing using a guard condition that is **not** an array-bounds check — for example, a permission flag or a null-pointer check. Explain in two or three sentences why the same squash-doesn't-roll-back-the-cache argument still applies to your gadget.
+
+*Hint:* the 2-bit trace has two different "lengths" of taken-run mixed together (a run of 4 and a run of 2) — don't assume the misprediction pattern is as uniform as the worked loop example above; track the state number explicitly rather than reasoning from memory of the earlier trace.

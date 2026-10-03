@@ -430,3 +430,16 @@ All notable changes to The Manual (curriculum + app) are logged here. This file 
 **Result:** `npm run build` passed clean — 184 pages, 167 unique slugs verified repo-wide.
 
 **Status:** Hardware & Computer Systems Tier 3 complete (115h, 6 lessons). Hardware & Computer Systems is now 4/6 tiers content-complete (Tiers 0-3, 278h); Tiers 4-5 remain.
+
+## [0.33.0] — 2026-10-03 — Hardware & Computer Systems Tier 4: complete (microarchitecture to open-source contribution)
+
+**Context:** Continuing the tier-by-tier pattern. This is the specialization tier — pipelining/branch prediction traced by hand, MESI coherence, real profiling tools, bare-metal Cortex-M with no vendor HAL, and the open-source contribution workflow itself as taught content, not just a checkpoint instruction.
+
+**Added**
+- `content/hardware-systems/tier-4/*.mdx` (6 files) + matching quizzes: CPU Microarchitecture: Pipelining to Out-of-Order Execution (a full pipeline-hazard trace including the load-use stall, a hand-traced 2-bit saturating-counter branch predictor scoring 3/12 mispredictions against a 1-bit predictor's 5/12 on the same branch history, and Spectre/Meltdown grounded in Tier 2's own cache material), Cache Coherence & Memory Consistency (MESI state transitions, a real false-sharing example with its fix), Performance Engineering (perf/flame graphs/SIMD — slugged `systems-performance-engineering` to stay distinct from CS Foundations Tier 4's own, differently-scoped Performance Engineering module), Bare-Metal Embedded Systems (register-level Cortex-M GPIO, a real linker script and startup reset handler), Contributing to a Real Open-Source Systems Project (the mailing-list patch workflow vs. a GitHub PR workflow, concretely contrasted), Advanced Networking: Beyond the Basics (TCP congestion control, a TLS 1.3 handshake walkthrough building on Tier 3's canonical networking module).
+
+**Caught and fixed:** the generated `performance-engineering` slug collided with CS Foundations Tier 4's existing module of the same slug — Velite's own collection-wide uniqueness check missed it again (the same known async-race gap noted in earlier entries), but this session's independent repo-wide slug scan caught it before the commit. Renamed to `systems-performance-engineering`, re-validated, no other changes needed.
+
+**Result:** `npm run build` passed clean — 189 pages, 173 unique slugs verified repo-wide.
+
+**Status:** Hardware & Computer Systems Tier 4 complete (118h, 6 lessons). Hardware & Computer Systems is now 5/6 tiers content-complete (Tiers 0-4, 396h); only Tier 5 (Expert/Innovator) remains to finish the track.

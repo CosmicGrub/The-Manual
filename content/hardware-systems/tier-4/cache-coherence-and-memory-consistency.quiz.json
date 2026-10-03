@@ -1,0 +1,98 @@
+[
+  {
+    "id": "hardware-systems/tier-4/cache-coherence-and-memory-consistency/q1",
+    "type": "multiple_choice",
+    "prompt": "In the MESI protocol, what does the Invalid (I) state mean for a cache line in a given core's cache?",
+    "choices": [
+      "The data is stale but can still be used for reads",
+      "The core holds the only valid copy of the line in the system",
+      "The line does not contain valid data and must be fetched before use",
+      "The line is currently being written back to memory"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "hardware-systems/tier-4/cache-coherence-and-memory-consistency/q2",
+    "type": "multiple_choice",
+    "prompt": "Core 0 holds a cache line in the Modified (M) state. Core 1 issues a BusRd for that same line. What must happen before Core 1 can get a correct, up-to-date value?",
+    "choices": [
+      "Core 0 must flush/supply its dirty data (writeback or cache-to-cache transfer), then both lines settle in Shared",
+      "Core 0 simply invalidates its own copy without supplying any data",
+      "Core 1 fetches directly from DRAM and ignores Core 0's cache entirely",
+      "Nothing \u2014 a BusRd targeting a Modified line is ignored by the snooping core"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-4/cache-coherence-and-memory-consistency/q3",
+    "type": "multiple_choice",
+    "prompt": "In the worked trace (C0 reads counter, C1 reads counter, C0 writes counter, C1 reads counter again), both caches hold the line in Shared right before C0's write. What is C0's state immediately after that write, and what bus transaction does it issue?",
+    "choices": [
+      "State becomes Modified; C0 issues BusUpgr since it already holds valid data and only needs to invalidate the other copy",
+      "State becomes Exclusive; C0 issues BusRd to refetch the data",
+      "State stays Shared; no bus transaction is needed for a write",
+      "State becomes Modified; C0 issues BusRdX to refetch data it already has"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-4/cache-coherence-and-memory-consistency/q4",
+    "type": "multiple_choice",
+    "prompt": "Two threads each increment a separate uint64_t field in a shared struct, 8 bytes apart, with no padding, so both fields fall in the same 64-byte cache line. What is the primary cause of the measured slowdown?",
+    "choices": [
+      "The increment instruction itself runs slower when executed on multiple cores",
+      "The shared cache line continually ping-pongs between Modified in each core's cache, forcing invalidation and reload traffic on every write even though the two threads never touch each other's data",
+      "The compiler fails to vectorize integer increments on struct fields",
+      "TLB misses dominate because the struct crosses a page boundary"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "hardware-systems/tier-4/cache-coherence-and-memory-consistency/q5",
+    "type": "multiple_choice",
+    "prompt": "Which change actually eliminates false sharing between two hot fields written by different threads?",
+    "choices": [
+      "Marking both fields volatile",
+      "Padding or aligning each field so it lands on its own 64-byte cache line",
+      "Wrapping both fields in atomic<uint64_t> without changing their layout",
+      "Reordering the struct's fields alphabetically"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "hardware-systems/tier-4/cache-coherence-and-memory-consistency/q6",
+    "type": "multiple_choice",
+    "prompt": "In the store-buffering (SB) litmus test \u2014 Core 0 runs x=1 then reads y into r1; Core 1 runs y=1 then reads x into r2; x and y both start at 0 \u2014 real x86 hardware can observe r1==0 and r2==0. Why is this possible despite x86 being described as strongly ordered?",
+    "choices": [
+      "x86 allows StoreLoad reordering: each core's own store sits in a local store buffer and may not be globally visible yet when that same core executes its load",
+      "x86 does not implement any cache coherence protocol",
+      "This result only occurs due to compiler reordering at -O0, never on real hardware",
+      "x86 reorders StoreStore operations, so the two stores could execute out of order"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-4/cache-coherence-and-memory-consistency/q7",
+    "type": "multiple_choice",
+    "prompt": "What does pairing atomic_store_explicit(&flag, 1, memory_order_release) with atomic_load_explicit(&flag, memory_order_acquire) guarantee that plain, unannotated store/load would not guarantee on a relaxed-ordering machine?",
+    "choices": [
+      "That the store executes faster than an ordinary store instruction",
+      "A happens-before relationship: every write issued before the release-store becomes visible to any thread whose acquire-load observes that stored value",
+      "That the store bypasses cache entirely and writes straight to DRAM",
+      "That the cache line holding flag can never be evicted while the lock is held"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "hardware-systems/tier-4/cache-coherence-and-memory-consistency/q8",
+    "type": "multiple_choice",
+    "prompt": "Sequential consistency, as defined by Lamport, requires that:",
+    "choices": [
+      "There exists a single global total order over all cores' memory operations, consistent with each core's own program order, where every load sees the most recent store to that address in that order",
+      "Each core may reorder its own operations freely as long as the final results happen to be correct",
+      "Stores are always instantly visible to every core, but loads are allowed to return stale values",
+      "Only atomic operations must be globally ordered; plain loads and stores are exempt from any ordering requirement"
+    ],
+    "correctIndex": 0
+  }
+]

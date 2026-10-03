@@ -1,0 +1,221 @@
+---
+trackId: hardware-systems
+tier: 4
+title: "Contributing to a Real Open-Source Systems Project"
+order: 5
+estimatedHours: 25
+slug: contributing-to-a-real-open-source-systems-project
+---
+
+## Where real systems projects actually keep their "good first issue" list
+
+Forget generic "good first issue" GitHub searches for this track. Systems projects advertise entry points differently, and you need to know where to look per-project.
+
+**Linux kernel.** The single best concrete resource is not a label — it's the `TODO` file that sits inside almost every driver directory under `drivers/staging/`. The staging tree exists specifically for code that isn't up to mainline quality yet, and maintainers write down exactly what they want fixed:
+
+```
+$ cat drivers/staging/rtl8723bs/TODO
+TODO:
+	- checkpatch.pl fixes
+	- use kernel coding style
+	- remove unused code
+	- replace proprietary data types with kernel ones
+	- add proper error handling in rtw_wx_set_...()
+	- camelCase rename pass on all exported structs
+
+Please send patches to Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+and Cc: linux-staging@lists.linux.dev.
+```
+
+That's not a suggestion, it's a work order with a named recipient. Pair it with kernelnewbies.org's `FirstKernelPatch` guide, which walks the exact mechanics below, and with the mailing list archives at lore.kernel.org to see what's already in flight so you don't duplicate someone else's patch.
+
+**Zephyr.** Zephyr runs on GitHub, so it uses GitHub's actual labeling: filter `is:issue is:open label:"good first issue"` in `zephyrproject-rtos/zephyr`. Zephyr's issues are more likely to be real feature gaps or driver bugs than style janitoring, because the project doesn't have a staging-tree equivalent — code that lands is held to the same bar immediately.
+
+**U-Boot.** U-Boot doesn't use GitHub issues for contribution at all — it mirrors the kernel's mailing-list model almost exactly (same `Signed-off-by` convention, same `checkpatch.pl`-equivalent style rules, inherited from the kernel's scripts directory). Browse open items via patchwork at `patchwork.ozlabs.org/project/uboot/` to see what's stalled or needs a respin, and watch the `u-boot@lists.denx.de` archive for threads tagged `RFC` or `[PATCH]` that went quiet — a quiet thread with a clear, small ask is often adoptable if you ask the original submitter first.
+
+**A RISC-V toolchain.** Binutils and GCC bugs for RISC-V live on `sourceware.org/bugzilla`, filtered to component `binutils`/`target` and keyword `riscv`. The `riscv-gnu-toolchain` wrapper repo on GitHub tracks build/packaging issues separately from the actual compiler bugs, which live upstream in GCC/binutils — know which repo actually owns the bug before you start, or you'll patch the wrong tree.
+
+## Judging tractability before you commit
+
+Most wasted first-contribution effort comes from picking an issue that looks small and isn't. Before you touch an editor, check four things:
+
+1. **Is it reproducible on current mainline, not some old fork or distro kernel?** A bug report against Ubuntu's 5.15 kernel from three years ago may already be fixed upstream. Check `git log --oneline -- <path>` on the file in question for recent related commits.
+2. **Is there already a patch in flight?** Search `lore.kernel.org/all` (kernel/U-Boot) or the PR list (Zephyr) for the function name or file path. Nothing kills goodwill faster than a maintainer discovering two unrelated people solved the same bug without talking to each other.
+3. **Does fixing it require touching one function, or does it ripple through a locking scheme / ABI / Kconfig option?** A `TODO` item like "fix checkpatch warnings" is bounded. A `TODO` item like "convert this driver to use the new regmap API" is a multi-week redesign — not a first patch.
+4. **Has a maintainer actually confirmed it's a bug, or is it a drive-by report?** An issue with a maintainer comment "confirmed, agree this should use `devm_` cleanup" is tractable. An issue that's just a user pasting a dmesg trace with no maintainer response might be stale, misdiagnosed, or already-fixed noise.
+
+## Workflow A: the kernel-style mailing-list patch (Linux, U-Boot)
+
+There is no PR button. The patch *is* an email, formatted by `git format-patch`, and review happens as replies on a public mailing list archived forever. Walk the real sequence:
+
+```bash
+git clone git://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git
+cd linux
+# ... make your one-function fix in drivers/staging/rtl8723bs/... ...
+git add drivers/staging/rtl8723bs/core/rtw_wlan_util.c
+git commit -s
+```
+
+The `-s` flag appends your `Signed-off-by` line automatically — this is the kernel's Developer's Certificate of Origin (DCO): a legal assertion that you have the right to submit this code under the project's license, not a courtesy signature. Omitting it is an instant reject, not a style nit. The commit message itself follows a strict shape:
+
+```
+staging: rtl8723bs: fix camelCase member names in struct wlan_network
+
+checkpatch.pl --strict flags CamelCase identifiers throughout
+wlan_network. Rename SignalQuality -> signal_quality and
+PhyInfo -> phy_info to match kernel coding style, per the
+driver's TODO list.
+
+No functional change.
+
+Signed-off-by: Jane Doe <jane@example.com>
+```
+
+Subject line format matters: `<subsystem>: <file-or-component>: <imperative summary>`, lowercase, no trailing period, under ~70 chars. "No functional change" is a real convention — it tells the reviewer not to look for behavioral side effects, only for correctness of the mechanical change.
+
+Generate the patch file and run it through the project's own linter before anyone else sees it:
+
+```bash
+git format-patch -1 --subject-prefix="PATCH"
+./scripts/checkpatch.pl --strict 0001-staging-rtl8723bs-fix-camelCase-member-names.patch
+```
+
+Find out who actually has authority over this code — don't guess, the script tells you:
+
+```bash
+$ ./scripts/get_maintainer.pl 0001-staging-rtl8723bs-fix-camelCase-member-names.patch
+Greg Kroah-Hartman <gregkh@linuxfoundation.org> (supporter:STAGING SUBSYSTEM)
+linux-staging@lists.linux.dev (open list:STAGING SUBSYSTEM)
+linux-kernel@vger.kernel.org (open list)
+```
+
+Then send it as actual email, to those exact addresses, via `git send-email` (configured once against an SMTP account that won't mangle plain text — Gmail's web UI will corrupt the patch with HTML and line wrapping):
+
+```bash
+git send-email \
+  --to="Greg Kroah-Hartman <gregkh@linuxfoundation.org>" \
+  --cc="linux-staging@lists.linux.dev" \
+  --cc="linux-kernel@vger.kernel.org" \
+  0001-staging-rtl8723bs-fix-camelCase-member-names.patch
+```
+
+U-Boot's process is structurally identical; U-Boot additionally ships `tools/patman`, a wrapper that runs `git format-patch` + tag processing + `send-email` in one step and is worth learning if you plan more than one patch there.
+
+## Workflow B: the GitHub PR (Zephyr)
+
+Zephyr feels like ordinary open source because it is ordinary GitHub:
+
+```bash
+git clone --origin upstream https://github.com/zephyrproject-rtos/zephyr
+cd zephyr
+git checkout -b fix-i2c-nrf-timeout-reset
+# edit drivers/i2c/i2c_nrfx_twim.c
+git add drivers/i2c/i2c_nrfx_twim.c
+git commit -s -m "drivers: i2c: nrfx_twim: reset timeout flag between transfers"
+git push origin fix-i2c-nrf-timeout-reset
+gh pr create --fill
+```
+
+Zephyr still requires `-s` (it runs a DCO bot that blocks merge on missing sign-off — same legal requirement as the kernel, enforced by CI instead of by a human reading the patch). What's different is everything after that: CI runs automatically and posts results as PR checks, using Zephyr's own test runner, Twister:
+
+```
+twister --platform native_sim --platform qemu_cortex_m3 -T tests/drivers/i2c
+==========================================
+PLATFORM          TEST                                STATUS
+native_sim        tests.drivers.i2c.i2c_api           PASSED
+qemu_cortex_m3     tests.drivers.i2c.i2c_api          FAILED (build error)
+==========================================
+```
+
+A failed check blocks the merge button directly — there's no separate human step to notice the build broke. Review comments attach to specific diff lines in the GitHub UI, you push additional commits (or amend and force-push) to the same branch, and the same PR number tracks the whole history. Nothing is re-sent as a new message; the PR *is* the living document.
+
+## Structural differences that trip people up
+
+| | Mailing list (Linux, U-Boot) | GitHub PR (Zephyr) |
+|---|---|---|
+| Unit of review | An emailed patch (or series) | A branch/PR, diff-addressable per line |
+| Revision | Resend the *entire* patch as `v2`, `v3`... with a changelog | Push new commits or force-push amended ones to the same branch |
+| Review medium | Public mailing list archive, plain-text reply-quoting | Inline PR comments, "Request changes" review state |
+| CI | Separate bots (0-day, kbuild-bot) reply to the thread later | Blocking status checks on the PR itself |
+| Identity/legal check | Human reviewer checks for `Signed-off-by` by eye | DCO bot checks automatically, blocks merge |
+| Merge | Maintainer applies patch to their tree, pushes | "Squash and merge" / "Rebase and merge" button |
+
+The single most important consequence: on a mailing list, you never "update" a patch in place. You send a brand-new, complete `v2` patch (or series) with `git format-patch -v2`, and you put a short changelog describing what changed *below* the `---` separator, where it won't pollute the permanent commit message:
+
+```
+Subject: [PATCH v2] staging: rtl8723bs: fix camelCase member names in struct wlan_network
+
+checkpatch.pl --strict flags CamelCase identifiers throughout
+wlan_network. Rename SignalQuality -> signal_quality and
+PhyInfo -> phy_info to match kernel coding style.
+
+No functional change.
+
+Signed-off-by: Jane Doe <jane@example.com>
+---
+v2: also fix the two remaining CamelCase fields Greg pointed out
+    in wlan_bssid_ex (RSSI -> rssi, Reserved -> reserved)
+---
+ drivers/staging/rtl8723bs/core/rtw_wlan_util.c | 12 ++++++------
+ 1 file changed, 6 insertions(+), 6 deletions(-)
+```
+
+## What first-round review actually looks like
+
+Here's a realistic exchange, reply-quoted the way kernel mail actually reads (`>` marks the original patch, unquoted text is the reviewer):
+
+```
+On Tue, 1 Oct 2024 14:22:10 +0000, Jane Doe wrote:
+> -	priv->RSSI = val;
+> +	priv->rssi = val;
+
+Fine. But you missed two more CamelCase fields in the same
+struct, see wlan_bssid_ex a few lines down. Please sweep the
+whole struct in one patch instead of a partial rename — a
+reviewer coming back to this file in six months shouldn't find
+it half-converted.
+
+Also: checkpatch --strict on this file still reports
+
+  WARNING: Missing a blank line after declarations
+  #118: FILE: drivers/staging/rtl8723bs/core/rtw_wlan_util.c:118:
+  +	u8 rssi = priv->rssi;
+  +	if (rssi > RSSI_MAX)
+
+Run checkpatch again before resending.
+
+> Signed-off-by: Jane Doe <jane@example.com>
+
+Content is otherwise correct. Resend as v2 with both issues
+fixed and a changelog below the --- line.
+```
+
+That's a *good* first review: specific, line-anchored, and actionable. It is also completely normal for a maintainer to be terse — terseness is not hostility on these lists.
+
+## The five mistakes that sink first patches
+
+1. **Missing `Signed-off-by`.** Not a formality — some bots auto-reject, and human reviewers will not even read the diff until it's there. Always commit with `-s`, never add it by hand after the fact (it must match your committer identity).
+2. **Checkpatch/style-checker failures you didn't catch yourself.** Run the project's own linter — `scripts/checkpatch.pl --strict` for kernel/U-Boot, `west build -t ... ` plus `pre-commit` hooks for Zephyr — *before* sending. Showing up with warnings you could have caught signals you didn't do your homework.
+3. **Wrong or missing subsystem prefix in the subject line.** `fix bug in driver` tells a maintainer scanning hundreds of subject lines nothing. `staging: rtl8723bs: fix NULL deref in rtw_wx_set_scan()` is sortable and searchable.
+4. **Top-posting or sending HTML mail.** Reply inline, below each quoted point, trimming irrelevant quoted context. An HTML-formatted or top-posted reply on a kernel list marks you as not having read the list's own `Documentation/process/email-clients.rst`.
+5. **Resubmitting a broad, re-rolled diff instead of the specific fix requested.** If a maintainer asks you to fix one blank-line warning, send back a patch that fixes exactly that — not a patch that also reorganizes three unrelated functions "while you were in there."
+
+## Responding to review without getting defensive
+
+Three rules, applied in every example above:
+
+- **Quote the specific objection, then state what you'll do** — "Will fix in v2" beats a paragraph defending your original choice. If you disagree on a technical point (not a style nit), say so once, with a concrete reason, and accept the maintainer's call either way — they own the subsystem's long-term maintenance burden, you don't.
+- **Never resubmit without re-running the checker.** A `v2` that still fails `checkpatch --strict` reads as "I didn't listen," even if the semantic fix is correct.
+- **Keep the full patch, not an incremental diff, in every resend.** The mailing-list model has no persistent branch state; each `vN` must stand alone and apply cleanly to current mainline on its own.
+
+## Exercise
+
+Pick one real staging driver under `drivers/staging/` in a cloned Linux tree and read its `TODO` file. Run:
+
+```bash
+./scripts/checkpatch.pl -f drivers/staging/<driver>/<file>.c
+```
+
+across every `.c` file in that driver and find the file with the most *mechanical* warnings (CamelCase names, missing blank lines after declarations, line-length) rather than semantic ones. Fix exactly one category of warning, nothing else — no drive-by cleanups. Confirm it still builds (`make W=1 M=drivers/staging/<driver>` or a full `allmodconfig` build of that directory), re-run `checkpatch.pl --strict` until clean, run `get_maintainer.pl` against your `git format-patch -1` output, and write the final commit message in the exact subject/body/`Signed-off-by` shape shown above. Stop there — produce the `.patch` file and self-review it against the five-mistakes checklist; do not actually send it.
+
+Hint: `drivers/staging/rtl8723bs/` and `drivers/staging/rtl8188eu/` historically carry large, easy CamelCase and checkpatch backlogs — but check their current `TODO` file first, since items get picked off continuously and yours may already be done.

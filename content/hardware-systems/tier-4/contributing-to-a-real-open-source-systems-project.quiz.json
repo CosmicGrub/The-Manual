@@ -1,0 +1,98 @@
+[
+  {
+    "id": "hardware-systems/tier-4/contributing-to-a-real-open-source-systems-project/q1",
+    "type": "multiple_choice",
+    "prompt": "You want to submit a one-line NULL-pointer-check fix to a driver under drivers/staging/ in the Linux kernel. Where should you look FIRST for a concrete, maintainer-endorsed task before writing any code?",
+    "choices": [
+      "The driver's own TODO file inside its drivers/staging/<driver>/ directory",
+      "A GitHub 'good first issue' label on the mirror repo",
+      "The kernel's CHANGELOG file",
+      "Stack Overflow questions tagged 'linux-kernel'"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-4/contributing-to-a-real-open-source-systems-project/q2",
+    "type": "multiple_choice",
+    "prompt": "What does the Signed-off-by line added by `git commit -s` actually certify in a kernel or U-Boot patch?",
+    "choices": [
+      "That the author has the right to submit the code under the project's license (the Developer's Certificate of Origin)",
+      "That the patch passed checkpatch.pl with zero warnings",
+      "That a maintainer has already reviewed and approved the patch",
+      "That continuous integration successfully built the patch"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-4/contributing-to-a-real-open-source-systems-project/q3",
+    "type": "multiple_choice",
+    "prompt": "A patch gets review feedback asking you to fix two more CamelCase fields you missed. What is the correct way to resend it under the mailing-list workflow?",
+    "choices": [
+      "Send a complete v2 patch via git format-patch -v2 with a changelog below the --- line, fixing exactly what was requested",
+      "Reply to the thread with just a small diff showing only the two new lines changed",
+      "Force-push an amended commit to your fork and reply 'updated'",
+      "Open a new, unrelated patch thread so the history stays clean"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-4/contributing-to-a-real-open-source-systems-project/q4",
+    "type": "multiple_choice",
+    "prompt": "In Zephyr's GitHub PR workflow, what effectively replaces the human step of a kernel maintainer manually checking for a missing Signed-off-by line?",
+    "choices": [
+      "A DCO bot that runs automatically and blocks merge until sign-off is present",
+      "Nothing -- Zephyr does not require Signed-off-by at all",
+      "The Twister test runner, which treats missing sign-off as a build failure",
+      "A pre-commit git hook that silently adds sign-off on push"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-4/contributing-to-a-real-open-source-systems-project/q5",
+    "type": "multiple_choice",
+    "prompt": "You run `./scripts/get_maintainer.pl 0001-my-patch.patch` and it prints 'Greg Kroah-Hartman <gregkh@linuxfoundation.org> (supporter:STAGING SUBSYSTEM)' plus two mailing lists. What should you do with that output?",
+    "choices": [
+      "Send the patch via git send-email with Greg as --to and the listed mailing lists as --cc",
+      "Ignore it -- maintainers are auto-subscribed to all patches tagged for their subsystem",
+      "Open a GitHub issue tagging Greg Kroah-Hartman",
+      "Use it only to decide whether to bother submitting at all, not for addressing the email"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-4/contributing-to-a-real-open-source-systems-project/q6",
+    "type": "multiple_choice",
+    "prompt": "A maintainer's reply says: 'checkpatch --strict on this file still reports: WARNING: Missing a blank line after declarations, #118.' What is the most defensible next action?",
+    "choices": [
+      "Add the missing blank line, re-run checkpatch --strict until it's clean, then resend",
+      "Reply explaining that the warning is just a style preference and can be ignored",
+      "Resend the patch unchanged since the original logic was already correct",
+      "Open a new patch disabling that checkpatch rule for the whole file"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-4/contributing-to-a-real-open-source-systems-project/q7",
+    "type": "multiple_choice",
+    "prompt": "Which of these is a structural consequence of the mailing-list patch model (Linux, U-Boot) that does NOT apply to Zephyr's GitHub PR model?",
+    "choices": [
+      "A revised patch must be resent as a complete, standalone vN patch rather than amended in place on a persistent branch",
+      "Patches require a Signed-off-by line",
+      "Reviewers can leave comments pointing at a specific change",
+      "Continuous integration can run against the submitted code"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-4/contributing-to-a-real-open-source-systems-project/q8",
+    "type": "multiple_choice",
+    "prompt": "Before committing real effort to an open GitHub issue on a project like Zephyr, which check is LEAST useful for judging tractability?",
+    "choices": [
+      "Whether the issue has more than 50 words in its title",
+      "Whether a maintainer has confirmed the bug rather than it being an unconfirmed user report",
+      "Whether an existing PR already addresses the same file/function",
+      "Whether the fix is scoped to one function versus requiring a broader API/locking redesign"
+    ],
+    "correctIndex": 0
+  }
+]
