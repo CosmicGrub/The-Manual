@@ -1,0 +1,114 @@
+---
+trackId: platforms
+tier: 0
+title: "The Platform Landscape"
+order: 3
+estimatedHours: 4
+slug: the-platform-landscape
+---
+
+## Four computers, four different rulebooks
+
+You already know what a program is and what a file is (CS Foundations Tier 0). What you haven't had to think about yet is that "run this code" means something completely different depending on *where* it runs. Four environments show up constantly in this track, and they are not minor variations on the same idea — they're four different rulebooks for what code is allowed to do.
+
+| Environment | What it actually runs | What it can touch | How it's sandboxed |
+|---|---|---|---|
+| **Browser runtime** | JavaScript (plus WebAssembly) inside a tab's own process | Nothing on your disk by default; one tiny storage bucket per website (`localStorage`, cookies) | Each tab/origin is walled off from every other tab and from your filesystem — a website cannot read your Desktop folder, period |
+| **Desktop OS** (macOS/Windows/Linux) | Native compiled binaries, interpreted scripts, anything the OS can launch | Your whole home directory, other processes, the network, by default | Historically almost none — a terminal program you run has the same permissions you do |
+| **Mobile OS** (iOS/Android) | Installed apps, each given its own private storage container | Only its own sandboxed folder; camera/contacts/location require an explicit permission prompt | Per-app sandboxing enforced by the OS kernel — App A cannot read App B's files even if both are on the same phone |
+| **Cloud server** | Long-running backend processes, no display attached | Its own disk, its own network, a database — never *your* device directly | No user ever sits in front of it; the only way in is a network request it chooses to answer |
+
+Try this on your own machine right now to feel the browser/OS split: open any website's DevTools console and run `localStorage.setItem("x", "1")`. That value exists — but it's not a file you can find with `ls` or Finder/Explorer. It only exists inside that one origin's sandboxed bucket, inside the browser's own storage, invisible to the OS as a "file." Now open a real terminal and run `ls ~` — that lists actual files on actual disk, because your terminal isn't sandboxed the way a browser tab is. Same physical laptop, two completely different sets of rules, because one process is a sandboxed browser tab and the other is a normal OS process.
+
+The mobile sandbox is the strictest of the four for a reason: your phone runs apps written by people who've never met you, constantly, in your pocket. iOS and Android both give every app its own private container and gate camera, contacts, location, and background networking behind permission prompts the *user* grants, not the app. A desktop program from 1995 could read any file on your hard drive the instant it launched; a 2026 iOS app cannot read another app's data even if it wanted to.
+
+## Client vs server: one feature, two codebases
+
+"Client vs server" isn't abstract once you watch the *same feature* get built twice. Take "apply a promo code" on a checkout page:
+
+**Client-side (runs in the browser, instantly, no network round trip):**
+```js
+function validateFormat(code) {
+  // instant feedback while typing — purely cosmetic
+  if (!/^[A-Z0-9]{6}$/.test(code)) {
+    showError("Code must be 6 letters/numbers");
+    return false;
+  }
+  return true;
+}
+```
+
+**Server-side (runs on the backend, the only copy that actually matters):**
+```js
+app.post("/api/apply-promo", async (req, res) => {
+  const promo = await db.findPromo(req.body.code);
+  if (!promo || promo.expired || promo.usesLeft <= 0) {
+    return res.status(400).json({ error: "Invalid or expired code" });
+  }
+  await db.decrementUses(promo.id);
+  res.json({ discount: promo.discountPercent });
+});
+```
+
+Why both? Because the client-side check is a UX nicety, not a security boundary — anyone can open DevTools, delete that function entirely, and send the request directly:
+
+```bash
+curl -X POST https://shop.example.com/api/apply-promo \
+  -H "Content-Type: application/json" \
+  -d '{"code":"FAKE100"}'
+```
+
+Nothing stops that `curl` call. The webpage's JavaScript never runs — there's no browser involved at all. The *only* code that can't be bypassed is the code running on a machine the user never gets access to: the server. This is the single most important habit this track will drill into you: never trust a check that only exists on the client.
+
+## Compiled vs interpreted vs JIT: three paths from source to "running"
+
+No coding here yet — just watch the same program take three different paths to execution. Identical loop (sum the numbers 0 to 49,999,999), three languages, timed for real:
+
+```bash
+$ gcc sum.c -o sum_c && file sum_c
+sum_c: ELF 64-bit LSB pie executable, x86-64, ... for GNU/Linux
+
+$ time ./sum_c
+1249999975000000
+real    0m0.135s
+
+$ time python3 sum.py
+1249999975000000
+real    0m3.406s
+
+$ time node sum.js
+1249999975000000
+real    0m0.073s
+```
+
+Three genuinely different pipelines produced those numbers:
+
+- **Compiled (C, via `gcc`):** every line of `sum.c` is translated to x86-64 machine code *before* you ever run it. `file sum_c` confirms it — that's an "ELF executable," raw machine instructions the CPU reads directly. The translation work (compiling) happens once, up front, as a separate step. At runtime there's zero translation left to do, which is why it's fast.
+- **Interpreted (Python):** there's no separate build step — `python3 sum.py` reads and translates the source *every single time you run it*, line by line, through the CPython interpreter. That repeated translation is most of the 3.4 seconds. Nothing gets saved as a standalone runnable file the way `sum_c` did.
+- **JIT, "just-in-time" (JavaScript, via Node's V8 engine):** V8 starts the same way Python does — interpreting line by line — but it watches the program *while it runs*. The moment it notices a loop executing millions of times, it compiles just that hot loop to real machine code, mid-execution, and swaps the fast version in. That's why Node finished in 0.073s — faster even than the unoptimized C binary. You never ran a build step; the JIT compiler built one for you, on the fly, only for the parts worth optimizing.
+
+That last result is the point to actually internalize: "compiled is always fastest" is a myth. A JIT can match or beat naive compiled code on hot code paths, because it has runtime information (which loop actually runs a billion times) that a compiler working from source alone doesn't have. This is also why your browser's JavaScript isn't unbearably slow despite having "no build step" from the developer's point of view — V8 is doing real compilation, you just never see it happen.
+
+## What "cross-platform" actually trades off
+
+"Cross-platform" always sounds like a pure win — one codebase, every device. It isn't free. Here's the same tradeoff, laid out as three real distribution channels:
+
+| | App store (Apple/Google) | Web distribution (a URL) | Package manager (npm, Homebrew, apt) |
+|---|---|---|---|
+| **Review before it reaches users** | Mandatory human/automated review, typically a day or two; can be rejected | None — you push, it's live | None — `npm publish` is instant, anyone can publish |
+| **Install friction** | One tap from a store the user already trusts | Zero install — just visit a URL | Highest — user needs a terminal, the right runtime, and to type a command |
+| **Update speed** | Your fix still needs review again before it reaches anyone | Instant — reload the page, new code is already there | Instant for *you* to publish; the user must manually run an update command — nothing pushes to them |
+| **Distribution reach** | Effectively every phone, pre-vetted and trusted by the OS | Universal — any device with a browser, no gatekeeper | Narrowest — developers only, people already comfortable with a terminal |
+
+Concretely: if a critical bug ships Monday morning, the web team fixes it and it's live for 100% of users within minutes (`git push`, deploy pipeline runs, done). The mobile team fixes the same bug, submits a new build, and — even on a fast review cycle — some real number of users are running the broken version until the store approves the update and their phone auto-updates. That's the actual cost of the app store's trust-and-review layer: safety and reach, paid for in update latency. A package manager gives up almost all of that reach (your userbase has to already own a terminal) in exchange for a frictionless publish step for the author. None of the three is "better" — they're different trades, and which one is right depends entirely on who you're shipping to.
+
+## Exercise
+
+Pick a real app you use that exists on multiple surfaces — e.g. a notes app with a phone version, a web version, and offline support. For each behavior below, decide: (a) which of the four execution environments is responsible, and (b) whether it requires a network round trip to a server or can happen entirely on-device.
+
+1. Typing a note and seeing the text appear on screen immediately.
+2. That same note showing up on your laptop five seconds later.
+3. The app still letting you create new notes while your phone is in airplane mode.
+4. The web version refusing to open a note that belongs to a different account, even if you guess its exact URL.
+
+**Hint:** anything that has to feel instant happens locally, on the device you're touching, because round-tripping a server for every keystroke would be laggy. But anything that has to be true *no matter who's asking and no matter what their browser's JavaScript has been tampered with to say* — like "this note belongs to you" — has to be enforced on the one machine the user never gets to edit. Which environment from this lesson is that?

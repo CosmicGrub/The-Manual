@@ -1,0 +1,86 @@
+[
+  {
+    "id": "platforms/tier-0/command-line-and-dev-environment-setup/q1",
+    "type": "multiple_choice",
+    "prompt": "What does `pwd` print?",
+    "choices": [
+      "The current working directory's full path",
+      "A list of files in the current folder",
+      "The current process's ID",
+      "The logged-in username"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-0/command-line-and-dev-environment-setup/q2",
+    "type": "multiple_choice",
+    "prompt": "You're in /Users/you/projects/src after running `cd src`. Which command gets you back to /Users/you/projects?",
+    "choices": [
+      "cd ..",
+      "cd .",
+      "cd /src",
+      "cd --up"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-0/command-line-and-dev-environment-setup/q3",
+    "type": "multiple_choice",
+    "prompt": "You just installed a tool, but running it gives `command not found`. What's the most likely cause?",
+    "choices": [
+      "The directory containing that program isn't listed in your PATH",
+      "Your terminal application needs to be reinstalled",
+      "The computer needs a full restart",
+      "Your filesystem is corrupted"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-0/command-line-and-dev-environment-setup/q4",
+    "type": "multiple_choice",
+    "prompt": "On macOS, which command uses Homebrew to install Node.js?",
+    "choices": [
+      "brew install node",
+      "apt install node",
+      "winget install node",
+      "npm install node --global-system"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-0/command-line-and-dev-environment-setup/q5",
+    "type": "multiple_choice",
+    "prompt": "What is the PATH environment variable?",
+    "choices": [
+      "A colon-separated list of directories the shell searches, in order, for executable programs",
+      "A single folder where all software on the machine is installed",
+      "A setting that controls which files you're allowed to delete",
+      "The web address of the npm package registry"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-0/command-line-and-dev-environment-setup/q6",
+    "type": "multiple_choice",
+    "prompt": "Which tool, mentioned in this lesson as a preview only, is required later for building an iOS app and only runs on macOS?",
+    "choices": [
+      "Xcode",
+      "Android Studio",
+      "apt",
+      "winget"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-0/command-line-and-dev-environment-setup/q7",
+    "type": "multiple_choice",
+    "prompt": "Which statement correctly contrasts where code runs?",
+    "choices": [
+      "A React app's JS running inside Chrome executes in the browser's sandbox; running `node server.js` on your laptop executes directly on the desktop OS with full filesystem access",
+      "Browser JavaScript and a desktop OS process have identical filesystem access",
+      "A cloud server is a category of mobile OS",
+      "Mobile apps and browser pages share the same sandbox and permissions model"
+    ],
+    "correctIndex": 0
+  }
+]

@@ -1,0 +1,132 @@
+---
+trackId: platforms
+tier: 0
+title: "Platform-Specific Repo Conventions"
+order: 2
+estimatedHours: 2
+slug: platform-specific-repo-conventions
+---
+
+## What this module adds on top of git basics
+
+CS Foundations Tier 0 already covered `git init`, `add`, `commit`, branches, and `.gitignore` as a concept. None of that gets repeated here. What changes when you ship to multiple platforms is *what* belongs in that `.gitignore`, and *what kind of file* git itself is bad at storing. Both problems show up the moment a repo contains more than "some JavaScript files."
+
+## The platform-specific junk your repo accumulates
+
+Every platform's toolchain generates its own pile of local, regenerable, machine-specific junk. If you don't ignore it, you commit multi-hundred-megabyte build caches, break teammates' builds with your absolute paths baked into config files, and leak secrets. Three real examples:
+
+**Web / Node.** `npm install` or `yarn install` writes `node_modules/`, which can hit 300MB+ for a mid-size project and is 100% reconstructable from `package.json` + the lockfile.
+
+```text
+# .gitignore (web/Node)
+node_modules/
+dist/
+build/
+.next/
+out/
+.env
+.env.local
+npm-debug.log*
+.DS_Store
+```
+
+**Android.** Gradle writes a `build/` directory per module plus a global `.gradle/` cache directory, and Android Studio writes `local.properties` with the absolute path to *your* SDK install on *your* machine — meaningless, and actively wrong, on a teammate's machine.
+
+```text
+# .gitignore (Android)
+*.apk
+*.aab
+build/
+.gradle/
+local.properties
+.idea/
+*.iml
+captures/
+```
+
+**iOS.** Xcode writes a `DerivedData/` folder (build intermediates, indexes, simulator caches — can exceed a gigabyte) outside the project by default, but if it ever lands inside your repo folder, it must be ignored. `.xcuserstate` holds your personal window layout and breakpoints, not project state — every developer has a different one, and committing it causes constant, meaningless merge conflicts on a binary file.
+
+```text
+# .gitignore (iOS)
+DerivedData/
+*.xcuserstate
+xcuserdata/
+*.xcworkspace/xcuserdata/
+build/
+```
+
+Run `git check-ignore -v path/to/file` any time you're not sure whether a rule is catching a file — it prints exactly which `.gitignore` line matched, which is how you debug "why is this still showing up in `git status`."
+
+## Signing keys: the one mistake that isn't just "oops, big file"
+
+Android apps are signed with a release keystore (`.jks` or `.keystore`). iOS apps are signed with a certificate and provisioning profile (`.p12`, `.mobileprovision`). These aren't build artifacts — they're cryptographic proof that an app update actually came from you. Google Play and Apple's App Store both trust "same signing key" as "same publisher, safe to install as an update."
+
+```text
+# Signing material — never commit, ever
+*.jks
+*.keystore
+*.p12
+*.mobileprovision
+keystore.properties
+```
+
+If a release keystore ends up in git history, deleting it in a later commit does *not* undo the exposure — the blob is still sitting in every clone's `.git` history, recoverable with `git show <old-commit>:path/to/key.jks`. The only real fix is rotating the key: generate a new keystore/certificate and go through your store's key-replacement process. That's a slow, sometimes painful process (Android in particular makes replacing a lost/leaked signing key hard once an app has shipped under the old one), which is exactly why the `.gitignore` line has to be there from commit #1, not added after an incident.
+
+Store the password/passphrase the same way: as an environment variable or in a local, gitignored `keystore.properties` file, referenced by path from `build.gradle` — never typed into a tracked file.
+
+## Why git is bad at binary assets
+
+Git tracks history by storing a full snapshot of every version of every file and diffing between them. That's cheap for text. It's expensive for a 50MB background video or a 20MB layered app-icon PSD: every edit creates a *new* full copy sitting permanently in the repo's `.git` packfile. Ship a splash-screen video and re-export it 8 times during review, and you've just added 400MB to a repository every single collaborator has to clone, forever — there's no "delete the old versions" without rewriting history.
+
+## git-lfs: pointer in git, blob somewhere else
+
+Git LFS (Large File Storage) solves this by storing a small text pointer in the actual git repo, and the real binary content in separate LFS storage, fetched on demand.
+
+Set it up once per repo:
+
+```bash
+$ git lfs install
+Updated git hooks.
+Git LFS initialized.
+
+$ git lfs track "assets/videos/*.mp4"
+Tracking "assets/videos/*.mp4"
+
+$ git lfs track "*.psd"
+Tracking "*.psd"
+
+$ cat .gitattributes
+assets/videos/*.mp4 filter=lfs diff=lfs merge=lfs -text
+*.psd filter=lfs diff=lfs merge=lfs -text
+
+$ git add .gitattributes assets/videos/launch-splash.mp4
+$ git commit -m "Track launch splash video with Git LFS"
+```
+
+Note that `.gitattributes` itself gets committed as a normal text file — it's the rulebook. If a teammate clones the repo without `git lfs install` run on their machine, or without `.gitattributes` tracked, they get the pointer file *as the file content*, not the real video. That's what the pointer actually looks like inside git:
+
+```text
+version https://git-lfs.github.com/spec/v1
+oid sha256:4d7a214614ab2935c943f9e0ff69d22eadbb8f32b1258daaa5e2ca24d17e2393
+size 52428800
+```
+
+136 bytes of text, committed and diffed like any other file. The actual 50MB `.mp4` lives in LFS storage (on GitHub, GitLab, etc.), fetched only when you check out that commit. That's the whole trick: git's history stays small and fast regardless of how many times the design team re-renders the splash video, because only the current pointer is "in" the working tree at any moment — old pointer versions are tiny, even though they refer to different giant blobs.
+
+Common mistake: running `git lfs track` *after* a large file is already committed as a normal blob doesn't retroactively fix it. The rule only applies going forward; a file already committed untracked stays a full blob in history until you rewrite that history (out of scope here — the fix is to track before the first commit of that file type).
+
+## Exercise
+
+You're handed a monorepo laid out like this:
+
+```text
+repo/
+  web/            (React app)
+  android/        (Android app)
+  ios/            (iOS app)
+  shared-assets/  (marketing videos, PSDs, app icons used by all three)
+```
+
+Write a single top-level `.gitignore` that correctly ignores `node_modules`, Android's `build/` and `.gradle/`, and iOS's `DerivedData/` and `*.xcuserstate` — without accidentally ignoring a legitimate tracked folder that happens to share a name, like a `web/src/build-tools/` directory holding real source code. Then set up Git LFS to track every `.mp4` and `.psd` under `shared-assets/`, and show what `git status` reports immediately after `git add` for one such file.
+
+**Hint:** a bare `build/` pattern matches *any* directory named `build` anywhere in the repo tree, which is why `android/app/build/` gets ignored but so would `web/src/build-tools/build/` if it existed. Anchor patterns to the path you actually mean (e.g. `android/**/build/`) instead of using the bare, repo-wide version from the per-platform templates above.

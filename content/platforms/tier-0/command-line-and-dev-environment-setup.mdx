@@ -1,0 +1,168 @@
+---
+trackId: platforms
+tier: 0
+title: "Command Line & Dev Environment Setup"
+order: 1
+estimatedHours: 6
+slug: command-line-and-dev-environment-setup
+---
+
+## The five commands you'll type a thousand times
+
+CS Foundations Tier 0 already covered what a file, a directory, and a path are. This section is pure muscle memory: the terminal commands you'll run constantly across every platform track, with real output so you know what "working" looks like.
+
+Open a terminal and run this exact sequence:
+
+```bash
+$ pwd
+/Users/you
+$ ls
+Desktop  Documents  Downloads  Music  Pictures
+$ mkdir projects
+$ cd projects
+$ pwd
+/Users/you/projects
+$ mkdir hello-world
+$ cd hello-world
+$ ls -la
+total 0
+drwxr-xr-x   2 you  staff   64 Oct  3 09:14 .
+drwxr-xr-x   3 you  staff   96 Oct  3 09:14 ..
+$ touch index.js README.md
+$ ls
+README.md index.js
+$ mv README.md readme.md
+$ ls
+index.js readme.md
+$ rm readme.md
+$ ls
+index.js
+```
+
+What each one actually does:
+
+- `pwd` — print working directory. Your "you are here" marker.
+- `ls` — list contents. `ls -la` adds hidden files (anything starting with `.`) and long format (permissions, owner, size, date).
+- `mkdir name` — make a directory. `mkdir -p a/b/c` makes nested directories in one shot, creating `a` and `b` along the way if they don't exist.
+- `cd path` — change directory. `cd ..` goes up one level, `cd ~` jumps to your home directory from anywhere, `cd -` jumps back to wherever you just were.
+- `mv old new` — move or rename. There is no separate "rename" command; renaming is just moving a file to a new name in the same folder.
+- `rm file` — remove. There is no trash can. `rm -rf folder` deletes a folder and everything in it, permanently, with no confirmation prompt. Run `ls` on a target before you `rm -rf` it, every time.
+
+## Four places your code can run
+
+Later tiers will have you writing code that runs in genuinely different environments, and confusing them wrecks your mental model fast. Four you'll hit constantly:
+
+- **Browser** — a sandboxed environment running on the *user's* machine. It can't touch the filesystem or run arbitrary processes; it only does what the page's JavaScript tells it to, inside limits the browser enforces. A React app's code executes once per visitor, independently, in their Chrome or Safari.
+- **Desktop OS** (macOS, Windows, Linux) — full access to the filesystem and system processes, but only on the one machine it's installed on. When you run `node server.js` on your laptop, that process lives and dies with your laptop.
+- **Mobile OS** (iOS, Android) — similar process/filesystem model to desktop, but every app is sandboxed from every other app, and software arrives through an app store rather than a terminal install.
+- **Cloud server** — a machine you don't physically touch, rented from a provider (AWS, GCP, etc.), reachable over the network, with no screen attached. The exact same `node server.js` file, unchanged, becomes "a web server" the instant it's running on a cloud machine with a public IP instead of your laptop.
+
+Same code, four different "whose computer is this" answers. Keep that question in your head for every tool you install from here on.
+
+## Installing VS Code and useful extensions
+
+Download VS Code from code.visualstudio.com for your OS and install it normally (`.dmg` on macOS, installer `.exe` on Windows, `.deb`/`.rpm` or your distro's package manager on Linux).
+
+One setup step that pays off immediately: get the `code` command working in your terminal. On macOS, open VS Code, hit Cmd+Shift+P, type "Shell Command: Install 'code' command in PATH", and run it. Test it:
+
+```bash
+$ cd ~/projects/hello-world
+$ code .
+```
+
+That opens the current folder as a VS Code workspace — you'll use this constantly instead of opening VS Code first and navigating to a folder from inside it.
+
+Extensions worth installing now, regardless of which platform track you continue into:
+
+- **ESLint** — flags JS/TS problems as you type.
+- **Prettier** — auto-formats code on save, ends arguments about tabs vs. spaces.
+- **GitLens** — inline blame/history in the editor, builds on the git conventions from CS Foundations.
+
+Platform-specific extensions (Swift, Kotlin, React Native, etc.) come later, attached to the tracks that need them.
+
+## Installing Node.js, npm, and a package manager
+
+Every OS has a package manager — a tool that installs and updates software from the terminal instead of downloading installers by hand.
+
+**macOS — Homebrew:**
+
+```bash
+$ brew install node
+$ node -v
+v22.9.0
+$ npm -v
+10.8.3
+```
+
+**Linux (Debian/Ubuntu) — apt:**
+
+```bash
+$ sudo apt update
+$ sudo apt install nodejs npm
+$ node -v
+v18.19.1
+```
+
+Note the older version — Ubuntu's default repos lag behind Node's latest release by a lot. For real projects you'll eventually want `nvm` (Node Version Manager) instead of the distro package, but that's a later lesson; apt is fine for getting oriented now.
+
+**Windows — winget:**
+
+```powershell
+> winget install OpenJS.NodeJS.LTS
+> node -v
+v22.9.0
+```
+
+npm (Node Package Manager) ships with Node automatically — you don't install it separately.
+
+## PATH and environment variables
+
+Here's the failure mode you will absolutely hit, and the exact fix.
+
+```bash
+$ node -v
+zsh: command not found: node
+```
+
+You just installed Node. It's on disk. The shell still can't find it. Why?
+
+Your shell doesn't search your entire filesystem for every command you type — that would be absurdly slow. It only checks the folders listed in the `PATH` environment variable, in order, and stops at the first match.
+
+```bash
+$ echo $PATH
+/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
+```
+
+That's a colon-separated list of directories. Homebrew on Apple Silicon installs things into `/opt/homebrew/bin` — which isn't in that list, so `node` is sitting right there on disk, unreachable, until you add it:
+
+```bash
+$ echo 'export PATH="/opt/homebrew/bin:$PATH"' >> ~/.zshrc
+$ source ~/.zshrc
+$ node -v
+v22.9.0
+```
+
+`source ~/.zshrc` reloads your shell config in the current terminal without closing it. Any environment variable — `PATH`, `NODE_ENV`, an API key you stash in `~/.zshrc` or `~/.bashrc` — works the same way: it's a named value the shell holds in memory and hands to every program you run from it. "Command not found" after an install is PATH, nine times out of ten.
+
+## Platform SDKs you'll meet later (names only — don't install these yet)
+
+You'll install and configure these in the tiers that actually need them. For now, just recognize the names so later instructions don't blindside you:
+
+- **Xcode** — Apple's IDE, required for any iOS/macOS development, macOS-only, bundles the iOS Simulator.
+- **Android Studio** — Google's IDE for Android, runs on macOS/Windows/Linux, bundles the Android Emulator and the Android SDK.
+- **Windows SDK** (via Visual Studio) — for native Windows desktop apps.
+- Cloud provider CLIs (AWS CLI, `gcloud`, Azure CLI) — not "SDKs" exactly, but the terminal tools you'll use to control a cloud server once that tier arrives.
+
+None of these get installed in this module. The point here is just: when a future lesson says "open Xcode," you'll already know it's the Apple-only IDE, not a mystery tool appearing out of nowhere.
+
+## Exercise
+
+Using only the terminal:
+
+1. Create `~/projects/manual-practice` with two subfolders inside it: `src` and `assets`.
+2. Create an empty file `src/index.js`.
+3. Rename `assets` to `public`.
+4. Install a global npm package: `npm install -g nodemon`.
+5. Run `nodemon -v`. If you get `command not found`, fix it without reinstalling anything.
+
+**Hint:** global npm packages get installed into a specific folder, and that folder has to be on your PATH for the command to work. Run `npm config get prefix` to see where npm puts global installs, then check whether that location (with `/bin` appended) shows up in `echo $PATH`.

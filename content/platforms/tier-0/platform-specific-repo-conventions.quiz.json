@@ -1,0 +1,74 @@
+[
+  {
+    "id": "platforms/tier-0/platform-specific-repo-conventions/q1",
+    "type": "multiple_choice",
+    "prompt": "Why does node_modules/ belong in .gitignore instead of being committed?",
+    "choices": [
+      "It is fully regenerable from package.json and the lockfile, and committing it bloats the repo for no benefit",
+      "Node.js refuses to run if node_modules is tracked by git",
+      "GitHub automatically deletes repos containing a tracked node_modules folder",
+      "node_modules contains no files that npm install can recreate"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-0/platform-specific-repo-conventions/q2",
+    "type": "multiple_choice",
+    "prompt": "A teammate accidentally commits and pushes an Android release keystore (.jks) file, then immediately deletes it in a follow-up commit. What is actually true afterward?",
+    "choices": [
+      "The keystore is permanently safe again once the delete commit is pushed",
+      "The keystore is still recoverable from the repository's history, so the key must be treated as compromised and rotated",
+      "Git automatically strips binary secrets from history on push",
+      "Deleting the file reverses the exposure as long as no one has cloned the repo yet today"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-0/platform-specific-repo-conventions/q3",
+    "type": "multiple_choice",
+    "prompt": "After running `git lfs track \"*.mp4\"` and committing a tracked video file, what does the actual git repository (the packfile/history) store for that file?",
+    "choices": [
+      "The full binary video content, same as a normal git blob",
+      "A compressed low-resolution preview of the video",
+      "A small text pointer file containing an object ID and size, with the real binary stored in separate LFS storage",
+      "Nothing \u2014 LFS-tracked files are excluded from git entirely, like .gitignore"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "platforms/tier-0/platform-specific-repo-conventions/q4",
+    "type": "multiple_choice",
+    "prompt": "Which of these .gitignore entries is specific to an Xcode/iOS project and would not appear in a typical web project's .gitignore?",
+    "choices": [
+      "node_modules/",
+      "DerivedData/",
+      ".env",
+      "dist/"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-0/platform-specific-repo-conventions/q5",
+    "type": "multiple_choice",
+    "prompt": "A teammate says: \"Once git-lfs is installed on my machine, it just automatically handles any large file I add.\" What's wrong with this claim?",
+    "choices": [
+      "Nothing is wrong, that is exactly how git-lfs works",
+      "git-lfs only works on files smaller than 10MB",
+      "Which files get LFS treatment is controlled by patterns in .gitattributes (written by `git lfs track`); a file not matched by a tracked pattern is stored as a normal blob regardless of its size",
+      "git-lfs must be re-installed before every single commit"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "platforms/tier-0/platform-specific-repo-conventions/q6",
+    "type": "multiple_choice",
+    "prompt": "A 200MB video is committed directly to git (no LFS), then deleted in a later commit. Why does the repository stay bloated for every future clone?",
+    "choices": [
+      "It doesn't \u2014 deleting a file in a new commit immediately shrinks the repository for everyone",
+      "Git keeps the old blob in history/packfiles, so every clone still has to download that 200MB version even though it's not in the current working tree",
+      "The video gets automatically converted to an LFS pointer after deletion",
+      "git gc removes it automatically on the next commit"
+    ],
+    "correctIndex": 1
+  }
+]

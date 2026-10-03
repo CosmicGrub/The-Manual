@@ -454,3 +454,14 @@ All notable changes to The Manual (curriculum + app) are logged here. This file 
 **Result:** `npm run build` passed clean — 195 pages, 178 unique slugs verified repo-wide.
 
 **Status:** Hardware & Computer Systems complete (all 6 tiers, 526h, 31 lessons). This is the fifth fully content-complete track in The Manual, alongside CS Foundations, Language Mastery, Software Engineering, and AI/ML & Prompt Engineering. Remaining tracks: Platforms, DevOps, Cybersecurity & Ethical Hacking, Capstones & Career.
+
+## [0.35.0] — 2026-10-03 — Platforms Tier 0: the sixth track begins
+
+**Context:** Tier 0 is deliberately light here by design — general computing literacy belongs to CS Foundations, so this tier's only job is orienting the learner to the platform landscape itself (terminal fluency, platform-specific git conventions, and a working mental model of browser vs. OS vs. mobile OS vs. cloud server) before later tiers build real cross-platform apps on top of it.
+
+**Added**
+- `content/platforms/tier-0/*.mdx` (4 files) + matching quizzes: Command Line & Dev Environment Setup (real terminal command sequences with actual output, VS Code setup, Node/npm install per OS, a real PATH-failure-then-fix walkthrough), Platform-Specific Repo Conventions (real per-platform `.gitignore` entries, git-lfs for binary assets), The Platform Landscape (browser/OS/mobile-OS/cloud-server concretely contrasted), Your First Program on Every Surface (a guided, no-building-yet tour across all four).
+
+**Result:** `npm run build` passed clean — 199 pages, 182 unique slugs verified repo-wide.
+
+**Status:** Platforms Tier 0 started (16h, 4 lessons) — the sixth track in The Manual to get real lesson content. Tiers 1-5 remain.

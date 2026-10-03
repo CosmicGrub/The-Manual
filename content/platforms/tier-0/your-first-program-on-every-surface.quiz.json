@@ -1,0 +1,86 @@
+[
+  {
+    "id": "platforms/tier-0/your-first-program-on-every-surface/q1",
+    "type": "multiple_choice",
+    "prompt": "Which DevTools panel shows the live DOM tree as it currently exists in memory -- including any changes JavaScript has made since the page loaded -- rather than the raw HTML the server originally sent?",
+    "choices": [
+      "Elements",
+      "Console",
+      "Network",
+      "Sources"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-0/your-first-program-on-every-surface/q2",
+    "type": "multiple_choice",
+    "prompt": "In the Network panel, a request for a stylesheet comes back with HTTP status 304. What does that mean?",
+    "choices": [
+      "The file does not exist on the server",
+      "The browser's cached copy is still valid, and the server confirmed nothing changed",
+      "The server crashed while sending the file",
+      "The request was redirected to a different URL"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-0/your-first-program-on-every-surface/q3",
+    "type": "multiple_choice",
+    "prompt": "What is the Android emulator actually doing when you boot a virtual device (an AVD)?",
+    "choices": [
+      "Drawing an Android-styled skin on top of your computer's own operating system",
+      "Running a complete virtual Android device -- its own kernel, OS image, and virtual hardware -- inside a virtual machine on your computer",
+      "Streaming the screen of a real physical Android phone over the internet",
+      "Recompiling your app to run natively on your computer's CPU with no separate OS involved"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-0/your-first-program-on-every-surface/q4",
+    "type": "multiple_choice",
+    "prompt": "You type `python3 hello.py` and press Enter. Put these in the real order they happen: (i) the kernel loads the python3 binary into a new process, (ii) the terminal emulator passes your keystrokes to the shell, (iii) the shell forks a child process and execs python3, (iv) the interpreter runs the script and writes output back through the pty.",
+    "choices": [
+      "ii, iii, i, iv",
+      "i, ii, iii, iv",
+      "iv, i, ii, iii",
+      "ii, i, iii, iv"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-0/your-first-program-on-every-surface/q5",
+    "type": "multiple_choice",
+    "prompt": "A browser tab, a terminal process, an app running in a mobile emulator, and a desktop app window all share one structural thing in common. What is it?",
+    "choices": [
+      "They are all literally the same underlying file format",
+      "Each is a running process that some host (browser engine, kernel, virtual machine, or window manager) mediates between the program and the real hardware",
+      "They all require an active internet connection just to start",
+      "They are all written in JavaScript under the hood"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-0/your-first-program-on-every-surface/q6",
+    "type": "multiple_choice",
+    "prompt": "What is a genuine structural difference -- not just visual styling -- between a web app running in a browser tab and a native desktop app you've installed?",
+    "choices": [
+      "Web apps are incapable of having any visual interface",
+      "The browser tab runs inside the browser's sandbox with restricted filesystem/hardware access by default; the installed desktop app runs with whatever OS permissions your user account has",
+      "Desktop apps cannot render text",
+      "There is no real difference -- they are the same thing with different icons"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-0/your-first-program-on-every-surface/q7",
+    "type": "multiple_choice",
+    "prompt": "On example.com -- a page with no JavaScript, no images, and CSS inlined in a <style> tag -- how many requests show up in the Network panel on a fresh reload?",
+    "choices": [
+      "Zero",
+      "One (the HTML document itself)",
+      "Exactly three (HTML, CSS, and a favicon)",
+      "It varies randomly every reload"
+    ],
+    "correctIndex": 1
+  }
+]

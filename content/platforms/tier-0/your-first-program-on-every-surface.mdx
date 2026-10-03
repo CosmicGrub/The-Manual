@@ -1,0 +1,112 @@
+---
+trackId: platforms
+tier: 0
+title: "Your First Program on Every Surface (Guided Tour, No Building)"
+order: 4
+estimatedHours: 4
+slug: your-first-program-on-every-surface
+---
+
+## What this tour actually is
+
+You're not writing any code in this module. You're watching four programs start up and run — a webpage, a terminal script, a mobile app, a desktop app — and learning to actually *see* what's happening instead of just seeing the result. Tier 0's "The Platform Landscape" module gave you the vocabulary (browser runtime, OS, mobile OS, cloud server, compiled vs. interpreted vs. JIT). This module is where that vocabulary gets attached to real, clickable things on a real screen. Terminal basics (`cd`, `ls`, `pwd`) and git fundamentals are assumed complete from CS Foundations Tier 0 — this lesson doesn't re-teach either.
+
+## Stop 1: A webpage, torn open with DevTools
+
+Open `https://example.com` in any browser. It's one of the few pages on the internet that has stayed byte-for-byte stable for years, which makes it a good fixed target. Its entire source is this:
+
+```html
+<!doctype html>
+<html>
+<head>
+    <title>Example Domain</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style type="text/css">
+    body { background-color: #f0f0f2; margin: 0; padding: 0; font-family: sans-serif; }
+    div { width: 600px; margin: 5em auto; padding: 2em; background-color: #fdfdff; }
+    </style>
+</head>
+<body>
+<div>
+    <h1>Example Domain</h1>
+    <p>This domain is for use in illustrative examples in documents...</p>
+    <p><a href="https://www.iana.org/domains/example">More information...</a></p>
+</div>
+</body>
+</html>
+```
+
+Now open DevTools (F12, or right-click → Inspect) and look at three panels specifically:
+
+**Elements** shows the live DOM — the browser's in-memory tree of the page *right now*, after parsing. Right-click the `<h1>` and "Edit as HTML," change the text, hit Enter — the page visibly changes. Now type `view-source:https://example.com` in the address bar: that's the raw bytes the server sent, untouched. Your edit isn't there. This is the single most important distinction in the whole lesson: **Elements shows current state, view-source shows what arrived.** On a page with JavaScript running, those two can diverge wildly; on example.com (no JS at all) they start out identical, which is exactly why it's a clean first example.
+
+**Console** is a live JavaScript prompt pointed at this page. Type `document.title` and press Enter — it prints `"Example Domain"`. Type `document.querySelector('h1').textContent = "Hacked"` and watch the page change again, this time from code instead of a GUI edit. Console isn't a log viewer that happens to also run code — running code *is* its main job; logged messages from the page's own scripts are secondary.
+
+**Network** shows every HTTP request the page made. Reload with the Network tab open and filter cleared: example.com makes exactly **one** request — the HTML document itself, status `200`, a few hundred bytes, no CSS file (it's inlined in a `<style>` tag), no JS, no images. Now reload a page with real complexity, like a news homepage, and compare: dozens to hundreds of requests — scripts, stylesheets, fonts, tracking pixels, images — each with its own status code, size, and timing breakdown (DNS lookup, TLS handshake, waiting on server, download). The *absence* of requests on example.com is as informative as the *presence* of them elsewhere: it tells you exactly what the page is and isn't fetching.
+
+## Stop 2: A hello-world script, keystroke to output
+
+```bash
+$ cat hello.py
+print("hello, world")
+
+$ python3 hello.py
+hello, world
+```
+
+You already know how to run this from CS Foundations Tier 0. What's new here is the chain between pressing Enter and that text appearing:
+
+1. The terminal emulator (the window) hands your keystrokes to the shell process it's running.
+2. The shell parses `python3 hello.py`, searches `PATH` for an executable named `python3`, then **forks** (clones itself into a new process) and **execs** (replaces that clone's program with `python3`).
+3. The OS kernel loads the `python3` binary into that new process's memory and hands it control.
+4. The Python interpreter reads `hello.py`, compiles it to bytecode, and runs it. `print()` ends up calling a `write()` system call — a request to the kernel to send bytes to a file descriptor, in this case the one connected back to your terminal.
+5. The kernel routes those bytes through a pseudo-terminal (pty) device to the terminal emulator, which turns the raw bytes into glyphs on your screen.
+
+Nothing here contradicts anything from Tier 0 — this is just naming the plumbing between "you typed a thing" and "you saw a thing," which matters later when you're debugging why a script's output isn't showing up where you expected.
+
+## Stop 3: A mobile app in an emulator
+
+If you have Android Studio installed, open its Device Manager and launch a virtual device. If you don't yet, this is what's happening when someone does — you'll install it for real in Tier 1-2:
+
+```text
+$ emulator -list-avds
+Pixel_7_API_34
+
+$ emulator -avd Pixel_7_API_34
+emulator: Listening for console connections on port 5554
+...boots a full Android home screen...
+```
+
+Here's the detail the module topic is pointing at: the Android emulator is not a skin or a resized preview. It runs a **complete virtual Android device** — its own kernel, its own Android system image, virtual RAM, a virtual GPU, virtual sensors — inside a virtual machine on your computer, via QEMU. When your app runs "in the emulator," it is genuinely running on a different, simulated operating system, the same way a Windows VM on your Mac runs real Windows underneath. Contrast this with Apple's **iOS Simulator**, which is named differently on purpose: it recompiles your app to run natively on your Mac's own CPU and simulates iOS's *APIs*, not the hardware. Both let you "see the app run" without a physical phone, but they're doing structurally different things — the Android emulator is a virtual machine running a virtual phone; the iOS Simulator is your app running locally against stand-in frameworks.
+
+## Stop 4: A desktop app window launching
+
+Double-click Calculator (macOS) or Notepad (Windows). A process starts, the OS's window manager allocates a window, draws a title bar and borders, and the app's own UI renders inside that frame. Check it from the terminal while it's running:
+
+```bash
+$ ps aux | grep -i calculator
+chris  4821   0.0  0.3  Calculator.app/Contents/MacOS/Calculator
+```
+
+That's a PID, same as your `hello.py` run had — a desktop app is a process like any other, just one the OS's window manager is also drawing a frame around and routing mouse/keyboard events into.
+
+## Side by side: family resemblance and genuine differences
+
+| | Browser tab | Terminal script | Emulated mobile app | Desktop app |
+|---|---|---|---|---|
+| Is it a process? | Yes (the tab/renderer) | Yes | Yes, inside a VM | Yes |
+| Who provides the "window"? | Browser's tab UI | Terminal emulator | Virtual phone's home screen | OS window manager |
+| Sandbox? | Heavy — browser restricts filesystem/hardware access by default | None beyond your user's own OS permissions | Heavy — Android's app permission model | Your user's OS permissions, once installed |
+| Code form at runtime | Interpreted/JIT'd JS + parsed HTML/CSS | Interpreted (here) or compiled binary | Usually compiled (Kotlin/Java → bytecode, or native) | Usually compiled native binary |
+| How you "install" it | You don't — you just navigate | Already on disk | App store or `.apk` install | App store, installer, or package manager |
+
+**Same underneath:** every one of these is a running process that some host — a browser engine, a kernel, a virtual machine, a window manager — stands between the raw hardware and the program's own logic, mediating what it's allowed to touch and giving it a surface to draw on.
+
+**Genuinely different:** how much the host trusts the program by default (a browser tab assumes hostile code; a desktop app you installed assumes you chose to trust it), what "shipping an update" means (refresh vs. app-store review vs. recompile), and whether the code is even the same artifact on every run (a webpage can change between two loads of the same URL; your `hello.py` won't, until you edit it).
+
+## Try it yourself
+
+Pick any website you use daily. Open DevTools → Network, hard-refresh (Ctrl+Shift+R / Cmd+Shift+R so the cache doesn't hide anything), and answer: how many total requests fired, how many were JS vs. images vs. `fetch`/XHR calls, and what was the status code and transfer size of the single largest one?
+
+*Hint: filter the Network panel by type (JS, Img, Fetch/XHR) using the filter bar instead of eyeballing a long list, and sort the list by the "Size" column to find the biggest one instantly.*

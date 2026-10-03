@@ -1,0 +1,86 @@
+[
+  {
+    "id": "platforms/tier-0/the-platform-landscape/q1",
+    "type": "multiple_choice",
+    "prompt": "Which of the four execution environments in this lesson has no screen a user ever looks at, and can only be reached by sending it a network request?",
+    "choices": [
+      "Browser runtime",
+      "Desktop OS",
+      "Mobile OS",
+      "Cloud server"
+    ],
+    "correctIndex": 3
+  },
+  {
+    "id": "platforms/tier-0/the-platform-landscape/q2",
+    "type": "multiple_choice",
+    "prompt": "An iOS app tries to read another app's private files without asking for any permission. What actually stops it?",
+    "choices": [
+      "The App Store reviewer manually checks for this in every submission",
+      "The operating system enforces a private per-app sandbox, so one app's container is invisible to another app",
+      "iOS apps are interpreted, so there's no way to access the filesystem at all",
+      "Nothing stops it \u2014 any app can read any other app's files on the same phone"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-0/the-platform-landscape/q3",
+    "type": "multiple_choice",
+    "prompt": "A checkout page checks a promo code's format instantly in the browser with JavaScript, but a user opens DevTools, deletes that check, and sends the raw request straight to the API with curl. Where must the promo code actually be validated for the check to mean anything?",
+    "choices": [
+      "In the browser's JavaScript, just written more carefully",
+      "In the HTML form itself",
+      "On the server, since it's the only code the user can't bypass or edit",
+      "In the browser's localStorage"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "platforms/tier-0/the-platform-landscape/q4",
+    "type": "multiple_choice",
+    "prompt": "In the C vs. Python vs. Node timing demo, the identical summing loop took about 0.14s in compiled C but about 3.4s in interpreted Python. What's the main reason for that gap?",
+    "choices": [
+      "Python's loop runs on a slower CPU core by default",
+      "C's binary was already fully translated to machine code before running, while Python translates and executes the source through its interpreter every single run",
+      "Python doesn't support loops as efficiently as C syntactically",
+      "The Python version was actually computing a different, harder calculation"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-0/the-platform-landscape/q5",
+    "type": "multiple_choice",
+    "prompt": "In that same demo, Node (JavaScript) finished the loop in about 0.07s \u2014 faster than the unoptimized C binary. What explains this?",
+    "choices": [
+      "Node pre-compiles all JavaScript to a binary before the script is ever run, just like gcc does",
+      "JavaScript is a simpler language than C, so it needs fewer instructions",
+      "V8's JIT compiler detected the loop was 'hot' (run millions of times) and compiled just that code to machine code while the program was still running",
+      "The timing was inaccurate because Node doesn't actually execute real code"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "platforms/tier-0/the-platform-landscape/q6",
+    "type": "multiple_choice",
+    "prompt": "Which distribution channel has essentially no review gate before new code reaches anyone, but also the narrowest realistic reach, since users need a terminal and the right runtime already installed?",
+    "choices": [
+      "App store (Apple App Store / Google Play)",
+      "Web distribution (a URL)",
+      "Package manager (npm, Homebrew, apt)",
+      "Enterprise device management"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "platforms/tier-0/the-platform-landscape/q7",
+    "type": "multiple_choice",
+    "prompt": "A team needs a critical bug fix live for 100% of their users within minutes, with no waiting on anyone else's approval. Which distribution model actually gets them there fastest?",
+    "choices": [
+      "Submitting an emergency app store update and requesting expedited review",
+      "Publishing a new package manager version and asking users to update",
+      "Deploying the fix behind their existing web URL",
+      "Waiting for the next scheduled app store review cycle"
+    ],
+    "correctIndex": 2
+  }
+]
