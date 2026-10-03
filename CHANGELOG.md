@@ -599,3 +599,16 @@ All notable changes to The Manual (curriculum + app) are logged here. This file 
 **Result:** `npm run build` passed clean — 268 pages, 251 unique slugs verified repo-wide.
 
 **Status:** Cybersecurity & Ethical Hacking Tier 0 started (20h, 4 lessons) — the eighth track in The Manual to get real lesson content. Tiers 1-5 remain.
+
+## [0.48.0] — 2026-10-03 — Cybersecurity & Ethical Hacking Tier 1: complete (first real exploit techniques, fully scoped)
+
+**Context:** The first tier with real offensive techniques (SQL injection, command injection, XSS, IDOR, credential cracking, request tampering). Every module was generated under an explicit non-negotiable instruction that every single payload, scan, or technique must name one of a fixed list of authorized targets — the learner's own local Juice Shop/DVWA/WebGoat instances, their own Tier 0 lab VM, or PortSwigger Web Security Academy's own hosted labs — and was then manually read end-to-end before assembly, the same scrutiny applied to Tier 0 and to the AI/ML track's red-teaming module.
+
+**Added**
+- `content/cybersecurity-ethical-hacking/tier-1/*.mdx` (6 files) + matching quizzes: Ground Rules Recap & Lab Practice (a real isolation-verification checklist run every session, not just once), Linux & Kali Fundamentals for Security, Networking for Security I (a real nmap scan chain against a Metasploitable2 lab VM finding CVE-2011-2523, then coding and re-verifying the actual fix), OWASP Top 10 Guided Tour: Exploit and Fix (SQLi/command-injection/session-ID/XSS/IDOR/misconfiguration against DVWA, Juice Shop, and WebGoat, every exploit paired with a real coded fix and a re-run proving it now fails), Cryptography Fundamentals (a real unsalted-MD5-vs-bcrypt cracking-speed comparison with real numbers — 3 seconds vs. 43.7 days — and a real TLS 1.3 handshake trace), Intro to Web Proxies (Burp Suite intercepting and editing real requests against Juice Shop, DVWA, and a real PortSwigger Academy lab).
+
+**Caught and fixed:** a dangling empty heading left at the end of one module's generated text, and one stray non-English word substituted mid-sentence in another — both caught during the manual safety-review read-through, not the automated checks, and fixed before assembly.
+
+**Result:** `npm run build` passed clean — 274 pages, 257 unique slugs verified repo-wide.
+
+**Status:** Cybersecurity & Ethical Hacking Tier 1 complete (73h, 6 lessons). Cybersecurity is now 2/6 tiers content-complete (Tiers 0-1, 93h); Tiers 2-5 remain.

@@ -1,0 +1,222 @@
+---
+trackId: cybersecurity-ethical-hacking
+tier: 1
+title: "Ground Rules Recap & Lab Practice"
+order: 1
+estimatedHours: 4
+slug: ground-rules-recap-and-lab-practice
+---
+
+## Why You Do This Every Time, Not Just Once
+
+Tier 0 ended with a sealed lab: a Kali VM on a host-only network, Juice Shop on port 3000, DVWA on port 80, no route to your home LAN, no route to the internet. That was true the moment you finished that module. It is not automatically true today.
+
+Here's the failure mode this module exists to prevent: you power the VM back on for a new exercise three weeks from now, the hypervisor silently re-enables a NIC you forgot about, or you re-run a setup command that flips Adapter 2 back to NAT so you can grab an updated package — and now a deliberately vulnerable web app with real SQL injection and command injection flaws is sitting on a network path back to your actual home Wi-Fi. Nobody decided that on purpose. It happened because isolation was checked once, at setup, and never again.
+
+So the habit this module builds is: **before any scan, before any exploit, every single session, you re-verify three things** — the network is still sealed, you still know what your own rules of engagement say, and the lab targets are reachable from the lab and nowhere else. This is not busywork. It is the one piece of this track that, if skipped, turns a legal exercise into an illegal one without you noticing.
+
+## Step 1: The Isolation Verification Checklist
+
+Boot your Kali VM from Tier 0 and run this sequence before touching Juice Shop or DVWA. Every command here should produce the specific result shown — if any one of them doesn't, stop and fix your network settings before doing anything else.
+
+**1. Confirm the host-only interface is up and correctly addressed:**
+
+```bash
+ip a
+```
+
+```text
+2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UP
+    link/ether 08:00:27:4a:1c:9e brd ff:ff:ff:ff:ff:ff
+    inet 192.168.56.101/24 brd 192.168.56.255 scope global eth0
+```
+
+You want exactly one interface (besides loopback), with an address in `192.168.56.0/24` — the `vboxnet0` range from Tier 0. If you see a second interface with an address outside that range (anything like `192.168.1.x` or `10.0.0.x`), your NAT or bridged adapter is still enabled. Go to Settings → Network → Adapter 2 and disable it.
+
+**2. Confirm there's no default route out:**
+
+```bash
+ip route
+```
+
+```text
+192.168.56.0/24 dev eth0 proto kernel scope link src 192.168.56.101
+```
+
+This is the output you want: one line, scoped to the lab subnet, no `default via ...` line at all. A `default via 192.168.56.1` or anything pointing outside `192.168.56.0/24` means a gateway exists and you have a path out.
+
+**3. Prove there's no route to the internet:**
+
+```bash
+ping -c 3 8.8.8.8
+```
+
+```text
+connect: Network is unreachable
+```
+
+This is the single most important line in this whole checklist. "Network is unreachable" is success — it means the kernel itself has no route to send that packet on. If this ping instead times out with "Request timeout" (rather than failing immediately), that's a different and worse signal: it means a route exists but nothing answered — check `ip route` again, because a route existing at all is the problem, answered or not.
+
+**4. Prove there's no route to your real LAN:**
+
+You need your real LAN's subnet for this — check it from your host machine (not the VM) with `ip a` on Linux, `ifconfig` on macOS, or `ipconfig` on Windows. Say your home router hands out `192.168.1.x`. From Kali:
+
+```bash
+ping -c 3 192.168.1.1
+```
+
+```text
+connect: Network is unreachable
+```
+
+Same result, same reasoning. `192.168.56.0/24` (lab) and `192.168.1.0/24` (home) are different, non-routed subnets — host-only networking means the hypervisor never bridges them.
+
+**5. Confirm the VM's adapter settings at the hypervisor level, not just inside the guest.** From your host machine (VirtualBox installed):
+
+```bash
+VBoxManage showvminfo "kali-linux" --machinereadable | grep -i nic
+```
+
+```text
+nic1="hostonly"
+nic2="none"
+hostonlyadapter1="vboxnet0"
+```
+
+This is the check that catches the specific failure mode described above: the guest OS can look fine while a second adapter is enabled at the hypervisor level and just hasn't been given traffic yet. `nic2="none"` (or `nic2="hostonly"`) is what you want. If you see `nic2="nat"` or `nic2="bridged"`, that adapter is live at the hardware level regardless of what Kali's `ip a` shows at this instant — disable it in the VM settings before proceeding.
+
+## Step 2: Reviewing Your Rules of Engagement Document
+
+Tier 0's law-and-ethics module established that authorization is never assumed, it's documented. Your lab needs its own Rules of Engagement (ROE) — a short document that states exactly what you're allowed to attack, with what methods, and the explicit boundary around it. You write this once, in Tier 0, and then you **re-read it before every exercise in this track**, not because it changes, but because the habit of checking scope before acting is the entire point, and habits decay the moment you stop practicing them deliberately.
+
+Here is a real, concrete example — this is what yours should look like, filled in with your own lab's details:
+
+```text
+RULES OF ENGAGEMENT — PERSONAL SECURITY LAB
+Owner/Operator: [your name]
+Document version: 1.2
+Last reviewed: [today's date]
+
+AUTHORIZATION
+I am the sole owner and administrator of every system listed below.
+No third party's systems, accounts, or networks are in scope under
+any circumstance. This document is my own authorization to myself,
+valid only for the systems named here.
+
+IN SCOPE
+  - OWASP Juice Shop container, running on Kali VM "kali-linux",
+    reachable only at 192.168.56.101:3000
+  - DVWA container, same VM, reachable only at 192.168.56.101:80
+  - WebGoat container, same VM, when installed, port TBD
+  - Any additional lab VM I build on the vboxnet0 host-only network
+  - PortSwigger Web Security Academy hosted labs, at URLs PortSwigger
+    itself provides inside its own lab instances (portswigger.net),
+    per its published terms inviting this traffic
+
+OUT OF SCOPE — ABSOLUTE, NO EXCEPTIONS
+  - Any system I do not personally own or administer
+  - My home router, ISP equipment, or any device on my real home LAN
+  - Any public website, API, or service not named above
+  - Any WebGoat/Juice Shop/DVWA instance hosted by someone else online
+    (only MY local containers are in scope — a public demo instance
+    of the same app is still someone else's system)
+
+PERMITTED METHODS
+  - Any technique taught in this track's curriculum, run only against
+    the in-scope targets above, only while the host-only isolation
+    checklist (Step 1 of this module) has just been verified
+
+PRE-EXERCISE CHECKLIST (repeat before every session)
+  [ ] Isolation checklist from this module passed, today, this session
+  [ ] Target IP/port confirmed against this document's IN SCOPE list
+  [ ] NAT adapter (if it was enabled for updates) is disabled again
+
+REVISION LOG
+  1.0 — initial lab build, Tier 0
+  1.1 — added DVWA after container stood up
+  1.2 — added WebGoat placeholder ahead of later tier
+```
+
+Three things to notice about why this works. First, the IN SCOPE list is IP-and-port specific, not just "Juice Shop" — because "Juice Shop" is also a real public demo instance running on the internet that other people host, and a document that doesn't nail down *your local* `192.168.56.101:3000` could be misread as covering that too. Second, the pre-exercise checklist inside the ROE points straight back at Step 1 of this module — the two documents reference each other on purpose. Third, there's a revision log, because your lab changes (you'll add WebGoat later in this tier) and an ROE that doesn't get updated stops matching reality, which defeats the entire purpose of having one.
+
+## Step 3: Proving the Targets Are Lab-Only Reachable
+
+Checking the network interface is necessary but not sufficient — you also need to prove the specific applications are only reachable where they should be. This matters because of a detail that trips people up: `docker run -p 3000:3000` binds Juice Shop to `0.0.0.0` inside the VM, meaning *every* network interface the VM has, not just the host-only one. If Adapter 2's NAT ever gets re-enabled for any reason, Juice Shop becomes reachable through that path too, instantly, with no further action needed on your part. The checklist below catches that.
+
+**1. Confirm what Juice Shop and DVWA are actually bound to, inside Kali:**
+
+```bash
+docker ps
+```
+
+```text
+CONTAINER ID   IMAGE                   PORTS                    NAMES
+a1b2c3d4e5f6   bkimminich/juice-shop   0.0.0.0:3000->3000/tcp   juice-shop
+f6e5d4c3b2a1   vulnerables/web-dvwa    0.0.0.0:80->80/tcp       dvwa
+```
+
+```bash
+ss -tulnp | grep -E ':3000|:80'
+```
+
+```text
+tcp   LISTEN  0  4096  0.0.0.0:3000  0.0.0.0:*  users:(("docker-proxy",pid=1182,fd=4))
+tcp   LISTEN  0  4096  0.0.0.0:80    0.0.0.0:*  users:(("docker-proxy",pid=1201,fd=4))
+```
+
+That `0.0.0.0` is exactly the detail to understand, not panic over: it only matters if a second interface exists. Since Step 1 already confirmed Kali has exactly one interface, on `192.168.56.0/24`, with no route out, `0.0.0.0` currently resolves to "reachable only via that one interface." The two checks are a pair — Step 1 makes this binding safe.
+
+**2. From your host machine's browser (not inside Kali), confirm reachability only via the host-only IP:**
+
+```text
+http://192.168.56.101:3000   -> Juice Shop loads
+http://192.168.56.101:80     -> DVWA loads (or its setup.php page)
+```
+
+**3. From the same host machine, confirm your real LAN gateway can't see into the lab subnet.** Find your host's real LAN-facing address (e.g., `192.168.1.50`), then scan the lab subnet from a tool that isn't routed through the hypervisor's virtual adapter — for instance, a second physical device already on your home Wi-Fi, like your phone with a network scanner app, or another computer:
+
+```bash
+nmap -sn 192.168.56.0/24
+```
+
+Run from any device that is *not* your host machine, over your real LAN. Expected result:
+
+```text
+Starting Nmap...
+Note: Host seems down. If it is really up, but blocking ping probes, try -Pn
+Nmap done: 256 IP addresses (0 hosts up) scanned in 2.10 seconds
+```
+
+Zero hosts up. The lab subnet (`192.168.56.0/24`) is a virtual network that exists only inside your hypervisor's host machine — it was never bridged onto your physical Wi-Fi, so devices on your real LAN have no path to even address it, let alone reach Juice Shop or DVWA. If this scan instead returns a live host at `192.168.56.101`, your hypervisor's adapter is bridged, not host-only — go back and fix it before running anything else in this track.
+
+**4. Confirm the containers can't be reached from Kali by domain name trickery either** — i.e., there's no DNS entry that could point an external-looking hostname at your lab app and confuse someone later:
+
+```bash
+cat /etc/hosts
+```
+
+```text
+127.0.0.1    localhost
+192.168.56.101    kali-linux
+```
+
+No entries mapping any external-sounding domain to your lab IPs. Good — the lab stays addressed only by its raw host-only IP, which keeps it unmistakably separate from anything that looks like a real external target.
+
+## Exercise
+
+Do this now, against your own Tier 0 lab, before the next module:
+
+1. Run the full Step 1 checklist above and record the actual output of each command (not "it worked" — paste the real lines).
+2. Open your ROE document (write it now if you haven't, using the template above) and update its revision log with today's date and "Tier 1 ground-rules recap completed."
+3. Run the Step 3 reachability checks. For the `nmap -sn 192.168.56.0/24` scan specifically, run it from two places and compare: once from inside Kali, once from a second device on your real home network. The two results should look meaningfully different.
+
+**Hint:** if you don't have a second physical device handy to scan from your real LAN, you can still prove the same point from inside the host machine itself (not the VM) by checking `ip route` or `ipconfig`/`ifconfig` and confirming the host-only adapter (`vboxnet0` / `192.168.56.1`) and your real LAN adapter are listed as two completely separate interfaces with no routing rule connecting them — the absence of a route between them is the same proof as the failed scan, just read a different way.
+
+## Checklist Before Moving On
+
+- `ip a` inside Kali shows exactly one non-loopback interface, in `192.168.56.0/24`
+- `ping -c 3 8.8.8.8` returns "Network is unreachable," not a timeout
+- `VBoxManage showvminfo` confirms Adapter 2 is `none` or `hostonly`, not `nat` or `bridged`, at the hypervisor level
+- Your ROE document exists, names exact IP:port targets (not just app names), and has today's date in its revision log
+- Juice Shop and DVWA load from your host browser via `192.168.56.101`, and an `nmap -sn` scan from your real LAN sees zero hosts on that subnet
+- You can explain, out loud, in one sentence, why `0.0.0.0:3000` inside Kali is safe right now specifically because of what Step 1 already confirmed

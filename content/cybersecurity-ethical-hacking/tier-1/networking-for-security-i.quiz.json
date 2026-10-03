@@ -1,0 +1,98 @@
+[
+  {
+    "id": "cybersecurity-ethical-hacking/tier-1/networking-for-security-i/q1",
+    "type": "multiple_choice",
+    "prompt": "What is the correct order of flags in a standard TCP three-way handshake?",
+    "choices": [
+      "ACK, SYN-ACK, SYN",
+      "SYN, SYN-ACK, ACK",
+      "SYN, ACK, SYN-ACK",
+      "SYN-ACK, SYN, ACK"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-1/networking-for-security-i/q2",
+    "type": "multiple_choice",
+    "prompt": "In an nmap SYN scan (-sS) against your lab VM, how does nmap determine a port is open without completing the handshake?",
+    "choices": [
+      "It sends a full HTTP request and checks for a 200 response",
+      "It receives a SYN-ACK from the target and then sends a RST instead of completing with ACK",
+      "It sends a UDP probe and waits for an ICMP reply",
+      "It reads the port number from a DNS SRV record"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-1/networking-for-security-i/q3",
+    "type": "multiple_choice",
+    "prompt": "Which nmap flag performs service and version detection against open ports, such as identifying vsftpd 2.3.4 on your Tier 0 lab VM?",
+    "choices": [
+      "-sV",
+      "-sS",
+      "-O",
+      "-Pn"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-1/networking-for-security-i/q4",
+    "type": "multiple_choice",
+    "prompt": "Why does an exact banner version string (e.g. 'vsftpd 2.3.4') matter more to an attacker than just knowing a port is open?",
+    "choices": [
+      "It lets the attacker skip authentication automatically",
+      "It reveals the host's operating system license key",
+      "It lets the attacker look up known CVEs and public exploits specific to that version",
+      "It tells the attacker the administrator's password policy"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-1/networking-for-security-i/q5",
+    "type": "multiple_choice",
+    "prompt": "What CVE corresponds to the vsftpd 2.3.4 backdoor demonstrated against the Tier 0 lab VM in this module?",
+    "choices": [
+      "CVE-2021-44228",
+      "CVE-2011-2523",
+      "CVE-2017-0144",
+      "CVE-2014-0160"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-1/networking-for-security-i/q6",
+    "type": "multiple_choice",
+    "prompt": "Which nmap command category/flag was used to actually trigger and confirm the vsftpd backdoor on the lab VM, producing root shell output?",
+    "choices": [
+      "--script vuln",
+      "-Pn",
+      "-sU",
+      "--traceroute"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-1/networking-for-security-i/q7",
+    "type": "multiple_choice",
+    "prompt": "In Wireshark, which feature was used to reconstruct the full plaintext DVWA login POST body (username and password) from captured packets?",
+    "choices": [
+      "Statistics > Protocol Hierarchy",
+      "Follow > HTTP Stream",
+      "Capture > Options",
+      "Edit > Find Packet"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-1/networking-for-security-i/q8",
+    "type": "multiple_choice",
+    "prompt": "Why is it acceptable to run an intrusive nmap script like ftp-vsftpd-backdoor against your Tier 0 lab VM but never against a random public website?",
+    "choices": [
+      "Intrusive scripts only work on Linux targets",
+      "Public websites are immune to NSE scripts",
+      "You own or are explicitly authorized to test the lab VM; scanning an unauthorized host like that is illegal under laws such as the CFAA",
+      "Nmap refuses to scan any host outside a private IP range"
+    ],
+    "correctIndex": 2
+  }
+]

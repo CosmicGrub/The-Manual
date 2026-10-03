@@ -1,0 +1,98 @@
+[
+  {
+    "id": "cybersecurity-ethical-hacking/tier-1/intro-to-web-proxies/q1",
+    "type": "multiple_choice",
+    "prompt": "What address and port does Burp Suite Community Edition's Proxy listener use by default?",
+    "choices": [
+      "0.0.0.0:443",
+      "127.0.0.1:8080",
+      "localhost:3000",
+      "127.0.0.1:80"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-1/intro-to-web-proxies/q2",
+    "type": "multiple_choice",
+    "prompt": "Why do you need to import Burp's CA certificate into Firefox's trusted Authorities before intercepting HTTPS traffic?",
+    "choices": [
+      "Burp is terminating the TLS connection itself, so the browser needs to trust Burp's certificate instead of the real site's",
+      "It speeds up the proxy connection",
+      "It is required before Firefox will allow any proxy configuration at all",
+      "It replaces the need for a host-only network in the lab"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-1/intro-to-web-proxies/q3",
+    "type": "multiple_choice",
+    "prompt": "In Burp's Proxy > Intercept tab, which action sends your edited request on to the server?",
+    "choices": [
+      "Drop",
+      "Action",
+      "Forward",
+      "Response"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-1/intro-to-web-proxies/q4",
+    "type": "multiple_choice",
+    "prompt": "Against your local DVWA instance, why does editing the id parameter to 1' OR '1'='1 through Burp succeed even though the Impossible security level's input is a locked dropdown in the browser?",
+    "choices": [
+      "The dropdown is only a client-side restriction; Burp edits the raw HTTP request after the browser has already built it, bypassing any HTML-level limit",
+      "DVWA's Impossible level is actually not more secure than Low",
+      "Burp automatically disables JavaScript on the page",
+      "The dropdown only affects GET requests, not POST requests"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-1/intro-to-web-proxies/q5",
+    "type": "multiple_choice",
+    "prompt": "Why does the same SQL injection payload that works against DVWA's Low security level fail against its Impossible security level?",
+    "choices": [
+      "Impossible level blocks all requests coming through a proxy",
+      "Impossible level uses a parameterized query (prepared statement with a bound placeholder), so the injected string is treated as a literal value, not executable SQL",
+      "Impossible level removed the users table from the database",
+      "Impossible level only works over HTTPS"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-1/intro-to-web-proxies/q6",
+    "type": "multiple_choice",
+    "prompt": "On PortSwigger's Web Security Academy, what must you click to spin up your own private, attackable instance of an apprentice-level lab?",
+    "choices": [
+      "Submit solution",
+      "Download lab",
+      "Access the lab",
+      "View source"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-1/intro-to-web-proxies/q7",
+    "type": "multiple_choice",
+    "prompt": "Why is it legal to send SQL injection payloads through Burp against PortSwigger's hosted Web Security Academy labs?",
+    "choices": [
+      "Any traffic sent through a Burp proxy is automatically legal regardless of the target",
+      "PortSwigger explicitly built and operates these lab instances for the purpose of being attacked by signed-up learners",
+      "It is legal only because the lab happens to run over HTTPS",
+      "It is not actually legal, but PortSwigger tolerates it informally"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-1/intro-to-web-proxies/q8",
+    "type": "multiple_choice",
+    "prompt": "In the Juice Shop login bypass shown in this lesson, what made the injected payload '\\'' OR 1=1--' effective against the /rest/user/login endpoint?",
+    "choices": [
+      "It exploited a buffer overflow in the Node.js runtime",
+      "It changed the HTTP method from POST to GET",
+      "It altered the server-side authentication query's logic so the password check was bypassed, rather than passing a valid credential",
+      "It disabled Juice Shop's rate limiting"
+    ],
+    "correctIndex": 2
+  }
+]

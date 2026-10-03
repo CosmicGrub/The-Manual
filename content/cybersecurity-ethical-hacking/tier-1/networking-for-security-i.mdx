@@ -1,0 +1,184 @@
+---
+trackId: cybersecurity-ethical-hacking
+tier: 1
+title: "Networking for Security I"
+order: 3
+estimatedHours: 14
+slug: networking-for-security-i
+---
+
+## Why This Module Exists
+
+Every exploit in this track rides on top of a network. Before you can attack a web app, a service, or a host, you have to find it, identify what it's running, and watch what it says over the wire. This module takes the TCP/IP basics from this track's Tier 0 networking module and re-reads them from both sides of an attack: what the handshake tells a scanner, what a banner tells an attacker about which exploit to reach for, and what plaintext traffic tells anyone who's listening.
+
+Everything below is run against targets you are explicitly authorized to attack: your own local OWASP Juice Shop instance, your own local DVWA instance, your own local WebGoat instance, the lab VMs on the host-only network you built in Tier 0, or PortSwigger's own hosted Web Security Academy labs. Running any of this — especially the nmap script scan later in this module — against a host you don't own or don't have written permission to test is a crime in most jurisdictions (in the US, under the Computer Fraud and Abuse Act). Keep it in the lab.
+
+## 1. The Three-Way Handshake, Read Like an Attacker and a Defender
+
+Tier 0 covered the mechanics: a client sends `SYN`, the server answers `SYN-ACK`, the client finishes with `ACK`. Here's why that exchange matters once you're the one probing a host.
+
+**Attacker's view.** You don't need to finish the handshake to learn whether a port is open. If you send a `SYN` and get back `SYN-ACK`, the port is open — and you can simply reply with `RST` instead of `ACK` to tear the connection down before it's ever fully established. This is a *half-open* or *SYN scan*, and it's exactly what nmap's `-sS` flag does. It's faster than a full connect scan and, on older or poorly logged systems, leaves a thinner trail, because many applications never see a connection that was never completed — only the kernel's TCP stack does.
+
+If instead you get back `RST, ACK` with no `SYN-ACK`, the port is closed — the host is up, but nothing is listening there. If you get nothing at all after retransmits, the port is likely filtered by a firewall that's silently dropping the packet rather than rejecting it.
+
+**Defender's view.** The handshake is also where a defender's firewall policy becomes visible to the very tool trying to read it. A host that sends `RST` for closed ports but silently drops packets to filtered ports is leaking its firewall posture: a scanner can map exactly which ports are "closed" versus "firewalled" based on which response (or lack of one) it gets. This is also the handshake's attack surface in the other direction — a SYN flood (sending many `SYN` packets and never completing the handshake) exhausts a server's half-open connection table. Your lab VM's own TCP stack is handling exactly this logic every time you scan it; keep that in mind when you read nmap's output below, because nmap is just a fast, scriptable way of sending and reading these three packets, over and over, port by port.
+
+## 2. Ports, Services, and Banners
+
+A port number alone tells you almost nothing. Port 21 being open tells you *something* is listening for FTP connections — it doesn't tell you what software, what version, or whether that version has a public exploit sitting on Exploit-DB. That's what a **banner grab** gets you: many services announce their name and version the moment you connect, before you've even authenticated.
+
+**Target: your Tier 0 lab VM, host-only network 192.168.56.0/24, victim host at 192.168.56.10.** (This walkthrough assumes you built the classic intentionally-vulnerable Linux image — Metasploitable2 — as the victim host in your Tier 0 lab, since that's the standard training target for exactly this exercise. If you built a different vulnerable VM, the method is identical; your banner strings will differ.)
+
+From your attacker VM (192.168.56.5) on the same host-only network:
+
+```bash
+$ nc -nv 192.168.56.10 21
+(UNKNOWN) [192.168.56.10] 21 (ftp) open
+220 (vsFTPd 2.3.4)
+```
+
+Read that last line carefully: `220 (vsFTPd 2.3.4)`. That's the FTP service announcing both its software (`vsftpd`) and its exact version (`2.3.4`) before you've typed a single username. That string is a direct lookup key:
+
+```bash
+$ searchsploit vsftpd 2.3.4
+----------------------------------------------------------------------------- ---------------------------------
+ Exploit Title                                                               |  Path
+----------------------------------------------------------------------------- ---------------------------------
+vsftpd 2.3.4 - Backdoor Command Execution                                    | unix/remote/49757.py
+----------------------------------------------------------------------------- ---------------------------------
+```
+
+vsftpd 2.3.4 is a known case: a malicious third party slipped a backdoor into the source tarball that shipped briefly in 2011. Any connection to its FTP port that includes a smiley face (`:)`) in the username triggers a hidden listener on TCP 6200 that drops straight to a root shell — tracked as **CVE-2011-2523**. This is *why* the version string matters: it's not academic curiosity, it's the difference between "a port is open" and "I know exactly which documented exploit to reach for."
+
+## 3. Scanning Your Own Lab with Nmap
+
+Manually banner-grabbing every port on every host doesn't scale. Nmap automates discovery, port state, service identification, and — through its scripting engine — vulnerability checks. Same target for all three commands below: **your Tier 0 lab VM at 192.168.56.10**, scanned from your attacker VM at 192.168.56.5.
+
+### Basic scan
+
+```bash
+$ nmap 192.168.56.10
+
+Starting Nmap 7.94 ( https://nmap.org ) at 2026-01-15 10:02 EST
+Nmap scan report for 192.168.56.10
+Host is up (0.00041s latency).
+Not shown: 994 closed tcp ports (reset)
+PORT     STATE SERVICE
+21/tcp   open  ftp
+22/tcp   open  ssh
+80/tcp   open  http
+139/tcp  open  netbios-ssn
+445/tcp  open  microsoft-ds
+3306/tcp open  mysql
+
+Nmap done: 1 IP address (1 host up) scanned in 2.31 seconds
+```
+
+Read it line by line: `Host is up` means it answered at all (an ARP reply on this local network). `Not shown: 994 closed tcp ports (reset)` means nmap probed nmap's default top-1000 ports and got a `RST` back on 994 of them — those are closed, not filtered. The six listed are open, with nmap's *guess* at the service based only on the well-known port number — it hasn't connected to any of them yet to confirm.
+
+### Service-version scan
+
+```bash
+$ nmap -sV 192.168.56.10
+
+PORT     STATE SERVICE     VERSION
+21/tcp   open  ftp         vsftpd 2.3.4
+22/tcp   open  ssh         OpenSSH 4.7p1 Debian 8ubuntu1 (protocol 2.0)
+80/tcp   open  http        Apache httpd 2.2.8 ((Ubuntu) DAV/2)
+139/tcp  open  netbios-ssn Samba smbd 3.X - 4.X
+445/tcp  open  netbios-ssn Samba smbd 3.X - 4.X
+3306/tcp open  mysql       MySQL 5.0.51a-3ubuntu5
+Service Info: Host: metasploitable; OSs: Unix, Linux; CPE: cpe:/o:linux:linux_kernel
+```
+
+`-sV` actually connects to each open port and runs nmap's probe/response database against what comes back — this is the automated version of the `nc` banner grab you did by hand above, run against every open port at once. Now you have exact version strings for six services in one pass, each one a candidate for a `searchsploit` lookup.
+
+### Script scan
+
+```bash
+$ nmap -sV --script vuln -p21 192.168.56.10
+
+PORT   STATE SERVICE VERSION
+21/tcp open  ftp     vsftpd 2.3.4
+
+| ftp-vsftpd-backdoor:
+|   VULNERABLE:
+|   vsftpd version 2.3.4 backdoor
+|     State: VULNERABLE (Exploitable)
+|     IDs:  CVE:CVE-2011-2523
+|       vsftpd version 2.3.4 backdoor, this was introduced into the
+|       source code by an unknown third party and is a trivial remote
+|       command execution vulnerability.
+|     Disclosure date: 2011-07-04
+|     Exploit results:
+|       Shell command: id
+|       Results: uid=0(root) gid=0(root)
+|_    References: https://nvd.nist.gov/vuln/detail/CVE-2011-2523
+
+Nmap done: 1 IP address (1 host up) scanned in 11.84 seconds
+```
+
+`--script vuln` loads every NSE script tagged `vuln` and runs each one against the matching open port. `ftp-vsftpd-backdoor` doesn't just guess from the version string — it actually connects, sends a username containing `:)`, waits for the backdoor listener to open on port 6200, and runs `id` through it. The `Results: uid=0(root) gid=0(root)` line is the script proving code execution as root. This is a genuinely intrusive script, not passive fingerprinting — which is exactly why it only belongs here, against a host you built and own.
+
+## 4. Fix and Verify: Patching the Lab VM
+
+An exploit walkthrough in this track isn't finished until the fix is coded and the exploit is shown failing against the patch — narration isn't enough. On the lab VM itself (not the attacker box), replace the backdoored package:
+
+```bash
+# run on 192.168.56.10, the lab VM — not the attacker VM
+$ sudo apt-get remove --purge vsftpd -y
+$ sudo apt-get update
+$ sudo apt-get install vsftpd -y
+$ vsftpd -v
+vsftpd: version 3.0.3
+```
+
+Now re-run the exact same nmap command from the attacker VM (192.168.56.5) against the same target (192.168.56.10):
+
+```bash
+$ nmap -sV --script vuln -p21 192.168.56.10
+
+PORT   STATE SERVICE VERSION
+21/tcp open  ftp     vsftpd 3.0.3
+
+Nmap done: 1 IP address (1 host up) scanned in 9.07 seconds
+```
+
+No `ftp-vsftpd-backdoor` block. The version string changed from `2.3.4` to `3.0.3`, the script found no backdoor listener to trigger, and the fix is verified by the same tool that found the hole — not by trusting a changelog.
+
+## 5. Wireshark Basics: Watching Your Own Plaintext
+
+**Target: your local DVWA instance at `http://localhost:8080`** (set its security level to Low under DVWA Security first). Tier 0 told you HTTPS encrypts traffic; this makes that concrete by watching HTTP do the opposite.
+
+Start a capture on the interface your traffic actually crosses (your loopback or host-only adapter, depending on how DVWA is hosted), with a capture filter so you only grab the relevant traffic:
+
+```text
+Capture filter: tcp port 8080
+```
+
+Now log into DVWA in your browser with `admin` / `password`. Stop the capture. In the packet list, find the `POST /login.php` request — right-click it, choose **Follow → HTTP Stream**. Wireshark reassembles every TCP segment of that exchange into the full plaintext request:
+
+```text
+POST /login.php HTTP/1.1
+Host: localhost:8080
+User-Agent: Mozilla/5.0
+Content-Type: application/x-www-form-urlencoded
+Content-Length: 45
+Cookie: PHPSESSID=8f3a1c9e2b7d4e6f1a0c5b9d2e4f6a8c
+
+username=admin&password=password&Login=Login
+```
+
+That last line is the entire point: `username=admin&password=password`, sitting in cleartext inside a packet that crossed the network exactly as typed. Anyone positioned to see that traffic — someone on the same shared Wi-Fi, a compromised switch with port mirroring, an ARP-spoofing attacker on the same subnet — reads the password with no decryption step at all. If this login had gone over HTTPS instead, the same Follow Stream view would show you unreadable TLS application-data bytes, because the handshake you dissected in section 1 would have been followed immediately by a TLS handshake encrypting everything after it. That's the concrete version of "HTTPS protects your credentials in transit" from Tier 0 — you're looking at the failure case it was built to prevent.
+
+## Exercise: Scan, Identify, Capture
+
+Using only your Tier 0 lab VM and your local DVWA instance:
+
+1. Run a basic nmap scan, then a `-sV` scan, against your Tier 0 lab VM. Pick one open port that isn't 21 (the one already worked above) and record its exact service name and version string.
+2. Look that version up with `searchsploit` (or manually against the NVD at nvd.nist.gov) and note whether a public exploit or CVE exists for it. If one does, name the CVE ID; if not, say so.
+3. Capture your own DVWA login attempt in Wireshark, follow the HTTP stream, and copy out the exact `username=...&password=...` line from the POST body.
+
+**Hint:** `searchsploit -u` updates the local Exploit-DB mirror first; then `searchsploit <service name> <version>` searches it. For step 3, if you don't see the POST in your capture, check that your capture filter and chosen interface actually match the path your browser traffic takes to `localhost:8080` — loopback traffic on Linux shows up on the `lo` interface, not your Ethernet or Wi-Fi adapter.
+
+Do not run `--script vuln` or any exploit-triggering script against anything other than your own lab VM, your local DVWA/Juice Shop/WebGoat instances, or PortSwigger's hosted Academy labs. The method transfers everywhere; the authorization does not.

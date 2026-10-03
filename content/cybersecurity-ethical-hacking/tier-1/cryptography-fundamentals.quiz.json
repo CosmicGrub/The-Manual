@@ -1,0 +1,98 @@
+[
+  {
+    "id": "cybersecurity-ethical-hacking/tier-1/cryptography-fundamentals/q1",
+    "type": "multiple_choice",
+    "prompt": "What is true about encoding schemes like Base64?",
+    "choices": [
+      "They require a secret key to reverse",
+      "They are designed to hide data from anyone without the key",
+      "They are fully reversible by anyone with no secret required, and provide no confidentiality at all",
+      "They produce a fixed-length, irreversible output like a hash"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-1/cryptography-fundamentals/q2",
+    "type": "multiple_choice",
+    "prompt": "You hash a string with SHA-256. What is the correct way to describe getting the original string back from that hash?",
+    "choices": [
+      "Use sha256sum -d with the right key to decrypt it",
+      "There is no key-based way to reverse it; the only approach is guessing candidate inputs and comparing their hashes to the target",
+      "SHA-256 is just a different text encoding, so it decodes like Base64",
+      "SHA-256 is symmetric encryption, so the same password that hashed it can decrypt it"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-1/cryptography-fundamentals/q3",
+    "type": "multiple_choice",
+    "prompt": "Two lab VMs on your Tier 0 host-only network agree on one AES key out-of-band, then both use that same key to encrypt and decrypt traffic between them. What kind of cryptography is this?",
+    "choices": [
+      "Asymmetric encryption",
+      "Symmetric encryption",
+      "Hashing",
+      "Encoding"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-1/cryptography-fundamentals/q4",
+    "type": "multiple_choice",
+    "prompt": "Using RSA, which key should you encrypt a message with so that only the intended recipient can decrypt it?",
+    "choices": [
+      "The recipient's private key",
+      "Your own private key",
+      "The recipient's public key",
+      "A shared secret both sides agreed on in advance"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-1/cryptography-fundamentals/q5",
+    "type": "multiple_choice",
+    "prompt": "In a TLS 1.3 handshake captured against a local TLS-terminated instance, which set of server messages bundles the certificate, proves possession of the matching private key, and completes right before application data flows?",
+    "choices": [
+      "ClientHello only",
+      "ServerHello, EncryptedExtensions, Certificate, CertificateVerify, Finished",
+      "ChangeCipherSpec by itself",
+      "The initial TCP handshake (SYN, SYN-ACK, ACK)"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-1/cryptography-fundamentals/q6",
+    "type": "multiple_choice",
+    "prompt": "You dump DVWA's users table via SQL injection and find admin's password stored as 5f4dcc3b5aa765d61d8327deb882cf99, which a 7-word dictionary attack cracks to 'password' almost instantly. What is the single biggest reason this hash fell so fast?",
+    "choices": [
+      "MD5 is actually a reversible encryption algorithm",
+      "The hash was unsalted and MD5 is extremely fast to compute, so millions of dictionary guesses per second are feasible against it",
+      "The password was unusually long and complex",
+      "DVWA encrypted the password with a weak key instead of hashing it"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-1/cryptography-fundamentals/q7",
+    "type": "multiple_choice",
+    "prompt": "Why does an image encrypted with AES in ECB mode still show the outline of large flat-colored shapes in the ciphertext?",
+    "choices": [
+      "ECB mode doesn't actually perform any encryption",
+      "Identical 16-byte plaintext blocks always encrypt to identical ciphertext blocks under ECB, so repeating patterns in the plaintext remain visible as repeating patterns in the ciphertext",
+      "ECB mode uses a shorter, weaker key than CBC mode",
+      "ECB mode only encrypts every other byte of each block"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-1/cryptography-fundamentals/q8",
+    "type": "multiple_choice",
+    "prompt": "On the same hardware, why does bcrypt resist a dictionary attack far better than unsalted MD5 for the exact same password?",
+    "choices": [
+      "bcrypt produces a longer hash string, which alone makes it harder to crack",
+      "bcrypt is deliberately slow with a tunable work factor and bakes in a random per-hash salt, while MD5 is extremely fast and has no built-in salting",
+      "bcrypt actually encrypts the password so it can later be decrypted back to plaintext",
+      "bcrypt and MD5 use the same algorithm internally, just under different names"
+    ],
+    "correctIndex": 1
+  }
+]

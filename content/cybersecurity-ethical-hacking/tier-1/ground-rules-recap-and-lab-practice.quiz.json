@@ -1,0 +1,98 @@
+[
+  {
+    "id": "cybersecurity-ethical-hacking/tier-1/ground-rules-recap-and-lab-practice/q1",
+    "type": "multiple_choice",
+    "prompt": "You boot your Kali VM for a new exercise and run `ping -c 3 8.8.8.8`. Which result actually confirms your lab is still isolated from the internet?",
+    "choices": [
+      "The ping succeeds with low latency",
+      "The ping fails immediately with 'Network is unreachable'",
+      "The ping times out with no response after a long wait",
+      "The ping resolves the hostname but gets no reply"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-1/ground-rules-recap-and-lab-practice/q2",
+    "type": "multiple_choice",
+    "prompt": "Inside your Kali VM, `docker ps` shows Juice Shop bound to 0.0.0.0:3000->3000/tcp. Why is this binding currently safe?",
+    "choices": [
+      "0.0.0.0 bindings are never reachable from outside the container by design",
+      "Docker automatically firewalls port 3000 unless you open it explicitly",
+      "Kali's VM currently has only one network interface, on the isolated host-only subnet with no route out, so 0.0.0.0 is only reachable through that one path",
+      "Juice Shop requires a login before any network traffic reaches it, regardless of binding"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-1/ground-rules-recap-and-lab-practice/q3",
+    "type": "multiple_choice",
+    "prompt": "You run `VBoxManage showvminfo \"kali-linux\" --machinereadable | grep -i nic` on your host machine and see nic2=\"nat\". What does this mean right now?",
+    "choices": [
+      "Nothing \u2014 nic2 only matters if something inside the guest OS is actively using it",
+      "A second network adapter is live at the hypervisor level with NAT (internet-reaching) access, regardless of what the guest OS currently shows",
+      "This is the expected, safe default configuration for a host-only lab",
+      "It only affects outbound traffic from the host machine, not the VM"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-1/ground-rules-recap-and-lab-practice/q4",
+    "type": "multiple_choice",
+    "prompt": "In the example Rules of Engagement document, the IN SCOPE entry for Juice Shop is written as '192.168.56.101:3000', not just 'Juice Shop'. Why does that specificity matter?",
+    "choices": [
+      "IP:port notation is required by the CFAA for any authorization document",
+      "'Juice Shop' alone could be misread as covering the publicly hosted demo instance other people run on the internet, which is not yours to test",
+      "Docker containers change their name randomly on every restart",
+      "It has no real effect; it's just a stylistic convention"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-1/ground-rules-recap-and-lab-practice/q5",
+    "type": "multiple_choice",
+    "prompt": "From a second device on your real home Wi-Fi (not your host machine, not the VM), you run `nmap -sn 192.168.56.0/24`. What result confirms correct host-only isolation?",
+    "choices": [
+      "The scan finds your Kali VM at 192.168.56.101",
+      "The scan reports 0 hosts up on that subnet",
+      "The scan times out entirely and produces no report",
+      "The scan reports your home router as the only live host"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-1/ground-rules-recap-and-lab-practice/q6",
+    "type": "multiple_choice",
+    "prompt": "Why does this module have you re-read your Rules of Engagement document before every exercise, rather than just once after writing it?",
+    "choices": [
+      "Legal documents expire automatically after 30 days",
+      "Re-reading triggers a required Docker container restart",
+      "The habit of checking scope before acting is the actual skill being built, and skipped habits decay even when the underlying document hasn't changed",
+      "PortSwigger requires proof of a recent ROE review before granting lab access"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-1/ground-rules-recap-and-lab-practice/q7",
+    "type": "multiple_choice",
+    "prompt": "Running `ip route` inside your Kali VM shows only: '192.168.56.0/24 dev eth0 proto kernel scope link src 192.168.56.101'. What should you conclude?",
+    "choices": [
+      "There is no default route out of the VM \u2014 traffic can only reach the host-only subnet",
+      "The VM has no network connectivity at all, including to Juice Shop and DVWA",
+      "A default route exists but is hidden from this command",
+      "This output indicates a misconfigured bridged adapter"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-1/ground-rules-recap-and-lab-practice/q8",
+    "type": "multiple_choice",
+    "prompt": "Which of these would correctly belong in the OUT OF SCOPE section of a personal lab's Rules of Engagement document?",
+    "choices": [
+      "Your own DVWA container running on your isolated Kali VM",
+      "PortSwigger Web Security Academy's hosted practice labs",
+      "A publicly hosted Juice Shop demo instance run by someone else on the internet",
+      "Your own Juice Shop container reachable at 192.168.56.101:3000"
+    ],
+    "correctIndex": 2
+  }
+]

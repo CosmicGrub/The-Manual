@@ -1,0 +1,98 @@
+[
+  {
+    "id": "cybersecurity-ethical-hacking/tier-1/linux-and-kali-fundamentals-for-security/q1",
+    "type": "multiple_choice",
+    "prompt": "You have an nmap output file scan_102.txt from scanning your Tier 0 lab VM at 192.168.56.102. Which pipeline correctly lists only the port and service name columns, for lines that are actual open-port rows?",
+    "choices": [
+      "grep -E '^[0-9]+/tcp' scan_102.txt | awk '{print $1, $3}'",
+      "sort scan_102.txt | awk '{print $1}'",
+      "awk '{print $1}' scan_102.txt | grep tcp",
+      "uniq scan_102.txt | grep -v open"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-1/linux-and-kali-fundamentals-for-security/q2",
+    "type": "multiple_choice",
+    "prompt": "After merging four nmap scan files from your Tier 0 lab VMs with 'cat', which command correctly counts how many times each service name appears across all four hosts, most frequent first?",
+    "choices": [
+      "grep -E '^[0-9]+/tcp' | awk '{print $3}' | sort | uniq -c | sort -rn",
+      "grep -E '^[0-9]+/tcp' | awk '{print $3}' | uniq -c",
+      "sort | awk '{print $3}' | grep -c tcp",
+      "awk '{print $3}' | sort -rn | uniq"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-1/linux-and-kali-fundamentals-for-security/q3",
+    "type": "multiple_choice",
+    "prompt": "Why does Kali organize its tools into metapackages like kali-tools-information-gathering, kali-tools-vulnerability, and kali-tools-exploitation, rather than grouping packages the way a default Debian install would?",
+    "choices": [
+      "The categories mirror the stages of a real penetration test (recon, then vulnerability analysis, then exploitation, then post-exploitation), making the tool set match the workflow it's used for",
+      "It is required by Debian's packaging policy for all derivative distributions",
+      "It reduces the total disk space the tools occupy compared to Debian's default grouping",
+      "It is purely cosmetic branding with no effect on how the packages are installed or used"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-1/linux-and-kali-fundamentals-for-security/q4",
+    "type": "multiple_choice",
+    "prompt": "On your Tier 0 lab VM at 192.168.56.102, running 'find / -perm -4000 -type f' returns a list of files. What do those files have in common?",
+    "choices": [
+      "They all have the SUID bit set, meaning they execute with their owner's privileges regardless of who runs them",
+      "They are all world-writable files that any user can modify",
+      "They are all files larger than 4000 bytes",
+      "They are all files owned by the currently logged-in user"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-1/linux-and-kali-fundamentals-for-security/q5",
+    "type": "multiple_choice",
+    "prompt": "On 192.168.56.102, 'ls -l /usr/bin/nmap' shows '-rwsr-xr-x'. What does the lowercase 's' in that permission string indicate?",
+    "choices": [
+      "The SUID bit is set, so the binary runs with the privileges of its owner (root) no matter which user executes it",
+      "The file is a symbolic link to another binary",
+      "The file has been marked read-only by the system",
+      "The file's execute bit has been disabled for the owner"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-1/linux-and-kali-fundamentals-for-security/q6",
+    "type": "multiple_choice",
+    "prompt": "On your Tier 0 lab VM at 192.168.56.102, an old SUID nmap binary (version 4.53) lets a low-privileged user become root. Which feature of that old nmap version makes the escalation possible?",
+    "choices": [
+      "Its interactive mode accepts '!sh' to spawn a shell, which inherits nmap's root-owned SUID privilege",
+      "It stores the root password in a plaintext config file nmap reads on startup",
+      "It automatically grants sudo access to any user who runs it once",
+      "It opens a root-owned network listener on port 4444 by default"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-1/linux-and-kali-fundamentals-for-security/q7",
+    "type": "multiple_choice",
+    "prompt": "What is the correct command to remove the SUID bit from /usr/bin/nmap on your Tier 0 lab VM at 192.168.56.102, fixing the privilege-escalation path?",
+    "choices": [
+      "chmod u-s /usr/bin/nmap",
+      "chmod 777 /usr/bin/nmap",
+      "chown root:root /usr/bin/nmap",
+      "chmod +x /usr/bin/nmap"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-1/linux-and-kali-fundamentals-for-security/q8",
+    "type": "multiple_choice",
+    "prompt": "In the lab_sweep.sh script, 'for ip in \"${LAB_IPS[@]}\"; do ... done' loops over the array of lab VM addresses. What does the '[@]' expansion do?",
+    "choices": [
+      "It expands the array into each of its individual elements, so the loop body runs once per IP address",
+      "It sorts the array elements alphabetically before the loop begins",
+      "It converts the array into a single space-free string",
+      "It limits the loop to only the first element of the array"
+    ],
+    "correctIndex": 0
+  }
+]

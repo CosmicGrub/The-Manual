@@ -1,0 +1,197 @@
+---
+trackId: cybersecurity-ethical-hacking
+tier: 1
+title: "Intro to Web Proxies"
+order: 6
+estimatedHours: 8
+slug: intro-to-web-proxies
+---
+
+## The Browser Lies to You. The Proxy Doesn't.
+
+Every web app you've attacked so far, you attacked through the browser's rules: whatever the HTML form allowed you to type, whatever client-side JavaScript let you submit. That's a problem, because real vulnerabilities live in what the *server* accepts, not what the browser's `<input maxlength="20">` or disabled dropdown pretends to allow. A proxy sits between your browser and the server, catches every request before it leaves your machine, and lets you edit it into whatever raw bytes you want — no HTML form required. This is the single tool that turns "clicking around a vulnerable app" into "security testing." Burp Suite is the industry-standard one, and the Community Edition is free forever.
+
+Everything below runs against three targets only: your own local Juice Shop container, your own local DVWA container, and PortSwigger's own hosted Web Security Academy labs. Every request you intercept and every payload you forward in this lesson is named against one of those three, every time.
+
+## Step 1: Install Burp Suite Community Edition
+
+If you're working from the Kali VM you built in Tier 0, Burp Community is already installed — type `burpsuite` in a terminal and skip to the launch step. To install it fresh on any machine:
+
+1. Go to `portswigger.net/burp/communitydownload`.
+2. Download the Linux/macOS/Windows installer (not the Pro trial unless you specifically want it — Community has everything this lesson needs).
+3. Run it:
+
+```bash
+chmod +x burpsuite_community_linux_v*.sh
+sudo ./burpsuite_community_linux_v*.sh
+```
+
+4. Walk through the installer (default install path is fine), then launch:
+
+```bash
+burpsuite
+```
+
+5. On first launch, accept the license, then on the "New project" screen choose **Temporary project** — no need to save state between sessions for this lesson. Click **Next**.
+6. On the "Select configuration" screen choose **Use Burp defaults**. Click **Start Burp**.
+
+You're now looking at Burp's tabbed interface. The tab that matters today is **Proxy**.
+
+## Step 2: Route Your Browser's Traffic Through Burp
+
+Burp's Proxy listener runs on `127.0.0.1:8080` by default. Confirm that under **Proxy → Proxy settings** — you'll see a listener entry `127.0.0.1:8080`, running. Now point Firefox at it:
+
+1. Firefox → `about:preferences#general` → scroll to **Network Settings** → **Settings...**
+2. Select **Manual proxy configuration**.
+3. HTTP Proxy: `127.0.0.1`, Port: `8080`.
+4. Check **Also use this proxy for HTTPS**.
+5. Clear the "No proxy for" box of anything that would exclude `localhost` — you want Burp to see traffic to your own lab apps too. Click **OK**.
+
+Test it: browse to `http://burp` in Firefox. If you see Burp's own placeholder page ("Welcome to Burp Suite Community Edition"), the proxy path is live.
+
+HTTPS sites will now throw certificate warnings — Burp is intercepting the TLS connection with its own certificate, which your browser doesn't yet trust. Fix that once:
+
+1. With the proxy still configured, visit `http://burp/cert` and download `cacert.der`.
+2. Firefox → `about:preferences#privacy` → scroll to **Certificates** → **View Certificates** → **Authorities** tab → **Import...**
+3. Select the downloaded `cacert.der`, check **Trust this CA to identify websites**, click **OK**.
+
+HTTPS traffic through Burp now loads cleanly. For the rest of this lesson both Juice Shop (`http://localhost:3000`) and DVWA (`http://localhost` or your Kali VM's host-only IP) are plain HTTP, so the cert step mostly matters when you get to PortSwigger's Academy labs later in this lesson, which are HTTPS.
+
+## Step 3: Intercept and Modify a Request to Your Own Juice Shop Login
+
+In Burp, go to **Proxy → Intercept** and confirm the button reads **Intercept is on** (click it if it currently says "off" — a toggle, not a one-time switch).
+
+In Firefox, go to your local Juice Shop instance and open the login page:
+
+```text
+http://localhost:3000/#/login
+```
+
+Type any email and password (they don't need to be real — `a@a.com` / `wrongpassword` is fine) and click **Login**. The request freezes — Burp has it. Switch to Burp's Proxy → Intercept tab and you'll see the raw HTTP request:
+
+```text
+POST /rest/user/login HTTP/1.1
+Host: localhost:3000
+Content-Type: application/json
+Content-Length: 46
+
+{"email":"a@a.com","password":"wrongpassword"}
+```
+
+Click directly into the request body and edit the `email` field to a SQL injection payload — Juice Shop's own login endpoint builds part of its authentication query in a way that's vulnerable to exactly this, which is why it's one of Juice Shop's own built-in scored challenges ("Login Admin"):
+
+```text
+POST /rest/user/login HTTP/1.1
+Host: localhost:3000
+Content-Type: application/json
+Content-Length: 42
+
+{"email":"' OR 1=1--","password":"x"}
+```
+
+Click **Forward**. Turn **Intercept is on** back off so the response reaches your browser normally, then look at the response in the **HTTP history** sub-tab:
+
+```text
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{"authentication":{"token":"eyJhbGciOiJIUzI1NiIs...","umail":"admin@juice-sh.op"}}
+```
+
+You're logged in as `admin@juice-sh.op` without ever knowing the admin's password — the browser's login form never would have let you type `' OR 1=1--` into a field validated client-side as an email address, but the proxy doesn't care what the HTML says is valid. Only the server's handling of that string matters, and this edit happened entirely on the wire, after your browser had already "sent" the original request.
+
+## Step 4: Modify a DVWA Request, Then Verify a Code-Level Fix Defeats It
+
+Switch targets to your local DVWA instance. Log in (default `admin` / `password`), set **DVWA Security** to **Low**, then open **SQL Injection** under Vulnerabilities. Submit `id=1` in the form once so Burp has a baseline request to work from. With Intercept on, resubmit:
+
+```text
+GET /vulnerabilities/sqli/?id=1&Submit=Submit# HTTP/1.1
+Host: localhost
+Cookie: PHPSESSID=...; security=low
+```
+
+Edit the `id` parameter directly in Burp's request editor:
+
+```text
+GET /vulnerabilities/sqli/?id=1' OR '1'='1&Submit=Submit# HTTP/1.1
+Host: localhost
+Cookie: PHPSESSID=...; security=low
+```
+
+Forward it. DVWA's low-security page dumps every row in the `users` table instead of the one you asked for — because the server-side code builds the query by string concatenation:
+
+```php
+// vulnerabilities/sqli/source/low.php
+$id = $_REQUEST['id'];
+$query = "SELECT first_name, last_name FROM users WHERE user_id = '$id';";
+$result = mysqli_query($GLOBALS["___mysqli_ston"], $query);
+```
+
+Your injected `' OR '1'='1` closes the string early and turns the `WHERE` clause into something always true — the database has no idea `OR '1'='1` wasn't part of the intended query.
+
+Now prove the fix. In DVWA, set **DVWA Security** to **Impossible** and reload the SQL Injection page — notice the input is now a locked `<select>` dropdown, not a free-text box. That's a client-side restriction, and you already know those don't matter to a proxy. Submit any option once to get a baseline request, then intercept and edit the raw request the same way, forcing the same payload past the dropdown:
+
+```text
+GET /vulnerabilities/sqli/?id=1' OR '1'='1&Submit=Submit# HTTP/1.1
+Host: localhost
+Cookie: PHPSESSID=...; security=impossible
+```
+
+Forward it. The page returns **no rows** — not an error, not a dump, nothing. The injection is dead, because the impossible-level source doesn't build a string at all:
+
+```php
+// vulnerabilities/sqli/source/impossible.php
+$id = $_GET['id'];
+$id = stripslashes($id);
+$id = mysqli_real_escape_string($GLOBALS["___mysqli_ston"], $id);
+$stmt = mysqli_prepare(
+    $GLOBALS["___mysqli_ston"],
+    'SELECT first_name, last_name FROM users WHERE user_id = (?)'
+);
+mysqli_stmt_bind_param($stmt, 's', $id);
+mysqli_stmt_execute($stmt);
+```
+
+The `(?)` placeholder is bound as a literal *value*, never concatenated into the SQL text, so your `' OR '1'='1` is treated as a user ID that happens to contain quote characters — a lookup that matches nothing, not a logic override. This is why "parameterized queries" is the actual fix for SQL injection, not merely a stricter input filter. You just verified that claim yourself, with the same proxy and the same bytes, against both the broken and the patched code paths.
+
+## Step 5: Start Your First PortSwigger Web Security Academy Lab
+
+PortSwigger's Web Security Academy (`portswigger.net/web-security`) hosts real, intentionally vulnerable lab instances built to be attacked by anyone who signs up — explicitly inviting exactly the traffic you're about to send.
+
+1. Go to `portswigger.net/web-security` and click **Sign up** (top right) — a free account gets you full access to every apprentice lab.
+2. Use the search bar or the **SQL injection** topic page to find the lab titled exactly: **"SQL injection vulnerability in WHERE clause allowing retrieval of hidden data"** — apprentice difficulty, the first lab listed under that topic.
+3. Open it and click **Access the lab**. The Academy spins up a private instance at a unique URL like `https://0a1200xx03xxxxxxxxxxxxxxxxxxxxxxxx.web-security-academy.net` — yours alone, for this session.
+
+With Burp's Intercept still on and your browser still proxied through `127.0.0.1:8080`, browse the lab's store and click a category filter (e.g. "Gifts"). Burp catches the request:
+
+```text
+GET /filter?category=Gifts HTTP/1.1
+Host: 0a1200xx03xxxxxxxxxxxxxxxxxxxxxxxx.web-security-academy.net
+```
+
+Edit the `category` parameter the same way you did against DVWA:
+
+```text
+GET /filter?category=Gifts' OR 1=1-- HTTP/1.1
+Host: 0a1200xx03xxxxxxxxxxxxxxxxxxxxxxxx.web-security-academy.net
+```
+
+Forward it. The store page reloads showing every product — including one not normally listed in any category, which is the lab's hidden flag item. The yellow lab banner at the top of the page flips to **"Congratulations, you solved this lab!"** — that status is tracked server-side by PortSwigger against your account, confirming the technique you just used against your local DVWA generalizes directly to a real, separately-built vulnerable application.
+
+## Exercise
+
+Target: PortSwigger Web Security Academy only. Find and open the apprentice-level lab titled **"SQL injection vulnerability allowing login bypass."** Using Burp's Proxy tab exactly as above, intercept the login form submission and modify one of the two POST parameters so the server's `WHERE` clause stops checking the password at all.
+
+**Hint:** you don't need to guess a password. You need to make everything *after* the username in the server's SQL comment out, the same way `--` worked against DVWA and Juice Shop above — but this time it has to land inside the `username` field itself, not a filter or category parameter.
+
+Confirm the solve the same way you did in Step 5: the lab banner changes state, tracked by PortSwigger against your account — not by anything you infer from the page content alone.
+
+## Checklist Before Moving On
+
+- Burp Suite Community Edition installed and launching with **Temporary project** / **Burp defaults**
+- Firefox's manual proxy set to `127.0.0.1:8080`, confirmed live by loading `http://burp`
+- Burp's CA certificate imported into Firefox's Authorities store, HTTPS pages loading without warnings
+- You intercepted and edited a request to your own Juice Shop login, bypassing authentication via the `email` field
+- You intercepted and edited a request to your own DVWA SQL Injection page, then proved the **Impossible** security level's parameterized query defeats the identical payload
+- You created a PortSwigger Web Security Academy account and solved "SQL injection vulnerability in WHERE clause allowing retrieval of hidden data" using a Burp-intercepted request
+- You can state, in one sentence, why editing a request in Burp defeats client-side restrictions like `maxlength` or a locked dropdown that the browser alone would have enforced

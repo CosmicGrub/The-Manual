@@ -1,0 +1,267 @@
+---
+trackId: cybersecurity-ethical-hacking
+tier: 1
+title: "Linux & Kali Fundamentals for Security"
+order: 2
+estimatedHours: 12
+slug: linux-and-kali-fundamentals-for-security
+---
+
+## The Terminal Is the Job
+
+Every tool you will use for the rest of this track — nmap, Burp, Metasploit, linPEAS — dumps its results as text into a terminal. If you can't filter, sort, and reshape that text fast, you drown in it. This module builds that fluency directly against the lab VMs you stood up on the host-only network (192.168.56.0/24) in Tier 0, plus a tour of how Kali is actually organized so you stop hunting for tools and start knowing where they live.
+
+## Parsing Real Scan Output: grep, awk, sort
+
+Run a version scan against your Tier 0 lab VM at 192.168.56.102 (the Metasploitable-style box from Tier 0) and save it:
+
+```bash
+nmap -sV 192.168.56.102 -oN scan_102.txt
+```
+
+The saved file, `scan_102.txt`, looks like this:
+
+```text
+Starting Nmap 7.94 ( https://nmap.org ) at 2026-10-03 10:14 EDT
+Nmap scan report for 192.168.56.102
+Host is up (0.00041s latency).
+Not shown: 994 closed tcp ports (reset)
+PORT     STATE SERVICE     VERSION
+21/tcp   open  ftp         vsftpd 2.3.4
+22/tcp   open  ssh         OpenSSH 4.7p1 Debian 8ubuntu1 (protocol 2.0)
+80/tcp   open  http        Apache httpd 2.2.8 ((Ubuntu) DAV/2)
+139/tcp  open  netbios-ssn Samba smbd 3.X (workgroup: WORKGROUP)
+445/tcp  open  netbios-ssn Samba smbd 3.X (workgroup: WORKGROUP)
+3306/tcp open  mysql       MySQL 5.0.51a-3ubuntu5
+MAC Address: 08:00:27:4A:91:1C (Oracle VirtualBox virtual NIC)
+Service Info: OS: Unix
+
+Nmap done: 1 IP address (1 host up) scanned in 12.84 seconds
+```
+
+You don't want the banner lines, just the port table. `grep` isolates lines that start with a digit (the actual port rows), `awk` pulls out just the columns you care about, and `sort` orders them:
+
+```bash
+grep -E '^[0-9]+/tcp' scan_102.txt | awk '{print $1, $3}'
+```
+
+```text
+21/tcp ftp
+22/tcp ssh
+80/tcp http
+139/tcp netbios-ssn
+445/tcp netbios-ssn
+3306/tcp mysql
+```
+
+That single host is easy to read by eye. The pipeline earns its keep once you have scans of every lab VM on the host-only network and want one answer: "which service shows up most across my lab?" Say you've already scanned all four Tier 0 lab VMs (192.168.56.101–104) into `scan_101.txt` through `scan_104.txt` — you'll automate that part in the next section. Combine and count:
+
+```bash
+cat scan_10*.txt | grep -E '^[0-9]+/tcp' | awk '{print $3}' | sort | uniq -c | sort -rn
+```
+
+```text
+   4 ssh
+   3 http
+   2 ftp
+   2 netbios-ssn
+   1 mysql
+```
+
+Read left to right: `cat` merges the four scans of your lab VMs, `grep` keeps only port lines, `awk '{print $3}'` keeps only the service name column, `sort` groups identical names together (required before `uniq` can count them), `uniq -c` counts each group, and the final `sort -rn` puts the biggest number first. That's four standard tools chained to turn four raw nmap files into one answer: every lab VM on your host-only network is running SSH, which tells you where to focus a credential-based lab exercise later. None of this touches any system outside 192.168.56.0/24.
+
+## Kali Is Debian With a Pentest Workflow Bolted On
+
+```bash
+cat /etc/os-release
+```
+
+```text
+PRETTY_NAME="Kali GNU/Linux Rolling"
+ID=kali
+ID_LIKE=debian
+```
+
+Under the hood, Kali is Debian. What makes it Kali is the curated package set and the menu structure layered on top. List the metapackages Kali ships to organize tools by pentest phase:
+
+```bash
+apt-cache search ^kali-tools
+```
+
+```text
+kali-tools-top10 - Kali's set of top 10 security tools
+kali-tools-information-gathering - Kali tools for information gathering
+kali-tools-vulnerability - Kali tools for vulnerability analysis
+kali-tools-web - Kali tools for web application analysis
+kali-tools-database - Kali tools for database assessment
+kali-tools-passwords - Kali tools for password attacks
+kali-tools-wireless - Kali tools for wireless attacks
+kali-tools-reverse-engineering - Kali tools for reverse engineering
+kali-tools-exploitation - Kali tools for exploitation
+kali-tools-sniffing-spoofing - Kali tools for sniffing and spoofing
+kali-tools-post-exploitation - Kali tools for post exploitation
+kali-tools-forensics - Kali tools for forensics
+kali-tools-reporting - Kali tools for reporting
+```
+
+Each metapackage is a thin wrapper that pulls in the real binaries. Check what `kali-tools-information-gathering` actually installs:
+
+```bash
+dpkg -L kali-tools-information-gathering | grep '/usr/bin/'
+```
+
+```text
+/usr/bin/nmap
+/usr/bin/theharvester
+/usr/bin/dnsenum
+/usr/bin/whatweb
+/usr/bin/recon-ng
+```
+
+Those are the names you'll point at your lab VMs this month, and later at the Juice Shop, DVWA, and WebGoat instances once those are up. Walk the rest of the menu against what you'll actually do with it:
+
+- **Information Gathering** (`nmap`, `theharvester`, `whatweb`) — what you just used against 192.168.56.102.
+- **Vulnerability Analysis** (`nikto`, `legion`, `openvas`) — pointed at your DVWA and Juice Shop containers once they're running, to flag known-weak configurations before you exploit anything by hand.
+- **Web Application Analysis** (`burpsuite`, `sqlmap`, `zaproxy`) — the toolkit for Tier 2's work against Juice Shop, DVWA, WebGoat, and PortSwigger's hosted labs.
+- **Exploitation Tools** (`metasploit-framework`, `exploitdb`/`searchsploit`) — what you'd reach for once a version banner from nmap (like that `vsftpd 2.3.4` on 192.168.56.102) points at a known CVE.
+- **Password Attacks** (`hydra`, `john`, `hashcat`) — brute-forcing and cracking creds captured from your own lab VMs, never anyone else's.
+- **Post Exploitation** (`linpeas`, `windows-exploit-suggester`) — the privilege-escalation enumeration scripts that the permissions section below is previewing by hand.
+
+A stock Debian install groups software by *what it is* (editors, compilers, servers). Kali groups it by *what phase of an assessment you're in* — recon, then vuln analysis, then exploitation, then post-exploitation, then reporting — because that's the order a real engagement runs in, and the default desktop, non-root user policy (since the 2020.1 release), and pre-seeded tool repos all exist to keep that workflow friction-free. That's the actual difference; it's not a skin, it's curation plus ordering.
+
+## Automating Repetitive Lab Checks With Bash
+
+Scanning four lab VMs by hand every time you sit down is the kind of repetitive task you script once and never think about again. This script checks which of your Tier 0 lab VMs are actually powered on and reachable before wasting time scanning a host that's down, then runs the version scan and aggregation pipeline from the first section automatically. Scope is hardcoded to the host-only lab network only:
+
+```bash
+#!/bin/bash
+# lab_sweep.sh
+# Target scope: ONLY the host-only lab network (192.168.56.0/24) built in Tier 0.
+# Checks which lab VMs are up, scans the reachable ones, reports service frequency.
+
+LAB_IPS=(192.168.56.101 192.168.56.102 192.168.56.103 192.168.56.104)
+REPORT="lab_sweep_report.txt"
+> "$REPORT"
+
+for ip in "${LAB_IPS[@]}"; do
+    if timeout 1 bash -c "echo > /dev/tcp/$ip/22" 2>/dev/null; then
+        echo "[+] $ip is up — scanning"
+        nmap -sV "$ip" -oN "scan_${ip##*.}.txt" > /dev/null 2>&1
+    else
+        echo "[-] $ip is unreachable — skipping"
+    fi
+done
+
+echo "=== Service frequency across reachable lab VMs ===" | tee -a "$REPORT"
+cat scan_*.txt 2>/dev/null \
+    | grep -E '^[0-9]+/tcp' \
+    | awk '{print $3}' \
+    | sort | uniq -c | sort -rn \
+    | tee -a "$REPORT"
+```
+
+Run it against your Tier 0 lab VMs:
+
+```bash
+chmod +x lab_sweep.sh
+./lab_sweep.sh
+```
+
+```text
+[+] 192.168.56.101 is up — scanning
+[+] 192.168.56.102 is up — scanning
+[-] 192.168.56.103 is unreachable — skipping
+[+] 192.168.56.104 is up — scanning
+=== Service frequency across reachable lab VMs ===
+   3 ssh
+   2 http
+   1 ftp
+   1 mysql
+```
+
+Break down the parts that make this a *script* and not just a list of commands: `LAB_IPS=(...)` is a bash array; `"${LAB_IPS[@]}"` expands it so the `for` loop runs once per IP, with the quotes preventing word-splitting problems; `echo > /dev/tcp/$ip/22` is bash's built-in way to test a TCP port without needing `nc` installed; `${ip##*.}` strips everything up to the last dot so `192.168.56.101` becomes just `101` for the output filename; and `tee -a` both prints the result and appends it to the report file. Everything the script touches is one of your own Tier 0 lab VMs on the host-only network — it never reaches outside 192.168.56.0/24.
+
+## Permissions, SUID, and Why They Preview Privilege Escalation
+
+Standard `ls -l` permissions (`rwx` for owner/group/other) only get you so far. The bit that matters for privilege escalation is SUID — "set user ID" — which makes a binary run with *its owner's* privileges, not the privileges of whoever launched it.
+
+On your Tier 0 lab VM at 192.168.56.102, log in as the low-privileged user and hunt for SUID binaries:
+
+```bash
+find / -perm -4000 -type f 2>/dev/null
+```
+
+```text
+/usr/bin/passwd
+/usr/bin/sudo
+/usr/bin/su
+/usr/bin/nmap
+```
+
+`-perm -4000` matches any file with the SUID bit set, regardless of its other permission bits (the numeric 4000 is the SUID flag; 2000 is SGID, 1000 is the sticky bit). `passwd`, `sudo`, and `su` being SUID root is normal and expected — that's how a non-root user changes their own password. `nmap` being SUID root on this lab VM is not normal, and it's the finding you'd investigate next. Confirm it with `ls -l`:
+
+```bash
+ls -l /usr/bin/nmap
+```
+
+```text
+-rwsr-xr-x 1 root root 333104 2008-04-17 02:22 /usr/bin/nmap
+```
+
+That lowercase `s` where the executable bit normally sits is the SUID flag rendered by `ls`. The nmap binary installed on this lab VM (192.168.56.102) is version 4.53, old enough to ship an interactive mode that can shell out. As the low-privileged user on 192.168.56.102:
+
+```bash
+nmap --interactive
+```
+
+```text
+Starting nmap V. 4.53 ( http://www.insecure.org/nmap/ )
+Welcome to Interactive Mode -- press h <enter> for help
+
+nmap> !sh
+sh-3.2# whoami
+root
+sh-3.2# id
+uid=0(root) gid=1000(msfadmin) groups=1000(msfadmin)
+```
+
+`!sh` drops to a shell from inside nmap's interactive prompt, and because the nmap binary itself is SUID root, that shell inherits root's effective UID. A low-privileged login on 192.168.56.102 just became root — this is exactly the class of bug Tier 2's dedicated privilege-escalation module builds on, and you've now reproduced it by hand on your own lab VM.
+
+**The fix is a one-line permission change**, applied as root on 192.168.56.102:
+
+```bash
+chmod u-s /usr/bin/nmap
+```
+
+```text
+root@metasploitable:~# ls -l /usr/bin/nmap
+-rwxr-xr-x 1 root root 333104 2008-04-17 02:22 /usr/bin/nmap
+```
+
+The `s` is gone, replaced by the ordinary `x`. (The equivalent numeric form, if you were setting permissions from scratch, is `chmod 755` — no leading `4`.) Verify the exploit now fails against the patched binary, back as the low-privileged user on 192.168.56.102:
+
+```bash
+nmap --interactive
+```
+
+```text
+Starting nmap V. 4.53 ( http://www.insecure.org/nmap/ )
+Welcome to Interactive Mode -- press h <enter> for help
+
+nmap> !sh
+sh-3.2$ whoami
+msfadmin
+```
+
+Two things confirm the fix held: the shell prompt changed from `#` to `$`, and `whoami` now returns the unprivileged account instead of `root`. Same binary, same `!sh` escape, no privilege gain — because the SUID bit that made it dangerous is gone. This is the pattern you'll see constantly in Tier 2: find the SUID or overly permissive file, prove the escalation, apply the minimal permission fix, then re-run the exact same exploit to prove it's dead. Never stop at just describing the fix.
+
+## Exercise: Lab-Wide SUID Sweep
+
+Using only your Tier 0 lab VMs on the host-only network (192.168.56.101–104), write `suid_sweep.sh` that:
+
+1. Loops over a `LAB_IPS` array of your four lab VM addresses.
+2. SSHes into each one (using the lab credentials you set up in Tier 0) and runs the SUID-discovery command from this lesson on the remote host.
+3. Merges all four results into one report file, with each line prefixed by the host IP it came from, sorted so results are grouped by host.
+4. Flags any SUID binary that is NOT on a short allow-list you define yourself (start with `/usr/bin/passwd`, `/usr/bin/sudo`, `/usr/bin/su`, `/usr/bin/mount`, `/usr/bin/umount`) — those are the ones worth investigating by hand, the way `/usr/bin/nmap` turned out to be on 192.168.56.102.
+
+**Hint:** inside the loop, `ssh user@"$ip" 'find / -perm -4000 -type f 2>/dev/null'` gets you the remote list without needing to log in manually four times; prefix each returned line with `$ip:` before writing it to the report so the final `sort` can group by host; and `grep -vFf allowlist.txt` against the merged report will drop the expected entries, leaving only what deserves a closer look.

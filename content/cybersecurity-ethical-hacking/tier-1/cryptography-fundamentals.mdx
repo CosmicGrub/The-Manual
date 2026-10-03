@@ -1,0 +1,278 @@
+---
+trackId: cybersecurity-ethical-hacking
+tier: 1
+title: "Cryptography Fundamentals"
+order: 5
+estimatedHours: 12
+slug: cryptography-fundamentals
+---
+
+Three operations get confused constantly: encoding, hashing, and encryption. They look similar on the surface — all three turn a string into gibberish — but they do fundamentally different jobs, and mixing them up is how real applications end up storing passwords in a format an attacker reverses in one line of code. Run the same string through all three and the difference stops being theoretical.
+
+## Hashing vs. Encryption vs. Encoding: Same String, Three Fates
+
+Take the string `SecretPass123!` and put it through each operation on your own machine.
+
+**Encoding (Base64) — reversible by anyone, no secret required:**
+
+```bash
+echo -n "SecretPass123!" | base64
+# U2VjcmV0UGFzczEyMyE=
+```
+
+Decoding needs nothing but the algorithm itself:
+
+```bash
+echo "U2VjcmV0UGFzczEyMyE=" | base64 -d
+# SecretPass123!
+```
+
+No key. No password. `base64 -d` undoes it for anyone, instantly. Encoding exists to make binary data safe to transport through text-only channels (email attachments, URLs, JSON fields) — it has never been, and was never meant to be, a confidentiality mechanism. If you ever see a developer storing "encrypted" data that's really just Base64 in a database column, that's not security, that's a transport format with delusions of grandeur.
+
+**Hashing (SHA-256) — one-way, not reversible by design:**
+
+```bash
+echo -n "SecretPass123!" | sha256sum
+# 1fff4b993a48bbd69248c7986db7966b2342656cbbd5fb1a01a6a24d0923cc74
+```
+
+There is no `sha256sum -d`. That flag doesn't exist, because the operation it would need doesn't exist mathematically. SHA-256 compresses an input of any length down to a fixed 256-bit fingerprint, and that compression throws information away — many different inputs could theoretically produce hash collisions, and there is no algorithm to walk the function backward. The only way to find out what produced `1fff4b99...` is to guess an input, hash it, and compare. That "guess and compare" loop is exactly what password cracking is, and it's section 4 of this lesson.
+
+**Encryption (AES-256-CBC) — reversible, but only with the key:**
+
+```bash
+echo -n "SecretPass123!" | openssl enc -aes-256-cbc -pbkdf2 -a -salt -pass pass:MyKey123
+# U2FsdGVkX19bJ9zXXlmHOBBluTRE+LRYEJnqdlnAzWA=
+```
+
+That output looks just as opaque as the hash. The difference is what you can do with it:
+
+```bash
+echo "U2FsdGVkX19bJ9zXXlmHOBBluTRE+LRYEJnqdlnAzWA=" | openssl enc -d -aes-256-cbc -pbkdf2 -a -pass pass:MyKey123
+# SecretPass123!
+```
+
+Same ciphertext length roughly, same "looks random" property as the hash — but with the right key, the original string comes right back. Without the key, recovering it means brute-forcing the keyspace, which for AES-256 is computationally infeasible. That's the entire distinction in one table:
+
+| Operation | Reversible? | Needs a secret? | Use case |
+|---|---|---|---|
+| Encoding (Base64) | Yes, by anyone | No | Safe transport of binary data as text |
+| Hashing (SHA-256) | No, never | N/A — there's nothing to reverse with | Integrity checks, password verification |
+| Encryption (AES) | Yes, with the key | Yes | Confidentiality of data in transit or at rest |
+
+If your own lab code ever needs to **check** a password, hash it and compare hashes. If it needs to **recover** the original value later, encrypt it. If you just need to move binary bytes through a text field, encode it. Confusing these three is the root cause of the MD5 password disaster you'll reproduce in section 4.
+
+## Symmetric vs. Asymmetric Encryption
+
+**Symmetric: one shared key, both directions.**
+
+Say your two lab VMs from Tier 0 — `lab-attacker` and `lab-victim`, both on the host-only network — need to exchange a message neither wants sniffed by anything else on that network. You agree on a single key out-of-band (read it to each other over SSH, or write it on both disks by hand) and both sides use it:
+
+```bash
+# on lab-attacker, encrypting a message for lab-victim
+openssl enc -aes-256-cbc -pbkdf2 -a -salt -pass pass:"CorrectHorseBatteryStaple" <<< "Meet at the dead drop, 0300."
+# U2FsdGVkX1+JXg4k9L64q1wSgyHa8xexw0KhWbu7A2fGYOFOXLdeOYc1hdSXRNLT
+
+# on lab-victim, decrypting with the SAME key
+openssl enc -d -aes-256-cbc -pbkdf2 -a -pass pass:"CorrectHorseBatteryStaple" <<< "U2FsdGVkX1+JXg4k9L64q1wSgyHa8xexw0KhWbu7A2fGYOFOXLdeOYc1hdSXRNLT"
+# Meet at the dead drop, 0300.
+```
+
+Fast, simple, and the whole scheme collapses the moment that one key leaks — whoever has it can both read and forge messages in either direction. It also has a bootstrapping problem: how do `lab-attacker` and `lab-victim` agree on that key in the first place without an existing secure channel? For two VMs you control, "write it on both disks" is fine. For your browser and a bank's server that have never spoken before, it isn't — which is exactly the problem asymmetric crypto solves.
+
+**Asymmetric: two different keys, one public, one private.**
+
+Generate a real RSA keypair on your own machine:
+
+```bash
+openssl genrsa -out priv.pem 2048
+openssl rsa -in priv.pem -pubout -out pub.pem
+```
+
+Anyone holding `pub.pem` can encrypt a message that only the holder of `priv.pem` can read — there's no shared secret to agree on beforehand:
+
+```bash
+echo -n "Meet at the dead drop, 0300." > msg.txt
+openssl pkeyutl -encrypt -pubin -inkey pub.pem -in msg.txt -out msg.enc
+base64 -w0 msg.enc
+# VDHjMcVJsf1XJn3A/lQp0tV5Xzjzw6OOtlXd1imWAj3q8/zg6flqy8qWgWaqCL6HBcBC1cXIfE9F...
+
+openssl pkeyutl -decrypt -inkey priv.pem -in msg.enc
+# Meet at the dead drop, 0300.
+```
+
+Only `priv.pem` can undo what `pub.pem` locked. The public key can be posted anywhere, emailed, printed on a business card — it's not a secret, and it doesn't need to be. The private key never leaves the machine that generated it. This is also backwards from what people expect at first: encrypt with the *public* key so only the *private* key holder can decrypt; the opposite direction (sign with the private key, anyone verifies with the public key) is how digital signatures work.
+
+In practice almost nobody uses pure asymmetric encryption for bulk data — RSA is slow and has message-size limits tied to key size. Real systems use asymmetric crypto to solve the bootstrapping problem (safely agree on a key with a stranger) and then switch to fast symmetric encryption for the actual data. That handshake-then-bulk-encrypt pattern is exactly what TLS does, and it's next.
+
+## The TLS 1.3 Handshake, and What HTTPS Actually Guarantees
+
+Back in Tier 0's "What TLS Actually Protects" module, the headline was: TLS protects the pipe, not the plumbing. HTTPS guarantees that traffic between your browser and the server can't be read or tampered with in transit, and that you're talking to the server whose certificate matches the domain — it says nothing about whether the application behind that padlock has a SQL injection bug. Juice Shop served over valid TLS is still exploitable; the lock icon just means nobody on the wire read your traffic on the way there.
+
+Here's that handshake, captured for real against a local TLS-terminated instance (the same pattern as fronting your local Juice Shop with a self-signed cert, which you may have set up in Tier 0):
+
+```bash
+openssl s_client -connect localhost:8443 -tls1_3 -msg
+```
+
+```text
+>>> TLS 1.0, RecordHeader [length 0005]
+>>> TLS 1.3, Handshake [length 00dc], ClientHello
+<<< TLS 1.2, RecordHeader [length 0005]
+<<< TLS 1.3, Handshake [length 007a], ServerHello
+<<< TLS 1.2, RecordHeader [length 0005]
+<<< TLS 1.3, Handshake [length 0006], EncryptedExtensions
+<<< TLS 1.2, RecordHeader [length 0005]
+<<< TLS 1.3, Handshake [length 031a], Certificate
+<<< TLS 1.2, RecordHeader [length 0005]
+<<< TLS 1.3, Handshake [length 0108], CertificateVerify
+<<< TLS 1.2, RecordHeader [length 0005]
+<<< TLS 1.3, Handshake [length 0034], Finished
+>>> TLS 1.2, RecordHeader [length 0005]
+>>> TLS 1.3, ChangeCipherSpec [length 0001]
+```
+
+And the connection summary:
+
+```text
+New, TLSv1.3, Cipher is TLS_AES_256_GCM_SHA384
+Server Temp Key: X25519, 253 bits
+Server public key is 2048 bit
+```
+
+Walking through what just happened:
+
+1. **ClientHello** — your client proposes TLS 1.3, a list of cipher suites (here, `TLS_AES_256_GCM_SHA384`), and — critically for TLS 1.3 — it already guesses a key-exchange group and sends an ephemeral public key (`X25519`) in the same message. This is why TLS 1.3 needs only one round trip instead of TLS 1.2's two.
+2. **ServerHello** — the server picks the cipher suite and sends its own ephemeral X25519 public key back. At this point both sides can independently compute the same shared secret via Diffie-Hellman key exchange, without that secret ever crossing the wire. This is the asymmetric-to-symmetric handoff from the previous section, happening live.
+3. **EncryptedExtensions, Certificate, CertificateVerify** — everything from here on is already symmetrically encrypted using keys derived from that shared secret. The server sends its certificate (binding its public key to a domain name) and proves it holds the matching private key by signing the handshake transcript (`CertificateVerify`). This is the authentication guarantee: you know you're talking to whoever controls that private key.
+4. **Finished** — both sides confirm the handshake transcript matches (nothing was tampered with in transit) and application data — your actual HTTP request — starts flowing, now symmetrically encrypted with `TLS_AES_256_GCM_SHA384`.
+
+Three guarantees fall out of this, and exactly three:
+
+- **Confidentiality** — AES-256-GCM encrypts everything after the handshake.
+- **Integrity** — GCM is an authenticated cipher mode; any bit-flip in transit is detected, not silently accepted.
+- **Server authenticity** — the CertificateVerify step proves the server holds the private key matching its certificate.
+
+What it does **not** guarantee: that the server-side code is safe. A DVWA instance proxied behind a perfectly valid TLS 1.3 setup is still vulnerable to every SQL injection and XSS payload in this track — TLS encrypted the SQLi payload on the way there, then the vulnerable `query()` call on the server ran it exactly as written. Keep that distinction sharp; it's the single most common thing junior pentesters get wrong when a scope says "HTTPS site" and they assume that means "hardened."
+
+## Common Real-World Crypto Mistakes
+
+### Mistake 1: Unsalted MD5 password hashing
+
+DVWA stores its default `admin` account's password as plain, unsalted MD5. Confirm it yourself by logging into your local DVWA instance, going to **SQL Injection** (Low security), and running a UNION-based dump:
+
+```sql
+' UNION SELECT user, password FROM users#
+```
+
+The `admin` row comes back with:
+
+```text
+5f4dcc3b5aa765d61d8327deb882cf99
+```
+
+That hash has no salt — no random per-user value mixed in before hashing — which means identical passwords always produce identical hashes, and a dictionary attack needs to try each candidate exactly once, ever, for the whole database at once. A trivial PHP dictionary check confirms it instantly:
+
+```php
+<?php
+// Hash pulled from DVWA's users table via the SQLi above.
+$target_hash = "5f4dcc3b5aa765d61d8327deb882cf99";
+$wordlist = ["letmein", "qwerty", "admin", "123456", "password", "dragon", "monkey"];
+
+foreach ($wordlist as $guess) {
+    if (md5($guess) === $target_hash) {
+        echo "CRACKED: $target_hash => '$guess'\n";
+        break;
+    }
+}
+```
+
+```text
+$ php crack.php
+CRACKED: 5f4dcc3b5aa765d61d8327deb882cf99 => 'password'
+```
+
+In a real engagement against your lab you'd reach for `hashcat -m 0 -a 0 dvwa_hashes.txt rockyou.txt` (mode `0` is raw MD5, attack mode `0` is a straight dictionary run) against the full 14.3-million-entry rockyou wordlist instead of seven guesses — same idea, bigger wordlist, GPU-accelerated.
+
+The reason this is so fast is measurable, not hand-wavy. Hashing speed on this machine, CPU only, no GPU:
+
+```php
+<?php
+$start = microtime(true);
+for ($i = 0; $i < 200000; $i++) { md5("password123" . $i); }
+printf("MD5:    %.0f hashes/sec\n", 200000 / (microtime(true) - $start));
+```
+
+```text
+MD5:    5,180,679 hashes/sec
+```
+
+At that rate, the entire rockyou wordlist (14,344,391 entries) runs against one unsalted MD5 hash in **under 3 seconds**, single CPU core, no GPU. That's why DVWA's hash fell to a 7-word list before you finished reading the output.
+
+**The fix, coded and verified.** DVWA itself ships intentionally broken and isn't meant to be patched, so verify the fix in an equivalent script using PHP's `password_hash()`, which applies bcrypt with a random salt and a tunable work factor:
+
+```php
+<?php
+$password = "password123";
+$hash = password_hash($password, PASSWORD_BCRYPT);
+echo "$hash\n";
+// $2y$12$FqJK/fTgNVvt9/fmwt/2hevrV7VMwOr8pJ3s3mXDzYEa0tGeu49xO
+
+var_dump(password_verify($password, $hash));
+// bool(true)
+```
+
+Two things changed structurally: a random salt is baked into the hash itself (the `$2y$12$FqJK/fTgNVvt9/fmwt/2he...` prefix encodes algorithm, cost, and salt together, so no two hashes of the same password ever match), and the algorithm is deliberately slow. Measured on the same machine, same password:
+
+```text
+bcrypt (cost 12): 3.8 hashes/sec
+```
+
+That's not a typo — 3.8, not 3.8 million. Run the same rockyou-sized dictionary attack against the bcrypt hash and the math flips: 14,344,391 guesses ÷ 3.8/sec ≈ **43.7 days** on a single core, versus under 3 seconds for MD5. The exploit script from above, pointed at the bcrypt hash instead:
+
+```php
+<?php
+$target_hash = '$2y$12$FqJK/fTgNVvt9/fmwt/2hevrV7VMwOr8pJ3s3mXDzYEa0tGeu49xO';
+$wordlist = ["letmein", "qwerty", "admin", "123456", "password", "dragon", "monkey"];
+foreach ($wordlist as $guess) {
+    if (password_verify($guess, $target_hash)) {
+        echo "CRACKED: $guess\n";
+        break;
+    }
+}
+echo "no match in wordlist\n";
+```
+
+```text
+$ time php crack_bcrypt.php
+no match in wordlist
+
+real    0m0.031s
+```
+
+The actual password, `password123`, wasn't even in that particular seven-word list — but notice it also didn't matter how fast the attempt was; each `password_verify()` call costs the same ~260ms that made the MD5 attack instant and will make a real attack against this hash take weeks instead of seconds. Salting plus a deliberately slow algorithm is the fix; unsalted and fast is the mistake.
+
+### Mistake 2: ECB mode leaks structure, even when it "encrypts" correctly
+
+AES in ECB (Electronic Codebook) mode encrypts each independent 16-byte block with the same key and no chaining between blocks. That means identical plaintext blocks always produce identical ciphertext blocks — which sounds abstract until you encrypt something with repeating structure, like an image with large flat-colored regions.
+
+Build a test image with solid shapes (a blue bar, a red circle — plenty of 16-byte runs of identical pixel data), strip it to raw RGB bytes, and encrypt the raw bytes two ways with the same key:
+
+```bash
+openssl enc -aes-128-ecb -K $KEY -nopad -in plain.raw -out ecb.raw
+openssl enc -aes-128-cbc -K $KEY -iv $IV -nopad -in plain.raw -out cbc.raw
+```
+
+Reassemble both ciphertext blobs as images using the same width/height/mode as the original (the bytes are "encrypted" but the dimensions are still valid, so this works). The ECB output is unmistakably **not random noise** — the blue bar and red circle's outlines are still clearly visible as vertical striping, because every repeated run of background-color pixels encrypted to the exact same repeated ciphertext block. The CBC output, encrypted with the same key and same plaintext, is indistinguishable from random static — because CBC XORs each plaintext block with the *previous ciphertext block* before encrypting, so identical plaintext blocks produce different ciphertext every time, breaking the pattern completely.
+
+This is the real-world consequence: ECB mode technically "encrypts" (you can't trivially recover the plaintext bytes without the key), but it leaks everything about the plaintext's *structure* — which is often enough. A database column of flags or statuses encrypted in ECB reveals which rows share a value just by which ciphertexts repeat, without ever breaking the cipher itself. Never use ECB for anything beyond a single 16-byte block; use CBC, CTR, or (preferably) an authenticated mode like GCM, each of which randomizes or chains so identical plaintext never produces identical ciphertext twice.
+
+## Exercise
+
+Using your own local DVWA instance only:
+
+1. Log into DVWA, set security to **Low**, and use the **SQL Injection** page to dump the full `users` table (not just `admin` — there are several accounts, each with a different MD5 hash).
+2. For each hash you extract, write a short script (PHP, Python, or your language of choice) that tries a small hand-built wordlist of common passwords against it with plain `md5()`/`hashlib.md5()`, the same way this lesson's `crack.php` did.
+3. Once you've cracked at least two of them, rewrite DVWA's login check conceptually: write a *separate* local PHP script that stores one of those same cracked passwords using `password_hash(..., PASSWORD_BCRYPT)` instead of raw `md5()`, then re-run your cracking script against the new hash with the same wordlist and confirm it no longer matches instantly (time it).
+
+Hint: DVWA's non-admin accounts (`gordonb`, `1337`, `pablo`, `smithy`) use passwords from very common lists — you won't need anything exotic, and you shouldn't need more than a dozen candidate words to get all of them. If your script isn't matching anything, double-check you're hashing the *raw* guess with no trailing newline — `md5("letmein")` and `md5("letmein\n")` produce completely different hashes, and that one whitespace bug is the single most common reason a correct wordlist "fails."
