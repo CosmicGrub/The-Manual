@@ -1,0 +1,98 @@
+[
+  {
+    "id": "hardware-systems/tier-3/operating-systems-processes-threads-and-scheduling/q1",
+    "type": "multiple_choice",
+    "prompt": "What is the actual structural difference between a process and a thread on Linux?",
+    "choices": [
+      "A process has its own mm_struct (page tables/address space); a thread shares the mm_struct of the process that created it",
+      "A thread always runs at higher priority than a process",
+      "A process can only run one instruction stream, while a thread can run several",
+      "A thread has its own page tables but shares the same task_struct as its parent"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-3/operating-systems-processes-threads-and-scheduling/q2",
+    "type": "multiple_choice",
+    "prompt": "Why is switching between two threads of the same process cheaper than switching between two different processes?",
+    "choices": [
+      "Thread switches don't need to save the program counter",
+      "Thread switches skip saving general-purpose registers entirely",
+      "A process switch must reload the page-table-base register (e.g. CR3), invalidating the TLB; a thread switch within the same process does not need to",
+      "Threads are not preemptible, so no registers need saving"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "hardware-systems/tier-3/operating-systems-processes-threads-and-scheduling/q3",
+    "type": "multiple_choice",
+    "prompt": "Using the round-robin trace (P1=5, P2=3, P3=7, P4=2, quantum=3, all arriving at t=0), what is P3's waiting time?",
+    "choices": [
+      "7",
+      "17",
+      "10",
+      "3"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "hardware-systems/tier-3/operating-systems-processes-threads-and-scheduling/q4",
+    "type": "multiple_choice",
+    "prompt": "In that same round-robin trace, at what time does P4 complete?",
+    "choices": [
+      "t=9",
+      "t=11",
+      "t=13",
+      "t=2"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "hardware-systems/tier-3/operating-systems-processes-threads-and-scheduling/q5",
+    "type": "multiple_choice",
+    "prompt": "What makes Linux's CFS a fundamentally different idea from round robin, not just 'round robin with smaller slices'?",
+    "choices": [
+      "CFS picks the runnable task with the lowest accumulated weighted vruntime from a red-black tree, rather than rotating through a fixed FIFO queue in fixed-size slots",
+      "CFS does not support multiple CPUs",
+      "CFS gives every task exactly the same fixed time quantum, same as round robin, but orders the queue by arrival time instead of PID",
+      "CFS only schedules I/O-bound processes; CPU-bound processes still use round robin"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-3/operating-systems-processes-threads-and-scheduling/q6",
+    "type": "multiple_choice",
+    "prompt": "Two threads both run `counter++` on a shared `long counter` with no lock, 1,000,000 times each. What actually causes the final value to end up less than 2,000,000?",
+    "choices": [
+      "The compiler silently skips every other increment to optimize the loop",
+      "counter++ compiles to a load/add/store sequence; if one thread's load-add-store interleaves with another's, one thread's increment can be overwritten by a store of a stale value",
+      "Integer overflow causes the counter to wrap around to a smaller number",
+      "pthreads caps shared global variables at 1,000,000 by default"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "hardware-systems/tier-3/operating-systems-processes-threads-and-scheduling/q7",
+    "type": "multiple_choice",
+    "prompt": "What is the real distinction between a mutex and a counting semaphore?",
+    "choices": [
+      "A mutex can only be used by kernel code; a semaphore can only be used in user space",
+      "A semaphore is always slower because it supports counting above 1",
+      "A mutex has ownership (the locking thread must be the unlocking thread); a semaphore has no ownership and is routinely posted by a different thread than the one that waited, making it suited to signaling between producer and consumer",
+      "A mutex and a counting semaphore are interchangeable in every use case"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "hardware-systems/tier-3/operating-systems-processes-threads-and-scheduling/q8",
+    "type": "multiple_choice",
+    "prompt": "In xv6's scheduler() excerpt, a process that is switched into RUNNING via swtch() is itself responsible for which action?",
+    "choices": [
+      "Calling intr_on() before it can execute any instructions",
+      "Allocating its own entry in the global proc[] array",
+      "Releasing p->lock once it is running, and reacquiring it before calling back into swtch() to yield again",
+      "Setting its own state directly to RUNNABLE before swtch() returns control to the scheduler"
+    ],
+    "correctIndex": 2
+  }
+]

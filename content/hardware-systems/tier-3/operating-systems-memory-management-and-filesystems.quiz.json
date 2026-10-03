@@ -1,0 +1,98 @@
+[
+  {
+    "id": "hardware-systems/tier-3/operating-systems-memory-management-and-filesystems/q1",
+    "type": "multiple_choice",
+    "prompt": "A single-level page table for a 48-bit virtual address space, using 4 KB pages and 8-byte page table entries, would need how much memory per process just to hold the table itself?",
+    "choices": [
+      "512 GB",
+      "4 MB",
+      "2 TB",
+      "256 MB"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-3/operating-systems-memory-management-and-filesystems/q2",
+    "type": "multiple_choice",
+    "prompt": "Using the standard x86-64 4-level, 4 KB-page translation scheme (9 bits per level: PML4, PDPT, PD, PT, then a 12-bit offset), what is the PML4 index of virtual address 0x560f2a803018?",
+    "choices": [
+      "172",
+      "254",
+      "60",
+      "3"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-3/operating-systems-memory-management-and-filesystems/q3",
+    "type": "multiple_choice",
+    "prompt": "What does a TLB (Translation Lookaside Buffer) cache?",
+    "choices": [
+      "Recently used virtual-to-physical page translations",
+      "Recently accessed data values, independent of address",
+      "Branch prediction outcomes for recent instructions",
+      "Raw disk block addresses for the filesystem"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-3/operating-systems-memory-management-and-filesystems/q4",
+    "type": "multiple_choice",
+    "prompt": "On x86-64 with 4-level paging, a full TLB miss triggers a hardware page walk. In the worst case (no intermediate levels cached), how many additional dependent memory reads does that walk perform to resolve one virtual address?",
+    "choices": [
+      "4",
+      "1",
+      "2",
+      "8"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-3/operating-systems-memory-management-and-filesystems/q5",
+    "type": "multiple_choice",
+    "prompt": "In glibc's malloc_chunk struct, the fd and bk (free-list) pointers occupy the same bytes as:",
+    "choices": [
+      "The chunk's own payload, since those pointers are only meaningful while the chunk is free",
+      "A separate free-list array kept outside the heap entirely",
+      "The chunk's size field",
+      "The header of the next chunk in memory"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-3/operating-systems-memory-management-and-filesystems/q6",
+    "type": "multiple_choice",
+    "prompt": "In the 256-byte arena trace (three 40-byte-payload allocations A, B, C, followed by a free 88-byte-payload-including-header chunk F; then free(A) and free(C), where C coalesces with F because they're adjacent, but B stays allocated between A and the merged chunk): what is the total free payload afterward, and across how many separate regions is it split?",
+    "choices": [
+      "168 bytes across 2 regions",
+      "168 bytes across 1 region",
+      "128 bytes across 2 regions",
+      "200 bytes across 3 regions"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-3/operating-systems-memory-management-and-filesystems/q7",
+    "type": "multiple_choice",
+    "prompt": "Which of the following is NOT stored in a file's inode?",
+    "choices": [
+      "The file's name",
+      "The file's size in bytes",
+      "The file's permission bits",
+      "The file's hard-link count"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-3/operating-systems-memory-management-and-filesystems/q8",
+    "type": "multiple_choice",
+    "prompt": "ext4 is mounted data=ordered. A process appends data to log.txt; the system loses power after the journal's descriptor block and metadata blocks are written for that transaction, but before its commit block is written. What happens on reboot?",
+    "choices": [
+      "Journal recovery discards the entire incomplete transaction; filesystem metadata rolls back to its last committed state",
+      "The filesystem is permanently corrupted and requires a full fsck rebuild from scratch",
+      "The transaction is replayed as-is, since the metadata was already physically written to the journal",
+      "The new data block silently becomes part of the file, pointed to by a randomly generated extent entry"
+    ],
+    "correctIndex": 0
+  }
+]

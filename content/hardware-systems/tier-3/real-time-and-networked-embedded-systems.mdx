@@ -1,0 +1,244 @@
+---
+trackId: hardware-systems
+tier: 3
+title: "Real-Time & Networked Embedded Systems"
+order: 5
+estimatedHours: 18
+slug: real-time-and-networked-embedded-systems
+---
+
+You already have three pieces that this module wires together. From the OS Processes & Scheduling module, you know preemptive scheduling, priorities, and context switches. From Buses & I/O Fundamentals, you know I2C/SPI/UART at the wire level and interrupts vs. polling. From Microcontrollers & Basic Electronics I, you know ESP32 GPIO, ADC, and the "no heap churn in the hot loop" embedded C discipline. None of that gets re-explained here. What's new: a real scheduler running *on* the microcontroller instead of a bare `loop()`, a real network stack talking to a real broker, and two sensor signals fused into one estimate.
+
+## 1. Why a superloop stops being enough
+
+Your Arduino `loop()` is one giant priority-less task. Every statement in it blocks everything else. That was fine for an LED and a button. It breaks the moment you add Wi-Fi: an MQTT publish can block for tens to hundreds of milliseconds while TCP retransmits or the broker is slow to ACK. If that same `loop()` is also supposed to sample a sensor every 10 ms, the network call just ate your sampling deadline. A plain polling loop (buses module) at least had a comprehensible worst case; a loop mixing "poll a sensor" and "do network I/O" does not.
+
+FreeRTOS's answer is the one you already know from the OS module, running with none of the guardrails: multiple independent tasks, each with its own stack, scheduled preemptively by priority on a hardware tick timer. No MMU, no process isolation — any task can still corrupt any other task's memory with a stray pointer — but the scheduling *model* is the same round-robin-among-equals, preempt-on-higher-priority-ready idea.
+
+## 2. FreeRTOS tasks and priorities: two tasks, one proof
+
+A task is a function that never returns, created with a stack size, a priority, and (on ESP32) a core affinity:
+
+```c
+void heartbeatTask(void *pv) {
+  pinMode(LED_BUILTIN, OUTPUT);
+  for (;;) {
+    digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
+    vTaskDelay(pdMS_TO_TICKS(500));   // exactly 500 ms, whatever else is running
+  }
+}
+
+void workTask(void *pv) {
+  for (;;) {
+    for (volatile long i = 0; i < 20000000; i++) { /* ~2s of busy work on ESP32 */ }
+    vTaskDelay(1);
+  }
+}
+
+void setup() {
+  xTaskCreatePinnedToCore(heartbeatTask, "Heartbeat", 2048, NULL, 3, NULL, 1);
+  xTaskCreatePinnedToCore(workTask,      "Work",      2048, NULL, 1, NULL, 1);
+}
+void loop() { vTaskDelete(NULL); }  // hand core 1 entirely to our own tasks
+```
+
+`heartbeatTask` runs at priority 3; `workTask` at priority 1. The Arduino-ESP32 core's own `loopTask` normally runs at priority 1 and the idle task at priority 0, so both of our tasks already outrank idle, and heartbeat outranks work. The scheduler preempts on every tick — typically configured to 1000 Hz (1 ms resolution) on this core. Run this and the LED blinks at a rock-solid 500 ms no matter how deep `workTask` is into its busy loop, because the instant `heartbeatTask`'s `vTaskDelay` expires, the scheduler forcibly suspends whatever lower-priority task is running and resumes it — mid-instruction, not at some polite loop boundary. Swap the priorities (heartbeat at 1, work at 3) and the blink visibly stutters by up to ~2 seconds, because now the busy task can starve the timed one. That's the entire argument for priorities in one runnable example: priority isn't a hint, it's an eviction right.
+
+## 3. Getting data out of an ISR safely: queues
+
+You already know ISRs must be short and that shared state needs `volatile` (buses module). FreeRTOS adds one more hard rule: most FreeRTOS API calls are not safe to call from interrupt context, because they may block or trigger a context switch in ways the interrupt hardware doesn't expect. Every blocking call has an ISR-safe twin, suffixed `FromISR`, that never blocks and instead reports whether a higher-priority task just became ready:
+
+```c
+QueueHandle_t buttonQueue;
+
+void IRAM_ATTR buttonISR() {
+  uint32_t ts = millis();
+  BaseType_t woken = pdFALSE;
+  xQueueSendFromISR(buttonQueue, &ts, &woken);
+  if (woken) portYIELD_FROM_ISR();   // force a reschedule right now, don't wait for the tick
+}
+
+void buttonTask(void *pv) {
+  uint32_t pressTime;
+  for (;;) {
+    if (xQueueReceive(buttonQueue, &pressTime, portMAX_DELAY) == pdTRUE) {
+      Serial.printf("button pressed at t=%lu ms\n", pressTime);
+    }
+  }
+}
+
+void setup() {
+  buttonQueue = xQueueCreate(8, sizeof(uint32_t));   // create once, never in a hot loop
+  pinMode(0, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(0), buttonISR, FALLING);
+  xTaskCreatePinnedToCore(buttonTask, "Button", 2048, NULL, 2, NULL, 1);
+}
+```
+
+`IRAM_ATTR` pins the ISR's code into internal RAM on ESP32, because flash-mapped code can become briefly unreachable during flash operations, and an ISR that might fire during one of those windows must not be living in flash. `xQueueCreate` allocates its storage once at setup time — the same "no heap churn in the hot loop" rule from the microcontroller module applies to FreeRTOS objects, not just `malloc`.
+
+## 4. Wi-Fi + MQTT on the ESP32: publishing a real sensor reading
+
+Reuse the LDR voltage divider from the microcontroller module — same wiring, same `analogRead(A0)` — but now a high-priority task samples it and hands readings to a lower-priority task that owns the network:
+
+```c
+struct SensorReading { int lightRaw; uint32_t timestampMs; };
+QueueHandle_t sensorQueue;
+
+void sensorTask(void *pv) {
+  for (;;) {
+    SensorReading r = { analogRead(A0), millis() };
+    xQueueSend(sensorQueue, &r, 0);     // drop if the network task is behind; never block sampling
+    vTaskDelay(pdMS_TO_TICKS(500));
+  }
+}
+```
+
+The network side uses `WiFi.h` plus `PubSubClient`, the standard Arduino MQTT client:
+
+```c
+#include <WiFi.h>
+#include <PubSubClient.h>
+
+const char* MQTT_BROKER = "test.mosquitto.org";
+const uint16_t MQTT_PORT = 1883;
+const char* MQTT_TOPIC  = "manual/esp32/lab01/light";
+
+WiFiClient espClient;
+PubSubClient mqtt(espClient);
+
+void connectWiFi() {
+  WiFi.begin("YOUR_SSID", "YOUR_PASS");
+  while (WiFi.status() != WL_CONNECTED) vTaskDelay(pdMS_TO_TICKS(250));
+}
+
+void connectMQTT() {
+  mqtt.setServer(MQTT_BROKER, MQTT_PORT);
+  while (!mqtt.connected()) {
+    mqtt.connect("esp32-lab01-6f3a2b");   // client ID must be unique on the broker
+    if (!mqtt.connected()) vTaskDelay(pdMS_TO_TICKS(1000));
+  }
+}
+
+void mqttTask(void *pv) {
+  connectWiFi();
+  connectMQTT();
+  SensorReading r;
+  char payload[96];
+  for (;;) {
+    if (xQueueReceive(sensorQueue, &r, portMAX_DELAY) == pdTRUE) {
+      if (!mqtt.connected()) connectMQTT();
+      mqtt.loop();
+      snprintf(payload, sizeof(payload),
+        "{\"light_raw\":%d,\"millis\":%lu}", r.lightRaw, r.timestampMs);
+      mqtt.publish(MQTT_TOPIC, payload);
+    }
+  }
+}
+
+void setup() {
+  sensorQueue = xQueueCreate(10, sizeof(SensorReading));
+  xTaskCreatePinnedToCore(sensorTask, "Sensor", 2048, NULL, 2, NULL, 1);
+  xTaskCreatePinnedToCore(mqttTask,   "MQTT",   4096, NULL, 1, NULL, 1);  // bytes, not words, on ESP32
+}
+void loop() { vTaskDelete(NULL); }
+```
+
+`sensorTask` outranks `mqttTask`, so a stalled TCP retransmit inside `mqtt.publish()` never delays sampling — it just delays when that sample reaches the broker. Subscribing from a terminal shows the actual wire result:
+
+```bash
+$ mosquitto_sub -h test.mosquitto.org -t "manual/esp32/lab01/light" -v
+manual/esp32/lab01/light {"light_raw":612,"millis":48213}
+manual/esp32/lab01/light {"light_raw":598,"millis":48713}
+```
+
+MQTT itself runs over the plain TCP socket you already know from the networking module — it's just a tiny binary framing on top. The CONNECT packet your ESP32 sends looks like this on the wire (captured conceptually; your exact bytes vary with client ID):
+
+```
+10 19                                            -- CONNECT (type=1), remaining length=25
+00 04 4D 51 54 54                                -- protocol name len=4, "MQTT"
+04                                                -- protocol level 4 (MQTT v3.1.1)
+02                                                -- connect flags: CleanSession=1
+00 3C                                             -- keep-alive = 60s
+00 0D 65 73 70 33 32 2D 6C 61 62 30 31 2D 36       -- client ID len=13, "esp32-lab01-6"
+```
+
+The fixed header's first byte packs the packet type in the upper nibble and flags in the lower: `0x10` = type `1` (CONNECT), flags `0000`. A PUBLISH at QoS 0 is type `3`, flags `0000` → `0x30`; QoS 1 sets the DUP/QoS bits in the same nibble. QoS 0 ("fire and forget," what `publish()` defaults to) is the right choice for a light reading every 500 ms — losing one sample is irrelevant. QoS 1 (at-least-once, broker ACKs, client retries) matters when every message is an event you can't afford to drop, like the alarm publish you'd trigger from the button queue in section 3.
+
+## 5. I2C sensor fusion: a complementary filter from real register bytes
+
+The MPU6050 (accelerometer + gyroscope, one I2C device, address `0x68`) is the standard "two sensors, one estimate" teaching example. Both signals measure orientation, but with opposite failure modes: the accelerometer gives an absolute tilt angle via `atan2`, but it's noisy and corrupted by any real acceleration (not just gravity); the gyroscope gives a clean, low-noise *rate* of rotation, but integrating that rate to get an angle accumulates drift over time. Fusing them cancels each one's weakness with the other's strength.
+
+First, wake the chip — it powers up asleep:
+
+```c
+#define MPU_ADDR 0x68
+void mpuInit() {
+  Wire.beginTransmission(MPU_ADDR);
+  Wire.write(0x6B);   // PWR_MGMT_1
+  Wire.write(0x00);   // clear SLEEP bit
+  Wire.endTransmission();
+}
+```
+
+Registers `0x3B`-`0x40` hold accel X/Y/Z (two bytes each, big-endian, two's complement — the exact encoding from the Number Representation module), `0x41`-`0x42` hold temperature, `0x43`-`0x48` hold gyro X/Y/Z:
+
+```c
+void mpuReadRaw(int16_t *ax, int16_t *ay, int16_t *az,
+                int16_t *gx, int16_t *gy, int16_t *gz) {
+  Wire.beginTransmission(MPU_ADDR);
+  Wire.write(0x3B);              // ACCEL_XOUT_H, auto-increments through all 14 bytes
+  Wire.endTransmission(false);   // repeated start
+  Wire.requestFrom(MPU_ADDR, 14);
+  *ax = (Wire.read() << 8) | Wire.read();
+  *ay = (Wire.read() << 8) | Wire.read();
+  *az = (Wire.read() << 8) | Wire.read();
+  Wire.read(); Wire.read();      // skip TEMP_OUT_H/L
+  *gx = (Wire.read() << 8) | Wire.read();
+  *gy = (Wire.read() << 8) | Wire.read();
+  *gz = (Wire.read() << 8) | Wire.read();
+}
+```
+
+Say `az` comes back as the byte pair `0xFF 0x38`. As an unsigned 16-bit value that's `0xFF38` = 65,336; as signed two's complement (negative because the top bit is 1) it's `65336 - 65536 = -200`. At the default ±2g range the sensitivity is 16384 LSB/g, so that's `-200 / 16384 ≈ -0.0122 g` — the chip reading almost zero vertical acceleration, roughly lying on its side. The gyro side uses the default ±250°/s range at 131 LSB/(°/s): a raw `gx` of `262` is `262 / 131 = 2.0°/s`.
+
+The complementary filter blends an accel-derived angle with a gyro-integrated angle, weighted almost entirely toward the gyro each step, with a small continuous pull back toward the accelerometer's absolute reference:
+
+```c
+float pitch = 0.0f;
+const float ALPHA = 0.98f;
+
+void fusionTask(void *pv) {
+  mpuInit();
+  uint32_t lastMicros = micros();
+  for (;;) {
+    int16_t ax, ay, az, gx, gy, gz;
+    mpuReadRaw(&ax, &ay, &az, &gx, &gy, &gz);
+
+    uint32_t now = micros();
+    float dt = (now - lastMicros) / 1e6f;
+    lastMicros = now;
+
+    float accelPitch   = atan2f((float)ay, (float)az) * 180.0f / (float)M_PI;
+    float gyroRateDegS = gx / 131.0f;
+
+    pitch = ALPHA * (pitch + gyroRateDegS * dt) + (1.0f - ALPHA) * accelPitch;
+
+    vTaskDelay(pdMS_TO_TICKS(10));   // ~100 Hz fusion rate
+  }
+}
+```
+
+`ALPHA = 0.98` means each 10 ms step trusts the gyro-integrated estimate 98% and nudges 2% toward whatever the accelerometer says *right now*. Over a fast tilt (tenths of a second), the gyro term dominates and the filter tracks the motion cleanly, ignoring the accelerometer's vibration noise. Over seconds of sitting still, that steady 2% correction cancels out whatever drift the gyro integration accumulated, pulling `pitch` back to the accelerometer's noisy-but-unbiased long-term answer. Neither sensor alone gives you both a fast, clean response *and* a stable long-term reference; the blend does.
+
+## 6. Putting it together: one board, three tasks, one queue
+
+A complete node looks like `fusionTask` (priority 2, ~100 Hz, time-critical) writing fused pitch into a queue, and `mqttTask` (priority 1, best-effort) draining that queue and publishing whenever it has network capacity — exactly the sensor/network split from section 4, with the LDR swapped for the fusion result. The priority ordering is not arbitrary: the task with the hard timing requirement always outranks the task whose job is allowed to be late.
+
+## Exercise
+
+Extend the ISR/queue pattern from section 3: wire a second MPU6050 interrupt pin (its `INT` line, configurable to pulse on "motion detected" via the `MOT_THR`/`MOT_DUR` registers) to an ESP32 GPIO, and build a three-task system: (1) a priority-2 `fusionTask` running the complementary filter at 100 Hz as above, (2) a priority-3 ISR-fed `motionTask` that wakes immediately on a motion interrupt and sets a flag read by the MQTT task, and (3) a priority-1 `mqttTask` that normally publishes fused pitch every 2 seconds but, when the motion flag is set, publishes immediately with `{"event":"motion","pitch":...}`. Requirements: show your priority assignments and justify each one in one sentence; use `xQueueSendFromISR`/`portYIELD_FROM_ISR` correctly from the motion ISR; and explain concretely why `motionTask` must outrank `fusionTask`.
+
+Hint: you don't need real motion-interrupt register-configuration code to reason through this — treat the `INT` pin as a plain digital interrupt source (same `attachInterrupt` shape as section 3's button) and focus the exercise on getting the three priorities and the ISR-safe handoff right; a motion event that has to wait behind a routine 100 Hz fusion cycle defeats the entire point of giving it its own interrupt.
+
+## Check your understanding

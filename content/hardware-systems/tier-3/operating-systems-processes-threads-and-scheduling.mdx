@@ -1,0 +1,196 @@
+---
+trackId: hardware-systems
+tier: 3
+title: "Operating Systems: Processes, Threads & Scheduling"
+order: 1
+estimatedHours: 20
+slug: operating-systems-processes-threads-and-scheduling
+---
+
+## Process vs. Thread: The Actual Structural Difference
+
+A process is not "a running program" in some vague sense — it is a specific set of kernel data structures plus a specific hardware configuration. The structural fact that matters: **a process owns its own address space**, meaning its own page tables, meaning its own mapping from virtual addresses to physical frames. A thread has no address space of its own — it shares the address space of the process that created it.
+
+Concretely, on Linux every schedulable entity is a `task_struct`. A plain process gets its own `mm_struct` (the structure holding its page tables, VMAs — virtual memory areas — and heap/stack boundaries). When you call `fork()`, the kernel allocates a new `task_struct` *and* a new `mm_struct`, and sets up the child's page tables as copy-on-write copies of the parent's. When you create a thread (`pthread_create`, which on Linux is `clone()` under the hood with `CLONE_VM | CLONE_FS | CLONE_FILES | CLONE_THREAD`), the kernel allocates a new `task_struct` but points its `mm` field at the *same* `mm_struct` as the creating thread. Same page tables, same CR3 value (the register holding the physical address of the top-level page table on x86-64), same heap, same global variables, same open file descriptor table.
+
+This has two direct, measurable consequences:
+
+**Crash isolation.** If thread B writes through a wild pointer into thread A's stack, the MMU does not stop it — both threads' stacks are mapped in the same address space, both are just ordinary writable pages to the hardware. A `SIGSEGV` only happens if you touch an unmapped page; corrupting a sibling's live data is cheap, silent, and immediately exploitable for later crashes with confusing stack traces. If *process* B writes to the same virtual address process A uses, nothing happens to A at all — B's page table simply doesn't have a mapping to A's physical frames. The MMU enforces process isolation as a side effect of translation; it enforces nothing between threads.
+
+**Communication cost.** Two threads sharing data just... share data. Thread A writes `shared_counter`, thread B reads it on its next load — no system call, no copy, cache-coherence protocol handles visibility (eventually, and only correctly if you order memory accesses properly — more on that below). Two separate processes have no shared memory by default, so IPC requires the kernel: `pipe()` + `read()`/`write()` (two syscalls plus a kernel-space buffer copy per transfer), `socketpair()`, or explicit `shmget()`/`mmap(MAP_SHARED)` if they want thread-like sharing — which is itself the kernel punching a deliberate hole in the isolation it otherwise gives you for free. A `pipe()` round trip costs on the order of 1–5 microseconds even on fast hardware; a thread-to-thread write visible after a memory barrier costs tens of nanoseconds. That three-orders-of-magnitude gap is the entire reason threads exist as a distinct concept instead of everyone just using `fork()`.
+
+## Context Switching: What Actually Gets Saved and Restored
+
+Recall from Tier 1: a CPU core at any instant is entirely described by its register file — general-purpose registers, the program counter (PC / RIP), the stack pointer (SP / RSP), and the flags/status register (EFLAGS, or CPSR on ARM). A context switch is the kernel saving that entire register state for the task being evicted, and loading a previously-saved register state for the task being scheduled in. Nothing more, nothing less — but the *where* matters.
+
+Each task has a kernel stack and, within it (or adjacent to the `task_struct`), a saved-register area. When a timer interrupt or syscall traps into the kernel, the hardware itself already pushes some state (PC, SP, flags) onto the current kernel stack as part of the trap mechanism. The kernel's `switch_to()` (Linux) or `swtch()` (xv6) then explicitly saves the remaining general-purpose registers into the outgoing task's context structure, swaps the stack pointer register to point at the incoming task's kernel stack, and pops the incoming task's saved registers back out of memory into the CPU.
+
+Two context switches are not the same cost, and the difference is exactly the process/thread distinction above:
+
+- **Switching between two threads of the same process**: save/restore registers, switch kernel stack pointer. CR3 (the page-table-base register) is *not* reloaded — same address space, same mappings, so the TLB (translation lookaside buffer) stays valid. This is why thread switches are cheaper than process switches.
+- **Switching between two different processes**: everything above, *plus* reloading CR3 with the new process's page table base. That single instruction (`mov cr3, rax` on x86) invalidates the entire TLB (unless the CPU supports tagged TLBs with PCID, which modern Intel/AMD chips do, to soften exactly this cost). Every subsequent memory access until the TLB refills takes a page-table walk instead of a cache hit. This is the real reason "process switches are more expensive than thread switches" — it isn't folklore, it's a specific pipeline stall caused by a specific register write.
+
+In both cases the hardware also typically takes an interrupt or trap to get into kernel mode at all (unless it's a cooperative/voluntary switch like a thread calling `sched_yield()` or blocking on I/O), and that trap/return pair costs on the order of 100–1000 cycles by itself on top of the register save/restore, which is itself 20-ish general-purpose + several special registers — not huge, but it happens potentially thousands of times a second, which is why "scheduler overhead" is a real line item in system performance, not a hypothetical.
+
+## Round Robin: A Real Worked Trace
+
+Round robin (RR) is the simplest preemptive scheduler: maintain a FIFO ready queue, run the head of the queue for at most one time quantum, and if it hasn't finished, put it back at the tail.
+
+Four processes, all arriving at t=0, quantum = 3:
+
+| Process | Burst time |
+|---|---|
+| P1 | 5 |
+| P2 | 3 |
+| P3 | 7 |
+| P4 | 2 |
+
+Initial queue: `[P1, P2, P3, P4]`. Trace it tick by tick:
+
+```
+t=0  : run P1 for min(3,5)=3   -> P1 remaining=2, requeue P1
+t=3  : run P2 for min(3,3)=3   -> P2 DONE at t=6
+t=6  : run P3 for min(3,7)=3   -> P3 remaining=4, requeue P3
+t=9  : run P4 for min(3,2)=2   -> P4 DONE at t=11
+t=11 : run P1 for min(3,2)=2   -> P1 DONE at t=13
+t=13 : run P3 for min(3,4)=3   -> P3 remaining=1, requeue P3
+t=16 : run P3 for min(3,1)=1   -> P3 DONE at t=17
+```
+
+Gantt chart: `| P1(0-3) | P2(3-6) | P3(6-9) | P4(9-11) | P1(11-13) | P3(13-16) | P3(16-17) |`
+
+Completion times: P1=13, P2=6, P3=17, P4=11. Since all arrived at t=0, turnaround time equals completion time. Waiting time = turnaround − burst:
+
+- P1: 13 − 5 = **8**
+- P2: 6 − 3 = **3**
+- P3: 17 − 7 = **10**
+- P4: 11 − 2 = **9**
+
+Average waiting time = (8+3+10+9)/4 = **7.5**. Notice the quantum size is the entire tuning knob: too large and RR degenerates toward first-come-first-served (bad average wait for short jobs stuck behind long ones); too small and you pay the context-switch cost from the previous section over and over for almost no forward progress per slice. There's no "right" quantum independent of your context-switch overhead and job mix — that tradeoff is the whole design space of RR.
+
+## Why CFS Is a Different Idea, Not Just "Better Round Robin"
+
+Linux's Completely Fair Scheduler (CFS, the default class for ordinary tasks since 2.6.23) does not use a fixed quantum or a FIFO queue at all. Its core idea: give every runnable task a **virtual runtime** (`vruntime`), and always run whichever runnable task has the *smallest* `vruntime`. `vruntime` accumulates proportionally to actual CPU time consumed, scaled inversely by the task's weight (derived from its *nice* value — nice 0 is weight 1024; each nice step multiplies weight by roughly 1.25). A task that has run less (in weighted terms) than its peers has a lower `vruntime` and gets picked next.
+
+This is a genuinely different model from RR, not RR-with-extra-steps:
+
+- RR's fairness is *structural and blind*: everyone gets an equal-length slot in a fixed rotation, regardless of history. CFS's fairness is *measured and corrective*: the scheduler is explicitly trying to equalize accumulated weighted runtime over time, and will run a task that's fallen behind for longer than a "quantum" if that's what's needed to catch it up, or preempt a task early if a newly-woken task has a much lower `vruntime`.
+- RR's ready queue is an unordered FIFO list. CFS's ready queue is a **red-black tree keyed by `vruntime`** — picking the next task to run is "find the leftmost node," an O(log n) tree operation, not "pop the front of a list."
+- RR has no concept of priority beyond queue position. CFS's `nice` value directly changes how fast `vruntime` accrues, so a nice -5 task accrues `vruntime` more slowly than a nice 0 task doing the same work, and therefore stays "owed" CPU time longer and gets scheduled more often/longer — priority is baked into the comparison function, not bolted on as a separate queue.
+- There's no global fixed quantum. Each task gets a *target latency slice* computed from `sched_latency_ns` divided among the number of runnable tasks (bounded below by `sched_min_granularity_ns`), so the "quantum" shrinks automatically as load increases instead of staying fixed and making response time degrade linearly with the number of runnable tasks the way naive RR would.
+
+The name is literally the design goal: not "round robin," but "completely fair" in the specific, measurable sense of minimizing the spread of `vruntime` across runnable tasks at every scheduling decision.
+
+## Race Conditions: The Actual Wrong Behavior, Then the Fix
+
+Here is the canonical bug, in C with pthreads, and it is not hypothetical — this exact pattern loses updates in production code that "worked in testing":
+
+```c
+#include <stdio.h>
+#include <pthread.h>
+
+long counter = 0;
+
+void *increment(void *arg) {
+    for (long i = 0; i < 1000000; i++) {
+        counter++;          // NOT atomic: load, add, store
+    }
+    return NULL;
+}
+
+int main(void) {
+    pthread_t t1, t2;
+    pthread_create(&t1, NULL, increment, NULL);
+    pthread_create(&t2, NULL, increment, NULL);
+    pthread_join(t1, NULL);
+    pthread_join(t2, NULL);
+    printf("counter = %ld (expected 2000000)\n", counter);
+    return 0;
+}
+```
+
+Run this and you reliably get something like `counter = 1437212` — not 2,000,000, and a different wrong number nearly every run. Why: `counter++` is not one hardware operation. On x86-64 it compiles to roughly:
+
+```asm
+mov rax, [counter]   ; load
+add rax, 1           ; increment in register
+mov [counter], rax   ; store
+```
+
+Three instructions. If thread 1 executes `mov`/`add` and then is preempted (or simply loses a cache-coherence race) before its `mov [counter], rax`, and thread 2 runs the full sequence on the *old* value, then thread 1 resumes and stores *its* stale incremented value — thread 2's increment is silently overwritten. No crash, no error, just a smaller number than it should be. This is exactly a context-switch-timing problem: the three-instruction sequence is not atomic with respect to the scheduler, and the scheduler does not know or care that it's in the middle of someone's "read-modify-write."
+
+Fixed with a mutex:
+
+```c
+long counter = 0;
+pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+
+void *increment(void *arg) {
+    for (long i = 0; i < 1000000; i++) {
+        pthread_mutex_lock(&lock);
+        counter++;
+        pthread_mutex_unlock(&lock);
+    }
+    return NULL;
+}
+```
+
+Now `counter = 2000000` every single time. The mutex doesn't make `counter++` atomic in the CPU sense — it makes the *critical section* mutually exclusive: only one thread can be between `lock` and `unlock` at a time, so the three-instruction sequence can never be interleaved with another thread's copy of the same sequence.
+
+**Mutex vs. counting semaphore — the real distinction, not just "a semaphore can count higher":** A mutex has *ownership*. The thread that calls `pthread_mutex_lock()` must be the thread that calls `pthread_mutex_unlock()`; many implementations check this and abort if violated, and mutexes support priority inheritance specifically because ownership is well-defined (a high-priority thread blocked on a mutex can temporarily boost the priority of the specific thread holding it). A mutex's value is conceptually binary: locked or unlocked, by someone specific.
+
+A semaphore has a count and **no ownership**. `sem_post()` can legally be called by a thread that never called `sem_wait()` — this is the normal pattern for signaling, not just mutual exclusion. A counting semaphore initialized to N is used to guard a resource pool of N interchangeable units (e.g., N free slots in a bounded buffer): a producer calls `sem_wait(&empty_slots)` to claim a slot, writes data, then calls `sem_post(&full_slots)` to signal a *different* thread (the consumer) that data is ready — the producer never "unlocks" anything it locked. That producer/consumer handoff across two different semaphores, each incremented by one party and decremented by the other, has no mutex equivalent, because a mutex fundamentally models "exclusive access to one thing by its current owner," and a semaphore models "available count of a resource, signaled across parties."
+
+## Reading Real Scheduler Code: xv6's `scheduler()`
+
+Here is xv6's actual per-CPU scheduling loop (`kernel/proc.c`), annotated:
+
+```c
+void
+scheduler(void)
+{
+  struct proc *p;
+  struct cpu *c = mycpu();
+
+  c->proc = 0;
+  for(;;){
+    // Avoid deadlock by ensuring that devices can interrupt.
+    intr_on();
+
+    for(p = proc; p < &proc[NPROC]; p++) {
+      acquire(&p->lock);
+      if(p->state == RUNNABLE) {
+        // Switch to chosen process. It is the process's job
+        // to release its lock and then reacquire it
+        // before jumping back to us.
+        p->state = RUNNING;
+        c->proc = p;
+        swtch(&c->context, &p->context);
+
+        // Process is done running for now.
+        // It should have changed its p->state before coming back.
+        c->proc = 0;
+      }
+      release(&p->lock);
+    }
+  }
+}
+```
+
+Read it exactly as written, not as a summary: this *is* round robin — a flat linear scan of the global `proc[]` array, picking the first `RUNNABLE` entry each lap, which is structurally identical to the FIFO walk you traced by hand above (xv6 relies on the array scan order plus state transitions to approximate fairness; it has no `vruntime`, no tree, no quantum-scaling). `p->lock` is held while *inspecting* state and while flipping it to `RUNNING`, but `swtch()` — the actual register-save/restore routine from the context-switching section — runs with that lock still conceptually "held" across the switch; the process being switched *into* is responsible for releasing `p->lock` itself once it's running (typically right after it wakes up inside whatever syscall put it to sleep), and must reacquire it before its own code path eventually calls back into `swtch()` to yield. This lock-handoff-across-a-context-switch is the real mechanic that makes `p->state` safe to read and write from both the scheduler and the process itself without a separate race — and it is a direct, code-level answer to "how does the kernel avoid racing with itself over scheduling state," using exactly the mutual-exclusion primitive from the previous section, just implemented as a spinlock instead of `pthread_mutex_t`.
+
+## Exercise: Trace CFS By Hand
+
+Three runnable tasks on one CPU, using real CFS weight values:
+
+| Task | nice | weight |
+|---|---|---|
+| A | 0 | 1024 |
+| B | 5 | 335 |
+| C | -5 | 3121 |
+
+All three start at `vruntime = 0` at t=0. CFS always runs the runnable task with the lowest `vruntime`, and running for real time `delta` increases that task's `vruntime` by `delta * 1024 / weight`. Assume the scheduler re-evaluates every 1ms of real time (i.e., treat it as if you're stepping 1ms at a time and re-picking).
+
+Work out, by hand, which task runs during each of the first 6ms, and what each task's `vruntime` is after 6ms. Then answer: roughly what ratio of *real CPU time* does C end up getting compared to B over a long run, and does that match the intuition that nice -5 should get noticeably more CPU than nice +5?
+
+*Hint:* since all three start tied at `vruntime=0`, the first pick is arbitrary among ties (real CFS breaks ties by insertion order in the red-black tree) — pick A first and work forward mechanically, recomputing the minimum after every 1ms step. Don't try to shortcut it algebraically on your first pass; the point of the exercise is watching the low-weight task's `vruntime` climb fast and the high-weight task's `vruntime` climb slowly, which is the entire mechanism, not a side effect of it.

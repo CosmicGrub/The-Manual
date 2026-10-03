@@ -1,0 +1,212 @@
+---
+trackId: hardware-systems
+tier: 3
+title: "Operating Systems: Memory Management & Filesystems"
+order: 2
+estimatedHours: 20
+slug: operating-systems-memory-management-and-filesystems
+---
+
+## Why every process gets its own address space
+
+Back in Tier 0-2 you worked close to the metal: a microcontroller with one flat physical address space, where `0x20000000` means the same byte of RAM no matter who's asking. An OS kernel throws that away on purpose. Run `cat /proc/self/maps` in two different shells and you'll see both processes claim overlapping virtual addresses, e.g. both might have a heap starting near `0x55d1a2a01000` and a stack near `0x7ffd3c200000`. They aren't fighting over the same RAM — each process has its own **page tables**, and the pointer `0x55d1a2a01000` in process A's page tables and the identical-looking pointer in process B's page tables are translated to completely different physical frames.
+
+This buys three things a flat address space can't:
+
+1. **Isolation** — a wild pointer write in process A cannot corrupt process B's memory, because A's page tables simply have no entry that maps to B's physical frames.
+2. **Simple linking** — every executable can be compiled/linked as if it owns the machine (code at `0x400000`, or wherever the loader puts it for position-independent executables), without negotiating addresses with every other program that might run alongside it.
+3. **Lazy, overcommitted memory** — `malloc`-ing 1 GB doesn't require 1 GB of physical RAM to exist yet. The kernel can map a virtual region with no physical backing, and only allocate a physical frame the first time you actually touch a page (a page fault, handled by the kernel, invisible to you).
+
+A real `/proc/<pid>/maps` snippet looks like this:
+
+```
+555555554000-555555555000 r--p 00000000 08:01 1247102 /home/user/a.out
+555555555000-555555556000 r-xp 00001000 08:01 1247102 /home/user/a.out
+555555756000-555555777000 rw-p 00000000 00:00 0       [heap]
+7ffff7dc0000-7ffff7de3000 r--p 00000000 08:01 2883291 /usr/lib/x86_64-linux-gnu/libc.so.6
+7ffffffde000-7ffffffff000 rw-p 00000000 00:00 0       [stack]
+```
+
+Every one of those ranges is virtual. The MMU (memory management unit), fed by page tables the kernel maintains per-process, does the translation on every single memory access, in hardware, at full CPU speed.
+
+## Virtual-to-physical translation: a worked example
+
+On x86-64, a virtual address is 64 bits wide but only the low 48 bits are currently used (bits 63-48 must all match bit 47 — "canonical form"). Those 48 bits are sliced into five fields for 4 KB pages:
+
+```
+63        48 47      39 38      30 29      21 20      12 11         0
+[sign-ext ] [ PML4   ] [ PDPT   ] [ PD     ] [ PT     ] [  offset   ]
+   16 bits    9 bits     9 bits     9 bits     9 bits      12 bits
+```
+
+Take a real pointer value, `0x00007f3a2b1c4018` (something `mmap` might hand back for a shared library). In binary, its low 48 bits split into:
+
+| Field | Bits      | Value (dec) | Value (hex) |
+|-------|-----------|-------------|-------------|
+| PML4 index | 47-39 | 254 | 0xFE |
+| PDPT index | 38-30 | 232 | 0xE8 |
+| PD index   | 29-21 | 344 | 0x158 |
+| PT index   | 20-12 | 452 | 0x1C4 |
+| Offset     | 11-0  | 24  | 0x18 |
+
+(You can check this yourself: `(0x7f3a2b1c4018 >> 39) & 0x1FF` gives 254, and so on for each shift.)
+
+The CPU's dedicated `CR3` register holds the physical address of the process's **PML4 table** — the root of a 4-level radix tree. Translation is four sequential, dependent memory reads:
+
+1. Read PML4 table (pointed to by CR3) at index 254. Suppose that entry's value is `0x1a05023`. The low 12 bits (`0x23` = `0b100011`) are flags: bit 0 Present=1, bit 1 Read/Write=1, bit 2 User=1, bit 5 Accessed=1. The high bits, `0x1a05000`, are the physical address of the next table (a PDPT).
+2. Read that PDPT at index 232. Entry = `0x1b10023` → next table (a PD) at physical `0x1b10000`.
+3. Read that PD at index 344. Entry = `0x1c44023`, PS bit (huge page) = 0, so it points to a PT at physical `0x1c44000`.
+4. Read that PT at index 452. Entry = `0x2fd7067`. Flags `0x67` = Present, RW, User, Accessed, **and Dirty** (bit 6 — this page has been written to). The physical frame is `0x2fd7000`.
+
+Final physical address = frame base + offset = `0x2fd7000 + 0x18 = 0x2fd7018`.
+
+That's the real mechanism: four table lookups, each a full memory access, just to resolve **one** load or store instruction. Every level exists because allocating a flat table big enough to cover all 2^36 possible 4 KB pages in a 48-bit space would need 2^36 × 8 bytes = **512 GB** per process, just for the table. The multi-level design means the kernel only has to allocate PDPT/PD/PT subtables for ranges of address space a process is actually using — most of a 48-bit space is unmapped (no PML4 entry at all), and that costs zero memory.
+
+## TLBs: why the walk is cached, and what a miss costs
+
+Paying for four dependent memory reads on every instruction that touches memory would be unworkable. So the CPU caches recent virtual-to-physical translations in the **TLB (Translation Lookaside Buffer)** — a small, fully-associative cache, separate from your L1/L2/L3 data caches (which you already covered in the memory hierarchy material), keyed by virtual page number instead of data address.
+
+- **TLB hit** (typical: L1 dTLB, ~64 entries on a modern x86-64 core): the physical frame is available in roughly the same 1 cycle as reading any other tiny on-core cache. The four-level walk never happens.
+- **L1 miss, L2 (STLB) hit** (L2 TLB often holds ~1500+ entries): costs on the order of 7-10 cycles — slower, but still far cheaper than a walk.
+- **Full TLB miss**: the hardware page-walker (or, on some architectures, a software trap handler) performs exactly the four dependent reads shown above. If every one of those four reads is itself a cold miss all the way to DRAM (~70-100 ns round trip each), the walk can cost 300-500+ ns — at 3 GHz, somewhere north of 1000 cycles, for a translation that a TLB hit gives you in 1.
+
+This is why `mmap`-ing memory in small scattered pieces, or randomly scanning a huge array, is slow in a way that has nothing to do with the data cache: you're generating a stream of TLB misses, not just cache misses. It's also why huge pages (2 MB or 1 GB pages instead of 4 KB) exist — one TLB entry then covers 512× or 262144× as much address space, so the same working set needs far fewer entries to stay resident.
+
+## malloc internals: free lists, chunk headers, fragmentation
+
+`malloc`/`free` are a userspace library sitting on top of a much coarser kernel facility (`brk`/`sbrk` to grow the process's heap segment, or `mmap` for large allocations). The allocator's job is to carve that coarse region into variable-sized chunks and track which are in use.
+
+A minimal allocator needs a header in front of every chunk:
+
+```c
+typedef struct chunk {
+    size_t size;        /* total chunk size in bytes, including this header */
+    int    free;        /* 1 = on the free list, 0 = in use */
+    struct chunk *next;  /* next chunk in the free list (only meaningful when free) */
+} chunk_t;              /* 16 bytes on a 64-bit system after padding */
+
+#define HDR 16
+static char arena[256];
+static chunk_t *free_list;
+
+void heap_init(void) {
+    free_list = (chunk_t *)arena;
+    free_list->size = 256;
+    free_list->free = 1;
+    free_list->next = NULL;
+}
+
+void *my_malloc(size_t req) {
+    req = (req + 7) & ~7;                 /* 8-byte align the payload */
+    chunk_t *prev = NULL, *cur = free_list;
+    while (cur) {
+        if (cur->free && cur->size - HDR >= req) {
+            size_t remainder = cur->size - HDR - req;
+            if (remainder >= HDR + 8) {    /* worth splitting */
+                chunk_t *rest = (chunk_t *)((char *)cur + HDR + req);
+                rest->size = remainder;
+                rest->free = 1;
+                rest->next = cur->next;
+                cur->size  = HDR + req;
+                if (prev) prev->next = rest; else free_list = rest;
+            } else {
+                if (prev) prev->next = cur->next; else free_list = cur->next;
+            }
+            cur->free = 0;
+            return (char *)cur + HDR;
+        }
+        prev = cur; cur = cur->next;
+    }
+    return NULL;   /* out of memory */
+}
+```
+
+Trace a 256-byte arena through three `my_malloc(40)` calls. Each request needs a 40-byte payload, so each chunk takes `HDR + 40 = 56` bytes:
+
+```
+offset:   0        56       112      168              256
+        [--A(56)--][--B(56)--][--C(56)--][----F(88)-----]
+          40B pay    40B pay    40B pay      72B pay, free
+```
+
+Now `free(A)` then `free(C)`. `A` has no neighbor to merge with on its left (it's first) and `B` on its right is still allocated, so `A` just sits free at offset 0. But `C` is immediately followed by the already-free chunk `F` at offset 168 — a correct allocator **coalesces** adjacent free chunks, merging `C` and `F` into one `56 + 88 = 144`-byte chunk (128-byte payload):
+
+```
+offset:   0        56       112                       256
+        [free(56)][--B(56)--][------free, merged(144)----]
+          40B free   in use         128B free
+```
+
+Total free payload is `40 + 128 = 168` bytes — but it exists as **two** non-adjacent pieces because `B` is wedged between them. This is **external fragmentation**: even though there's enough total free memory, a request for, say, 60 bytes can't be satisfied by the 40-byte piece and has to fall through to the 128-byte piece, splitting it further and fragmenting the heap more over time. **Internal fragmentation** is the other kind: when 24-byte alignment/rounding and a fixed-size header force a request for, say, 1 byte to actually consume 24 bytes — the wasted space inside a chunk that the requester can never use.
+
+Coalescing only works on physically adjacent chunks, which is why real allocators walk chunks in address order (not free-list order) to find merge candidates — if `B` is later freed too, `free(56)`, `B(56)`, and `merged(144)` are all contiguous and can collapse back into a single 256-byte free region, fully healing the fragmentation.
+
+Real allocators (glibc's `malloc`) use essentially this idea with more bookkeeping. Its actual chunk header is:
+
+```c
+struct malloc_chunk {
+    size_t mchunk_prev_size;  /* only valid if previous chunk is free */
+    size_t mchunk_size;       /* size, with low 3 bits used as flags */
+    struct malloc_chunk *fd;  /* only used while this chunk is FREE */
+    struct malloc_chunk *bk;  /* only used while this chunk is FREE */
+};
+```
+
+The clever bit: `fd`/`bk` (the free-list forward/back pointers) live inside what becomes the user's payload once the chunk is allocated. A free chunk needs list pointers; an allocated chunk needs payload space; it's never both at once, so they share the same bytes. This is also exactly why writing past the end of a heap buffer ("heap overflow") is dangerous — you're writing into the next chunk's header, and if that chunk is later freed, corrupted `fd`/`bk` pointers can be used to trick the allocator into writing attacker-controlled data to an attacker-controlled address.
+
+## Inodes: what a file actually is
+
+A filename is not part of a file. Run:
+
+```
+$ ls -i notes.txt
+271845 notes.txt
+$ stat notes.txt
+  File: notes.txt
+  Size: 1536      Blocks: 8          IO Block: 4096   regular file
+Device: 801h/2049d Inode: 271845      Links: 2
+Access: (0644/-rw-r--r--)  Uid: ( 1000/   user)   Gid: ( 1000/   user)
+Modify: 2026-09-14 10:02:11.000000000 -0700
+```
+
+`271845` is the **inode number**. The inode itself — a fixed-size record in the filesystem's inode table — stores: file type and permission bits, owner uid/gid, size in bytes, timestamps, a **link count**, and the location of the file's actual data blocks. It does **not** store the name `notes.txt` anywhere. The name-to-inode mapping lives in a **directory entry** (dirent): a directory is itself just a file whose contents are a list of `(name, inode_number)` pairs. `Links: 2` above means two different directory entries, possibly in different directories, point at inode 271845 — that's exactly what `ln existing.txt hardlink.txt` creates: a new dirent with the same inode number, and the kernel increments the inode's link count. Delete either name and the inode (and its data) survives until the link count hits zero.
+
+Older filesystems located data via 12 direct block pointers plus indirect/double-indirect/triple-indirect pointer blocks for large files. ext4 instead uses **extents** — `(starting_block, length)` ranges — so a 100 MB contiguous file needs one or two extent entries instead of 25,600 individual 4 KB block pointers. `debugfs -R 'stat notes.txt' /dev/sda1` (run as root on an unmounted or read-only-safe target) will print the actual extent tree for a file.
+
+## Journaling: surviving a power loss mid-write
+
+Updating a file is never a single atomic disk write — it touches multiple on-disk structures: the data block(s), the inode (new size, new extent), the block/inode bitmaps (marking blocks used), and group/superblock free-counters. If the machine loses power after some of those writes land and before others do, you get a **corrupted** filesystem — unless something makes the whole group of updates atomic. That's what ext4's journal (JBD2) does.
+
+Concretely: a process appends 4 KB to `log.txt`, which requires allocating a free data block — say block `5002` — and writing it into the file. ext4 (default mode, `data=ordered`) does this:
+
+1. The new content is written into page-cache block `5002` and marked dirty.
+2. **Ordering rule**: that data block is forced to disk *before* the metadata transaction that references it is allowed to commit. (Only the metadata is actually journaled in `data=ordered` mode — this rule exists so you can never end up with metadata pointing at block 5002 while block 5002 still contains old, unrelated data.)
+3. JBD2 opens a transaction containing the *metadata* changes: the inode's updated extent tree and size, the block bitmap marking 5002 used, and the free-block counters. These are written into the journal (a reserved, fixed-size area of the filesystem — check its size with `dumpe2fs -h /dev/sda1 | grep -i journal`) as: a **descriptor block** (lists which real blocks this transaction touches, tagged with a sequence number), the metadata blocks themselves, and finally a **commit block** (a checksum confirming the transaction is complete).
+4. Only after the commit block is safely on disk does JBD2 **checkpoint**: copy those metadata blocks from the journal to their real, final locations.
+
+Now walk the crash scenarios:
+
+- **Crash before step 2 finishes** (data block 5002 never hit disk): the metadata transaction never got far enough to commit (ordered mode blocks on step 2). On reboot, journal recovery scans for transactions with a valid commit block, finds none for this write, and discards it. The inode, bitmap, and free counts are exactly as they were before the write started. The write is lost, but nothing is corrupted — fsck doesn't even need to run.
+- **Crash after the descriptor + metadata blocks are in the journal but before the commit block is written**: same outcome as above — no valid commit block means "incomplete transaction," discarded wholesale on replay. The filesystem rolls back to its last fully-committed state.
+- **Crash after the commit block is written, but before checkpointing finishes**: on reboot, JBD2 recovery finds a transaction with a valid, checksummed commit block, and **replays** it — rewriting the metadata blocks (inode, bitmap, counters) to their final locations again. Since the data block was guaranteed on-disk before commit (step 2), the result is fully consistent: `log.txt`'s extent tree points at block 5002, the bitmap shows it used, and the content is intact.
+- **Crash mid-checkpoint-write**: because the complete, checksummed metadata blocks still exist in the journal, replay just rewrites them again. Replay is **idempotent** — safe to re-run — which is exactly why this scheme works even if the crash happens in the worst possible instant.
+
+The key property: metadata transactions are all-or-nothing (gated by the commit block's checksum), and data is ordered to land before the metadata that references it commits. That combination is what lets a journaling filesystem come back from an unclean power loss in milliseconds (replay a short journal) instead of a full `fsck` scan of the entire disk.
+
+## Exercise
+
+Build a 64 MB ext4 image you can poke at directly:
+
+```bash
+dd if=/dev/zero of=disk.img bs=1M count=64
+mkfs.ext4 -F disk.img
+sudo losetup -fP disk.img      # note which /dev/loopN it picked
+sudo mount /dev/loopN /mnt/test
+echo "hello" | sudo tee /mnt/test/a.txt
+sudo umount /mnt/test
+sudo debugfs -R "logdump -a" /dev/loopN
+```
+
+Find a **descriptor block** and its matching **commit block** in the `logdump` output (they share a transaction sequence number). Then run `sudo debugfs -R "stat a.txt" /dev/loopN` to get `a.txt`'s inode number and block list, and match one of those block numbers against what you saw logged. Hint: write a second file, run `logdump -a` again, and diff the two outputs — the new transaction's descriptor block should list blocks that correspond to the bitmap, the inode table, and the new file's data, exactly as described above. (You don't need to actually crash the VM to see this — the journal contains these structures on a perfectly healthy filesystem too; crash recovery just means "replay whatever's left uncommitted.")
+
+As a second, independent challenge: extend the `my_malloc` allocator above with a matching `my_free(void *p)` that marks a chunk free and coalesces with both neighbors when possible (you'll need a way to find the *previous* chunk, not just `next` — consider storing chunks in address order and walking from the arena start, or adding a footer with the chunk size). Then write a test that allocates and frees chunks in a pattern that provably leaves the heap more fragmented *without* coalescing than *with* it, and print the largest available contiguous allocation in each case.

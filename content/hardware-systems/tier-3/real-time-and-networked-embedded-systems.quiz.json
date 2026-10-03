@@ -1,0 +1,86 @@
+[
+  {
+    "id": "hardware-systems/tier-3/real-time-and-networked-embedded-systems/q1",
+    "type": "multiple_choice",
+    "prompt": "Why must an interrupt service routine send data to a FreeRTOS queue with xQueueSendFromISR instead of the regular xQueueSend?",
+    "choices": [
+      "xQueueSend can attempt to block or trigger scheduling behavior that isn't valid in interrupt context; the FromISR variant is non-blocking and reports whether a higher-priority task was woken instead",
+      "xQueueSendFromISR is simply a faster alias for xQueueSend with no functional difference",
+      "xQueueSend only works with queues created inside setup(), while FromISR variants work with any queue",
+      "ISRs on ESP32 cannot access global variables, so a special function is required to reach the queue at all"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-3/real-time-and-networked-embedded-systems/q2",
+    "type": "multiple_choice",
+    "prompt": "Two tasks run on the same ESP32 core: heartbeatTask at priority 3 toggles an LED every 500 ms via vTaskDelay; workTask at priority 1 runs a tight busy-loop for about 2 seconds before yielding. What happens to the LED's blink timing?",
+    "choices": [
+      "The LED still blinks every ~500 ms on schedule, because the scheduler preempts the lower-priority workTask the instant heartbeatTask's delay expires",
+      "The LED blink is delayed by up to ~2 seconds each cycle, because workTask must finish its loop before any other task can run",
+      "Both tasks deadlock immediately since FreeRTOS does not allow two tasks pinned to the same core",
+      "The LED stops blinking entirely because higher-priority tasks are starved by any running lower-priority task"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-3/real-time-and-networked-embedded-systems/q3",
+    "type": "multiple_choice",
+    "prompt": "An MPU6050's ACCEL_ZOUT register pair reads back the two bytes 0xFF 0x38. At the default +/-2g range (sensitivity 16384 LSB/g), what is this reading as signed acceleration?",
+    "choices": [
+      "Raw value -200, approximately -0.0122 g",
+      "Raw value 65336, approximately 3.99 g",
+      "Raw value -200, approximately -200 g",
+      "Raw value 200, approximately +0.0122 g"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-3/real-time-and-networked-embedded-systems/q4",
+    "type": "multiple_choice",
+    "prompt": "In the complementary filter pitch = ALPHA*(pitch + gyroRate*dt) + (1-ALPHA)*accelPitch with ALPHA = 0.98, what role does each sensor play?",
+    "choices": [
+      "The gyro-integrated term dominates the fast, moment-to-moment response; the small (1-ALPHA) accelerometer term continuously corrects long-term gyro drift",
+      "The accelerometer dominates the fast response and the gyro only corrects drift once per second",
+      "Both sensors are weighted equally at all times regardless of ALPHA",
+      "ALPHA controls sampling rate, not how much either sensor is trusted"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-3/real-time-and-networked-embedded-systems/q5",
+    "type": "multiple_choice",
+    "prompt": "On the Arduino-ESP32 FreeRTOS port, the stack-depth argument passed to xTaskCreatePinnedToCore (e.g. 4096) is specified in:",
+    "choices": [
+      "Bytes -- unlike vanilla FreeRTOS, which specifies stack depth in words",
+      "32-bit words, identical to vanilla FreeRTOS on every platform",
+      "Kilobytes, rounded up to the nearest page",
+      "CPU cycles reserved for that task's execution"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-3/real-time-and-networked-embedded-systems/q6",
+    "type": "multiple_choice",
+    "prompt": "In a captured MQTT packet, the first byte of the fixed header is 0x10. What does this byte encode, and what does this specific value mean?",
+    "choices": [
+      "Upper nibble = control packet type, lower nibble = flags; 0x10 means packet type 1 (CONNECT) with flags 0000",
+      "It is the MQTT protocol version number, meaning version 1.0",
+      "It is the total packet length in bytes, meaning a 16-byte packet",
+      "Upper nibble = QoS level, lower nibble = topic length; 0x10 means QoS 1 on a 0-byte topic"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-3/real-time-and-networked-embedded-systems/q7",
+    "type": "multiple_choice",
+    "prompt": "Why is it a mistake to call a blocking MQTT publish directly inside the same bare Arduino loop() that also has to sample a sensor on a tight deadline?",
+    "choices": [
+      "Any blocking network call (e.g. a slow TCP retransmit) stalls the entire single-threaded loop, including the time-critical sampling, with no other task able to run in the meantime -- the fix is to give sampling a higher-priority FreeRTOS task and let networking run in a lower-priority task fed by a queue",
+      "Arduino's loop() cannot call any networking function at all, so the code would fail to compile",
+      "MQTT publishes are always instantaneous, so blocking is never actually a concern on ESP32",
+      "The sensor's ADC hardware is physically disabled while the Wi-Fi radio is transmitting"
+    ],
+    "correctIndex": 0
+  }
+]

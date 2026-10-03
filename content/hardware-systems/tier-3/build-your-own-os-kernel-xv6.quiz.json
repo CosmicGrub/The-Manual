@@ -1,0 +1,98 @@
+[
+  {
+    "id": "hardware-systems/tier-3/build-your-own-os-kernel-xv6/q1",
+    "type": "multiple_choice",
+    "prompt": "Which file owns the per-CPU scheduler() loop that picks the next RUNNABLE process to run?",
+    "choices": [
+      "kernel/proc.c",
+      "kernel/trap.c",
+      "kernel/vm.c",
+      "kernel/syscall.c"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-3/build-your-own-os-kernel-xv6/q2",
+    "type": "multiple_choice",
+    "prompt": "In the user-space usys.S stub for a syscall, which register holds the syscall number right before the ecall instruction executes?",
+    "choices": [
+      "a0",
+      "a7",
+      "sp",
+      "ra"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "hardware-systems/tier-3/build-your-own-os-kernel-xv6/q3",
+    "type": "multiple_choice",
+    "prompt": "usertrap() adds 4 to p->trapframe->epc before calling syscall() when the trap was caused by ecall. Why?",
+    "choices": [
+      "So that sret returns to the instruction after ecall instead of re-executing ecall forever",
+      "So the kernel stack pointer stays 4-byte aligned",
+      "To compensate for the trampoline page's offset from TRAMPOLINE",
+      "Because RISC-V ecall instructions are 4 bytes narrower than normal instructions"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-3/build-your-own-os-kernel-xv6/q4",
+    "type": "multiple_choice",
+    "prompt": "Where does syscall() in kernel/syscall.c find which kernel function implements a given syscall number?",
+    "choices": [
+      "It looks it up in the syscalls[] array of function pointers indexed by syscall number",
+      "It calls a function named after the number via a switch statement",
+      "It reads the function pointer out of the process's trapframe",
+      "It greps kernel/sysfile.c at boot time and builds a jump table"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-3/build-your-own-os-kernel-xv6/q5",
+    "type": "multiple_choice",
+    "prompt": "Base xv6-riscv defines syscall numbers SYS_fork=1 through SYS_close=21 in kernel/syscall.h. If you append a brand-new syscall right after SYS_close following the convention used in this lesson, what number should it get?",
+    "choices": [
+      "20",
+      "21",
+      "22",
+      "1"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "hardware-systems/tier-3/build-your-own-os-kernel-xv6/q6",
+    "type": "multiple_choice",
+    "prompt": "Why can't sys_write just dereference a user-supplied buffer pointer directly, the way it would dereference a kernel pointer?",
+    "choices": [
+      "The pointer is in a user virtual address space mapped by a different page table than the kernel's, so the kernel must walk the user page table itself via copyin()/copyout()",
+      "User pointers are always 32-bit even though the kernel is 64-bit",
+      "RISC-V ecall clears the upper bits of all argument registers",
+      "User memory is write-only from kernel mode"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-3/build-your-own-os-kernel-xv6/q7",
+    "type": "multiple_choice",
+    "prompt": "`make qemu-gdb` starts QEMU with the -S flag. What does that do, and what must you type in GDB before any kernel instruction executes?",
+    "choices": [
+      "It halts the virtual CPU at reset; you must type continue (or c) to let it start running",
+      "It enables single-stepping by default; you must type stepi to advance one instruction",
+      "It disables the MMU; you must type enable-mmu first",
+      "It skips straight to _start; you must type run to re-enter at entry.S"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-3/build-your-own-os-kernel-xv6/q8",
+    "type": "multiple_choice",
+    "prompt": "proc.c maintains a global wait_lock separate from each process's own p->lock. What race does wait_lock specifically prevent?",
+    "choices": [
+      "A race between exit() reparenting a dying process's children to init and wait() reading/traversing the parent pointer concurrently",
+      "A race between two CPUs both running the scheduler loop at once",
+      "A race between kalloc() and kfree() on the physical free list",
+      "A race between two processes both calling fork() at the same instant"
+    ],
+    "correctIndex": 0
+  }
+]

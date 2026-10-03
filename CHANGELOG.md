@@ -408,3 +408,14 @@ All notable changes to The Manual (curriculum + app) are logged here. This file 
 **Result:** `npm run build` passed clean on the first attempt. 161 unique slugs verified repo-wide.
 
 **Status:** Hardware & Computer Systems Tier 2 complete (65h, 5 lessons). Hardware & Computer Systems is now 3/6 tiers content-complete (Tiers 0-2, 163h); Tiers 3-5 remain.
+
+## [0.31.0] — 2026-10-03 — Hardware & Computer Systems Tier 3: 5/6 modules (one module pending, not a content bug)
+
+**Context:** The Tier 3 generation workflow returned 5 of 6 modules successfully; the 6th (Assembly & C in Systems Context) failed mid-run with "You've hit your session limit · resets 12am (UTC)" — an external usage-limit constraint on the generating agent, not a scripting or content defect. Rather than hold all 5 good modules hostage to that one retry, they're committed now as a deliberate partial-tier checkpoint; the 6th module is being regenerated from the exact original prompt (recovered from the failed run's own transcript) in the background and will land as its own follow-up commit to close out the tier.
+
+**Added**
+- `content/hardware-systems/tier-3/*.mdx` (5 of 6 files) + matching quizzes: Operating Systems: Processes, Threads & Scheduling (task_struct/mm_struct-level process-vs-thread mechanics, a worked round-robin Gantt trace with exact waiting times, why CFS is a structurally different idea than round robin, a real race-condition-then-fix in pthreads, annotated xv6 `scheduler()` source), Operating Systems: Memory Management & Filesystems, Build Your Own OS Kernel (xv6), Networking Fundamentals: TCP/IP, DNS, HTTP (the canonical deep networking module for the whole curriculum per MASTERFILE.md §4.5), Real-Time & Networked Embedded Systems.
+
+**Result:** `npm run build` passed clean. 166 unique slugs verified repo-wide.
+
+**Status:** Hardware & Computer Systems Tier 3 at 5/6 modules (103h of 115h). Assembly & C in Systems Context pending as an immediate follow-up commit — not a new task, the same tier.

@@ -1,0 +1,221 @@
+---
+trackId: hardware-systems
+tier: 3
+title: "Networking Fundamentals: TCP/IP, DNS, HTTP"
+order: 4
+estimatedHours: 20
+slug: networking-fundamentals-tcp-ip-dns-http
+---
+
+## Where This Fits
+
+Tier 2 gave you buses and I/O (I2C, SPI, UART) as point-to-point wiring between a CPU and nearby chips, and Tier 1 gave you endianness as a byte-ordering quirk inside one machine's registers. Networking is what happens when you stop wiring chips to chips on one board and start wiring *computers* to *computers* across the planet, with no shared clock, no shared bus, and no guarantee any two hops speak the same link technology. This module is the canonical, full-depth treatment of that problem for the entire Manual curriculum — Software Engineering's HTTP module and DevOps's networking module both explicitly defer to this one for protocol depth and only add their own applied angle on top. Nothing here is re-taught elsewhere; everything elsewhere assumes you did this first.
+
+The throughline is one real request: your laptop asks `www.example.com` for a page. By the end of this module you can account for every byte that moves to make that happen — the IP addressing underneath it, the DNS lookup that finds the server, the TCP handshake that opens a reliable channel, the literal HTTP bytes exchanged, and what all of it looks like captured live in Wireshark.
+
+## OSI Model vs. TCP/IP Model: The Real Mapping
+
+The OSI model has seven layers because it was designed as an exhaustive, vendor-neutral reference standard before working internets existed. The TCP/IP model has four (sometimes described as five) because it's a description of protocols that were already shipping. They are not interchangeable abstractions drawn at the same altitude — OSI is finer-grained in exactly the places TCP/IP collapses into one layer:
+
+| OSI Layer | What it covers | TCP/IP Layer | Real protocols living there |
+|---|---|---|---|
+| 7. Application | The actual protocol your program speaks | Application | HTTP, DNS, SSH, SMTP |
+| 6. Presentation | Encoding, serialization, encryption | Application | TLS, UTF-8, JSON/Protobuf serialization |
+| 5. Session | Connection lifetime, session state | Application | Cookies, TLS session resumption |
+| 4. Transport | End-to-end delivery, ports | Transport | TCP, UDP |
+| 3. Network | Logical addressing, routing | Internet | IP, ICMP |
+| 2. Data Link | Framing on one physical link | Link | Ethernet, Wi-Fi (802.11), ARP |
+| 1. Physical | Bits as voltage/light/radio | Link | Copper signaling, fiber optics, radio PHY |
+
+Three OSI layers (5, 6, 7) fold into one TCP/IP "Application" layer because in practice, the thing that decides your session state, your serialization format, and your actual verbs (`GET`, `POST`) is one piece of software — your HTTP library — not three separate protocol stacks. TLS is the clearest illustration of why the mapping is "real" rather than cosmetic: it does presentation-layer work (encryption, certificate-based session setup) but in the actual TCP/IP stack it sits as a shim directly on top of TCP and directly below HTTP — there's no separate "presentation layer" wire protocol it talks to. Likewise, OSI layers 1 and 2 (Physical and Data Link) collapse into TCP/IP's "Link" layer because Ethernet already does both jobs in one frame format: the electrical signaling and the framing/addressing (MAC addresses) are specified together, not as separable standards. When someone says "Layer 3" they almost always mean OSI's numbering (IP), and when they say "Layer 7" they mean application data — that numbering survives in practice specifically because OSI's layer *numbers* are useful shorthand even though no real stack implements all seven as distinct modules.
+
+## IP Addressing and Subnetting: Worked Calculations
+
+An IPv4 address is 32 bits, written as four dotted decimal octets. A subnet mask marks which bits are "network" (fixed for every host in the subnet) and which are "host" (unique per device). CIDR notation (`/22`, `/26`) is just the count of network bits.
+
+**Worked problem:** You're given the network `172.16.0.0/22` and told each subnet must support at least 50 hosts. Derive the subnet mask and list the resulting address ranges.
+
+Step 1 — host bits needed. With *h* host bits, usable hosts = 2^h − 2 (subtract the network address and broadcast address, which are never assignable). You need 2^h − 2 ≥ 50:
+
+- h = 5: 2^5 − 2 = 30 (too few)
+- h = 6: 2^6 − 2 = 62 (enough)
+
+Step 2 — new prefix length. 32 total bits − 6 host bits = **/26**, i.e. mask `255.255.255.192`.
+
+Step 3 — how many subnets this produces. `/22` has 32 − 22 = 10 host bits in the original block, meaning the block contains 2^10 = 1024 addresses (`172.16.0.0` through `172.16.3.255`). Each `/26` subnet is 2^6 = 64 addresses, so the `/22` splits into 1024 / 64 = **16 subnets**.
+
+Step 4 — the actual ranges. Each subnet's size is 64, so subnet boundaries fall every 64 addresses in the last two octets:
+
+| Subnet | Network address | Usable host range | Broadcast |
+|---|---|---|---|
+| 1 | 172.16.0.0/26 | 172.16.0.1 – 172.16.0.62 | 172.16.0.63 |
+| 2 | 172.16.0.64/26 | 172.16.0.65 – 172.16.0.126 | 172.16.0.127 |
+| 3 | 172.16.0.128/26 | 172.16.0.129 – 172.16.0.190 | 172.16.0.191 |
+| 4 | 172.16.0.192/26 | 172.16.0.193 – 172.16.0.254 | 172.16.0.255 |
+| 5 | 172.16.1.0/26 | 172.16.1.1 – 172.16.1.62 | 172.16.1.63 |
+
+...continuing through subnet 16 at `172.16.3.192/26`, ending at `172.16.3.255`. Notice the rollover from subnet 4 to subnet 5: once the third octet's available bit space in the `/26` boundary is exhausted, the increment carries into the next octet — this is exactly bit arithmetic, not a special case, and it's where people make off-by-one mistakes if they try to do subnetting by memorized tricks instead of by the bits.
+
+The general recipe, every time: (1) required hosts tells you host bits via 2^h − 2 ≥ N; (2) 32 − h is your new prefix; (3) 2^(new prefix − old prefix) is how many subnets you got; (4) subnet size (2^h) tells you the increment between consecutive network addresses.
+
+## The TCP Three-Way Handshake and Congestion Control
+
+TCP is connection-oriented: before either side sends application data, they negotiate initial sequence numbers (ISNs) so both ends can detect loss, reordering, and duplication. Here's a real trace, client `203.0.113.50:51234` connecting to server `93.184.216.34:443`:
+
+```text
+1  203.0.113.50:51234 -> 93.184.216.34:443   [SYN]      Seq=142857001            Win=65535 MSS=1460
+2  93.184.216.34:443   -> 203.0.113.50:51234 [SYN, ACK] Seq=771193312 Ack=142857002 Win=65535 MSS=1460
+3  203.0.113.50:51234 -> 93.184.216.34:443   [ACK]      Seq=142857002 Ack=771193313 Win=65535
+```
+
+Packet 1: the client picks a pseudo-random ISN (142857001) and sends `SYN`, no payload — this doesn't carry data, it only proposes "this is where my sequence numbers start." Packet 2: the server picks its own independent ISN (771193312), sets both `SYN` and `ACK`, and its `Ack` field is the client's ISN **plus one** — acknowledging the SYN consumed one sequence number even though it carried zero payload bytes. Packet 3: the client's final `ACK` acknowledges the server's ISN plus one, the same rule. After this, the connection is `ESTABLISHED` and both sides have independent sequence-number spaces they'll increment by exactly the number of payload bytes they send. If the client's next segment carries a 78-byte HTTP request, its sequence number in that segment is 142857002, and the *next* segment it sends (if any) starts at 142857080 — sequence numbers count bytes of payload already sent, not packets.
+
+**Why congestion control exists:** nothing in the handshake tells either side how much bandwidth the path between them can actually sustain — there could be one shared 1 Gbps link or a congested 2 Mbps satellite hop three routers in. If every connection blasted data at the sender's NIC speed, router queues along the path would overflow and start dropping packets indiscriminately, which is exactly the **congestive collapse** phenomenon observed on the early Internet in the mid-1980s before TCP congestion control existed. The fix has to be cooperative and senders have to *probe* for available capacity rather than assume it.
+
+**Slow start**, concretely: a new connection begins with a small congestion window, `cwnd` — a common modern default is 10 segments (RFC 6928), so roughly 14,600 bytes of data in flight before an acknowledgment is required. For every ACK received, `cwnd` grows by one segment, which — because a full window's worth of ACKs arrives roughly every round-trip time — means `cwnd` **roughly doubles per RTT**:
+
+| RTT | cwnd (segments) | Data in flight |
+|---|---|---|
+| 0 | 10 | ~14.6 KB |
+| 1 | 20 | ~29.2 KB |
+| 2 | 40 | ~58.4 KB |
+| 3 | 80 | ~116.8 KB |
+
+This continues until `cwnd` hits a threshold (`ssthresh`) — at which point growth switches to the slower, linear **congestion avoidance** phase (roughly +1 segment per RTT) — or until a packet is actually lost, which TCP treats as the network's only reliable signal that it found the ceiling. On loss, classic Reno-style TCP halves `cwnd` (multiplicative decrease) and resumes the slower linear climb; this additive-increase/multiplicative-decrease (AIMD) pattern is why a TCP throughput graph over a lossy link looks like a sawtooth, not a straight line.
+
+## DNS Resolution: A Full Trace
+
+Resolving `www.example.com` to an IP address is not one query — it's a chain, unless a cache short-circuits it. Here's the full chain with realistic values, as `dig +trace` would show it:
+
+```bash
+$ dig +trace www.example.com A
+```
+
+```text
+; stub resolver on your laptop asks the configured recursive resolver (e.g. 1.1.1.1) to do the work
+
+; recursive resolver's cache is empty, so it starts at the root
+.                       518400  IN  NS  a.root-servers.net.
+a.root-servers.net.     3600000 IN  A   198.41.0.4
+;; received referral from root — "I don't know, but ask the .com servers"
+
+com.                    172800  IN  NS  a.gtld-servers.net.
+a.gtld-servers.net.     172800  IN  A   192.5.6.30
+;; received referral from .com TLD — "I don't know, but ask example.com's own servers"
+
+example.com.            172800  IN  NS  a.iana-servers.net.
+example.com.            172800  IN  NS  b.iana-servers.net.
+a.iana-servers.net.     172800  IN  A   199.43.135.53
+;; received referral from the .com TLD servers pointing at example.com's authoritative NS
+
+;; recursive resolver now queries a.iana-servers.net directly, flag aa (authoritative answer) set:
+www.example.com.        86400   IN  A   93.184.216.34
+;; ANSWER SECTION — this is authoritative, not a referral
+```
+
+Four actors, each with a sharply different job: the **stub resolver** (your OS) does no lookups itself, it just forwards one question. The **recursive resolver** (your ISP's, or a public one like 1.1.1.1/8.8.8.8) does the actual iteration and caches results by TTL. The **root servers** know nothing about `example.com` specifically — they only know which servers handle `.com`. The **TLD servers** for `.com` know nothing about `www` specifically — they only know which servers are authoritative for `example.com`. Only the **authoritative server** for `example.com` actually has the answer, and its response is the only one in the chain with the `aa` (authoritative answer) flag set — every prior response was a referral (data in the "authority" and "additional" sections, not "answer"). Each referral also comes with **glue records** — the IP of the next server to ask, bundled in the same response, so the recursive resolver doesn't need a second lookup just to find an address to query next.
+
+## HTTP Request and Response, Byte for Byte
+
+Once DNS resolves the name and TCP's handshake completes, here is the literal byte content of an HTTP/1.1 request and response (`\r\n` shown explicitly since that exact two-byte sequence, not just `\n`, is what the spec requires as a line terminator):
+
+```text
+GET /index.html HTTP/1.1\r\n
+Host: www.example.com\r\n
+User-Agent: curl/8.4.0\r\n
+Accept: */*\r\n
+Connection: close\r\n
+\r\n
+```
+
+- **Request line**: method (`GET`), path (`/index.html`), protocol version — this one line is the only place the HTTP verb and target appear.
+- **Host**: mandatory in HTTP/1.1. The TCP connection alone only tells the server *an* IP was reached — a single IP often hosts many domains (virtual hosting), so `Host` is how the server picks which site's content to serve.
+- **User-Agent**: identifies the client software; servers use it for logging and sometimes content negotiation.
+- **Connection: close**: tells the server not to keep the TCP connection open for reuse after this response (the alternative, `keep-alive`, is HTTP/1.1's default and lets multiple requests share one connection, avoiding repeated handshakes).
+- **The blank `\r\n\r\n`**: this is the actual end-of-headers marker — everything after it would be a request body (empty here, since `GET` has none).
+
+```text
+HTTP/1.1 200 OK\r\n
+Date: Sat, 03 Oct 2026 14:22:01 GMT\r\n
+Server: ECS (sec/97EC)\r\n
+Content-Type: text/html; charset=UTF-8\r\n
+Content-Length: 1256\r\n
+Connection: close\r\n
+\r\n
+<!doctype html>\n<html>\n<head>\n<title>Example Domain</title>\n...
+```
+
+- **Status line**: protocol version, numeric status (`200`), and a human-readable reason phrase (`OK`) that's purely cosmetic — clients branch on the number, never the phrase.
+- **Content-Length: 1256**: tells the client exactly how many bytes of body follow, so it knows when the response is complete without relying on the connection closing (critical once `keep-alive` is in play).
+- **Content-Type**: tells the client how to interpret the bytes that follow — a browser renders `text/html` as a DOM; a different value (`application/json`, `image/png`) changes that entirely, and nothing about the bytes themselves would tell you otherwise.
+
+## Raw Socket Programming: A Working Client/Server
+
+Everything above eventually reduces to two system calls' worth of work: a socket that listens, and a socket that connects. Here's a minimal, real, runnable TCP echo pair in Python — no frameworks, no libraries beyond the standard `socket` module:
+
+```python
+# server.py
+import socket
+
+HOST, PORT = "0.0.0.0", 9009
+
+with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as srv:
+    srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    srv.bind((HOST, PORT))
+    srv.listen(1)                      # backlog of 1 pending connection
+    print(f"listening on {HOST}:{PORT}")
+    conn, addr = srv.accept()          # blocks until a client completes the handshake
+    with conn:
+        print(f"connection from {addr}")
+        while True:
+            data = conn.recv(1024)     # blocks until bytes arrive or peer closes
+            if not data:
+                break                  # empty recv == peer sent FIN
+            conn.sendall(data)         # echo it straight back
+```
+
+```python
+# client.py
+import socket
+
+HOST, PORT = "127.0.0.1", 9009
+
+with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+    s.connect((HOST, PORT))            # triggers the real SYN/SYN-ACK/ACK handshake
+    s.sendall(b"hello over TCP\n")
+    print(s.recv(1024).decode())
+```
+
+`AF_INET` + `SOCK_STREAM` is the API-level way of saying "IPv4, TCP" — `SOCK_DGRAM` would give you UDP instead, with no handshake and no delivery guarantee. `bind` claims a local port; `listen` moves the socket into a state where the kernel will complete incoming handshakes on your behalf and queue the resulting connections; `accept` pulls one off that queue. Note what Python's `socket` module hides from you that C would make you handle explicitly: port numbers and IP addresses on the wire are **big-endian** ("network byte order"), and C code must call `htons()`/`htonl()` to convert a host's native integer representation before writing it into a packed `sockaddr_in` struct — this is the exact endianness concept from Tier 1's number-representation work, now showing up as a mandatory conversion at the network boundary rather than an abstract byte-order curiosity. Python's `socket.connect((host, port))` does that conversion internally so you never see it, but it is still happening on every packet.
+
+## Packet Capture with Wireshark: Watching It All Happen
+
+Point Wireshark at port 443 and you will *not* see readable HTTP — you'll see a TLS handshake, because the HTTP bytes are encrypted above the TCP layer. That's correct behavior, not a bug, and it's worth seeing once on purpose. To actually watch the handshake-through-HTTP sequence described in this module, capture against plain port 80 (run `python3 -m http.server 80` locally, or hit any site still serving unencrypted HTTP) with the capture filter `tcp port 80` and display filter `http or tcp`.
+
+A real packet list for one request looks like this:
+
+```text
+No.  Time      Source            Destination       Protocol  Length  Info
+1    0.000000  203.0.113.50      93.184.216.34     TCP       74      51234 -> 80 [SYN] Seq=142857001 Win=65535
+2    0.021300  93.184.216.34     203.0.113.50      TCP       74      80 -> 51234 [SYN, ACK] Seq=771193312 Ack=142857002
+3    0.021450  203.0.113.50      93.184.216.34     TCP       66      51234 -> 80 [ACK] Seq=142857002 Ack=771193313
+4    0.021600  203.0.113.50      93.184.216.34     HTTP      144     GET /index.html HTTP/1.1
+5    0.042700  93.184.216.34     203.0.113.50      TCP       66      80 -> 51234 [ACK] Seq=771193313 Ack=142857080
+6    0.063100  93.184.216.34     203.0.113.50      HTTP      1322    HTTP/1.1 200 OK  (text/html)
+7    0.063300  203.0.113.50      93.184.216.34     TCP       66      51234 -> 80 [FIN, ACK] Seq=142857080 Ack=772194569
+8    0.084500  93.184.216.34     203.0.113.50      TCP       66      80 -> 51234 [FIN, ACK] Seq=772194569 Ack=142857081
+9    0.084600  203.0.113.50      93.184.216.34     TCP       66      51234 -> 80 [ACK] Seq=142857081 Ack=772194570
+```
+
+Frames 1–3 are exactly the handshake traced earlier — same sequence-number arithmetic, now visible on real wire capture rather than typed by hand. Frame 4 is the `GET` request from the HTTP section above, and Wireshark's "Follow → TCP Stream" view reassembles frames 4 and 6 back into the exact plaintext request and response bytes shown earlier, letting you click directly from a header field in the dissected pane to its raw bytes in the hex pane. Frame 5 is a pure ACK with no payload — the server acknowledging the request before it's finished generating the response, which is why its `Info` column shows `[ACK]` with no HTTP verb. Frames 7–9 are connection teardown: TCP closes with a `FIN`/`ACK` exchange in each direction (four segments total in the general case, though 7 and 8 can sometimes combine), mirroring the three-way open with a symmetric three-step close. Everything this module covered — subnetting's IP addresses, the handshake's sequence numbers, DNS's prior resolution, HTTP's literal headers — is simultaneously present and inspectable in this one nine-frame capture; that convergence is the whole point of the module.
+
+## Exercise
+
+Using a machine with Wireshark (or `tcpdump`) and Python installed:
+
+1. Start a local plaintext HTTP server (`python3 -m http.server 8080`) and start a capture filtered to `tcp port 8080`.
+2. Write a Python client (extend the `client.py` pattern above, but use `HTTP/1.1` text instead of the raw echo payload) that connects and sends a real `GET / HTTP/1.1` request with a `Host` and `Connection: close` header, then prints whatever it receives.
+3. From the capture, record: the client's ISN from the SYN frame, the server's ISN from the SYN-ACK frame, and the exact `Ack` number on the client's final handshake ACK. Confirm by hand that it equals the server's ISN plus one.
+4. Modify your client to send a `HEAD` request instead of `GET`, and confirm from the capture that the response has a `Content-Length` header but zero response-body bytes on the wire.
+
+Hint: a `HEAD` response is only different in body, not headers — if your `Content-Length` doesn't match what a `GET` to the same path would have reported, re-check your request line is byte-for-byte correct, including both `\r\n` characters at the very end of the header block; a server that never sees the blank-line terminator will hang waiting for more header lines instead of responding.

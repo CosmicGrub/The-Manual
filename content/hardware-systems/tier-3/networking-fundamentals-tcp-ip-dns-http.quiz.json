@@ -1,0 +1,98 @@
+[
+  {
+    "id": "hardware-systems/tier-3/networking-fundamentals-tcp-ip-dns-http/q1",
+    "type": "multiple_choice",
+    "prompt": "TLS does encryption and session-key negotiation, which is OSI Presentation/Session-layer work. Where does TLS actually sit in the real TCP/IP protocol stack?",
+    "choices": [
+      "As a distinct Presentation layer between the Internet layer and the Transport layer",
+      "As a shim running directly on top of TCP and directly below the application protocol (e.g. HTTP)",
+      "Inside the IP header as an optional extension",
+      "As part of the Link layer, alongside Ethernet framing"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "hardware-systems/tier-3/networking-fundamentals-tcp-ip-dns-http/q2",
+    "type": "multiple_choice",
+    "prompt": "You need subnets of a /20 network that each support at least 200 hosts. How many host bits are required, and what is the resulting subnet prefix length?",
+    "choices": [
+      "7 host bits, /25 prefix",
+      "8 host bits, /24 prefix",
+      "9 host bits, /23 prefix",
+      "6 host bits, /26 prefix"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "hardware-systems/tier-3/networking-fundamentals-tcp-ip-dns-http/q3",
+    "type": "multiple_choice",
+    "prompt": "A client sends a SYN with Seq=500000. The server replies with SYN,ACK carrying Seq=900000. What Ack value must the client's final ACK of the three-way handshake contain?",
+    "choices": [
+      "500001",
+      "900000",
+      "900001",
+      "1400001"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "hardware-systems/tier-3/networking-fundamentals-tcp-ip-dns-http/q4",
+    "type": "multiple_choice",
+    "prompt": "In a dig +trace resolution of www.example.com, the root servers respond with a referral to the .com TLD servers. What does that response NOT contain?",
+    "choices": [
+      "NS records naming the .com TLD servers",
+      "Glue A records giving the IP addresses of those TLD servers",
+      "An authoritative answer (aa flag set) with www.example.com's actual IP address",
+      "Data placed in the authority/additional sections rather than the answer section"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "hardware-systems/tier-3/networking-fundamentals-tcp-ip-dns-http/q5",
+    "type": "multiple_choice",
+    "prompt": "In an HTTP/1.1 request, what is the purpose of the mandatory Host header?",
+    "choices": [
+      "It tells the client which TCP port to connect to",
+      "It lets a single server IP serving multiple domains (virtual hosting) know which site's content to return",
+      "It specifies the character encoding of the response body",
+      "It is required only for HTTPS, not plain HTTP"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "hardware-systems/tier-3/networking-fundamentals-tcp-ip-dns-http/q6",
+    "type": "multiple_choice",
+    "prompt": "A new TCP connection starts slow start with cwnd = 10 segments and no losses occur. Roughly what is cwnd after 3 round-trip times, given that cwnd grows by one segment per ACK received?",
+    "choices": [
+      "13 segments (linear growth of ~1 per RTT)",
+      "30 segments (growth of 10 per RTT)",
+      "80 segments (roughly doubling each RTT)",
+      "10 segments (slow start does not grow cwnd until ssthresh is set)"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "hardware-systems/tier-3/networking-fundamentals-tcp-ip-dns-http/q7",
+    "type": "multiple_choice",
+    "prompt": "In C socket code, why must a port number be passed through htons() before being placed into a sockaddr_in struct, when Python's socket.connect((host, port)) needs no such call?",
+    "choices": [
+      "Port numbers on the wire are always sent in network (big-endian) byte order, and C exposes the raw struct fields directly, so the program must convert from the host's native byte order itself; Python's socket module performs that conversion internally",
+      "htons() is only required for IPv6 addresses, not IPv4",
+      "Python does not support TCP, only UDP, so byte order never matters",
+      "htons() converts the port number from decimal to hexadecimal for display purposes only"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-3/networking-fundamentals-tcp-ip-dns-http/q8",
+    "type": "multiple_choice",
+    "prompt": "You capture traffic to port 443 (HTTPS) in Wireshark expecting to read the HTTP request text directly in the Follow TCP Stream view. What will you actually see, and why?",
+    "choices": [
+      "The plaintext HTTP request, because TCP payloads are never encrypted at the transport layer",
+      "An encrypted TLS record layer handshake and application data, because HTTP running over port 443 is wrapped in TLS above TCP",
+      "Nothing at all, because Wireshark cannot capture any traffic on port 443",
+      "A DNS query, because port 443 is reserved for DNS over HTTPS"
+    ],
+    "correctIndex": 1
+  }
+]
