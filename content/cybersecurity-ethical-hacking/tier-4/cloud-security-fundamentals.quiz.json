@@ -1,0 +1,98 @@
+[
+  {
+    "id": "cybersecurity-ethical-hacking/tier-4/cloud-security-fundamentals/q1",
+    "type": "multiple_choice",
+    "prompt": "What is the dominant root cause of real-world cloud security breaches, as illustrated by the Capital One case and the flaws.cloud curriculum?",
+    "choices": [
+      "Unpatched zero-day vulnerabilities in the cloud provider's hypervisor",
+      "Misconfiguration of customer-controlled settings like bucket policies, security groups, and IAM roles",
+      "Physical theft of data center hardware",
+      "Brute-forcing of root account passwords"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-4/cloud-security-fundamentals/q2",
+    "type": "multiple_choice",
+    "prompt": "A security group allows inbound TCP 22 and 3389 from 0.0.0.0/0. What is the primary risk this creates?",
+    "choices": [
+      "It has no real risk since SSH and RDP both require valid credentials to authenticate",
+      "It exposes remote administration ports to the entire internet, enabling credential-stuffing and brute-force attempts from anywhere",
+      "It only affects IPv6 traffic, so IPv4 clients are unaffected",
+      "It is required for AWS Systems Manager Session Manager to function"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-4/cloud-security-fundamentals/q3",
+    "type": "multiple_choice",
+    "prompt": "flaws.cloud Level 1 can be solved with `aws s3 ls s3://flaws.cloud/ --no-sign-request` because:",
+    "choices": [
+      "The bucket's policy grants list and read access to the anonymous principal, with no AWS account required",
+      "The AWS CLI ignores authentication for all S3 buckets by default",
+      "The bucket is hosted outside AWS and therefore has no access controls",
+      "The `--no-sign-request` flag bypasses all S3 permission checks globally"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-4/cloud-security-fundamentals/q4",
+    "type": "multiple_choice",
+    "prompt": "On flaws.cloud Level 2, anonymous access fails but access succeeds once you configure any valid AWS account's credentials. Why?",
+    "choices": [
+      "The bucket owner added your specific account ID to an allow list",
+      "AWS requires billing information before any S3 access is permitted",
+      "The bucket ACL grants access to the 'AuthenticatedUsers' group, which includes any AWS account on any customer's tenancy, not just the owner's organization",
+      "The bucket was temporarily down and recovered on retry"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-4/cloud-security-fundamentals/q5",
+    "type": "multiple_choice",
+    "prompt": "In flaws.cloud Level 3, the credentials for Level 4 were recoverable because:",
+    "choices": [
+      "They were base64-encoded in the page's HTML source",
+      "A `.git` directory was exposed in the bucket, and an earlier commit containing the credentials remained in git history even after a later commit deleted the file",
+      "They were stored in a cookie set by the website",
+      "The S3 bucket's error page leaked them directly"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-4/cloud-security-fundamentals/q6",
+    "type": "multiple_choice",
+    "prompt": "Why is IMDSv1 considered significantly more dangerous than IMDSv2 in an SSRF scenario?",
+    "choices": [
+      "IMDSv1 uses a weaker TLS cipher suite than IMDSv2",
+      "IMDSv1 answers a simple unauthenticated GET request with role credentials, while IMDSv2 requires a prior PUT-based token exchange with a hop limit that blocks most proxied SSRF requests",
+      "IMDSv1 is only reachable from outside the VPC, making it easier to exploit remotely",
+      "IMDSv1 does not exist on EC2 instances with an attached IAM role"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-4/cloud-security-fundamentals/q7",
+    "type": "multiple_choice",
+    "prompt": "An IAM policy with `\"Action\": \"*\", \"Resource\": \"*\"` attached to a Lambda execution role is dangerous chiefly because:",
+    "choices": [
+      "It makes the Lambda function run slower due to policy evaluation overhead",
+      "AWS blocks such policies automatically, so the Lambda will never execute",
+      "If the function is ever compromised, the attacker inherits full account-wide access instead of being contained to the resources the function actually needs",
+      "It is only a cosmetic issue since Lambda functions cannot use IAM credentials"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-4/cloud-security-fundamentals/q8",
+    "type": "multiple_choice",
+    "prompt": "A Lambda function only needs to read objects from one S3 bucket and write its own logs. Which policy correctly follows least privilege?",
+    "choices": [
+      "A policy granting `s3:*` on `Resource: \"*\"` plus `logs:*` on `Resource: \"*\"`",
+      "A policy granting `s3:GetObject` scoped to the specific bucket ARN, plus `logs:CreateLogStream`/`logs:PutLogEvents` scoped to the specific log group ARN",
+      "A policy granting `AdministratorAccess` so the function never hits a permissions error",
+      "No policy at all, relying solely on network isolation for security"
+    ],
+    "correctIndex": 1
+  }
+]

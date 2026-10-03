@@ -1,0 +1,98 @@
+[
+  {
+    "id": "cybersecurity-ethical-hacking/tier-4/blue-team-detection-engineering-ir-and-forensics/q1",
+    "type": "multiple_choice",
+    "prompt": "Which Windows Security Event ID is generated when a Kerberos service ticket is requested \u2014 the core signal used to detect Kerberoasting?",
+    "choices": [
+      "4624",
+      "4769",
+      "4768",
+      "4672"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-4/blue-team-detection-engineering-ir-and-forensics/q2",
+    "type": "multiple_choice",
+    "prompt": "In Event ID 4769, which TicketEncryptionType value is the classic indicator of a Kerberoasting attempt (RC4 encryption, favored because it's weaker to crack offline)?",
+    "choices": [
+      "0x12",
+      "0x17",
+      "0x1",
+      "0x3"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-4/blue-team-detection-engineering-ir-and-forensics/q3",
+    "type": "multiple_choice",
+    "prompt": "Per NIST SP 800-61, which phase comes immediately after Detection & Analysis?",
+    "choices": [
+      "Preparation",
+      "Post-Incident Activity",
+      "Containment, Eradication & Recovery",
+      "Risk Assessment"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-4/blue-team-detection-engineering-ir-and-forensics/q4",
+    "type": "multiple_choice",
+    "prompt": "In a Volatility 3 investigation, which plugin lists running processes so you can spot a suspicious process like mimikatz.exe in a memory image?",
+    "choices": [
+      "windows.netscan",
+      "windows.malfind",
+      "windows.pslist",
+      "windows.cmdline"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-4/blue-team-detection-engineering-ir-and-forensics/q5",
+    "type": "multiple_choice",
+    "prompt": "What distinguishes proactive threat hunting from alert-driven detection?",
+    "choices": [
+      "Hunting only uses signature-based antivirus alerts",
+      "Hunting searches for malicious or anomalous activity without waiting for an automated alert to fire",
+      "Hunting is performed exclusively by automated SIEM correlation rules",
+      "Hunting replaces the need for any logging infrastructure"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-4/blue-team-detection-engineering-ir-and-forensics/q6",
+    "type": "multiple_choice",
+    "prompt": "In the ELK stack, which component stores and indexes log data so it can be searched and aggregated?",
+    "choices": [
+      "Logstash",
+      "Kibana",
+      "Elasticsearch",
+      "Winlogbeat"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-4/blue-team-detection-engineering-ir-and-forensics/q7",
+    "type": "multiple_choice",
+    "prompt": "During containment of a compromised host, why capture a memory image before killing the malicious process or rebooting?",
+    "choices": [
+      "Memory images are required by law before any remediation",
+      "It speeds up the eradication phase",
+      "Volatile evidence in RAM, such as the exact command line a tool was run with, is lost once the process ends or the host reboots",
+      "It replaces the need for disk forensics entirely"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-4/blue-team-detection-engineering-ir-and-forensics/q8",
+    "type": "multiple_choice",
+    "prompt": "Which Sysmon Event ID is most useful for detecting unauthorized access to lsass.exe memory, a common sign of credential-dumping tools like Mimikatz?",
+    "choices": [
+      "Event ID 1 (Process Create)",
+      "Event ID 3 (Network Connect)",
+      "Event ID 10 (Process Access)",
+      "Event ID 7 (Image Load)"
+    ],
+    "correctIndex": 2
+  }
+]

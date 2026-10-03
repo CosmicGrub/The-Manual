@@ -1,0 +1,227 @@
+---
+trackId: cybersecurity-ethical-hacking
+tier: 4
+title: "Path B — Blue Team: Detection Engineering, IR & Forensics"
+order: 3
+estimatedHours: 35
+slug: blue-team-detection-engineering-ir-and-forensics
+---
+
+## Why Blue Team Work Starts With Plumbing, Not Alerts
+
+Every Tier 3 detection script you wrote was a one-off: a Python or PowerShell loop polling the Security log on a single box. That does not scale past one host, it has no retention, and it cannot correlate across your domain controller, your workstation, and your Metasploitable2/DVWA boxes at once. This module rebuilds that detection capability on top of a real SIEM — a free-tier ELK stack you run yourself — then walks a full incident from alert to closed report using the NIST SP 800-61 lifecycle, then pulls the same skills down into memory forensics on an image you capture from your own lab, and closes with threat hunting: looking for bad behavior that never tripped an alert at all.
+
+Everything here runs against your own AD home lab (built in Tier 3), your Tier 1/2 Metasploitable2, DVWA and Juice Shop boxes, or images you capture from those same machines. Nothing here touches a third party.
+
+## 1. SIEM Fundamentals: Your Own ELK Stack, Real Lab Logs
+
+Stand up Elasticsearch + Logstash + Kibana (ELK) as a single Docker Compose stack on your lab hypervisor host or a dedicated lab VM with 8GB+ RAM. This is the free Basic license tier — no Elastic Cloud, no paid features needed for what follows.
+
+```yaml
+# docker-compose.yml
+version: "3.8"
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.4
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms2g -Xmx2g"
+    ports: ["9200:9200"]
+    volumes: ["esdata:/usr/share/elasticsearch/data"]
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.13.4
+    volumes: ["./pipeline:/usr/share/logstash/pipeline"]
+    ports: ["5044:5044"]
+    depends_on: [elasticsearch]
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.13.4
+    ports: ["5601:5601"]
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    depends_on: [elasticsearch]
+
+volumes:
+  esdata:
+```
+
+Logstash pipeline that accepts Beats input and writes to a dated index:
+
+```ruby
+# pipeline/winlogbeat.conf
+input {
+  beats { port => 5044 }
+}
+output {
+  elasticsearch {
+    hosts => ["http://elasticsearch:9200"]
+    index => "%{[agent][type]}-%{+YYYY.MM.dd}"
+  }
+}
+```
+
+On your AD lab domain controller (DC01), install Winlogbeat and point it at Logstash, shipping both the Security log and your Sysmon operational log (Sysmon should already be installed from Tier 3):
+
+```yaml
+# winlogbeat.yml on DC01
+winlogbeat.event_logs:
+  - name: Security
+  - name: Microsoft-Windows-Sysmon/Operational
+
+output.logstash:
+  hosts: ["192.168.56.10:5044"]   # host-only lab network IP of the ELK VM
+```
+
+On Metasploitable2 and your DVWA container, install Filebeat and ship `/var/log/auth.log` and the Apache access/error logs the same way — same Logstash port, different `agent.type` tag.
+
+Once data lands (confirm with `GET winlogbeat-*/_count` against `http://<elk-host>:9200`), build one real dashboard in Kibana:
+
+1. Stack Management → Data Views → create `winlogbeat-*`.
+2. Visualize → Lens → X-axis: `@timestamp` (date histogram, 1h buckets), Y-axis: count, break down by `winlog.event_id`, filtered to `event_id: 4624 or event_id: 4625`.
+3. Add a second panel: terms aggregation on `winlog.event_data.IpAddress` for `event_id: 4625`, top 10 — your failed-logon source list.
+4. Save both to a dashboard named **AD Home Lab Security Overview**.
+
+That dashboard is now your baseline. Everything else in this module adds detections on top of the same pipeline.
+
+## 2. Detection Engineering: Your Tier 3 Script, Rebuilt as a SIEM Rule
+
+Tier 3's Kerberoasting detector polled for Event ID 4769 with `TicketEncryptionType` `0x17` (RC4) against non-`krbtgt` service names. The weakness: a single RC4 ticket request is normal background noise on most domains. The real signal is a *burst* — one account requesting tickets for many distinct SPNs in a short window, which is exactly what tools like Rubeus or `GetUserSPNs.py` produce.
+
+Build this as a Kibana detection rule (Security → Rules → Create new rule → Custom query, type: Threshold):
+
+```json
+{
+  "name": "Kerberoasting - RC4 ticket burst",
+  "type": "threshold",
+  "query": "winlog.event_id:4769 and winlog.event_data.TicketEncryptionType:\"0x17\" and not winlog.event_data.ServiceName:\"krbtgt\"",
+  "threshold": {
+    "field": ["winlog.event_data.TargetUserName"],
+    "value": 5
+  },
+  "from": "now-5m",
+  "interval": "5m",
+  "risk_score": 73,
+  "severity": "high"
+}
+```
+
+This fires when the *same account* requests RC4 tickets for 5+ distinct SPNs inside a 5-minute window — the actual behavior of an automated roasting tool, not normal Kerberos chatter.
+
+Now extend the same pipeline to pass-the-hash. The reliable artifact isn't the NTLM logon alone (Logon Type 3 with NTLM is common on any network with legacy SMB) — it's **LSASS credential access**, which Tier 3's Mimikatz run against your own workstation already generates via Sysmon Event ID 10. Write the KQL:
+
+```
+event.code:"10" and winlog.event_data.TargetImage:"*\\lsass.exe" and not winlog.event_data.SourceImage:(
+  "*\\MsMpEng.exe" or "*\\WmiPrvSE.exe" or "*\\svchost.exe"
+)
+```
+
+Any process outside that allow-list touching LSASS's memory — `mimikatz.exe`, `procdump.exe`, `rundll32.exe` loading a dumping DLL — fires. Wrap it in a rule type **query** (not threshold — a single hit matters here), severity high, and set the rule's **index pattern** to `winlogbeat-*`. This is the exact chain your Tier 3 standalone script approximated, now running continuously across every box shipping Sysmon to your stack, with retention and a searchable history instead of a script you had to remember to run.
+
+## 3. NIST SP 800-61: Running the Full Lifecycle on a Real Lab Incident
+
+SP 800-61 defines four phases. Walk them against a real run: re-execute the Tier 3 attack chain (Kerberoast a service account on DC01, crack the hash offline, use it to pass-the-hash onto a second lab host) and let the rules above do the detecting.
+
+**Preparation.** Before you attack anything: confirm Winlogbeat/Sysmon are shipping from DC01 and WIN10-WKS1, confirm both detection rules above are enabled, snapshot both VMs so you can roll back cleanly, and write down your lab's IP map (DC01: 192.168.56.10, WIN10-WKS1: 192.168.56.20, attacker Kali: 192.168.56.30). This is your asset inventory and communication plan — even solo, write it down.
+
+**Detection & Analysis.** The Kerberoasting rule fires: `svc_backup` requested tickets for 7 SPNs in under 90 seconds. Pivot into Kibana Discover filtered to `winlog.event_data.TargetUserName:"svc_backup"` and `event_id:4769`, confirm the source IP in the preceding 4624 logon event is 192.168.56.30 (your attacker box, not a legitimate admin workstation). Severity: high — a service account with weak Kerberoasting-susceptible credentials is being actively targeted. Scope check: query `winlog.event_data.TargetUserName:"svc_backup"` across all event IDs for the next hour — you find a 4624 Logon Type 3 from WIN10-WKS1 immediately after, meaning the cracked hash was reused. That's lateral movement, not just reconnaissance.
+
+**Containment, Eradication & Recovery.** Short-term containment: disable `svc_backup` in AD (`Disable-ADAccount -Identity svc_backup`), and isolate WIN10-WKS1 by dropping its lab vSwitch to a quarantine host-only network with no route to DC01. Before killing any process, capture memory from WIN10-WKS1 (feeds directly into Section 4). Eradication: reset `svc_backup`'s password to a 32+ character random value, remove the SPN if it isn't actually needed, and check for persistence Rubeus/Mimikatz may have left (scheduled tasks, new local admin accounts) via `Get-ScheduledTask` and `Get-LocalGroupMember Administrators` on WIN10-WKS1. Recovery: restore WIN10-WKS1 from the pre-attack snapshot rather than trusting a cleaned live host, rejoin the domain, re-enable the Winlogbeat shipper, confirm both detection rules are receiving events again.
+
+**Post-Incident Activity.** Write the report. A real excerpt:
+
+```
+INCIDENT REPORT - IR-2026-004
+Classification: Internal Lab Exercise
+Severity: High
+Status: Closed
+
+SUMMARY
+Service account svc_backup was Kerberoasted from host 192.168.56.30
+at 14:02 UTC. The recovered hash was cracked offline and reused via
+pass-the-hash to authenticate to WIN10-WKS1 at 14:19 UTC.
+
+TIMELINE
+14:02:03  7x Event 4769 (RC4, SPN variation) for svc_backup - DC01
+14:02:11  Kibana rule "Kerberoasting - RC4 ticket burst" fires
+14:19:44  Event 4624 (Type 3, NTLM) for svc_backup - WIN10-WKS1
+14:19:51  Event 10 (lsass.exe access) by mimikatz.exe - WIN10-WKS1
+14:21:00  svc_backup disabled; WIN10-WKS1 isolated
+
+ROOT CAUSE
+svc_backup held an SPN with no Kerberos pre-auth enforcement and a
+password short enough to crack offline within the test window.
+
+REMEDIATION
+- Rotated svc_backup credential (32-char random, vaulted)
+- Removed unused SPN registration
+- Lowered Kerberoasting rule threshold from 5 to 3 SPNs/5min
+- Added LSASS-access rule coverage to WIN10-WKS1 baseline (done)
+
+LESSONS LEARNED
+Detection fired and triaged correctly. Gap: no alert exists yet for
+offline-crackable password length policy violations on service
+accounts. Added as a follow-up detection-engineering ticket.
+```
+
+That structure — Summary, Timeline, Root Cause, Remediation, Lessons Learned — maps directly onto SP 800-61's four phases and is what real SOC incident tickets look like.
+
+## 4. Memory & Disk Forensics: Volatility on Your Own Richer Image
+
+Tier 2's forensics exercise used a small, pre-built memory image with a single obvious artifact. Here you capture your *own* image, mid-attack, from WIN10-WKS1 — which means the artifact is whatever your own Mimikatz/Rubeus run actually left in memory, not a scripted answer key.
+
+Capture live memory before you reset the VM (using WinPmem, run from an elevated prompt on WIN10-WKS1 right after the pass-the-hash step above):
+
+```powershell
+winpmem_mini_x64.exe wks1-postattack.mem
+```
+
+Pull it off the lab network and analyze with Volatility 3 from your Kali box:
+
+```bash
+python3 vol.py -f wks1-postattack.mem windows.pslist | grep -i mimikatz
+```
+```
+4512   3340   mimikatz.exe   0xa381f2a01080   1   1   False   2026-10-02 14:19:39.000000 UTC
+```
+
+Pull the command line for that PID — this is the artifact Tier 2 never showed you, because it depends on exactly how you ran the tool:
+
+```bash
+python3 vol.py -f wks1-postattack.mem windows.cmdline --pid 4512
+```
+```
+4512   mimikatz.exe   "mimikatz.exe" "privilege::debug" "sekurlsa::logonpasswords" "exit"
+```
+
+That single line is the smoking gun a real incident report cites: proof the operator ran `sekurlsa::logonpasswords`, confirming credential-dumping intent, not just process execution. Follow up with `windows.netscan` to find the lateral-movement connection from this host back toward DC01 (or in this scenario, confirm WIN10-WKS1 was the destination, not source), and `windows.malfind --pid 4512` to check for any additional injected shellcode beyond the tool itself.
+
+For disk, image the same VM's virtual disk (export the `.vmdk`/`.vhdx` or use `dd` against a mounted copy) and open it in Autopsy. Pull three artifacts that corroborate the memory findings: the Prefetch entry `MIMIKATZ.EXE-XXXXXXXX.pf` (proves execution even after reboot), the `AmCache.hve` entry for the same binary with its SHA1 hash, and the NTUSER.DAT `RunMRU` key showing the exact command typed. Cross-referencing memory (what was running) against disk (what persisted and when it first ran) is the core discipline — neither source alone tells the full story.
+
+## 5. Threat Hunting: Finding What Didn't Alert
+
+Detection rules catch what you anticipated. Hunting looks for what you didn't write a rule for yet. Hypothesis: "Could someone Kerberoast slowly enough to stay under my 5-SPN/5-minute threshold?" Query Kibana Discover directly, no alert involved, aggregating over 24 hours instead of 5 minutes:
+
+```
+event_id:4769 and winlog.event_data.TicketEncryptionType:"0x17" and not winlog.event_data.ServiceName:"krbtgt"
+```
+
+Visualize as a terms aggregation on `TargetUserName` over the last day. In a quiet lab, any account showing up at all here — even once — is worth a look, because legitimate RC4 ticket requests should be rare if your domain functional level and SPN hygiene are set correctly. Finding `svc_sql` requesting a single RC4 ticket at 3am, with no corresponding business process, is a hunt finding your threshold rule would never have caught.
+
+A second hunt against your DVWA/Metasploitable2 Filebeat data: look for low-and-slow credential stuffing that stays under any reasonable brute-force alert threshold — many *distinct* usernames, each tried once, from one source IP, within an hour:
+
+```
+grep "Failed password" /var/log/auth.log
+```
+then in Kibana, a terms aggregation on `user.name` filtered to `source.ip:"192.168.56.30"` over a 1-hour window, cardinality ≥ 10. One failed attempt per username evades any "N failures for one account" rule entirely — it's only visible by hunting the aggregate pattern.
+
+## Exercise
+
+Re-run the Tier 3 Kerberoasting attack against your own AD home lab, but this time with your ELK stack live and both detection rules from Section 2 enabled. Then, without looking back at this module:
+
+1. Confirm the burst rule fires and pull the exact timestamp and source account from Kibana.
+2. Capture a fresh memory image from the attacking step's target host and use Volatility 3 to recover the exact tool command line used (not just the process name).
+3. Write your own IR-2026-00X report following the Summary / Timeline / Root Cause / Remediation / Lessons Learned structure from Section 3, using your own timestamps and findings — not the ones shown above.
+
+Hint: if the threshold rule doesn't fire, check whether your roasting tool requested fewer than 5 distinct SPNs — that's the rule's threshold doing exactly what it's supposed to, and it tells you something real about tuning detection thresholds against your own attacker tradecraft.

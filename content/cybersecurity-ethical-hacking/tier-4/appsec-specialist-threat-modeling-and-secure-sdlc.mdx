@@ -1,0 +1,267 @@
+---
+trackId: cybersecurity-ethical-hacking
+tier: 4
+title: "Path C — Application Security Specialist: Threat Modeling & Secure SDLC"
+order: 4
+estimatedHours: 35
+slug: appsec-specialist-threat-modeling-and-secure-sdlc
+---
+
+## Scope For This Module
+
+Every exploit, scan, and lab run below targets exactly one of: your own local **Juice Shop** (`localhost:3000`) or **DVWA** (`localhost/DVWA`) instances from earlier tiers, or PortSwigger Web Security Academy's own hosted labs. Nothing here touches a live site, a hypothetical company, or anyone's personal device. This module is not about finding new vulnerability classes — Tiers 1 through 3 already taught you to exploit and patch them. It's about changing *when* in the lifecycle you find them, and building the habit of finding them by reading, not just by attacking.
+
+## 1. STRIDE Threat Modeling: Juice Shop, For Real
+
+A threat model is not a vulnerability scan. It's a structured walk through an architecture asking "what can go wrong here, categorically," before you've found a single exploit. STRIDE (Spoofing, Tampering, Repudiation, Information Disclosure, Denial of Service, Elevation of Privilege) is the standard categorization because it maps cleanly onto the security properties a system is supposed to guarantee: authenticity, integrity, non-repudiation, confidentiality, availability, authorization.
+
+Here's Juice Shop's actual architecture, stripped to what matters for threat modeling — you already mapped most of these routes with Burp in Tier 2:
+
+```text
+Browser (Angular SPA)
+   |  HTTP, Authorization: Bearer <JWT>
+   v
+Express.js REST API  (server.ts + routes/*.ts)
+   |  Sequelize ORM
+   v
+SQLite file (data/juiceshop.sqlite)
+
+Side paths off the main flow:
+ - POST /file-upload, /profile/image/file   -> writes attacker-named files to disk
+ - GET  /ftp/:file                          -> serves static files out of an ftp/ share
+ - POST /rest/user/login                    -> issues a JWT
+ - GET  /rest/user/whoami                   -> reads the JWT's claims
+ - POST /api/Users                          -> registration, Sequelize .create() from req.body
+ - PUT/DELETE /api/Reviews/:id              -> edits/removes a product review
+```
+
+Walk STRIDE against this diagram, one real threat per category:
+
+| STRIDE | Concrete threat in Juice Shop | Where | Mitigation |
+|---|---|---|---|
+| **Spoofing** | The "JWT Issue" challenge: the server accepts a JWT with `"alg": "none"` (or a forged signature under a weak check), letting a client mint a token claiming to be any user, including an admin, without ever authenticating as one. | JWT verification in the auth middleware before `/rest/user/whoami` and every protected route | Enforce a strict allow-list of accepted algorithms server-side (`algorithms: ['RS256']` in the `jsonwebtoken` verify call), never trust the `alg` header the client sends |
+| **Tampering** | The "Forged Coupon" challenge: discount codes are generated from a predictable pattern (month/year plus a fixed discount tier) rather than issued and stored server-side, so a client can *compute* a high-value coupon it was never granted. | `POST /rest/basket/:id/coupon/:code` validation logic | Generate coupons server-side with a random, stored, single-use token; validate against a database row, never against a derivable pattern |
+| **Repudiation** | `PUT /api/Reviews/:id` lets an authenticated user edit a review's text, and the write succeeds with no append-only audit record of who changed what, when, and from what prior value — only the mutable row itself, which the same request just overwrote. If a user later claims "I never wrote that" or "my session was hijacked," there is no record that can confirm or refute it. | The review update handler; the absence of a separate `audit_log` table or structured business-event log | Write an immutable audit entry (actor, timestamp, before/after, request ID) on every sensitive mutation, stored separately from the mutable record itself |
+| **Information Disclosure** | The "Confidential Document" challenge: `GET /ftp/:file` resolves the filename against the `ftp/` directory with insufficient path validation, letting a request for a file like `acquisitions.md` (or a `../` traversal) return internal business documents that were never meant to be public. | The static file-serving route for `/ftp/` | Allow-list exact filenames server-side, never resolve a client-supplied path directly against the filesystem |
+| **Denial of Service** | `/file-upload` and `/profile/image/file` accept multipart uploads with no server-configured size cap (Express/`multer` defaults are effectively unbounded unless you set `limits: { fileSize }`), so one unauthenticated request with a multi-gigabyte body can exhaust disk or memory on the single Node process serving every user. | Multer configuration on the upload routes | Set an explicit `limits.fileSize`, rate-limit the endpoint, and run disk-quota enforcement outside the app process |
+| **Elevation of Privilege** | The "Admin Registration" challenge: `POST /api/Users` takes the full registration JSON body and passes it to Sequelize's `.create()`, which assigns *every* field present in the body to the new row — including `role`. Submitting `{"email":"x@x.com","password":"x","role":"admin"}` creates an admin account with zero additional steps. | The registration handler's mass-assignment into the `Users` model | Explicitly allow-list the fields copied from `req.body` into the model; never pass `req.body` straight into `.create()` |
+
+That table *is* a threat model. Notice Repudiation is the thinnest one — that's typical of small apps, not a flaw in the exercise. STRIDE's value is forcing you to write something in that row instead of skipping it because "nothing obvious" is there.
+
+## 2. Secure Code Review as a Practiced Discipline
+
+Tier 1's OWASP Top 10 module taught you exploit-then-patch: run the SQLi payload against DVWA, see it work, then open `low.php` and fix the string concatenation. That's dynamic-testing-led review — the exploit told you where to look. Real AppSec review work runs the other direction: you read the source cold, with no payload in hand yet, and you find the vulnerability class before you've proven it dynamically.
+
+Do that now against DVWA's file-upload feature, which Tier 2 only flagged dynamically (via Burp's site map) and never actually opened the source for. Here is `vulnerabilities/upload/source/low.php`, read top to bottom, no browser open:
+
+```php
+<?php
+
+if( isset( $_POST[ 'Upload' ] ) ) {
+    $target_path = DVWA_WEB_PAGE_TO_ROOT . "hackable/uploads/";
+    $target_path .= basename( $_FILES[ 'uploaded' ][ 'name' ] );
+
+    if( !move_uploaded_file( $_FILES[ 'uploaded' ][ 'tmp_name' ], $target_path ) ) {
+        $html .= '<pre>Your image was not uploaded.</pre>';
+    } else {
+        $html .= "<pre>{$target_path} succesfully uploaded!</pre>";
+    }
+}
+
+?>
+```
+
+The review workflow, done properly:
+
+1. **Find the sources** — attacker-controlled input entering this function. Two: `$_FILES['uploaded']['name']` (the client-supplied filename, used verbatim via `basename()`) and `$_FILES['uploaded']['tmp_name']` (server-assigned, not attacker-controlled).
+2. **Find the sink** — where that input causes a dangerous action. `move_uploaded_file()` writes the upload to `$target_path`, a path inside the web root (`hackable/uploads/`), built directly from the attacker's filename.
+3. **Check what's between source and sink.** Read every line between the `$_FILES` read and the `move_uploaded_file()` call. There is nothing. No extension allow-list. No MIME-type check. No magic-byte / content inspection. No filename randomization.
+4. **Classify it.** This is CWE-434, Unrestricted Upload of File with Dangerous Type — not "file upload is risky" in the abstract, but specifically: no control exists anywhere in this function to stop a `.php` file from landing in a directory the web server will execute.
+5. **Confirm the blast radius before touching a browser.** `hackable/uploads/` sits under DVWA's document root, which Apache serves with PHP execution enabled by default in the DVWA image. So a file named `shell.php` uploaded here becomes a server-side-executable webshell the moment it lands — this is remote code execution, not just "unexpected file present."
+
+Only *after* writing that down do you reach for Burp: craft a minimal `shell.php` (`<?php system($_GET['c']); ?>`), upload it through DVWA's form, then `curl 'http://localhost/DVWA/hackable/uploads/shell.php?c=id'` to confirm execution. The dynamic step now exists to *verify* a finding you already made by reading, not to *discover* it. That ordering is the entire discipline: review-first catches classes of bug a scanner or a single exploit attempt would never surface, because you're reasoning about what's *missing*, not what's present and wrong.
+
+## 3. SAST: A Semgrep Rule That Catches This Exact Pattern
+
+Semgrep lets you encode the review step you just did as a rule that runs on every commit, forever, without you re-reading the file by hand. Here's a rule for the exact gap found above:
+
+```yaml
+# unrestricted-upload-php.yaml
+rules:
+  - id: php-unrestricted-file-upload
+    languages: [php]
+    severity: ERROR
+    message: >
+      move_uploaded_file() is called with a destination path built from the
+      raw filename in $_FILES[...]['name']. If no extension allow-list or
+      content-type / magic-byte check runs before this call, an attacker can
+      upload a server-executable file into a web-accessible directory.
+      CWE-434: Unrestricted Upload of File with Dangerous Type.
+    patterns:
+      - pattern: move_uploaded_file($_FILES[$KEY]['tmp_name'], $DEST)
+    metadata:
+      cwe: "CWE-434"
+      owasp: "A04:2021 - Insecure Design"
+      references:
+        - "https://cwe.mitre.org/data/definitions/434.html"
+```
+
+Run it against your local DVWA checkout:
+
+```bash
+semgrep --config unrestricted-upload-php.yaml dvwa/vulnerabilities/upload/source/low.php
+```
+
+```text
+Scanning 1 file.
+
+dvwa/vulnerabilities/upload/source/low.php
+   php-unrestricted-file-upload
+      move_uploaded_file() is called with a destination path built from the
+      raw filename in $_FILES[...]['name']. If no extension allow-list or...
+
+       10   if( !move_uploaded_file( $_FILES[ 'uploaded' ][ 'tmp_name' ], $target_path ) ) {
+
+Ran 1 rule on 1 file: 1 finding.
+```
+
+Notice the rule is deliberately broad — it flags *every* `move_uploaded_file()` call, including ones that are perfectly safe because validation happens earlier in the function. That's correct SAST design, not sloppiness: pattern-matching reliable enough to auto-confirm every possible validation style (regex checks, `exif_imagetype()`, allow-list arrays, a separate validator class) isn't realistic. The rule's job is to produce a short list of candidates a human reviews using exactly the five-step workflow from Section 2 — SAST narrows where you read, it doesn't replace reading.
+
+## 4. DAST: An OWASP ZAP Scan Against Your Own Juice Shop
+
+SAST reads source. DAST sends real HTTP requests at a running instance and watches what comes back — it catches what only exists once the app is actually serving traffic (misconfigured headers, session handling, things introduced by the framework or deployment, not just your code). Run ZAP's baseline scan against your local Juice Shop:
+
+```bash
+docker run -t --network host zaproxy/zap-stable zap-baseline.py \
+  -t http://localhost:3000 \
+  -r juice-shop-baseline-report.html
+```
+
+Baseline mode spiders the app and passively analyzes the traffic it generates — it does **not** send attack payloads, so it's safe to run against anything, including this instance, without risking data corruption. Typical output:
+
+```text
+WARN-NEW: Content Security Policy (CSP) Header Not Set [10038] x 24
+WARN-NEW: Missing Anti-clickjacking Header [10020] x 3
+WARN-NEW: X-Content-Type-Options Header Missing [10021] x 45
+WARN-NEW: Server Leaks Version Information via "Server" HTTP Response Header Field [10036] x 1
+INFO: Session Management Response Identified [10112] x 2
+
+FAIL-NEW: 0	FAIL-INPROG: 0	WARN-NEW: 4	WARN-INPROG: 0	INFO: 1	IGNORE: 0	PASS: 41
+```
+
+To go further than passive analysis, ZAP's Automation Framework can drive a full active scan — the kind that actually fires SQLi/XSS payloads — but only ever point this at your own local instance:
+
+```yaml
+# zap-automation.yaml
+env:
+  contexts:
+    - name: juice-shop
+      urls: ["http://localhost:3000"]
+jobs:
+  - type: spider
+    parameters:
+      context: juice-shop
+      url: "http://localhost:3000"
+  - type: passiveScan-wait
+  - type: activeScan
+    parameters:
+      context: juice-shop
+  - type: report
+    parameters:
+      template: traditional-html
+      reportFile: juice-shop-full-scan.html
+```
+
+```bash
+docker run -t --network host -v $(pwd):/zap/wrk/:rw zaproxy/zap-stable \
+  zap.sh -cmd -autorun /zap/wrk/zap-automation.yaml
+```
+
+An active scan sends real exploit traffic — SQL injection strings, XSS payloads, path traversal attempts — at every parameter it finds. Running it against anything other than your own lab instance is exactly the kind of unauthorized testing Tier 0's ground rules exist to prevent.
+
+## 5. PortSwigger Academy, Expert Difficulty
+
+Starting an Expert lab is the same mechanics as Apprentice, with a harder filter to get past. Open **SQL injection → SQL injection with filter bypass via XML encoding** (Expert) on PortSwigger Web Security Academy and click **Access the lab**.
+
+The app has a "Check stock" feature that POSTs XML:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<stockCheck>
+    <productId>1</productId>
+    <storeId>1</storeId>
+</stockCheck>
+```
+
+Send this through Burp Repeater first with a plain injection in `storeId`:
+
+```xml
+<storeId>1 UNION SELECT username, password FROM users-- -</storeId>
+```
+
+This gets rejected — the application inspects the raw request for blacklisted literal strings like `SELECT` and `UNION` before parsing the XML. The bypass: XML numeric character references get decoded by the XML parser *after* the filter has already scanned the raw bytes, so encode the blacklisted keywords as hex character references instead of plaintext:
+
+```xml
+<storeId>1 UNION SELECT username, password FROM users-- -</storeId>
+```
+
+becomes, with `SELECT` and `UNION` hex-encoded character by character:
+
+```xml
+<storeId>1 UNION SELECT username||'~'||password FROM users-- -</storeId>
+```
+
+The raw bytes Burp sends no longer contain the literal string `UNION` or `SELECT` anywhere, so the filter passes it through; the XML parser on the server decodes the entities back into real SQL keywords before handing the value to the query layer. The stock-check response comes back with usernames and password hashes concatenated into the quantity field. This is the exact lesson of Section 3's Semgrep rule, inverted: a filter that pattern-matches on surface text, applied before a decoding step happens, is exactly as brittle as a SAST rule that pattern-matches on surface syntax — both need to reason about what the data *becomes*, not just what it looks like on the wire.
+
+## 6. Where the Gate Actually Belongs in the Pipeline
+
+Tier 2's **CI/CD Fundamentals with GitHub Actions** (DevOps & Tooling track) gave you build → test → deploy. Tier 3's **Advanced CI/CD Patterns** (same track) turned that into a real multi-environment promotion pipeline: build the artifact once, then gate it through `dev → staging → prod` with required reviewers at each promotion. Security gates slot into that exact structure — they don't get a separate pipeline:
+
+```yaml
+jobs:
+  sast:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: semgrep --config p/owasp-top-ten --error .
+
+  build:
+    needs: sast
+    runs-on: ubuntu-latest
+    steps:
+      - run: docker build -t myapp:${{ github.sha }} .
+
+  deploy-staging:
+    needs: build
+    environment: staging
+    runs-on: ubuntu-latest
+    steps:
+      - run: ./deploy.sh staging ${{ github.sha }}
+
+  dast-staging:
+    needs: deploy-staging
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          docker run -t --network host zaproxy/zap-stable zap-baseline.py \
+            -t https://staging.internal -r zap-staging-report.html
+
+  deploy-prod:
+    needs: dast-staging
+    environment: prod
+    runs-on: ubuntu-latest
+    steps:
+      - run: ./deploy.sh prod ${{ github.sha }}
+```
+
+The `sast` job gates the **build** — it needs no running application, so it runs on every pull request, in seconds, before the artifact that will get promoted even exists. The `dast-staging` job gates **promotion to prod** — it needs a live, routable instance, so it can only run after `deploy-staging`, against that ephemeral environment, never against prod itself.
+
+This is structurally different from a post-release pentest in three ways that matter: it runs on *every* change, not quarterly; it is *scoped* to one class of issue per gate (SAST catches patterns in code, DAST catches issues only visible in a running app) rather than attempting full coverage; and a failure *blocks promotion automatically* rather than generating a report someone reads weeks later. A pentest still matters — it catches chained, business-logic, and multi-step issues no automated gate is built to find, the way a human tester chains the basket-tampering and mass-assignment threats from Section 1 into one exploit path. The gate and the pentest are not redundant; the gate exists so the pentest spends its limited time on the hard, chained stuff instead of re-discovering CWE-434 for the hundredth time.
+
+## Exercise: Threat-Model and Gate One More Flow
+
+Pick one Juice Shop API route from Tier 2's own Burp site map that Section 1's table above did **not** cover — `/rest/basket/:id` or `/rest/products/search?q=` are both good candidates. Produce a short written threat model covering at least three STRIDE categories for that single route, the same way Section 1 did: name the concrete threat, point at the exact code path it lives in, state the mitigation.
+
+Then do one of the following against your own local Juice Shop instance only: write a Semgrep rule (real YAML, even if narrow) that would have caught the root cause if it existed in Juice Shop's TypeScript source, or run `zap-baseline.py` against the specific route and attach the relevant finding line to your write-up.
+
+*Hint:* `/rest/basket/:id` takes the basket ID straight from the URL path. Think about what a Sequelize query for that basket would need to include — a `WHERE userId = :authenticatedUserId` clause — and what happens to every STRIDE category on this list if that clause is missing versus present.

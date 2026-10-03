@@ -1,0 +1,98 @@
+[
+  {
+    "id": "cybersecurity-ethical-hacking/tier-4/red-team-advanced-offensive-operations/q1",
+    "type": "multiple_choice",
+    "prompt": "How does Offensive Security's PEN-200 methodology relate to the PTES framework covered in Tier 3?",
+    "choices": [
+      "PEN-200 replaces PTES entirely with a different phase structure",
+      "PEN-200 provides a concrete operational loop (enumerate, map, try known issues, pivot and re-enumerate, document continuously) for executing PTES's phases on a real AD network",
+      "PTES is only for web applications while PEN-200 is only for network exploitation",
+      "PEN-200 and PTES cover unrelated, non-overlapping engagement types"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-4/red-team-advanced-offensive-operations/q2",
+    "type": "multiple_choice",
+    "prompt": "In the unconstrained delegation attack chain against lab.local, what does the MS-RPRN 'printer bug' (SpoolSample) actually accomplish?",
+    "choices": [
+      "It exploits a buffer overflow in the Print Spooler service to gain code execution",
+      "It coerces the Domain Controller to authenticate to an attacker-controlled host, letting an unconstrained-delegation box capture the DC machine account's TGT",
+      "It directly dumps the KRBTGT hash from the Spooler service's memory",
+      "It disables Kerberos pre-authentication on the DC"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-4/red-team-advanced-offensive-operations/q3",
+    "type": "multiple_choice",
+    "prompt": "What AD permission on a computer object is the key precondition for the resource-based constrained delegation (RBCD) abuse chain?",
+    "choices": [
+      "ReadProperty on the userAccountControl attribute",
+      "GenericWrite (or GenericAll/WriteDacl) sufficient to modify msDS-AllowedToActOnBehalfOfOtherIdentity",
+      "Membership in the Domain Admins group",
+      "ReplicatingDirectoryChanges rights on the domain object"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-4/red-team-advanced-offensive-operations/q4",
+    "type": "multiple_choice",
+    "prompt": "Architecturally, what are the three core components every C2 framework (e.g., Sliver, Mythic) provides?",
+    "choices": [
+      "A port scanner, a password cracker, and a report generator",
+      "An implant/agent, a listener (teamserver), and a tasking protocol for issuing commands and returning results",
+      "A vulnerability scanner, an exploit database, and a patching engine",
+      "A firewall, an intrusion detection system, and a SIEM"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-4/red-team-advanced-offensive-operations/q5",
+    "type": "multiple_choice",
+    "prompt": "In this module, what is the required network scope for deploying a Sliver or Mythic C2 teamserver and its implants?",
+    "choices": [
+      "Any publicly routable VPS the learner controls",
+      "A real company's test environment with written permission",
+      "Entirely inside the learner's own isolated, host-only lab network with no internet or home-LAN reachability",
+      "A shared cloud sandbox provided by the C2 framework's vendor"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-4/red-team-advanced-offensive-operations/q6",
+    "type": "multiple_choice",
+    "prompt": "Which of the following is an example of the 'API call sequence' detection layer that modern EDR relies on, as covered in this module's defensive framing of evasion?",
+    "choices": [
+      "A single call to GetProcAddress, which is used by nearly all legitimate software",
+      "The sequence VirtualAlloc followed by WriteProcessMemory followed by CreateRemoteThread, characteristic of process injection",
+      "Any program that reads a file from disk",
+      "A program that opens a TCP socket on port 443"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-4/red-team-advanced-offensive-operations/q7",
+    "type": "multiple_choice",
+    "prompt": "Why is Offensive Security's Proving Grounds Practice platform used in this module instead of a random vulnerable server found on the internet?",
+    "choices": [
+      "It is faster to exploit than real-world servers",
+      "It is explicitly hosted by Offensive Security for this kind of legal practice, under its own terms of service, unlike an unauthorized real-world target",
+      "It does not require any methodology or enumeration",
+      "It only contains Linux targets, which are easier to attack"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-4/red-team-advanced-offensive-operations/q8",
+    "type": "multiple_choice",
+    "prompt": "After capturing the Domain Controller's machine account TGT via unconstrained delegation and the printer bug, what follow-on action gives the attacker the KRBTGT hash and effectively full domain compromise?",
+    "choices": [
+      "Kerberoasting the DC's own service ticket",
+      "A DCSync operation (lsadump::dcsync) using the DC machine account's replication rights",
+      "Performing an LLMNR poisoning attack against the DC",
+      "Resetting the krbtgt account's password directly"
+    ],
+    "correctIndex": 1
+  }
+]

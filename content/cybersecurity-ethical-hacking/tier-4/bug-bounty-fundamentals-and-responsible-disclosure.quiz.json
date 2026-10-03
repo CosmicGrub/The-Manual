@@ -1,0 +1,98 @@
+[
+  {
+    "id": "cybersecurity-ethical-hacking/tier-4/bug-bounty-fundamentals-and-responsible-disclosure/q1",
+    "type": "multiple_choice",
+    "prompt": "What is the legal function of a bug bounty program's 'safe harbor' clause?",
+    "choices": [
+      "It guarantees the researcher a financial reward regardless of severity",
+      "It grants advance authorization for good-faith testing within the program's defined scope, so that activity is not 'unauthorized access' under laws like the CFAA",
+      "It transfers all legal liability for any damage caused to the researcher onto the program",
+      "It allows the researcher to test any system owned by the company, whether listed in scope or not"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-4/bug-bounty-fundamentals-and-responsible-disclosure/q2",
+    "type": "multiple_choice",
+    "prompt": "Under a HackerOne Gold Standard Safe Harbor style policy, what must a researcher do to remain within the program's authorization while testing?",
+    "choices": [
+      "Act in good faith, stay within the documented scope and technique restrictions, and avoid privacy violations or service disruption",
+      "Test any subdomain discovered via OSINT, whether or not it is listed in scope",
+      "Publicly disclose the finding immediately upon discovery to maximize attention",
+      "Run an automated scanner at full throughput with no rate limiting"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-4/bug-bounty-fundamentals-and-responsible-disclosure/q3",
+    "type": "multiple_choice",
+    "prompt": "In the CVSS 3.1 vector CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:H/I:L/A:N, what does the S:C component mean?",
+    "choices": [
+      "The vulnerable component and the impacted component differ (Scope Changed)",
+      "The attack requires physical access to the target (Scope Confined)",
+      "The vulnerability has been confirmed by a triager (Scope Closed)",
+      "The maximum possible severity score is capped at this value (Scope Ceiling)"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-4/bug-bounty-fundamentals-and-responsible-disclosure/q4",
+    "type": "multiple_choice",
+    "prompt": "Why is checking for duplicate reports before submitting important in bug bounty work?",
+    "choices": [
+      "Programs typically pay only the first qualifying report of a given root cause; later duplicates are closed as N/A with no payout",
+      "Duplicate reports are automatically merged and both researchers split the bounty evenly",
+      "A program requires at least three independent duplicate reports before it will triage an issue",
+      "Duplicate checking is unnecessary because triagers always perform it on the researcher's behalf before review"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-4/bug-bounty-fundamentals-and-responsible-disclosure/q5",
+    "type": "multiple_choice",
+    "prompt": "What should the 'Steps to Reproduce' section of a professional vulnerability report contain?",
+    "choices": [
+      "A general description of the vulnerability class affected",
+      "Exact numbered steps with the actual request/response data and payload used, sufficient for a triager to reproduce the bug independently",
+      "Only a screenshot showing the final impact, without reproduction detail",
+      "A link to a generic OWASP article describing the vulnerability class"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-4/bug-bounty-fundamentals-and-responsible-disclosure/q6",
+    "type": "multiple_choice",
+    "prompt": "Why can DVWA and Juice Shop findings be used to practice HackerOne-style report writing but not actually be submitted to a live bug bounty program?",
+    "choices": [
+      "They are intentionally vulnerable local training applications with no owner granting live-testing authorization or paying bounties, so they're used for practicing technique and report format, not submission",
+      "They are automatically in scope for every HackerOne program by default",
+      "They can be submitted to Bugcrowd as zero-day findings for a cash reward",
+      "They are production SaaS products operated directly by OWASP"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-4/bug-bounty-fundamentals-and-responsible-disclosure/q7",
+    "type": "multiple_choice",
+    "prompt": "What is a key structural difference commonly seen between HackerOne and Bugcrowd regarding how severity is rated?",
+    "choices": [
+      "HackerOne programs commonly rate severity using CVSS, while Bugcrowd maintains its own Vulnerability Rating Taxonomy (VRT) that many of its programs use instead",
+      "Both platforms use an identical proprietary scoring system with no meaningful difference",
+      "Neither platform supports any form of severity rating for submitted reports",
+      "Only Bugcrowd supports CVSS scoring; HackerOne has no severity model at all"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-4/bug-bounty-fundamentals-and-responsible-disclosure/q8",
+    "type": "multiple_choice",
+    "prompt": "A researcher discovers an issue on an asset owned by the same company running a bug bounty program, but that asset is not listed on the program's scope page. What is the correct action?",
+    "choices": [
+      "Test it anyway, since it belongs to the same company running the program",
+      "Do not test it; assets outside the documented scope are not covered by safe harbor, and testing them can constitute unauthorized access",
+      "Submit a report for it immediately, since demonstrated impact matters more than scope",
+      "Test it first, then ask the triager for retroactive permission afterward"
+    ],
+    "correctIndex": 1
+  }
+]

@@ -634,3 +634,14 @@ All notable changes to The Manual (curriculum + app) are logged here. This file 
 **Result:** `npm run build` passed clean — 268 unique slugs verified repo-wide.
 
 **Status:** Cybersecurity & Ethical Hacking Tier 3 complete (108h, 6 lessons). Cybersecurity is now 4/6 tiers content-complete (Tiers 0-3, 276h); Tiers 4-5 remain.
+
+## [0.51.0] — 2026-10-03 — Cybersecurity & Ethical Hacking Tier 4: complete (all three specialization paths, real depth)
+
+**Context:** The highest-stakes tier in the curriculum to review: Red Team's module covers C2 frameworks (Sliver) and evasion concepts alongside advanced AD attack chains. Every module got the same non-negotiable authorized-targets framing as every prior tier, plus an explicit instruction that the C2 teamserver setup stay confined to the learner's own isolated lab network and that "evasion concepts" be taught strictly as a target-list for Blue Team's detections, never as operational guidance for evading a real production security product. All three specialization paths (Red/Blue/AppSec) were written with genuine depth rather than picking one for the learner, matching the precedent set by Platforms Tier 4's multi-path specialization module.
+
+**Added**
+- `content/cybersecurity-ethical-hacking/tier-4/*.mdx` (6 files) + matching quizzes: Bug Bounty Fundamentals & Responsible Disclosure (real DoD VDP and Shopify/Atlassian scope-page readings, what CFAA safe harbor legally does and doesn't cover), Path A — Red Team (two full real AD attack chains against the learner's own `lab.local` domain — unconstrained delegation via the printer-bug coercion to DCSync, and a GenericWrite-to-RBCD chain — plus Sliver C2 confined entirely to the isolated lab network, and evasion concepts framed explicitly as "a target list for Blue Team, not a toolkit for Red Team"), Path B — Blue Team (SIEM/ELK, NIST SP 800-61 IR lifecycle, detections for Tier 3's own AD attacks), Path C — AppSec Specialist (STRIDE, Semgrep, OWASP ZAP), Cloud Security Fundamentals (flaws.cloud), CTF Team Practice & Bug Bounty Lab Time.
+
+**Result:** `npm run build` passed clean — 274 unique slugs verified repo-wide.
+
+**Status:** Cybersecurity & Ethical Hacking Tier 4 complete (150h, 6 lessons). Cybersecurity is now 5/6 tiers content-complete (Tiers 0-4, 426h); only Tier 5 (Expert/Innovator) remains.

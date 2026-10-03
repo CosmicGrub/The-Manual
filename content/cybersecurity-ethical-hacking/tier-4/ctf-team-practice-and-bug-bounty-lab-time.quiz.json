@@ -1,0 +1,98 @@
+[
+  {
+    "id": "cybersecurity-ethical-hacking/tier-4/ctf-team-practice-and-bug-bounty-lab-time/q1",
+    "type": "multiple_choice",
+    "prompt": "In an attack-defense CTF like ENOWARS, what must a team do that has no equivalent in a jeopardy-style event?",
+    "choices": [
+      "Patch and keep their own vulnerable services both secure and continuously available while attacking the identical services run by other teams",
+      "Submit a single static flag string into a CTFd scoreboard for each solved challenge",
+      "Solve challenges sorted into categories like web, pwn, and crypto for dynamically-scored points",
+      "Register a team account on CTFtime before the competition platform opens"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-4/ctf-team-practice-and-bug-bounty-lab-time/q2",
+    "type": "multiple_choice",
+    "prompt": "On a CTFtime.org event listing, what does a low 'weight' value (roughly under 20-25) generally indicate?",
+    "choices": [
+      "The event is shorter in duration than high-weight events",
+      "The event counts less toward team rating, which often correlates with a smaller or easier, more beginner-approachable competition",
+      "The event is attack-defense format rather than jeopardy",
+      "The event has no CTFd scoreboard and uses manual flag grading"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-4/ctf-team-practice-and-bug-bounty-lab-time/q3",
+    "type": "multiple_choice",
+    "prompt": "Before testing any asset under a public bug bounty program's scope, what should you do first, every single session?",
+    "choices": [
+      "Run an unthrottled automated scanner across every subdomain you can enumerate to save time",
+      "Re-read the program's current live policy in full and write down the exact asset, in-scope vulnerability classes, and exclusions for that session, since scope and guidance can change between sessions",
+      "Assume the scope from your last session still applies, since most programs rarely update their policy",
+      "Email the program owner directly to ask for verbal permission before reading the published policy"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-4/ctf-team-practice-and-bug-bounty-lab-time/q4",
+    "type": "multiple_choice",
+    "prompt": "GitLab's public bug bounty program policy (per its own 2026 policy update) recommends researchers do which of the following for most vulnerability research?",
+    "choices": [
+      "Test exclusively against the live gitlab.com production environment to maximize payout tier",
+      "Avoid the program entirely unless given a dedicated staging credential by GitLab staff",
+      "Stand up and test against a self-hosted GitLab Development Kit (GDK) instance built from the current source, rather than testing directly on production",
+      "Only submit reports for static marketing site content, since that is the only in-scope tier"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-4/ctf-team-practice-and-bug-bounty-lab-time/q5",
+    "type": "multiple_choice",
+    "prompt": "A draft report says: 'Found that you can change the basket ID in the URL and see other people's baskets. Fix: add proper authorization checks. Severity: Critical.' Which peer-review checklist item does this draft fail most clearly?",
+    "choices": [
+      "It fails all three: no reproducible steps are given, the Critical severity isn't derived from a stated impact, and the fix doesn't name where or what check is missing",
+      "It only fails the severity check, since Critical is clearly correct for any access-control bug",
+      "It only fails the reproducibility check; the fix and severity are both fine as written",
+      "It passes the checklist as written and is ready to submit"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-4/ctf-team-practice-and-bug-bounty-lab-time/q6",
+    "type": "multiple_choice",
+    "prompt": "Which fix recommendation would pass the 'actionable' peer-review check for the Juice Shop basket IDOR?",
+    "choices": [
+      "\"Sanitize all user input before processing.\"",
+      "\"Add proper authorization checks on the basket endpoint.\"",
+      "\"In the basket retrieval handler, after loading the basket by ID, compare basket.UserId to the authenticated session's user ID and return 403 Forbidden on mismatch before serializing the response.\"",
+      "\"Make basket IDs harder to guess by using longer random strings.\""
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-4/ctf-team-practice-and-bug-bounty-lab-time/q7",
+    "type": "multiple_choice",
+    "prompt": "Why is Google CTF's 'Beginner's Quest' specifically recommended as a first team CTF event?",
+    "choices": [
+      "It is an attack-defense format that requires no prior defensive experience",
+      "It is a separate, untimed, no-scoreboard-pressure jeopardy track built explicitly for people who haven't competed before, while still running on real CTF infrastructure",
+      "It only runs locally and does not require registering on CTFtime",
+      "It awards real monetary bug bounty payouts in addition to CTF points"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-4/ctf-team-practice-and-bug-bounty-lab-time/q8",
+    "type": "multiple_choice",
+    "prompt": "What is the main reason a team should assign CTF category roles (web, pwn, crypto, forensics, reversing, OSINT) before an event starts rather than figuring it out live?",
+    "choices": [
+      "CTFtime requires pre-registered roles per team member before allowing scoreboard access",
+      "It prevents duplicated effort on the same challenge and lets dynamic-scoring categories be claimed quickly by whoever on the team is actually strongest in them",
+      "Jeopardy-style events do not allow players to switch categories mid-event",
+      "Role assignment is required to unlock first-blood bonus eligibility"
+    ],
+    "correctIndex": 1
+  }
+]

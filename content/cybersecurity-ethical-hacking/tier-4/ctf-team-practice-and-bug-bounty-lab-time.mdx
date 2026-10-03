@@ -1,0 +1,147 @@
+---
+trackId: cybersecurity-ethical-hacking
+tier: 4
+title: "CTF Team Practice & Bug Bounty Lab Time"
+order: 6
+estimatedHours: 18
+slug: ctf-team-practice-and-bug-bounty-lab-time
+---
+
+## Jeopardy vs. Attack-Defense: How Team CTFs Actually Run
+
+Every team CTF you'll find on CTFtime.org runs one of two formats, and they test different muscles.
+
+**Jeopardy-style** is the format you already know from solo practice, just played as a team against a shared scoreboard. Organizers publish a grid of challenges sorted by category (web, pwn, crypto, forensics, reversing, OSINT, misc) and point value. You solve a challenge, submit the flag (a string like `flag{a3f9...}` or `CTF{...}`) into a CTFd-style scoreboard, and your team's score ticks up. Two scoring wrinkles matter for team play:
+
+- **Dynamic scoring**: a challenge is worth more points the fewer teams have solved it, and less as more teams solve it. This rewards specialization — if your team has the only competent reverser in the room, that category is where you bank points.
+- **First blood**: the first team to solve a given challenge often gets a bonus (sometimes a few extra points, sometimes just bragging rights on the scoreboard). Fast triage of which challenges are solvable by who on your team matters more than raw skill depth.
+
+Google's CTF runs a jeopardy track every year called **Beginner's Quest** — a separate, untimed, no-scoreboard-pressure set of ~15-20 story-linked challenges (recent years have run 18) explicitly built for people who haven't competed before. It's listed on CTFtime as its own event alongside the main (much harder) Google CTF. This is the single best on-ramp for a first team event: low stakes, real infrastructure, real write-ups afterward from thousands of other beginners.
+
+**Attack-defense** is a different game entirely. Every team is handed an identical set of vulnerable services (a "vulnbox") at the start of the competition — think a small fleet of deliberately-buggy web apps and daemons, similar in spirit to Metasploitable2 but purpose-built for the event. Your job is threefold, simultaneously, for the whole competition window:
+
+1. **Defend**: find and patch the vulnerabilities in your own services before other teams exploit them, without breaking functionality (an automated checker service polls your box and penalizes you if it goes down or stops behaving correctly).
+2. **Attack**: find the same vulnerabilities in every other team's identical vulnbox and exploit them to steal "flags" — short-lived secret tokens the scoring system plants and rotates on a timer (a "tick," often 60-120 seconds).
+3. **Stay up**: uptime/correctness checks run constantly; a service you've patched into brokenness costs you points just like one that's been hacked.
+
+**ENOWARS**, run by the NDS research group at Ruhr University Bochum, is a real, recurring attack-defense CTF listed every year on CTFtime (ENOWARS 10 ran in mid-2026 with over 130 teams). Its running joke-premise is a resort full of broken services ("ENOResort") your team has to both secure and pillage. Attack-defense events are a much bigger time and coordination commitment than jeopardy — budget a dedicated person on "defense/patching" duty for the whole event, because an unpatched service bleeds points every tick, all day.
+
+## Finding and Joining a Beginner-Friendly Event on CTFtime.org
+
+CTFtime is the de facto global calendar and ranking system for team CTFs. Here's the actual registration flow:
+
+1. **Create an account** at ctftime.org, then go to your profile and **create a team** (or ask to join one a friend already made — a team is a persistent entity with its own CTFtime rating that accumulates across events, so don't throw one together carelessly; pick a name you'll keep).
+2. Go to the **Events** tab and filter by **upcoming**. Each event card shows: format (CTF vs attack-defense, labeled directly), **weight** (a number CTFtime assigns reflecting how much the event counts toward team rating — low weight, roughly under 20-25, correlates with smaller/easier events; high weight (50+) means a serious, usually hard, internationally competitive event), and whether it's on-line or on-site.
+3. Click into the event page. Scroll to the **description/rules** — beginner-oriented events say so explicitly ("no prior CTF experience required," "Beginner's Quest," "first-timer friendly"). The event page links out to the actual competition platform (a CTFd instance, or a bespoke scoreboard) where you register your *team* separately using credentials or an invite code the organizers issue closer to start time.
+4. Register your team on the competition platform before the start time listed (times are shown in your local timezone once you're logged in). Most jeopardy events run 24-48 hours continuously; you do not need to play the whole window, but your team should agree on shifts in advance so someone's always watching the scoreboard.
+
+Two concrete, real, recurring jeopardy events that show up on CTFtime every year and are explicitly beginner-friendly: **Google CTF's Beginner's Quest** (usually alongside the main Google CTF in mid-year) and **picoCTF's** live competition window (picoCTF also maintains a always-open practice archive, picoGym, separate from its scored annual event). Both are free, require no application, and are exactly the kind of event CTFtime's filters will surface if you sort by weight ascending and read descriptions for "beginner."
+
+## Building a Team Practice Workflow
+
+A team that shows up to a jeopardy CTF without a workflow wastes its first three hours figuring out who's doing what. Set this up before the event starts:
+
+- **Role assignment by category**, mapped to what each person has actually practiced in earlier tiers of this curriculum: whoever's strongest in web app testing (Juice Shop, DVWA, PortSwigger Academy reps) owns Web; whoever's done the most binary exploitation owns Pwn; and so on for Crypto, Forensics, Reversing, OSINT. One person — often your strongest generalist — floats and triages new challenges as they're released, assigning them before anyone starts duplicating work.
+- **Shared scratch space**: a shared document (a CTF-specific Discord channel with pinned threads per challenge, or a shared Obsidian/Notion workspace) where anyone can dump partial progress, leaked hints, and half-working payloads. Nothing kills a team's score like two people independently solving the same challenge because they didn't know the other had started.
+- **Comms discipline**: a voice channel per category during crunch time, and a rule that flags get submitted the instant they're found — don't sit on a solved challenge to "double check," because another team's first-blood bonus doesn't wait.
+- **Post-event write-ups**: win or lose, write up every challenge your team solved (and the ones you didn't, if a public write-up appears after). This is also exactly the reproducibility habit you need for bug bounty reporting — a CTF write-up that another teammate can't follow step-by-step is the same failure mode as an unreproducible vulnerability report.
+
+## Structured Bug-Bounty Session Planning Within Scope
+
+The habit from this tier's Bug Bounty Fundamentals module was: read the program's scope and rules of engagement *in full, every single time*, before you touch anything — because scope changes, and "I didn't know that was out of scope" is not a defense. Lab time in this module means actually running that discipline on a real clock, against one real program, for one real asset, rather than talking about it abstractly.
+
+**Worked example — GitLab's public bug bounty program (hosted on HackerOne, `hackerone.com/gitlab`):**
+
+GitLab's program is a good first real target for a structured session because its scope is tiered and its current policy tells you something a lot of beginners get wrong: *in scope does not always mean "test it on the live production site."* GitLab's own bug bounty blog (policy updates posted January 2026) now strongly recommends that researchers stand up a local **GitLab Development Kit (GDK)** instance — a self-hosted, source-identical build of GitLab you run yourself — for most vulnerability research, rather than testing directly against `gitlab.com`. The program's scope tiers (verify current exact wording and payout figures on the live policy before every session, since both change):
+
+- GitLab.com and the product source code — highest bounty tier (critical/high triaged reports have historically paid $1,000 at triage, medium $500, with the balance paid after severity confirmation).
+- Non-production environments — reduced payout tier.
+- Static marketing/informational sites — lowest tier, often informational-only.
+
+A structured three-hour session built on this, planned *before* you open a single tool:
+
+1. **Hour 0 (15 min), scope lock-in.** Open the live policy on HackerOne, read it end to end, and write down in your session notes: the exact asset you're choosing (e.g., "self-hosted GDK instance, built from the current stable GitLab release tag, per the program's explicit GDK-testing guidance"), the vulnerability classes the program says it cares about this cycle, and anything explicitly excluded (rate-limiting reports, social engineering, denial-of-service, automated scanners run without throttling, and third-party/non-GitLab-owned infrastructure are near-universal exclusions across public programs — confirm against the live text, don't assume).
+2. **Hour 0 (15 min), objective.** Pick one feature surface, not "the whole app." GitLab's public bounty history skews heavily toward broken access control in project/group permission boundaries (a user with Reporter access reaching an action gated to Maintainer, a private project's data leaking through an API response meant for a public one). Write a single testable hypothesis: *"Can a user with [role X] on [feature Y] reach an action or data object gated to [role Z]?"*
+3. **Hour 1, build and baseline.** Stand up the GDK locally following GitLab's own setup docs, create two test accounts with different permission levels inside your own instance, and map the normal, authorized flow for the feature you picked before trying to break it.
+4. **Hour 2, test the hypothesis.** Methodically walk the feature as the lower-privileged account, intercepting requests in Burp, looking specifically for object identifiers (project IDs, issue IDs, merge request IIDs) that the server trusts without re-checking the requesting user's actual permission on that object — the exact bug class an IDOR/broken-access-control check targets.
+5. **Hour 3, write the report immediately**, while every step is still fresh enough to re-verify twice before you submit. Fresh write-ups are more reproducible than ones written from memory a week later.
+
+The same structure applies verbatim if your chosen program's current scope instead names a specific subdomain, a mobile API, or a staging environment — the skeleton (lock scope in writing, pick one feature, baseline the authorized path, test one hypothesis, write immediately) doesn't change; only the asset and the policy specifics do.
+
+## Peer Review Before You Submit: The Checklist
+
+A report you haven't had someone else read is a report you're guessing is good. Run every draft through three checks before it goes to a program:
+
+1. **Reproducible from the steps alone.** Could someone who was *not* in the room when you found this follow your numbered steps and get the identical result, with no insider knowledge? Every step needs the literal request, the literal parameter value you changed, and the literal observed response — not "I manipulated the ID and it worked."
+2. **Severity is justified, not asserted.** The severity label has to follow from the stated impact, not from how exciting the bug felt to find. "I can see another user's object" is not automatically Critical — what specifically is exposed, does it require authentication, does it require a valid session the attacker already needs to have obtained some other way, and what's the actual blast radius?
+3. **The fix is actionable.** "Sanitize input" or "add authorization checks" tells a developer nothing about where or how. An actionable fix names the exact check that's missing and where it belongs in the request-handling flow.
+
+**Worked example — peer-reviewing a Juice Shop report draft.**
+
+Juice Shop's "View Basket" challenge (`basketAccessChallenge`) is a real, intentional broken-access-control bug: the basket API trusts the basket ID in the URL without confirming it belongs to the requesting session. Here's a first-pass draft, written the way a rushed beginner actually writes one:
+
+```
+Title: Critical IDOR - Can see anyone's basket
+
+Found that you can change the basket ID in the URL and see other
+people's shopping baskets. This is a huge privacy issue because
+anyone's basket data is exposed to anyone else.
+
+Fix: add proper authorization checks on the basket endpoint.
+
+Severity: Critical
+```
+
+Run it through the checklist:
+
+- **Reproducible?** No. There's no actual request shown, no basket ID used, no account context, no screenshot or response body. A reviewer can't verify this happened at all, let alone reproduce it.
+- **Severity justified?** No. "Critical" is asserted, not derived. A basket exposing item names/quantities for another authenticated test account, with no payment data, no PII beyond what's in the cart, and requiring the attacker to already have *some* authenticated session, is a real but bounded broken-access-control finding — typically Medium, not Critical, under a standard CVSS-style walkthrough (low privileges required, user interaction: none, scope limited to basket contents, no account takeover).
+- **Fix actionable?** No. "Add proper authorization checks" doesn't tell anyone what check or where.
+
+Rewritten to pass peer review:
+
+```
+Title: Broken Access Control — basket contents accessible via
+direct basket ID manipulation (IDOR)
+
+Severity: Medium
+  AV:N/AC:L/PR:L/UI:N/S:U/C:L/I:N/A:N (CVSS 3.1 vector) — low
+  attacker privilege required (any authenticated account), limited
+  confidentiality impact (basket line items only, no payment data
+  or account credentials), no integrity or availability impact.
+
+Steps to reproduce:
+1. Log in as account A (test1@juice-sh.op / password1). Add one
+   item to the basket. Note the basket ID returned in the response
+   to POST /api/BasketItems — in this run, id: 7.
+2. Log in as account B (test2@juice-sh.op / password2) in a second
+   session (separate browser profile or Burp's session handling).
+3. As account B, send GET /rest/basket/7 directly (the ID
+   belonging to account A, not account B's own basket ID).
+4. Observed: HTTP 200 with account A's basket contents returned in
+   full, including item names and quantities. Expected: HTTP 403,
+   since basket 7 does not belong to the requesting session's user.
+
+Root cause: GET /rest/basket/:id resolves the basket by the :id
+path parameter alone and does not verify that the basket's UserId
+matches the UserId on the authenticated session before returning
+the object.
+
+Fix: in the basket retrieval handler, after loading the basket by
+ID, compare basket.UserId to req.user.id (the authenticated
+session's user). Return 403 Forbidden on mismatch before the
+basket object is serialized into the response — do not rely on
+client-side checks or on the ID being "hard to guess."
+```
+
+That's the difference peer review exists to catch: specificity everywhere a vague draft hand-waves.
+
+## Exercise
+
+Do both parts. Neither touches anything outside your own named lab targets.
+
+**Part A — administrative, no testing required.** Create a CTFtime account and a team (solo is fine to start; recruit teammates once you've done one event). Find one upcoming event on the Events calendar with weight under 25 and "beginner" or "first-timer" language in its description or rules, and register your team for it before the deadline.
+
+**Part B — technical, on PortSwigger Web Security Academy.** Pick one lab in the "Access control" or "Insecure direct object references" category you haven't finished. Box yourself to 90 minutes. Before opening the lab, write a one-paragraph scope-and-objective note like the one in the worked example above (what feature, what hypothesis). Solve the lab, then write a full vulnerability report in the format shown above — real request/response detail, a justified severity, and a fix that names the exact missing server-side check. Finally, run your own draft through the three-point peer-review checklist as if you were someone else reading it cold.
+
+*Hint: if your report's "steps to reproduce" section would make sense to someone who has never opened that specific lab, you've written it correctly. If it only makes sense to you because you remember doing it, rewrite it.*

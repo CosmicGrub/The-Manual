@@ -1,0 +1,193 @@
+---
+trackId: cybersecurity-ethical-hacking
+tier: 4
+title: "Cloud Security Fundamentals (Shared, All Paths)"
+order: 5
+estimatedHours: 15
+slug: cloud-security-fundamentals
+---
+
+## Why This Module Exists
+
+Every offensive technique you learned through Tier 3 assumed a vulnerable service, a missing patch, or a weak credential. Cloud breaches are different. The dominant failure mode in AWS and Azure environments is not a zero-day — it's a human being clicking the wrong checkbox in a console, or a developer leaving a default wide open. The 2019 Capital One breach (a matter of public record, settled by DOJ and FTC action against the attacker, Paige Thompson) is the textbook case study the entire industry still teaches from: a misconfigured WAF allowed SSRF, the SSRF reached the EC2 instance metadata service, the metadata service handed back IAM role credentials, and those credentials were scoped far more broadly than the WAF's job required. No exploit chain, no memory corruption — three ordinary misconfigurations stacked on top of each other.
+
+This module teaches you to find and fix that exact chain, hands-on, against **flaws.cloud** and **flAWS 2** — Scott Piper's free, intentionally-vulnerable, legally-sanctioned AWS wargames built specifically so you can practice this without touching anyone's production account. Everything you run in this module targets those two platforms or your own personal AWS sandbox account. Nothing here is aimed at a real company's infrastructure.
+
+## The Shared Responsibility Model, Concretely
+
+AWS and Azure secure the physical data center, the hypervisor, and the managed-service backplane. You secure everything you configure on top of it: bucket policies, security groups, IAM roles, network ACLs, metadata service versions. Every misconfiguration in this module sits entirely on your side of that line. A pentest report that says "AWS has a vulnerability" is almost always wrong — what it means is "the customer configured AWS insecurely."
+
+## The Three Misconfiguration Classes That Cause Most Real Breaches
+
+### 1. Public S3 Buckets (and Azure Blob Containers)
+
+S3 access control has two independent, overlapping layers: **bucket policies** (JSON, resource-based) and **ACLs** (legacy, grantee-based). The dangerous ACL grant isn't "Everyone" — most engineers catch that one. It's the **`AuthenticatedUsers`** group, which sounds like "my organization's authenticated users" but actually means *any account in any AWS customer's tenancy on the planet, including a free-tier account you sign up for with a throwaway email*. You'll exploit this exact grant in flaws.cloud Level 2 below.
+
+On the Azure side, the equivalent is a Storage Account blob container set to **public access level "Container" or "Blob"** instead of "Private," which lets anyone with the URL (or anyone who brute-forces container names, which are guessable far more often than you'd expect) read or list contents with zero authentication.
+
+The fix on AWS is **S3 Block Public Access** at the account level — four settings (`BlockPublicAcls`, `IgnorePublicAcls`, `BlockPublicPolicy`, `RestrictPublicBuckets`) that, when all `true`, override any individual bucket's policy or ACL, no matter who sets it later or how. Every AWS account should have these enabled at the account level by default, with narrow, audited exceptions.
+
+### 2. Overly Permissive Security Groups
+
+A security group that looks like this is common and catastrophic:
+
+```json
+{
+  "IpPermissions": [
+    {
+      "IpProtocol": "tcp",
+      "FromPort": 22,
+      "ToPort": 22,
+      "IpRanges": [{ "CidrIp": "0.0.0.0/0" }]
+    },
+    {
+      "IpProtocol": "tcp",
+      "FromPort": 3389,
+      "ToPort": 3389,
+      "IpRanges": [{ "CidrIp": "0.0.0.0/0" }]
+    }
+  ]
+}
+```
+
+SSH and RDP open to the entire internet means every credential-stuffing botnet on earth is already knocking. The fix is boring and effective: scope `CidrIp` to your VPN's or bastion's CIDR, or remove the inbound rule entirely and use **AWS Systems Manager Session Manager** (or Azure Bastion) for shell access, which needs no open inbound port at all. In your own home-lab AWS sandbox, audit this with:
+
+```bash
+aws ec2 describe-security-groups \
+  --filters Name=ip-permission.cidr,Values=0.0.0.0/0 \
+  --query "SecurityGroups[].[GroupId,GroupName]" \
+  --output table
+```
+
+Run that against your **own** sandbox account only — it enumerates your own exposure, nothing else.
+
+### 3. Exposed Credentials via Instance Metadata Service (IMDS)
+
+Every EC2 instance can reach `http://169.254.169.254/latest/meta-data/` — a link-local address that hands back, among other things, the temporary credentials for whatever IAM role is attached to the instance:
+
+```bash
+curl http://169.254.169.254/latest/meta-data/iam/security-credentials/
+curl http://169.254.169.254/latest/meta-data/iam/security-credentials/<role-name>
+```
+
+**IMDSv1** answers that `GET` with no authentication at all. If the application running on the box has *any* server-side request forgery flaw — a URL fetcher, a PDF renderer, a webhook validator, an XML parser following `xi:include` — an attacker who can make the app fetch an arbitrary URL can make it fetch that one, and walk away with the role's access key, secret key, and session token. That's exactly the mechanism flaws.cloud Level 5 trains, via an intentionally vulnerable SSRF proxy running on an EC2 box inside the challenge.
+
+**IMDSv2** closes this by requiring a `PUT` request first to obtain a session token, with a configurable hop limit (default 1) that blocks the token request from traversing a proxy or container boundary — which is exactly where most real SSRF requests get relayed from. Enforcing IMDSv2 account-wide (`aws ec2 modify-instance-metadata-options --http-tokens required`) is one of the single highest-value hardening moves available in AWS, because it converts a trivial GET-based theft into something that usually requires a second, harder bug.
+
+## Hands-On: flaws.cloud, Levels 1–3
+
+flaws.cloud is a static sequence of challenges hosted entirely on S3, built by Scott Piper for exactly this kind of training. It is explicitly free and designed to be attacked. Start at `http://flaws.cloud/`.
+
+### Level 1 — The Fully Public Bucket
+
+The landing page tells you the site is hosted on an S3 bucket named after the domain. List it anonymously:
+
+```bash
+aws s3 ls s3://flaws.cloud/ --no-sign-request
+```
+
+```
+2017-02-27 21:49:33       2575 hint1.html
+2017-02-27 21:49:35       1707 hint2.html
+2017-02-27 21:49:37       1101 hint3.html
+2017-02-27 21:49:26       3162 index.html
+2017-02-27 21:49:27        502 logo.png
+2017-02-27 21:49:28       1051 robots.txt
+2017-02-27 21:49:30         46 secret-dd02c7c.html
+```
+
+`--no-sign-request` works because this bucket's policy grants `s3:ListBucket` and `s3:GetObject` to the **anonymous principal** — not "Authenticated Users," truly anyone, no AWS account required. Fetch the oddly-named file and it hands you the URL for Level 2. This is the laziest and most common real-world misconfig: someone needed the site to be publicly readable for website hosting and granted list permissions too, when only `GetObject` on specific objects was needed.
+
+### Level 2 — The "AuthenticatedUsers" Trap
+
+Try the same command against the Level 2 bucket (the exact hostname is given to you on the Level 1 hint page — type what you actually see, don't guess it) and anonymous access now fails with `AccessDenied`. But configure *any* AWS account — your own personal free-tier sandbox is fine — and the same list succeeds:
+
+```bash
+aws configure --profile flaws
+# AWS Access Key ID, Secret, region = us-east-1, output = json
+# (use your own personal/sandbox AWS account — any valid account works)
+
+aws s3 ls s3://level2-<hash-from-hint-page>.flaws.cloud/ --profile flaws
+```
+
+It works because the bucket ACL grants read to the **`http://acs.amazonaws.com/groups/global/AuthenticatedUsers`** group — a grant the console UI used to label misleadingly as "Any Authenticated AWS User," which engineers routinely confused with "any user authenticated to *my* app." It means any of the millions of AWS accounts on the planet. This single ACL grant has shown up in real breach post-mortems more than once, which is exactly why Piper built a level around it.
+
+### Level 3 — Secrets in Exposed Git History
+
+List the Level 3 bucket (again from the Level 2 hint) and you'll find, alongside the website files, a `.git` directory — someone deployed straight from a git checkout and never excluded it. Pull the whole thing down and read its history:
+
+```bash
+aws s3 sync s3://level3-<hash-from-hint-page>.flaws.cloud/ ./level3 --no-sign-request
+cd level3
+git log --all --oneline
+git show <commit-hash-that-looks-interesting>
+```
+
+Somewhere in that history is a commit that *added* an AWS access key and secret to a config file, followed by a later commit that *deleted* it. Deleting a file in a new commit does not remove it from git's history — `git show` against the earlier commit returns it in full. Those credentials are valid for Level 4. This is not a contrived CTF trick; "secret committed, then 'deleted' in a follow-up commit" is one of the most common ways real credentials end up permanently burned into a public GitHub repo's reflog years after anyone remembers.
+
+Levels 4 through 6 build directly on what you've now practiced: Level 4 uses the Level 3 credentials against an EC2 snapshot that's shared more broadly than intended; Level 5 is the IMDS/SSRF chain described above, live; Level 6 is an IAM privilege-escalation path through a policy that lets a low-privilege user grant themselves more access than intended — precisely the pattern in the next section.
+
+## IAM Misconfigurations and Least Privilege
+
+### The Policy Nobody Should Ship
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "*",
+      "Resource": "*"
+    }
+  ]
+}
+```
+
+This is `AdministratorAccess`, hand-rolled. It shows up constantly on CI/CD deploy roles, Lambda execution roles, and "just get it working" EC2 instance profiles, because it always works and nobody circles back to tighten it. Attach this to anything reachable by an SSRF, a supply-chain-compromised dependency, or a leaked `.env` file, and the blast radius is the entire account: every S3 bucket, every RDS snapshot, every IAM user, all of it.
+
+### The Policy That Should Replace It
+
+Say the role in question is a Lambda function whose only job is to read objects out of one reporting bucket and write logs:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["s3:GetObject"],
+      "Resource": "arn:aws:s3:::acme-reports-prod/*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": ["logs:CreateLogStream", "logs:PutLogEvents"],
+      "Resource": "arn:aws:logs:us-east-1:123456789012:log-group:/aws/lambda/report-reader:*"
+    }
+  ]
+}
+```
+
+Named bucket, named actions, named log group. If this Lambda's execution environment is ever compromised — a malicious dependency, a code-injection bug in the handler — the attacker gets read access to one bucket's objects and nothing else. They cannot list other buckets, cannot touch IAM, cannot pivot to EC2 or RDS. That containment is the entire point of least privilege: it doesn't prevent the initial compromise, it bounds the damage once one happens. Walk the Capital One chain again with this policy in place instead of an over-broad one, and the SSRF-to-metadata-theft still works exactly the same way — but the stolen credentials open one filing cabinet instead of the whole building.
+
+### The Privilege-Escalation Trap Hiding Inside "Scoped" Policies
+
+A policy can look narrow and still be a privesc path. Watch for these specific actions on any identity that isn't fully trusted:
+
+- **`iam:CreatePolicyVersion`** on a policy the user is allowed to modify — lets them add a new, more permissive version of a policy they already have attached, then set it as default.
+- **`iam:PassRole`** combined with the ability to create a Lambda function or EC2 instance — lets them attach a far more privileged role to a resource they control and then run code as it.
+- **`sts:AssumeRole`** against a trust policy scoped too broadly (e.g., trusting an entire account rather than a specific role ARN).
+
+flaws.cloud's Level 6 is built around exactly this class of bug: a locked-down IAM user that nonetheless has just enough policy-editing rights to grant itself more. Auditing for this pattern in a real AWS account is what tools like `aws-iam-least-privilege`, Netflix's `policy_sentry`, or AWS's own IAM Access Analyzer are built to automate — but you have to recognize the pattern by hand first to trust the tool's output.
+
+## Exercise (Attempt Before Moving On)
+
+Using the AWS credentials you recovered from the exposed git history in flaws.cloud Level 3, solve **Level 4**. The target asset is Level 4's own infrastructure within the flaws.cloud challenge — nothing outside it.
+
+**Hint:** Level 4's web page is served from an EC2 instance, but the interesting data isn't on the running instance — it's in something that instance's owner created and then shared more broadly than they meant to, the same way the Level 2 bucket ACL was shared more broadly than meant. Once you've configured the Level 3 credentials in a new AWS CLI profile, look at what EBS snapshots are visible to your own account that you didn't create yourself (`aws ec2 describe-snapshots --owner-ids <the account id from the credentials> --profile level3creds` is the right family of command — the owner ID and exact filters are for you to work out). Once you find it, you can create a volume from it, attach that volume to an EC2 instance *in your own personal sandbox account*, mount it, and read what's on disk.
+
+As a stretch goal once you've finished flaws.cloud entirely, move on to **flAWS 2** (flaws2.cloud), which trades S3/IAM misconfigurations for a container-escape-and-cross-account-pivot scenario built around an intentionally vulnerable web application — the natural next step after this module, and a strong bridge into Tier 4's cloud-focused AppSec and Red Team work.
+
+## Takeaways
+
+Cloud breaches are overwhelmingly caused by three repeatable patterns: a storage bucket grant that's broader than the engineer realized, a network rule that exposes a management port to the entire internet, and an IAM policy or metadata service that hands out more trust than the workload needs. None of these require sophisticated exploitation — they require someone who knows exactly which checkbox, which ACL group name, and which IAM action to go looking for. That's what flaws.cloud and flAWS 2 are built to drill into reflex, and it's the same reflex you'll carry into every cloud-adjacent engagement for the rest of this tier, whether you end up specializing in Red Team cloud pivoting, Blue Team cloud detection engineering, or AppSec review of infrastructure-as-code.

