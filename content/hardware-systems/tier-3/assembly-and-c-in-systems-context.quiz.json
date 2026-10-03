@@ -1,0 +1,98 @@
+[
+  {
+    "id": "hardware-systems/tier-3/assembly-and-c-in-systems-context/q1",
+    "type": "multiple_choice",
+    "prompt": "In the System V AMD64 ABI, which registers hold the first six integer/pointer arguments to an ordinary C function, in order?",
+    "choices": [
+      "rdi, rsi, rdx, rcx, r8, r9",
+      "rax, rbx, rcx, rdx, rsi, rdi",
+      "r8, r9, r10, r11, r12, r13",
+      "rdi, rsi, rdx, r10, r8, r9"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-3/assembly-and-c-in-systems-context/q2",
+    "type": "multiple_choice",
+    "prompt": "The raw `syscall` instruction's argument convention differs from the ordinary C calling convention in exactly one register swap for the 4th argument. Which register takes over, and why?",
+    "choices": [
+      "r10 replaces rcx, because the syscall instruction itself overwrites rcx with the user-mode return address",
+      "r11 replaces rcx, because rcx is reserved for the syscall number",
+      "rbx replaces rcx, because rcx is callee-saved during a syscall trap",
+      "No register changes; rcx is used identically in both conventions"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-3/assembly-and-c-in-systems-context/q3",
+    "type": "multiple_choice",
+    "prompt": "sum7 takes 7 long arguments and is called as sum7(1,2,3,4,5,6,7). After its prologue (`push rbp; mov rbp, rsp`), where does the 7th argument (value 7) live?",
+    "choices": [
+      "On the stack, at [rbp+16]",
+      "In register r10",
+      "On the stack, at [rbp-16]",
+      "In register rbp itself"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-3/assembly-and-c-in-systems-context/q4",
+    "type": "multiple_choice",
+    "prompt": "In `f()`, which calls `g(x)` after computing `y = x + x`, the compiler keeps `y` in `rbx` across the call, and `f` pushes/pops `rbx` around its own use of it. Why is that push/pop necessary?",
+    "choices": [
+      "rbx is callee-saved, so f must preserve its caller's rbx value even while reusing the register internally, since g() is free to clobber every caller-saved register",
+      "rbx is reserved exclusively for loop counters and cannot be read by any function",
+      "g() always returns its result in rbx instead of rax",
+      "Every function must push and pop exactly one register regardless of which registers it uses"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-3/assembly-and-c-in-systems-context/q5",
+    "type": "multiple_choice",
+    "prompt": "In __switch_to_asm, the actual task switch happens at `movq TASK_threadsp(%rsi), %rsp`. Why is this specific instruction the defining moment of the context switch, rather than the six pushes before it or the six pops after?",
+    "choices": [
+      "It's the point where the CPU starts operating on a different kernel stack, so every pop (and the eventual return) afterward reads the incoming task's previously saved state instead of the outgoing task's",
+      "It's the instruction that reloads CR3 with the new process's page table base",
+      "It's the only instruction in the routine that touches memory at all",
+      "It's the instruction that re-enables interrupts after the switch completes"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-3/assembly-and-c-in-systems-context/q6",
+    "type": "multiple_choice",
+    "prompt": "__switch_to_asm ends with `jmp __switch_to` and never executes its own `ret` back to the outgoing task's caller. How does the incoming task's instruction pointer get restored, if no instruction explicitly sets rip?",
+    "choices": [
+      "The incoming task's own saved kernel stack already holds a return address from the last time it called into the scheduler; once rsp points at that stack, the eventual ret pops that address automatically",
+      "x86-64 keeps the instruction pointer in a general-purpose register that gets restored by one of the six explicit pop instructions",
+      "Interrupt re-enablement automatically restores rip from a hardware shadow register",
+      "__switch_to_asm always jumps to the same fixed, hardcoded address for every task"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-3/assembly-and-c-in-systems-context/q7",
+    "type": "multiple_choice",
+    "prompt": "A plain internal function, compiled directly into a binary with an ordinary call/ret and no dynamic-library involvement, shows up in neither an strace trace nor an ltrace trace of that program, but gdb's `break` can still stop inside it. Why?",
+    "choices": [
+      "strace only intercepts syscalls at the kernel trap boundary and ltrace only intercepts calls resolved through the PLT into shared libraries; a plain internal call crosses neither boundary, while gdb's break works on any symbol with debug/symbol information",
+      "gdb is the only one of the three tools capable of running a compiled binary at all",
+      "strace and ltrace both require root privileges that gdb does not need",
+      "Internal functions are removed by the compiler and don't exist in the compiled binary"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-3/assembly-and-c-in-systems-context/q8",
+    "type": "multiple_choice",
+    "prompt": "An strace trace of a program ends with the line `write(1, \"hello, world\\n\", 13) = 13` immediately before exit_group. What does the `1` passed as the first argument refer to?",
+    "choices": [
+      "File descriptor 1, standard output",
+      "The process ID of the running program",
+      "The number of bytes being written",
+      "The return value of the previous syscall in the trace"
+    ],
+    "correctIndex": 0
+  }
+]

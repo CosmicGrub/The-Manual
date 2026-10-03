@@ -419,3 +419,14 @@ All notable changes to The Manual (curriculum + app) are logged here. This file 
 **Result:** `npm run build` passed clean. 166 unique slugs verified repo-wide.
 
 **Status:** Hardware & Computer Systems Tier 3 at 5/6 modules (103h of 115h). Assembly & C in Systems Context pending as an immediate follow-up commit — not a new task, the same tier.
+
+## [0.32.0] — 2026-10-03 — Hardware & Computer Systems Tier 3: complete (Assembly & C module lands)
+
+**Context:** Closing out Tier 3. The session limit that blocked Assembly & C in Systems Context in the previous entry reset before 12am UTC as expected; the module was regenerated from the exact original prompt (recovered verbatim from the failed run's own agent transcript, not rewritten from scratch) to keep it consistent with its 5 siblings, then assembled, slug-checked, and build-validated with the rest of the tier.
+
+**Added**
+- `content/hardware-systems/tier-3/assembly-and-c-in-systems-context.mdx` + quiz: real annotated x86-64 `__switch_to_asm` from the Linux kernel tying back to this tier's own scheduling module, the System V AMD64 ABI calling-convention table with two fully worked examples (a 7-argument call spilling onto the stack, and why a callee-saved register needs an explicit push/pop around a call), and a single compiled `hello.c` walked through `objdump`, `gdb`, `strace`, and `ltrace` side by side, each tool shown catching a different boundary and missing the others.
+
+**Result:** `npm run build` passed clean — 184 pages, 167 unique slugs verified repo-wide.
+
+**Status:** Hardware & Computer Systems Tier 3 complete (115h, 6 lessons). Hardware & Computer Systems is now 4/6 tiers content-complete (Tiers 0-3, 278h); Tiers 4-5 remain.

@@ -1,0 +1,245 @@
+---
+trackId: hardware-systems
+tier: 3
+title: "Assembly & C in Systems Context"
+order: 6
+estimatedHours: 12
+slug: assembly-and-c-in-systems-context
+---
+
+## Three Boundaries, One Idea
+
+Everything in this module is the same question asked at three different scales: when control passes from one piece of code to another, what gets saved, what gets handed over, and who is responsible for which register? A function call is a tiny boundary — caller to callee, governed by the calling convention. A syscall is a bigger one — user code to kernel, governed by a slightly different convention. A context switch is the biggest one in this list — one entire task to another, governed by the same register-save discipline as a function call, just with a stack swapped out from under it. You already traced round robin and CFS by hand in this tier's scheduling module and saw `swtch()`/`switch_to()` named as "the actual register-save/restore routine." This module opens that function up.
+
+## Reading Real Context-Switch Assembly
+
+Here is a lightly trimmed version of `__switch_to_asm`, the real x86-64 Linux routine that performs the register half of a context switch (`arch/x86/entry/entry_64.S`). It runs with `%rdi` holding a pointer to the outgoing task and `%rsi` holding a pointer to the incoming task — already a direct application of the calling convention you're about to read in the next section:
+
+```asm
+SYM_FUNC_START(__switch_to_asm)
+        # %rdi: prev task, %rsi: next task
+
+        pushq   %rbp
+        pushq   %rbx
+        pushq   %r12
+        pushq   %r13
+        pushq   %r14
+        pushq   %r15
+
+        movq    %rsp, TASK_threadsp(%rdi)   # save prev's stack pointer
+        movq    TASK_threadsp(%rsi), %rsp   # load next's stack pointer
+
+        popq    %r15
+        popq    %r14
+        popq    %r13
+        popq    %r12
+        popq    %rbx
+        popq    %rbp
+
+        jmp     __switch_to
+SYM_FUNC_END(__switch_to_asm)
+```
+
+Six registers go onto the stack: `rbp, rbx, r12, r13, r14, r15` — exactly the **callee-saved** set from the ABI table below, and nothing else. That's not an accident or an oversight; it's the whole point of the next section. Whoever called into the scheduler (a timer interrupt handler, or a thread calling `schedule()` directly) already had the caller-saved registers (`rax, rcx, rdx, rsi, rdi, r8-r11`) either live in its own locals or already spilled by the normal rules of C function calls — this routine doesn't need to touch them because the ordinary calling convention already accounts for them. It only needs to save the registers that *it itself* is about to clobber and that its own caller is trusting it to preserve.
+
+The actual switch is one line: `movq TASK_threadsp(%rsi), %rsp`. Before this instruction, every push and pop in the function operates on the outgoing task's kernel stack. After it, `%rsp` points into a completely different task's kernel stack — a region of memory some other call to `__switch_to_asm`, at some earlier point, filled in with *its* six callee-saved registers before switching away from that task. So the six `pop` instructions after the swap don't restore what was just pushed above them — they restore whatever the incoming task last pushed, the last time it was switched out. That's the entire mechanism of "resuming where a task left off": the task's own saved stack frame already encodes where it left off.
+
+Notice the function ends with `jmp __switch_to`, not `ret`. It was reached by a `call`, which pushed a return address onto the *outgoing* task's stack — a return address this function never uses, because by the time it would `ret`, `%rsp` already points somewhere else. The `ret` that eventually resumes the incoming task is sitting on *that* task's stack, left there the last time it called `schedule()` and got switched out. Following `jmp __switch_to` (an ordinary C function that finishes the bookkeeping — updating `current`, and, for a process switch rather than a thread switch, reloading `%cr3`, the cost the scheduling module already named) eventually `ret`s, and that `ret` pops the incoming task's own saved return address off its own stack. Control resumes inside whatever function the incoming task was last running — because the stack it's now standing on says so.
+
+## Calling Conventions Across ABI Boundaries
+
+The System V AMD64 ABI (what Linux, and every ELF x86-64 binary, uses) is a contract: given only a `call` instruction and nothing else, both sides agree in advance where arguments are, where the result goes, and which registers either side is allowed to destroy without asking.
+
+| Role | Registers |
+|---|---|
+| First six integer/pointer args, in order | `rdi, rsi, rdx, rcx, r8, r9` |
+| Return value | `rax` (`rdx:rax` for 128-bit results) |
+| Floating-point args/return | `xmm0`–`xmm7` |
+| **Caller-saved** (callee may freely clobber) | `rax, rcx, rdx, rsi, rdi, r8–r11` |
+| **Callee-saved** (callee must preserve) | `rbx, rsp, rbp, r12–r15` |
+| 7th+ integer argument | pushed on the stack, right-to-left |
+
+Two structural rules go with that table. `rsp` must be 16-byte aligned *at the instant a `call` executes* — since `call` then pushes an 8-byte return address, the callee's entry point sees `rsp % 16 == 8`, a fixed, predictable offset every function can rely on for aligned SSE loads. And a **leaf function** (calls nothing else) may use up to 128 bytes below `rsp` — the "red zone" — as scratch space without moving `rsp` at all, since nothing else can be running on that stack to clobber it.
+
+**Worked example 1: the 7th argument.** Compile this at `-O0`:
+
+```c
+long sum7(long a, long b, long c, long d, long e, long f, long g) {
+    return a + b + c + d + e + f + g;
+}
+
+int main(void) {
+    return (int)sum7(1, 2, 3, 4, 5, 6, 7);
+}
+```
+
+The call site in `main` (six args in registers, the 7th written directly to the stack slot the callee will read):
+
+```asm
+mov    QWORD PTR [rsp], 7      ; 7th arg: no register left, goes on the stack
+mov    r9d, 6                  ; f
+mov    r8d, 5                  ; e
+mov    ecx, 4                  ; d
+mov    edx, 3                  ; c
+mov    esi, 2                  ; b
+mov    edi, 1                  ; a
+call   sum7
+```
+
+Inside `sum7`, after `push rbp; mov rbp, rsp`, the stack between `rsp` (at the `mov [rsp],7` instant) and the callee's frame has exactly two 8-byte slots stacked on top of `g`: the return address `call` pushed, then the `rbp` the prologue pushed. So `g` sits at `[rbp+16]` — not `[rbp+8]`, not `[rbp-16]`:
+
+```asm
+sum7:
+    push   rbp
+    mov    rbp, rsp
+    mov    rax, QWORD PTR [rbp+16]   ; g, the only argument not in a register
+    add    rax, rdi
+    add    rax, rsi
+    add    rax, rdx
+    add    rax, rcx
+    add    rax, r8
+    add    rax, r9
+    pop    rbp
+    ret
+```
+
+**Worked example 2: who actually saves what.** The table says callee-saved registers survive a call "for free," but that only works because *someone* actually pushes them — and it's whoever is using one across the call, not some automatic hardware mechanism:
+
+```c
+long g(long x);
+
+long f(long x) {
+    long y = x + x;   // computed before the call
+    long z = g(x);    // g() is free to destroy rax, rcx, rdx, rsi, rdi, r8-r11
+    return y + z;
+}
+```
+
+`y` needs to survive the call to `g`, but `g` can clobber every caller-saved register. So the compiler keeps `y` in a callee-saved register instead — and `f` itself takes on the obligation to preserve *that* register for its own caller:
+
+```asm
+f:
+    push   rbx          ; f preserves rbx for ITS caller before reusing it
+    lea    rbx, [rdi+rdi]   ; y = x + x, parked somewhere g() can't touch
+    call   g
+    add    rax, rbx      ; rax already holds z, by the ABI's return-value rule
+    pop    rbx
+    ret
+```
+
+This is the real mechanism behind "callee-saved": it isn't that `rbx` is magically protected, it's that every function that wants to use `rbx` is contractually obligated to save the old value and restore it, so from the outside a call to `f` looks like `rbx` never moved.
+
+**The syscall ABI is a close cousin, not the same contract.** The raw `syscall` instruction uses `rdi, rsi, rdx, r10, r8, r9` for the first six arguments — identical to the C convention except the 4th argument moves from `rcx` to `r10`. The reason is mechanical: `syscall` itself overwrites `rcx` with the user-mode return address and `r11` with saved `rflags`, as part of entering the kernel, so `rcx` can't also be carrying a 4th argument into that same instruction. The syscall number goes in `rax`, and the return value comes back in `rax` — same slot, different convention, which is exactly why `strace`, below, has to know both: it reads syscall arguments out of `rdi/rsi/rdx/r10/r8/r9`, not the plain C-call registers.
+
+## objdump, gdb, strace, ltrace: One Binary, Four Views
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+
+int main(void) {
+    char *buf = malloc(64);
+    sprintf(buf, "hello, %s", "world");
+    printf("%s\n", buf);
+    free(buf);
+    return 0;
+}
+```
+
+```bash
+gcc -g -O0 hello.c -o hello
+```
+
+**`objdump -d hello`** disassembles the binary *before anything runs* — pure static structure. The relevant slice of `main`:
+
+```
+0000000000001149 <main>:
+    1149:	55                   	push   rbp
+    114a:	48 89 e5             	mov    rbp,rsp
+    114d:	48 83 ec 10          	sub    rsp,0x10
+    1151:	bf 40 00 00 00       	mov    edi,0x40
+    1156:	e8 d5 fe ff ff       	call   1030 <malloc@plt>
+    115b:	48 89 45 f8          	mov    QWORD PTR [rbp-0x8],rax
+    115f:	48 8b 45 f8          	mov    rax,QWORD PTR [rbp-0x8]
+    1163:	48 89 c7             	mov    rdi,rax
+    1166:	e8 c5 fe ff ff       	call   1030 <sprintf@plt>
+```
+
+`edi,0x40` is the calling convention in action: `0x40` = 64, `malloc`'s only argument, loaded into the first-argument register right before `call malloc@plt`. The `@plt` suffix means this call doesn't jump straight into `libc` — it jumps through the Procedure Linkage Table, a small stub the dynamic linker patches at load time. That stub is exactly the seam `ltrace` hooks into below.
+
+**`gdb ./hello`** can inspect live state at any instant, using the same register names from the ABI table:
+
+```
+(gdb) break sprintf
+Breakpoint 1 at 0x1030
+(gdb) run
+Breakpoint 1, 0x00007ffff7e2f130 in sprintf () from /lib/x86_64-linux-gnu/libc.so.6
+(gdb) info registers rdi rsi
+rdi            0x5555555592a0      93824992235680
+rsi            0x555555556004      93824992239620
+(gdb) x/s $rsi
+0x555555556004:	"hello, %s"
+(gdb) bt
+#0  0x00007ffff7e2f130 in sprintf () from /lib/x86_64-linux-gnu/libc.so.6
+#1  0x0000555555555175 in main () at hello.c:7
+(gdb) continue
+hello, world
+[Inferior 1 (process 12398) exited normally]
+```
+
+`rdi` holds the destination buffer `malloc` just returned, `rsi` holds the format string's address, and `x/s $rsi` dereferences that address as a string — reading an argument straight out of the register the ABI promised it would be in, confirming the table isn't theoretical.
+
+**`strace ./hello`** traces every **syscall** — the kernel boundary, using the `rdi/rsi/rdx/r10/r8/r9` convention from the previous section:
+
+```
+execve("./hello", ["./hello"], 0x7ffd12c42e30 /* 24 vars */) = 0
+brk(NULL)                              = 0x55d4a1d3b000
+mmap(NULL, 8192, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0) = 0x7f8a3c101000
+openat(AT_FDCWD, "/etc/ld.so.cache", O_RDONLY|O_CLOEXEC) = 3
+...
+openat(AT_FDCWD, "/lib/x86_64-linux-gnu/libc.so.6", O_RDONLY|O_CLOEXEC) = 3
+mmap(NULL, 1863448, PROT_READ, MAP_PRIVATE|MAP_DENYWRITE, 3, 0) = 0x7f8a3be00000
+write(1, "hello, world\n", 13)         = 13
+exit_group(0)                          = ?
++++ exited with 0 +++
+```
+
+Everything before the `write` is the dynamic linker loading `libc`. The line that matters is `write(1, "hello, world\n", 13) = 13` — file descriptor `1` is standard output, `13` is the byte count, and `= 13` is the return value. Note what's *missing*: `malloc` and `sprintf` never appear. `strace` operates purely at the syscall trap boundary; `malloc` only reaches the kernel indirectly (via `brk`/`mmap`, visible above, the one time it needs more heap), and `sprintf` never touches the kernel at all — it's pure userspace string formatting.
+
+**`ltrace ./hello`** traces **library calls** instead — the dynamic-linking boundary, the exact `@plt` stubs `objdump` showed:
+
+```
+malloc(64)                                    = 0x55d4a1d3b2a0
+sprintf(0x55d4a1d3b2a0, "hello, %s", "world") = 13
+printf("%s\n", "hello, world")                = 13
+hello, world
+free(0x55d4a1d3b2a0)                          = <void>
++++ exited (status 0) +++
+```
+
+Now `malloc` and `sprintf` show up with full arguments and return values, but the kernel-level `write` underneath `printf` doesn't — `ltrace` only sees calls that cross the PLT into a shared library, and `printf` itself calling `write()` is a syscall one layer below where `ltrace` is watching.
+
+Four tools, four boundaries: `objdump` shows the call sites before execution; `gdb` can stop at any symbol and read any register or memory address, crossing every boundary at once; `strace` watches only the kernel trap boundary; `ltrace` watches only the dynamic-library boundary. None of them is a strict superset of another — each instruments a different seam in the running program.
+
+## Exercise
+
+Write and compile this:
+
+```c
+long sum9(long a, long b, long c, long d, long e,
+          long f, long g, long h, long i) {
+    return a + b + c + d + e + f + g + h + i;
+}
+
+int main(void) {
+    long r = sum9(1, 2, 3, 4, 5, 6, 7, 8, 9);
+    printf("%ld\n", r);
+    return 0;
+}
+```
+
+1. Using the pattern from Worked Example 1, predict and then confirm with `objdump -d` exactly which arguments land in registers and which two land on the stack, and at what `[rbp+N]` offsets.
+2. `gcc -g -O0` it, and in `gdb`, `break sum9`, then `print $rdi` through `print $r9` plus `x/2gx $rbp+16` to read the two stack-passed arguments directly out of memory, confirming your prediction from a live process instead of a disassembly guess.
+3. Run both `strace ./a.out` and `ltrace ./a.out` on the compiled binary. Neither will show a call to `sum9` at all, even though it obviously runs. Explain why, in terms of exactly which boundary each tool instruments.
+
+*Hint for part 3:* `sum9` is a plain internal function, compiled directly into the executable with an ordinary `call`/`ret` — it never goes through the PLT (so `ltrace` never sees it) and it never traps into the kernel (so `strace` never sees it). `gdb`'s `break`, by contrast, works on any symbol the binary carries debug or symbol-table information for, regardless of which boundary — if any — that symbol crosses.
