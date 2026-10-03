@@ -1,0 +1,98 @@
+[
+  {
+    "id": "devops-tooling/tier-5/becoming-a-maintainer/q1",
+    "type": "multiple_choice",
+    "prompt": "In the BDFL model as practiced by Redis under Salvatore Sanfilippo (antirez) through 2020, how did a contested design decision (such as whether to add multithreading) actually get resolved?",
+    "choices": [
+      "antirez made the final call himself after weighing the tradeoffs, with no formal vote required",
+      "A PMC vote was held requiring three binding +1 votes",
+      "The decision was put to a community-wide GitHub poll",
+      "A dedicated SIG reviewed a KEP-style proposal before approval"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "devops-tooling/tier-5/becoming-a-maintainer/q2",
+    "type": "multiple_choice",
+    "prompt": "Under the ASF's governance model as practiced by Apache Kafka's PMC, what does 'lazy consensus' mean in practice?",
+    "choices": [
+      "A change is treated as approved if nobody with standing objects within a defined time window, with no explicit vote cast at all",
+      "Every change, no matter how small, requires at least three binding +1 votes",
+      "The project's original author retains a permanent veto on all future changes",
+      "Lazy consensus applies only to release votes, never to ordinary code changes"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "devops-tooling/tier-5/becoming-a-maintainer/q3",
+    "type": "multiple_choice",
+    "prompt": "Kafka's KIP-500 proposed replacing ZooKeeper with a self-managed metadata quorum (KRaft). What actually happened to the proposal between being filed in 2019 and the feature being marked production-ready in Kafka 3.3 (2022)?",
+    "choices": [
+      "It was split into follow-on proposals (covering the Raft protocol and the controller architecture separately) and rolled out through a multi-year bridge period rather than shipping as one atomic change",
+      "It was rejected by the PMC on the first vote and never revisited",
+      "It shipped completely unchanged, exactly as originally proposed, within the same release cycle",
+      "It bypassed the KIP process entirely because it was classified as an internal refactor"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "devops-tooling/tier-5/becoming-a-maintainer/q4",
+    "type": "multiple_choice",
+    "prompt": "In the Tier 3 RFC template (the RFC-014 structure), what is the specific purpose of the 'Alternatives considered' section?",
+    "choices": [
+      "To show reviewers which other options were evaluated and why they were rejected, so the choice isn't re-litigated later",
+      "To list every possible future extension of the current proposal",
+      "To record the author's personal opinion of competing open-source projects",
+      "To satisfy a CI linter that checks the document for a minimum word count"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "devops-tooling/tier-5/becoming-a-maintainer/q5",
+    "type": "multiple_choice",
+    "prompt": "A maintainer's review comment explains the underlying cause of a bug, points to precedent elsewhere in the codebase, and asks the contributor to add a regression test -- instead of just saying 'fix the Kind check.' What does this demonstrate?",
+    "choices": [
+      "It teaches the contributor transferable knowledge about the codebase, rather than only correcting this one line",
+      "It shows that maintainers should always rewrite a contributor's code themselves instead of asking questions",
+      "It proves that first-time contributors should be held to a lower bar than experienced ones",
+      "It demonstrates that the maintainer fundamentally disagrees with the contributor's entire approach"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "devops-tooling/tier-5/becoming-a-maintainer/q6",
+    "type": "multiple_choice",
+    "prompt": "How does a binding -1 veto function in the ASF voting model, compared to a BDFL's unilateral 'no'?",
+    "choices": [
+      "An ASF binding -1 must come with a technical justification and forces further discussion or revision, rather than being automatically final the way a BDFL's decision can be",
+      "Both function identically -- a single person's objection ends the proposal permanently either way",
+      "A BDFL's 'no' legally requires a 72-hour public comment period before it takes effect",
+      "An ASF -1 vote is non-binding and the proposer is free to ignore it and merge anyway"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "devops-tooling/tier-5/becoming-a-maintainer/q7",
+    "type": "multiple_choice",
+    "prompt": "Why does reusing Tier 3's RFC-014 section structure (Context, Problem, Alternatives, Tradeoffs, Rollout plan, Open questions) still work for a proposal as large as Kafka's KIP-500?",
+    "choices": [
+      "The sections scale with the size of the content inside them, not with the format itself -- the discipline of writing each section is what matters, regardless of the proposal's scope",
+      "Because the ASF legally requires every project to use that exact template",
+      "Because KIP-500 was, as a matter of historical fact, originally written in that literal file",
+      "Because reviewers refuse to read any RFC format they have not seen before"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "devops-tooling/tier-5/becoming-a-maintainer/q8",
+    "type": "multiple_choice",
+    "prompt": "In the ASF's three-tier structure (contributor, committer, PMC member), what specifically changes as someone moves up a tier?",
+    "choices": [
+      "They gain binding authority -- their votes count toward the thresholds required to approve code changes, releases, and new committers",
+      "They begin receiving a dedicated salary directly from the foundation",
+      "They lose the ability to submit pull requests directly to the project",
+      "They are automatically appointed BDFL of a new sub-project"
+    ],
+    "correctIndex": 0
+  }
+]

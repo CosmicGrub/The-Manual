@@ -1,0 +1,166 @@
+---
+trackId: devops-tooling
+tier: 5
+title: "Advanced Observability and AIOps"
+order: 3
+estimatedHours: 10
+slug: advanced-observability-and-aiops
+---
+
+## Where this builds from
+
+Tier 2's `basic-observability` module got you structured JSON logs with a `request_id` and a health check that actually checks a dependency. Tier 3's `observability-deep-dive` module got you PromQL that means something, OpenTelemetry traces that show you *where* time went in a multi-service call, and — critically — it walked through why a naive alert (`http_requests_total{status="500"} > 0`, firing forever on one historical error) trains on-call to mute Slack, and how to fix it with a rate-based ratio and a `for: 10m` sustain window.
+
+This module assumes all of that is in place and asks the next question: even a *good* threshold alert, the ratio-plus-duration kind from Tier 3, is still a single number compared against a fixed line. That line is wrong twice a day for any service with a diurnal traffic pattern, which is almost every service a human uses. Fixing that — building a baseline that knows what "normal" looks like at 3am versus 2pm on a Tuesday — is the first half of this module. The second half is what happens when you hand an LLM the incident context a human on-call engineer would use, and where that stops working.
+
+## Static thresholds fail on anything with seasonality
+
+Take a real-shaped series: hourly request rate for `checkout-service` over three weeks, the same service from Tier 3.
+
+```text
+            00:00  03:00  06:00  09:00  12:00  14:00  17:00  20:00
+Week 1 Tue    19     18     45    210    380    410    340    120
+Week 2 Tue    21     19     48    225    395    395    355    118
+Week 3 Tue    20     21     44    218    372    220    330    115   <- incident
+```
+
+A teammate, having read Tier 3's lesson on ratio-based alerts, writes what looks like a reasonable guard against low throughput:
+
+```yaml
+- alert: CheckoutTrafficLow
+  expr: sum(rate(http_requests_total{job="checkout-service"}[5m])) < 50
+  for: 10m
+```
+
+This has the `for:` sustain window and avoids the counter-reset bug from Tier 3 — it's not the *naive* mistake, it's a subtler one. Walk the table: at 03:00 every week, traffic is ~20 req/s. The threshold of 50 fires every single night, for hours, because normal nighttime traffic is below the "abnormal" line someone tuned while looking at a daytime graph. That's the exact failure mode Tier 3 described — an alert that's right in one regime and wrong in another gets muted, and a muted alert is a blind spot.
+
+Now look at Week 3, 14:00: traffic dropped from a baseline of ~400 to 220 — a real 45% drop, coincident with an actual incident — and the static threshold of 50 never fires, because 220 is nowhere near 50. The same number that's a false positive at night is a false negative at peak. A single fixed line cannot be correct at both 20 req/s and 400 req/s.
+
+## A seasonal baseline with a robust deviation threshold
+
+The fix is to compare "now" against "what this exact slot normally looks like," not against one global constant. Build a baseline per `(day_of_week, hour)` from trailing history, and measure deviation in units that are robust to the baseline itself containing noise.
+
+```python
+import statistics
+
+def seasonal_baseline(history, day_of_week, hour):
+    """history: list of (day_of_week, hour, value) tuples, several past weeks"""
+    samples = [v for d, h, v in history if d == day_of_week and h == hour]
+    median = statistics.median(samples)
+    abs_devs = [abs(s - median) for s in samples]
+    mad = statistics.median(abs_devs) or 1.0  # avoid div-by-zero on a flat series
+    return median, mad
+
+def anomaly_score(value, median, mad):
+    # 1.4826 scales MAD to be comparable to a standard deviation under normality
+    return (value - median) / (1.4826 * mad)
+
+# Three past Tuesdays at 14:00, then the incident value
+history = [(1, 14, 410), (1, 14, 395), (1, 14, 372)]
+median, mad = seasonal_baseline(history, day_of_week=1, hour=14)
+score = anomaly_score(220, median, mad)
+# median ≈ 395, mad ≈ 15, score ≈ (220 - 395) / (1.4826 * 15) ≈ -7.9
+```
+
+A score of −7.9 standard-deviation-equivalents is an unambiguous anomaly. Run the same function on the 03:00 slot — baseline median ≈ 20, MAD ≈ 1, current value 20 — and the score lands near 0. One detector, two correct answers, because it asks "is this normal *for this slot*" instead of "is this above an arbitrary constant."
+
+Median and MAD instead of mean and standard deviation is the deliberate choice: the mean and stddev are themselves dragged around by a single bad week in the history window (if last Tuesday *also* had an outage, a mean-based baseline bakes that outage into "normal" and gets less sensitive, not more). Median and MAD barely move when one of several samples is an outlier — that robustness is the whole point of using them for a baseline that's supposed to represent "typical," not "average including whatever just happened."
+
+The production-shaped version of this in pure PromQL uses the `offset` modifier to compare against the same point in prior weeks directly, without a side job:
+
+```promql
+sum(rate(http_requests_total{job="checkout-service"}[5m]))
+/
+sum(rate(http_requests_total{job="checkout-service"}[5m] offset 7d))
+< 0.6
+```
+
+This fires when current traffic is below 60% of what it was at the same moment last week — a seasonal comparison, not a static floor. It has its own sharp edge worth knowing before you ship it: at low absolute volume, this ratio gets noisy (3 req/s versus 5 req/s last week is a "40% drop" that means nothing), so teams combine it with an absolute floor (`and sum(rate(...)) > 20`) and widen the baseline to an average of several past weeks rather than one, for the same outlier-contamination reason the MAD version uses median over single-sample comparison.
+
+## Using an LLM for root-cause-analysis assistance
+
+Tier 3's worked incident was `/checkout` p99 latency jumping from 300ms to 4.1s, with a trace waterfall pointing at `reserve_inventory` (3.8s of the 4.1s) and a root cause of a dropped index causing a full table scan. That incident is exactly the kind of thing teams now feed to an LLM as a first-pass RCA assistant, because the ingredients — a trace, correlated deploys, and metrics that moved — are the same ingredients a human on-call engineer reaches for.
+
+Here's a realistic prompt, built entirely from telemetry this track has already taught you to produce:
+
+```text
+SYSTEM: You are assisting an on-call engineer with root-cause analysis.
+Propose the most likely root cause, ranked, with the evidence for each,
+and the next diagnostic step to confirm or rule it out. Do not assume
+access to systems beyond what is given.
+
+USER:
+Incident: p99 latency on POST /checkout rose from 300ms to 4100ms at 14:32 UTC.
+Error rate is unchanged (still ~0.1%) — this is a latency-only incident.
+
+Trace waterfall for a representative slow request:
+  POST /checkout            4.10s
+    validate_cart            0.04s
+    charge_card               0.12s
+    reserve_inventory         3.80s
+    send_confirmation         0.06s
+
+Deploys in the last 2 hours:
+  14:05 UTC  checkout-service v128  (feature flag: new upsell banner, frontend only)
+  14:20 UTC  inventory-service v44  (migration: DROP INDEX idx_orders_status_created)
+  13:50 UTC  billing-service v12    (dependency bump, unrelated service)
+
+Recent inventory-service log line (sample, structured, request_id=a1b2c3d4-0001):
+  {"level":"WARN","message":"query exceeded 1s","query":"SELECT * FROM orders
+   WHERE status = $1 ORDER BY created DESC","duration_ms":3790}
+```
+
+A capable model's response, in this case, lands close to correct:
+
+```text
+Most likely cause: the 14:20 migration on inventory-service (DROP INDEX
+idx_orders_status_created) removed the index backing the slow query's
+WHERE/ORDER BY clause, forcing a sequential scan on the orders table.
+
+Evidence: (1) the slow span is entirely inside reserve_inventory, not
+checkout-service or billing-service, which rules out the other two deploys;
+(2) the slow-query log names exactly the columns the dropped index covered;
+(3) the timing lines up — latency degrades starting ~12 minutes after the
+migration, consistent with table growth/cache warmup after an index drop
+rather than an instant step change.
+
+Next step: run EXPLAIN ANALYZE on the logged query against production to
+confirm a sequential scan, and check whether re-creating the index resolves
+latency before considering a rollback of v44.
+```
+
+That matches the real root cause from Tier 3. What made it tractable is worth naming explicitly, because it's the actual lesson: the model didn't diagnose anything from first principles — it pattern-matched a well-labeled trace to a well-labeled deploy to a log line that named the exact query. Every one of those artifacts exists *because* of work earlier in this track: `request_id` correlation from Tier 2, structured logging instead of `print()`, and span-level tracing from Tier 3. Hand the same prompt to the same model with Tier 2's "before" version of the logs — unstructured `print(f"fetching order {order_id}")` lines with no request ID, no duration, no query text — and it has nothing to anchor a hypothesis to beyond "something in your database is probably slow," which is not an RCA, it's a restatement of the symptom. LLM-assisted RCA is a force multiplier on good telemetry and close to useless without it.
+
+## Where automated diagnosis plausibly gets it wrong
+
+Change one fact in the scenario above and the LLM's own reasoning process — lean on temporal correlation and the most recent deploy — becomes the thing that misleads it.
+
+Suppose instead: a marketing team launches a flash sale at 14:00, driving checkout traffic to 3x normal. At almost the same moment, latency and an elevated (not alarming) 500 rate begin. The deploy log shows one recent change: a Redis config update six hours earlier, switching the session cache's eviction policy from `noeviction` to `allkeys-lru` with `maxmemory` left at its old, now-too-small value. That config change was silent and harmless under normal load — it only starts evicting hot keys once write volume crosses a threshold that normal traffic never reached. The flash sale is what crosses it.
+
+Feed an automated system (or an LLM with the same context) the obvious correlated signals — "incident onset at 14:00, flash sale started at 14:00, this correlates with a 3x traffic spike" — and the most available explanation is "the system couldn't handle the load." That explanation is *consistent with the data* and *wrong*: the system handles 3x load fine on every other metric; what's actually happening is that the eviction-policy change, combined with the spike, is evicting session keys that force cache misses into the database, and the real fix is reverting the Redis config or raising `maxmemory` — not scaling out, not rolling back an unrelated deploy, and not "handling more load," which would just push the memory-pressure threshold a little further out and mask the same bug until the next traffic spike.
+
+Two things make this case genuinely hard for an automated diagnosis step, not just hard-to-prompt:
+
+1. **Both candidate causes correlate with the same timestamp.** The traffic spike is a *necessary trigger* but not the *sufficient cause* — the latent bug (undersized `maxmemory` under the new policy) had been sitting there for six hours, inert. Distinguishing "A caused B" from "A and B both happened around the same time, and the real cause C only manifests in the presence of A" is a causal-inference problem, not a pattern-matching one, and it requires a counterfactual an LLM reading a log dump cannot run: *would this still happen without the traffic spike? Without the Redis change?* Only a human running an actual experiment — reverting the policy in staging, or replaying the traffic spike against the old config — can answer that.
+2. **The LLM has no tacit knowledge that `allkeys-lru` plus an unchanged `maxmemory` is a known operational footgun.** A human SRE who has seen this exact failure mode before brings that as a prior; a model reasoning only from the incident context in front of it has no equivalent unless that specific pattern happens to be well-represented in training — and you cannot verify, mid-incident, whether it is.
+
+This is also where the distributed-systems theory earlier in this tier is directly relevant, not just thematically adjacent: an automated diagnosis tool is itself a single observer trying to reconstruct a global, causally-ordered story from a partial, asynchronously-collected view of a distributed system — logs that arrive out of order, metrics sampled on 15-second intervals, traces that only exist for requests someone thought to instrument. The same reason a replicated system without a global clock can't trivially agree on "what happened first" is the reason an LLM handed a snapshot of telemetry can confidently produce an internally consistent, well-cited, wrong story: it is reasoning over an incomplete partial order and presenting the output with the fluency of a complete one.
+
+This is why human judgment stays the gate, concretely, not as a platitude:
+
+- **Accountability for irreversible or costly actions.** An automated system empowered to act on its own diagnosis — auto-scale, auto-rollback, auto-failover — will act on the wrong one here: scaling out costs money and doesn't fix the memory-pressure bug; rolling back the unrelated billing-service deploy from the earlier example wastes the one lever that might have actually mattered. A human decides whether the blast radius of acting on a hypothesis is acceptable given that the hypothesis might be the available one, not the true one.
+- **Organizational and business context the telemetry doesn't carry.** Whether to eat the risk through the remainder of the flash sale versus degrade gracefully right now is a business call tied to revenue and customer trust that no amount of log data encodes.
+- **The confidence of the output is not evidence of its correctness.** Both the correct RCA earlier and the plausible-but-wrong one here were stated with equal fluency. Treat an LLM's root-cause proposal the way you'd treat a junior engineer's first guess: a reasonable hypothesis to go verify, in order, starting with the next diagnostic step it names — never the conclusion itself.
+
+## Exercise
+
+You're given this telemetry (`checkout_rate.csv`, one row per hour, columns `day_of_week,hour,requests_per_sec`) covering four weeks, where week 4 contains one real incident hidden somewhere in a diurnal, weekly-seasonal pattern similar to the table at the top of this module.
+
+Build two detectors against it and compare them:
+
+1. A static-threshold alert (pick one fixed `requests_per_sec` floor) evaluated across all four weeks.
+2. The median/MAD seasonal detector from this module, with baseline built from weeks 1–3 and evaluated against week 4.
+
+Report, for each detector: how many hours it flagged, how many of those were the real incident versus false positives, and whether it missed the real incident entirely (false negative). Then write the two or three sentences you'd want attached to this comparison if you were proposing the seasonal detector replace the static one in a real alerting config — the kind of justification a teammate reviewing your PR would actually need to see.
+
+*Hint: build the static threshold the way a real teammate would — by eyeballing a daytime graph and picking a number that looks reasonable — before you compute the seasonal baseline. Tuning the static threshold with the benefit of hindsight on the whole dataset defeats the point of the exercise; the naive version should be built blind to where the incident is, exactly as it would be in practice.*

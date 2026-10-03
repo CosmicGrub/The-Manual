@@ -1,0 +1,110 @@
+---
+trackId: devops-tooling
+tier: 5
+title: "Teaching and Technical Writing"
+order: 6
+estimatedHours: 6
+slug: teaching-and-technical-writing
+---
+
+## Why Teaching Is the Last Tool You Build
+
+By Tier 5 the checkpoint for this track stopped being a quiz you pass and became a portfolio: a real PR a maintainer merged (Tier 4's open-source-contribution module), a real piece of novel tooling you designed and shipped, a real on-call rotation you survived. None of that stays useful if it stays locked in your head. The PR needs a description a reviewer can act on. The tool needs docs a stranger can follow without you in the room. The on-call lessons need to leave the incident channel and become something the next engineer reads before they repeat your mistake. Teaching and technical writing are not a soft-skills afterthought bolted onto the real work — they are the mechanism by which your judgment becomes checkable, reusable, and eventually someone else's problem to extend instead of yours alone to carry. This module covers three concrete instances of that mechanism: writing a tutorial a specific beginner can actually follow, structuring a talk that isn't just slides with a voice attached, and revising material because a real learner got specifically, usefully confused by it.
+
+## Part 1 — Writing a Tutorial for a Real Beginner: CRDs and Operators, for Someone Who Just Finished Tier 3
+
+The hardest part of writing a tutorial isn't the writing. It's figuring out exactly what the audience already has wired into their head, and building the new idea out of *that* — not out of whatever vocabulary happens to be convenient for you as the expert. Here's a real worked case, using this track's own material: explain Custom Resource Definitions and Operators — the real version lives in Tier 4's `advanced-kubernetes` module — to someone who has only finished Tier 3's `kubernetes-fundamentals`.
+
+**Step 1: inventory what the audience actually has.** A Tier 3 graduate has built and reasoned about exactly this chain: a Deployment doesn't touch Pods directly, it creates and owns a ReplicaSet, and the ReplicaSet creates and owns Pods. They've watched a rolling update replace one ReplicaSet with another and understand that something is continuously comparing desired `spec.replicas` against observed reality and closing the gap. What they have *not* seen is that this "watch, diff, act" loop is a general-purpose pattern they can register their own resource types into — they think it's special-cased machinery that ships with Kubernetes, not an extensible mechanism.
+
+**Step 2: find the anchor, don't invent an analogy.** The tempting move is something like "a CRD is like adding a new word to a dictionary." Resist it — an analogy with no structural correspondence to the real mechanism teaches a feeling, not a transferable model, and it collapses the moment the learner hits a real reconcile bug. The right anchor is already sitting in material they just finished: the Deployment → ReplicaSet → Pod chain *is* a control loop with a domain-specific reconciler (`kube-controller-manager`'s built-in Deployment controller) watching one kind and acting on another. A CRD plus an Operator is the exact same shape, except you write the reconciler and you pick the kind.
+
+**Step 3: build the mechanism with the real, small example, not the abstract description.** Walk them through the same `RedisCluster` CRD from Tier 4, but narrate it as "a Deployment you're building yourself," one piece at a time:
+
+```yaml
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: redisclusters.cache.example.com
+spec:
+  group: cache.example.com
+  names:
+    kind: RedisCluster
+    plural: redisclusters
+  scope: Namespaced
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                replicas: { type: integer }
+                version: { type: string }
+            status:
+              type: object
+              properties:
+                readyReplicas: { type: integer }
+                phase: { type: string }
+```
+
+**Step 4: a real transcript, not a summary of one.** Here's roughly what you'd actually say, in order, to a Tier 3 graduate:
+
+> "You already know a Deployment never touches Pods — it owns a ReplicaSet, and the ReplicaSet controller is the thing actually watching `spec.replicas` and creating or deleting Pods to match. That controller is just code, running somewhere, watching one kind of object and acting on another. A CRD registers a brand-new kind — here, `RedisCluster` — into the API server, so `kubectl apply` works on it exactly like it works on a Deployment: validated, stored in etcd, versioned. But registering the kind doesn't get you a controller. There's no built-in reconciler for `RedisCluster` the way there is for `Deployment`. You have to write that part — it's called an Operator, and it's the same watch-diff-act loop you already understand, pointed at a kind you invented.
+>
+> Quick check: once this CRD is installed and you `kubectl apply` a `RedisCluster` with `replicas: 3`, does a single Redis pod exist yet? Why or why not?"
+
+That check question is deliberately not recall. The honest answer is "no — the object exists in etcd, `kubectl get` shows it, but nothing is running, because a CRD declares a schema and stores intent; it does not run any controller. Nothing acts on it until an Operator process is deployed and watching it." A learner who answers "yes, because you applied it" has the exact misconception this tutorial exists to dismantle: the belief, carried over from Deployments where the controller is invisible and automatic, that applying any object makes something happen. Forcing them to notice that the Deployment controller they take for granted had to be written by someone, for Deployments specifically, is the actual payload of this lesson — more useful than any amount of "a CRD lets you extend the API" prose.
+
+## Part 2 — Presenting Technical Work Publicly: Turning the Operator Into a 20-Minute Talk
+
+Slides are not a talk. A deck that lists "What is a CRD," "What is an Operator," "Demo," "Questions" in that order is organized, but it has no narrative — no reason for the audience to care about slide two before you show slide three. The fix is the same one Pixar story artists use for a plot: *Once upon a time… every day… until one day… because of that… because of that… until finally…* That shape — stable state, disruption, consequence, consequence, resolution — maps directly onto a real incident-driven talk about the `RedisCluster` operator, and it's the structure, not the slide count, that makes a technical talk land.
+
+**Cold open (2 minutes).** Don't open with "today I'm going to talk about Kubernetes Operators." Open with the disruption: *"At 2:14 AM, our Redis operator was still running. Every 30 seconds it reconciled a cluster that hadn't changed in six hours, and it never stopped, and the on-call engineer paged out trying to figure out why a 'working' system wouldn't go quiet."* That's a concrete, false-equilibrium hook — it states a real, specific symptom (not "we had some issues") and promises an explanation the audience has to stay for.
+
+**Stakes and stable state (3 minutes).** Establish what "normal" looked like before the disruption: the Deployment → ReplicaSet pattern the audience already half-knows, the reason you needed a custom controller for Redis specifically (version-aware rolling restarts, replication-lag checks — logic `kube-controller-manager` has no idea how to do). This is where the feature-list content from a bad talk actually belongs, but reframed as *why the problem was hard*, not as a capabilities inventory.
+
+**The mechanism, live (8–10 minutes).** This is the demo, but narrated as cause and effect, not as a tour. Show the reconcile function. Bump `replicas: 3` to `replicas: 5` live and narrate the chain exactly the way Tier 4's module walks it: watch event fires, `Reconcile` runs, it sees the StatefulSet's replica count doesn't match spec, patches it, the built-in StatefulSet controller takes it from there. Then — and this is the part a feature-dump talk skips — show the failure: an object whose status write re-triggers a watch event, and the loop that didn't quiesce.
+
+**The insight (3 minutes).** Resolve the cold open: the fix wasn't "operators are complicated," it was a specific, nameable mechanism — the difference between a write that bumps `resourceVersion` (every write does) and a write that bumps `metadata.generation` (only spec writes do), and filtering on the latter. One sentence an audience can leave the room able to repeat to someone else is worth more than twelve slides of architecture diagram.
+
+**Close (2 minutes) + buffer (2 minutes).** State the takeaway as a rule other people can apply to their own operators, not just a recap of yours: "if your controller's own writes can trigger its own watch, check whether you're filtering on generation or just on any change — and make reconcile idempotent regardless, because the filter is an optimization, not your correctness guarantee." That's a portable lesson; "we built a Redis operator" is not.
+
+Notice what never appeared in that outline: a slide count. The narrative is the outline above — stable state, disruption, consequence, resolution — and it would survive having zero slides at all, which is the actual test of whether a talk has a structure or is just commentary on a deck.
+
+## Part 3 — Iterating From Learner Feedback: A Real Confusion, A Real Revision
+
+Here's the specific moment Part 2's "insight" beat came from, and it's a real example of teaching material getting revised because a specific learner asked a specific, sharp question.
+
+The Part 1 tutorial, like Tier 4's original `advanced-kubernetes` module, said this about the status subresource: *"writing status does not re-trigger a reconcile the way editing spec does, avoiding an infinite update loop."* That's a reasonable simplification for a Tier 3 graduate meeting CRDs for the first time — it gives them the right intuition (status writes are "safe," spec writes are "the real trigger") without drowning them in API-machinery internals they don't need yet to get the big picture.
+
+A sharper learner — one who'd read the Kubernetes API conventions on the side — pushed back directly on that sentence:
+
+> "Wait — doesn't *any* write to an object bump its `resourceVersion`, and doesn't the watch fire on `resourceVersion` changes? If status writes go through the API server, how do they not generate a watch event at all?"
+
+That learner is right, and the original line was wrong in a way that mattered once someone looked closely: a status-subresource write absolutely does bump `resourceVersion` and absolutely does emit a watch event by default. If controller-runtime's default event handler enqueued a reconcile for *every* watch event unconditionally, a naive operator that always writes status on every pass genuinely would loop forever — status write triggers watch event triggers reconcile triggers status write, with no natural exit. The original explanation hadn't just simplified; it had stated something that doesn't hold under the exact question a careful reader would ask.
+
+The real mechanism, and the revision, has two independent parts, and good material says both explicitly instead of collapsing them into one vague sentence:
+
+1. **Idempotency is what actually guarantees termination.** On the pass after a status write, `Reconcile` runs again, re-reads the live object, sees `spec` and `status` already match, and issues *zero* further API writes. No write means no new `resourceVersion` bump, which means no new watch event, which means the loop quiesces after exactly one extra no-op pass — not because status writes are invisible to the watch, but because the reconciler stops generating new triggers once there's nothing left to reconcile.
+2. **`metadata.generation` plus a predicate is the optimization, not the guarantee.** `generation` increments only on spec changes, not status changes, specifically so controllers *can* filter status-only events out before they're even enqueued, using `builder.WithPredicates(predicate.GenerationChangedPredicate{})` in `SetupWithManager`. That's a real, available mechanism — but it's an efficiency gain (fewer no-op reconciles scheduled), not the thing standing between you and an infinite loop. An operator with no such filter, but a genuinely idempotent `Reconcile`, still terminates; it just does one more pass than it strictly needed to.
+
+The revised tutorial line reads: *"Any write to the object — including a status-subresource write — bumps `resourceVersion` and does generate a watch event, which by default enqueues another reconcile. What actually stops this from looping forever is that `Reconcile` is idempotent: once spec and status already match, it makes no further writes on that pass, so no new event fires. Filtering on `metadata.generation` (which only changes on spec edits) is an available optimization to skip the extra no-op pass entirely — it's not what makes the loop correct in the first place."*
+
+That's the whole pattern this part of the module is teaching: a specific learner's specific, correct objection to one sentence is a gift, not a nuisance. The fix isn't "add more words" — it's isolating exactly which claim was imprecise, replacing it with the mechanism that's actually true, and being honest that the first version was a simplification that broke under a reasonable follow-up question, which is a completely different (and better) failure mode than being simply wrong.
+
+## Exercise
+
+Tier 4's `advanced-kubernetes` module also covers Istio's sidecar-injection and mTLS enforcement via a `PeerAuthentication` object. Using that material as your raw source, do all three things this module just walked through, end to end:
+
+1. **Tutorial.** Pick a specific, named audience (e.g., "someone who finished Tier 3's Kubernetes fundamentals but has never touched a service mesh") and write the Step 1–4 treatment from Part 1: inventory what they already know about Services and `kube-proxy`'s L4 load balancing, find the structural anchor in that (not an analogy), and write one "quick check" question whose honest answer requires the learner to compute or trace something, not just agree with you.
+2. **Talk.** Outline a 15-minute talk on the same material using the stable-state → disruption → mechanism → insight → close shape from Part 2, including a one-line cold open and one portable, repeatable "insight" sentence (not "we used Istio").
+3. **Revision.** Invent one specific, plausible piece of learner confusion about mTLS or sidecar injection that your tutorial from step 1 would provoke, and write the "before" line from your tutorial, the learner's pushback, and the corrected "after" line — the same three-part shape Part 3 used.
+
+**Hint, not a solution:** for step 3, the richest vein of real confusion in this material is the same shape as Part 3's — a sentence that's a fine simplification until someone asks what "automatically" is actually doing. A strong candidate: "the application never changes a line of code — Envoy just handles it" is true about the app's source code and false about the network path underneath it. A sharp learner's version of the Part 3 question here is something like: "if the app still calls `http://pricing:80` and nothing in the app changed, what *mechanism* actually gets every packet through Envoy instead of straight to the destination?" Chase that question to the actual answer — it involves the `istio-init` container and `iptables` — before you write your "after" line.

@@ -1,0 +1,129 @@
+---
+trackId: devops-tooling
+tier: 5
+title: "Becoming a Maintainer"
+order: 5
+estimatedHours: 8
+slug: becoming-a-maintainer
+---
+
+## Two Ways to Decide: BDFL vs. Foundation-Governed
+
+Every open-source project has to answer one question constantly: when two people disagree about a design decision, who actually wins? The answer isn't "whoever is right" — it's a specific, structural mechanism, and that mechanism varies so much between projects that the same kind of decision gets made in completely different ways depending on which governance model you're standing in.
+
+**BDFL-style: Redis under Salvatore Sanfilippo (antirez), 2009–2020.** For eleven years, virtually every non-trivial design decision in Redis passed through one person. Not a committee, not a vote — antirez, personally, in his own blog posts and GitHub comments. The clearest real example: for years he resisted adding multithreading to Redis's command execution, arguing publicly and repeatedly that Redis's single-threaded event loop was the source of its biggest guarantee — every command runs atomically, with no locking, no races, no surprises — and that multithreading the command path would trade that guarantee away for a speedup most users didn't actually need. When Redis 6.0 shipped in 2020 with *threaded I/O* (reading and writing socket bytes on multiple threads, while keeping command execution single-threaded), that was antirez's call, explained in his own writing, after he'd personally run the benchmarks that convinced him the tradeoff was now worth it. No PMC. No vote. No KEP. One engineer, persuaded by evidence, decided, and the change shipped under his name. In June 2020, he stepped back from that role entirely — and even *that* transition was a unilateral BDFL decision: he personally named the small team who'd take over, rather than putting it to any vote.
+
+**Foundation-governed: Apache Kafka, under the Apache Software Foundation.** Kafka has a Project Management Committee (PMC) — a named group of people with binding votes — sitting above a wider pool of committers (can merge code, no binding vote on project-level decisions) and an open pool of contributors (anyone who submits a patch). Nobody in that structure has a Redis-style unilateral "yes." Two mechanisms do the actual deciding, and which one applies depends on the size of the change:
+
+- **Lazy consensus**, for ordinary code changes: a patch is treated as approved if nobody with standing objects within a defined window. No explicit vote is cast at all — silence *is* agreement. This is what makes day-to-day PRs in ASF projects move fast despite the formal structure around them.
+- **A formal vote**, for anything that changes a public API, a wire protocol, or a release: a `VOTE` thread on the dev mailing list, open a minimum amount of time, requiring binding `+1`s from PMC members and *no unresolved binding `-1`*. A binding `-1` isn't a casual objection — ASF policy requires it to come with a technical justification, and it doesn't kill the proposal the way a BDFL's "no" does. It forces the discussion back open until the objection is either resolved or withdrawn. That's the real structural difference from the Redis model: in Redis, a "no" from antirez was final because there was no higher authority to appeal to. In Kafka, a `-1` is a forcing function for more work, not an ending.
+
+| | Redis (BDFL, through 2020) | Apache Kafka (ASF) |
+|---|---|---|
+| Who can say yes | One person | PMC, via vote or lazy consensus |
+| Who can say no | One person, final | Any binding voter, but reversible with more work |
+| Routine changes | Maintainer merges directly | Lazy consensus — silence approves |
+| Big changes | Maintainer decides, writes about it | Formal `VOTE` thread, binding `+1`/`-1`, minimum time window |
+| Speed | Fast, bottlenecked on one person's availability | Slower, but survives any one person leaving |
+| Failure mode | Project stalls if the BDFL disappears or burns out | Decision paralysis if the PMC can't reach consensus |
+
+This isn't the only axis of variation you've already seen in this track. Tier 4's **Contributing to Open-Source Infrastructure Tooling** module contrasted Kubernetes Enhancement Proposals (multi-vendor, SIG-sponsored, Production-Readiness-Review-gated) against Terraform AWS provider proposals (single-vendor, a GitHub issue plus a maintainer's "we'd accept a PR for this" comment, no written document at all for most changes). That was a formality axis — how much ceremony a change needs. What you're looking at now is a different axis entirely — who holds the authority to end an argument. Kafka's PMC actually sits at an interesting midpoint on both axes at once: it's ASF-governed (foundation, not BDFL) but its improvement-proposal process (KIPs, next section) is lighter-weight than a KEP and heavier than a Terraform provider's one-line issue comment. Knowing both axes — ceremony and authority — is what lets you correctly read *any* project's process on sight instead of assuming every project works like the last one you contributed to.
+
+## Authoring and Defending an RFC: What KIP-500 Actually Looked Like
+
+Tier 3's **Agile and Collaboration Norms** module gave you a template — RFC-014, proposing a move from static Terraform-sourced RDS credentials to Vault dynamic secrets — with a fixed section structure: Status, Author, Date, Reviewers, then Context, Problem, Proposed solution, Alternatives considered, Tradeoffs/risks, Rollout plan, Open questions. That template doesn't stop scaling once a proposal gets big. It's exactly as useful for a company-wide infrastructure change as it is for one of the most consequential design changes in a major open-source project's history. Kafka's KIP-500 is the real example worth studying, because its public record shows precisely how an RFC survives contact with real pushback.
+
+**The problem, stated the way the RFC template demands.** Context: every Kafka cluster depended on a separate Apache ZooKeeper ensemble to store cluster metadata (topic configs, partition leadership, ACLs) and elect a controller. Problem: running two distributed systems to operate one — ZooKeeper and Kafka itself — doubled operational burden, capped cluster size (ZooKeeper's write throughput became the bottleneck at tens of thousands of partitions), and meant every metadata change paid the cost of talking to a second system. Proposed solution (filed in 2019, authored by Colin McCabe and co-authors): replace ZooKeeper with KRaft — a Raft-based metadata quorum built directly into Kafka's own controller nodes, so Kafka manages its own metadata with no external dependency.
+
+**The real pushback.** This did not sail through. The concerns raised, repeatedly, across the public discussion:
+
+- **Operational risk.** ZooKeeper is battle-tested across the entire distributed-systems industry, not just Kafka. A brand-new, from-scratch Raft implementation replacing it was a huge amount of new, unproven code sitting under every Kafka cluster's metadata — exactly the kind of change that breaks production in ways nobody anticipated.
+- **Migration, not just a cutover.** Nobody could ship this as a flag day. Existing clusters with ZooKeeper-stored metadata needed a path to migrate live, without a cluster-wide outage, and without forcing every operator to re-architect on the same day the feature shipped.
+- **Scope.** KIP-500 as originally framed tried to describe both *why* to remove ZooKeeper and *how* the replacement consensus protocol would actually work. Reviewers pushed to separate those concerns instead of approving one enormous proposal.
+
+**How the proposal actually changed in response.** It didn't get rejected, and it didn't ship unchanged either — it got decomposed. The consensus-algorithm specifics were split out into their own proposal, KIP-595 ("A Raft Protocol for the Metadata Quorum"), so that question could be reviewed and voted on independently of the broader "should we remove ZooKeeper at all" question. The controller architecture built on top of that Raft layer became its own proposal, KIP-631. And the rollout itself became a multi-year bridge period rather than a single release: KRaft shipped as an early-access preview starting in Kafka 2.8 (2021), explicitly *not* recommended for production, and was only marked production-ready in Kafka 3.3 (October 2022) — three years after the original KIP, and only after the migration tooling and operational track record existed to back up the claim.
+
+Here's the same history, written the way Tier 3 taught you to write it — reusing RFC-014's exact section structure, because the structure doesn't care how big the proposal is:
+
+```markdown
+# KIP-500: Remove ZooKeeper Dependency from Apache Kafka
+
+- Status: Superseded by KIP-595 (consensus protocol) and KIP-631
+  (controller architecture) — original scope split, not rejected
+- Authors: Colin McCabe et al.
+- Reviewers: Kafka PMC, via public dev-list discussion and VOTE threads
+
+## Context
+Every Kafka cluster depends on a separate ZooKeeper ensemble for
+metadata and controller election.
+
+## Problem
+Two distributed systems to operate one. ZooKeeper write throughput
+caps partition count. Every metadata change pays a second system's
+latency.
+
+## Proposed solution (original)
+Replace ZooKeeper with a Kafka-internal Raft-based metadata quorum
+(KRaft), combining the "why" and the "how" in one proposal.
+
+## Alternatives considered
+Keep ZooKeeper, optimize its usage pattern instead — rejected: treats
+the symptom, not the architectural coupling.
+
+## Tradeoffs / risks (as originally raised, then addressed)
+- New, unproven consensus code under every cluster's metadata.
+  -> Addressed by splitting the protocol itself into KIP-595, reviewed
+     and voted on independently, with its own test suite.
+- No live migration path for existing ZooKeeper-based clusters.
+  -> Addressed by a multi-year bridge mode (dual-write, then cutover)
+     instead of a single-release flag day.
+
+## Rollout plan (revised)
+1. Early-access preview, explicitly not production-recommended
+   (Kafka 2.8, 2021).
+2. Migration tooling and bridge-mode operation hardened across
+   multiple releases, in public, against real clusters.
+3. Marked production-ready only in Kafka 3.3 (Oct 2022) — ~3 years
+   after the original proposal.
+
+## Open questions (as of the original filing)
+Does the controller quorum itself need its own dedicated proposal,
+separate from the Raft layer it runs on? -> Yes: became KIP-631.
+```
+
+That's the whole point of defending an RFC in public: the document isn't a pitch you deliver once and either win or lose. It's a living record that gets revised *because* of the pushback, not despite it — the same discipline Tier 3's rollout-plan and open-questions sections were already training you in, just under three years of real community scrutiny instead of one team's sign-off.
+
+## Mentoring Contributors Through Review: Teaching vs. Correcting
+
+Tier 4 used a specific illustrative `cmctl status certificate` bug as its example of a tractable first issue in cert-manager: the command prints `Issuer` even when the certificate's `issuerRef.kind` is actually `ClusterIssuer`. Picture a first-time contributor's PR landing with a fix — and two different ways a maintainer could review it.
+
+The fix the contributor wrote:
+
+```go
+func issuerKindLabel(ref cmmeta.ObjectReference) string {
+    if ref.Kind == "ClusterIssuer" {
+        return "ClusterIssuer"
+    }
+    return ref.Kind
+}
+```
+
+**A review that only corrects:**
+
+> This breaks when `Kind` is empty. Use `cmutil.IssuerKind(ref)` instead. Please fix.
+
+Technically true, unblocks nothing conceptually, and teaches the contributor exactly zero transferable knowledge. They'll fix this one line and learn nothing about why the codebase has a helper for this at all.
+
+**A review that teaches:**
+
+> Close, but there's a subtlety here that bites people a lot in this codebase: `issuerRef.Kind` defaults to the empty string meaning `Issuer`, not the literal string `"Issuer"` — so your check handles the `ClusterIssuer` case but silently mislabels the default case too. You can see the same distinction handled correctly in the webhook's validator (`internal/webhook/validation/certificate.go`, the `validateIssuerRef` function) — that's the canonical place this gets normalized. Worth pulling that logic into a shared helper rather than duplicating the normalization here, since this is the second place I've seen this exact bug shape. Could you add a table test covering both `Kind: ""` and `Kind: "ClusterIssuer"`? That'll catch this specific regression if anyone touches this function again. Nice catch on the original bug, by the way — this is a real user-facing issue and nobody else had filed it.
+
+Notice what the second comment does that the first doesn't: it names the *underlying cause* (the empty-string default), not just the symptom; it points to a *precedent already in the codebase* rather than inventing a new rule; it asks a question ("could you add...") instead of issuing a command, which treats the contributor as someone capable of making the next move themselves; and it closes with something specific and true, not generic praise. The contributor who gets that review understands cert-manager's `issuerRef` handling better than they did an hour ago, and the maintainer spent maybe ninety extra seconds typing it. That's the actual leverage of mentoring through review: the ninety seconds compounds into a contributor who files fewer repeat-shaped bugs and reviews their *own* next PR more carefully before opening it — the exact habit this track has been building since Tier 3's review-etiquette material, now aimed at someone else instead of yourself.
+
+## Exercise
+
+Part 1 — RFC, defended. Pick a real design decision for the tool you're building toward this tier's checkpoint project (or any infrastructure change you have real opinions about). Write it up using Tier 3's RFC-014 template, every section filled in, no placeholders. Then hand it to one other person — a peer, a mentor, anyone willing to read it critically — and ask them specifically to find the weakest section and argue against it. Revise at least one full section (not a typo fix) in direct response to what they said, and keep both versions so the diff is visible.
+
+Part 2 — Review, as teaching. Find a real merged PR in a project you know (your own, a classmate's, or an open-source one) that has at least one maintainer review comment on it. Rewrite that comment twice: once stripped down to a pure correction ("change X to Y"), and once expanded into a comment that also names the underlying cause and points to a precedent elsewhere in the same codebase.
+
+**Hint:** if Part 2 is hard because you can't find "a precedent elsewhere in the codebase" to point to, that's diagnostic, not a dead end — it usually means either the bug is genuinely novel (rare, and worth saying explicitly in the review instead of inventing a fake precedent), or you haven't read enough of the surrounding code yet to know the codebase's existing conventions well enough to teach them. The second case is far more common than the first.

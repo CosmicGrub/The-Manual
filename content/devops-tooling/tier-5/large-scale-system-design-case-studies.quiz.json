@@ -1,0 +1,98 @@
+[
+  {
+    "id": "devops-tooling/tier-5/large-scale-system-design-case-studies/q1",
+    "type": "multiple_choice",
+    "prompt": "In AWS's February 28, 2017 S3 postmortem, the index and placement subsystems required a full, multi-hour restart to recover instead of a fast failover. What does that recovery time imply about the architecture?",
+    "choices": [
+      "There was no fast, warm, incremental recovery path for a fleet-wide capacity loss of that size -- only a slow, cold, integrity-verified rebuild",
+      "S3 intentionally throttles recovery speed to avoid overloading customers with sudden availability",
+      "The restart was slow purely because of unrelated network congestion that day",
+      "Nothing can be inferred about recovery mechanisms from restart duration alone"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "devops-tooling/tier-5/large-scale-system-design-case-studies/q2",
+    "type": "multiple_choice",
+    "prompt": "During the same 2017 S3 outage, why was AWS's own Service Health Dashboard slow to reflect the problem?",
+    "choices": [
+      "AWS employees were on vacation and nobody was available to update it",
+      "The dashboard's own backing infrastructure depended on resources in the very region that was impacted -- a circular dependency",
+      "The dashboard was hosted by a separate third-party vendor unrelated to AWS",
+      "AWS deliberately delays dashboard updates for 24 hours after any incident"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-5/large-scale-system-design-case-studies/q3",
+    "type": "multiple_choice",
+    "prompt": "What actually triggered Fastly's June 8, 2021 global outage?",
+    "choices": [
+      "A distributed denial-of-service attack against Fastly's edge network",
+      "A scheduled maintenance window that was run without approval",
+      "A single customer's valid, policy-compliant configuration change that triggered a latent software bug deployed about a month earlier",
+      "A fiber cut affecting Fastly's primary data center"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "devops-tooling/tier-5/large-scale-system-design-case-studies/q4",
+    "type": "multiple_choice",
+    "prompt": "Why did the Fastly outage take down sites with no business relationship to each other or to the customer who made the triggering change?",
+    "choices": [
+      "All affected sites happened to deploy a bad update on the exact same day by coincidence",
+      "They all shared the same unrelated DNS registrar, which failed independently",
+      "They were all tenants on the same shared edge fleet, so a fleet-wide software bug became a single point of failure for every tenant behind it, regardless of how unrelated the tenants were to each other",
+      "Fastly intentionally took those specific customers offline during the incident"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "devops-tooling/tier-5/large-scale-system-design-case-studies/q5",
+    "type": "multiple_choice",
+    "prompt": "What is the core idea behind 'shuffle sharding' as a blast-radius containment technique?",
+    "choices": [
+      "Give every tenant the exact same full set of workers so load is always perfectly even",
+      "Assign each tenant a small, pseudo-randomly chosen subset of available cells/workers, so any two tenants overlap on only a thin slice of shared infrastructure",
+      "Randomly reboot workers on a fixed schedule regardless of tenant assignment",
+      "Shard tenants purely alphabetically by name across a fixed number of servers"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-5/large-scale-system-design-case-studies/q6",
+    "type": "multiple_choice",
+    "prompt": "In an Istio DestinationRule, which field implements a circuit breaker that ejects an unhealthy backend from the load-balancing pool before its failures cascade to every caller?",
+    "choices": [
+      "trafficPolicy.loadBalancer.simple",
+      "trafficPolicy.outlierDetection",
+      "subsets.labels",
+      "http.route.weight"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-5/large-scale-system-design-case-studies/q7",
+    "type": "multiple_choice",
+    "prompt": "The AWS Kinesis disruption of November 25, 2020 cascaded into authentication failures and delayed metrics for services like Cognito and CloudWatch. What does that reveal about those services' architecture?",
+    "choices": [
+      "Cognito and CloudWatch are entirely independent systems with no shared infrastructure, and the cascading failure was coincidental",
+      "Cognito and CloudWatch publicly advertised Kinesis as a core dependency well before the incident",
+      "They had an internal dependency on Kinesis that was not obvious from outside the provider's own organization, which the failure narrative exposed",
+      "The outage only affected Kinesis's own customer-facing API and nothing else"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "devops-tooling/tier-5/large-scale-system-design-case-studies/q8",
+    "type": "multiple_choice",
+    "prompt": "When judging whether a postmortem's remediation actually bounds future blast radius, what is the key distinction to look for?",
+    "choices": [
+      "Whether the postmortem is longer than 2,000 words",
+      "Whether the remediation is an enforced ceiling expressed as a number in a system (a cap, a partition, a quota) versus just added monitoring or alerting that tells a human faster without stopping the failure mode",
+      "Whether the company issued a public apology alongside the postmortem",
+      "Whether the postmortem names the specific engineer responsible"
+    ],
+    "correctIndex": 1
+  }
+]

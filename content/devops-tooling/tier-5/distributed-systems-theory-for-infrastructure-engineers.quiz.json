@@ -1,0 +1,98 @@
+[
+  {
+    "id": "devops-tooling/tier-5/distributed-systems-theory-for-infrastructure-engineers/q1",
+    "type": "multiple_choice",
+    "prompt": "In Raft, what must a node do before it can request votes to start a new election?",
+    "choices": [
+      "Increment its current term number and vote for itself",
+      "Decrement its current term number",
+      "Wait for an AppendEntries heartbeat from the existing leader",
+      "Append a no-op entry to its log"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "devops-tooling/tier-5/distributed-systems-theory-for-infrastructure-engineers/q2",
+    "type": "multiple_choice",
+    "prompt": "In the 5-node trace, S3 (leader of term 1) is partitioned off with only S1. Why can S3 not commit the entry 'SET x=3' at index 3?",
+    "choices": [
+      "It cannot get acknowledgment from a majority of the cluster (needs 3 of 5, has only 2)",
+      "S1 explicitly rejects the entry as invalid",
+      "Term 1 is no longer a valid term number",
+      "Index 3 is reserved for configuration changes"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "devops-tooling/tier-5/distributed-systems-theory-for-infrastructure-engineers/q3",
+    "type": "multiple_choice",
+    "prompt": "When the partition heals and S4 (term 2 leader) sends AppendEntries to S3, what happens to S3's uncommitted index-3 entry ('SET x=3', term 1)?",
+    "choices": [
+      "It is deleted and overwritten by the leader's entry at that index because the terms conflict",
+      "It is merged together with the leader's entry into a single combined command",
+      "S3 keeps it and asks the client to retry the commit",
+      "It is automatically marked committed since it arrived first"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "devops-tooling/tier-5/distributed-systems-theory-for-infrastructure-engineers/q4",
+    "type": "multiple_choice",
+    "prompt": "Per Gilbert and Lynch's formalization of the CAP theorem, which statement is accurate?",
+    "choices": [
+      "During an actual network partition, a system must choose between remaining fully consistent and remaining available; it cannot guarantee both at once",
+      "A well-engineered system can always provide consistency, availability, and partition tolerance simultaneously",
+      "Partition tolerance is optional and can be designed out of a distributed system",
+      "CAP means a system must permanently give up one of the three properties at all times, partition or not"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "devops-tooling/tier-5/distributed-systems-theory-for-infrastructure-engineers/q5",
+    "type": "multiple_choice",
+    "prompt": "In the Dynamo shopping-cart example, what is the concrete, client-visible cost of choosing availability over consistency during a partition?",
+    "choices": [
+      "An item the customer previously deleted from the cart can reappear after reconciliation, because divergent versions are merged by union rather than one being discarded",
+      "The cart becomes completely read-only until the partition heals",
+      "All writes during the partition are rejected with an explicit error to the client",
+      "The customer's session is forcibly terminated when the partition is detected"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "devops-tooling/tier-5/distributed-systems-theory-for-infrastructure-engineers/q6",
+    "type": "multiple_choice",
+    "prompt": "Using the two-node replicated-counter example, what distinguishes eventual consistency from strong consistency?",
+    "choices": [
+      "Under eventual consistency, a client reading a replica can observe a stale value for some window after a write; under strong consistency, every read anywhere reflects the latest committed write immediately",
+      "Eventual consistency guarantees faster reads with no other tradeoff",
+      "Strong consistency requires at least five replicas to function",
+      "Eventual consistency only applies to counters, not to general key-value data"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "devops-tooling/tier-5/distributed-systems-theory-for-infrastructure-engineers/q7",
+    "type": "multiple_choice",
+    "prompt": "What does causal consistency guarantee that plain eventual consistency does not?",
+    "choices": [
+      "Writes that causally depend on an earlier observed value are seen in that dependency order by every node, even though unrelated concurrent writes may still be observed in different orders on different nodes",
+      "Every write in the entire system is applied in one single global total order on all nodes",
+      "No replica is ever allowed to lag behind another",
+      "It requires a single leader node, exactly like strong consistency"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "devops-tooling/tier-5/distributed-systems-theory-for-infrastructure-engineers/q8",
+    "type": "multiple_choice",
+    "prompt": "In the GitHub October 2018 incident, Orchestrator's own failover decisions were coordinated via a Raft quorum and worked correctly, yet the incident still caused data divergence. Why?",
+    "choices": [
+      "The underlying MySQL data replication was not itself quorum-based, so promoting a new primary gave no guarantee that every acknowledged write had reached it before the old primary was deposed",
+      "Raft requires at least seven nodes to avoid split-brain, and Orchestrator only had three",
+      "Raft cannot elect a leader during any network partition, so no failover should have occurred at all",
+      "MySQL replication automatically uses the same log format as Raft, so the two systems should have been fully interchangeable"
+    ],
+    "correctIndex": 0
+  }
+]

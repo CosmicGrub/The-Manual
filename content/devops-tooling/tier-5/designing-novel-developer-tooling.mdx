@@ -1,0 +1,271 @@
+---
+trackId: devops-tooling
+tier: 5
+title: "Designing Novel Developer Tooling"
+order: 2
+estimatedHours: 14
+slug: designing-novel-developer-tooling
+---
+
+## A Real CLI, Not a Toy: `relctl`
+
+Every tier before this one treated the CLI as something you *use* — kubectl, terraform, docker. At this tier you build one, because the skill that separates someone who scripts around existing tools from someone who invents tooling is knowing what a CLI's argument parser, subcommand dispatch, and exit codes are actually doing underneath `argparse`/`cobra`/`clap` sugar.
+
+`relctl` is a minimal release-control tool with three subcommands: `relctl tag`, `relctl promote`, `relctl status`. Go's standard library has no built-in subcommand concept — `flag.FlagSet` only parses flags, and `cobra` is just a (very good) convention built on top of exactly the dispatch you're about to write by hand.
+
+```go
+package main
+
+import (
+	"flag"
+	"fmt"
+	"os"
+)
+
+func main() {
+	if len(os.Args) < 2 {
+		fmt.Fprintln(os.Stderr, "relctl: expected a subcommand: tag, promote, status")
+		os.Exit(64) // EX_USAGE -- see sysexits.h
+	}
+
+	var err error
+	switch os.Args[1] {
+	case "tag":
+		err = runTag(os.Args[2:])
+	case "promote":
+		err = runPromote(os.Args[2:])
+	case "status":
+		err = runStatus(os.Args[2:])
+	case "-h", "--help":
+		printUsage()
+		os.Exit(0)
+	default:
+		fmt.Fprintf(os.Stderr, "relctl: unknown subcommand %q\n", os.Args[1])
+		os.Exit(64)
+	}
+
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "relctl: %v\n", err)
+		os.Exit(1)
+	}
+}
+```
+
+```go
+func runTag(args []string) error {
+	fs := flag.NewFlagSet("tag", flag.ContinueOnError)
+	version := fs.String("version", "", "semver to tag, e.g. v1.4.0 (required)")
+	message := fs.String("message", "", "annotated tag message")
+	dryRun := fs.Bool("dry-run", false, "print the git command without running it")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	if *version == "" {
+		return fmt.Errorf("--version is required (e.g. relctl tag --version v1.4.0)")
+	}
+	if !semverPattern.MatchString(*version) {
+		return fmt.Errorf("%q is not a valid semver tag (expected vX.Y.Z)", *version)
+	}
+
+	cmd := []string{"git", "tag", "-a", *version, "-m", *message}
+	if *dryRun {
+		fmt.Println(strings.Join(cmd, " "))
+		return nil
+	}
+	return runGit(cmd...)
+}
+```
+
+Each subcommand owns its own `flag.FlagSet`, so `relctl tag --version v1.4.0` and a future `relctl promote --version v1.4.0` can both use `--version` without the two subcommands' flags colliding in a single global namespace — each `FlagSet` is independent state. `flag.ContinueOnError` (not `flag.ExitOnError`) matters too: it lets `main` decide how to turn a parse failure into an exit code, instead of the flag package calling `os.Exit` from inside a library function your own error-handling can't intercept.
+
+The exit codes are deliberate, not whatever `os.Exit(1)` happened to be closest to hand: usage errors (`64`, `EX_USAGE` from the BSD `sysexits.h` convention `curl` and many Unix tools still follow) are different from runtime failures (`1`), which are different from success (`0`). A CI pipeline branching on `$?` needs that distinction — "you typo'd a flag" and "the git tag command actually failed against the remote" are not the same failure, and a script that treats them identically will either retry a typo forever or silently swallow a real failure.
+
+A `status --output json` flag (matching `-o json`, kubectl's own convention) is the other half of a scriptable CLI: human-readable output by default, a machine-parseable escape hatch for anything piping into `jq`. A CLI that only ever prints a hand-formatted table is a CLI nobody can build automation on top of. Once a tool like this grows past three or four subcommands, or needs shell completion, reach for `cobra` — but it is worth hand-rolling the dispatch once, because `cobra.Command.Execute()` is doing exactly the `switch` statement above, plus completion scripts and help generation.
+
+## Building a Control Loop Without the Framework
+
+Tier 4's Advanced Kubernetes module built a `RedisCluster` CRD and wired a `Reconcile` function to it using `controller-runtime` — the library behind kubebuilder and the Operator SDK. That `Reconcile(ctx, req) (ctrl.Result, error)` signature hid two mechanisms completely: *how* the operator learns a `RedisCluster` changed at all, and *how* a flood of near-simultaneous watch events turns into one call per object instead of a stampede. Writing a minimal operator "from scratch" at this tier means building those two mechanisms yourself, once, against raw `client-go` — not because you'd ship this instead of controller-runtime, but because you can't debug why a production operator double-reconciles, never fires, or leaks goroutines without having seen what the framework does for you.
+
+The two pieces are a `SharedIndexInformer` (the watch) and a `workqueue.RateLimitingInterface` (dedup, retry, backoff). The informer's event handlers don't do real work — they turn every add/update/delete into a namespaced key and enqueue it:
+
+```go
+queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
+
+informer := cache.NewSharedIndexInformer(
+	&cache.ListWatch{
+		ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {
+			return redisClient.CacheV1().RedisClusters(ns).List(ctx, opts)
+		},
+		WatchFunc: func(opts metav1.ListOptions) (watch.Interface, error) {
+			return redisClient.CacheV1().RedisClusters(ns).Watch(ctx, opts)
+		},
+	},
+	&cachev1.RedisCluster{},
+	30*time.Second, // resync period
+	cache.Indexers{},
+)
+
+enqueue := func(obj interface{}) {
+	if key, err := cache.MetaNamespaceKeyFunc(obj); err == nil {
+		queue.Add(key)
+	}
+}
+
+informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+	AddFunc:    enqueue,
+	UpdateFunc: func(_, new interface{}) { enqueue(new) },
+	DeleteFunc: enqueue,
+})
+```
+
+The worker loop is where retries and backoff actually live:
+
+```go
+func (c *controller) runWorker() {
+	for c.processNextItem() {
+	}
+}
+
+func (c *controller) processNextItem() bool {
+	key, shutdown := c.queue.Get()
+	if shutdown {
+		return false
+	}
+	defer c.queue.Done(key)
+
+	if err := c.syncHandler(key.(string)); err != nil {
+		if c.queue.NumRequeues(key) < 5 {
+			c.queue.AddRateLimited(key) // exponential backoff: ~5ms, 10ms, 20ms...
+			return true
+		}
+		utilruntime.HandleError(fmt.Errorf("giving up on %q after 5 retries: %w", key, err))
+	}
+	c.queue.Forget(key)
+	return true
+}
+```
+
+`syncHandler` is, line for line, the same body as Tier 4's `Reconcile` function — fetch the `RedisCluster`, fetch or create the `StatefulSet`, compare `replicas`, patch if needed, write `status`. Everything above it is new. Walk through why each piece exists:
+
+- `queue.Add` is a *set*, not a list — if three updates to the same `RedisCluster` land before a worker gets to it, the key is only in the queue once. That's why reconcile functions must be idempotent and re-read live state at the top instead of trusting whatever triggered them: by the time `syncHandler` runs, the object may already be several versions newer than the event that enqueued it.
+- `queue.Done(key)` inside a `defer` guarantees the queue's "currently processing" set clears even if `syncHandler` panics, so a crashing handler can't permanently wedge that key out of future reconciliation.
+- `AddRateLimited` is what Tier 4's `ctrl.Result{RequeueAfter: 30 * time.Second}` return value was secretly built on — a failed sync doesn't retry immediately (which would hot-loop against a struggling API server) and doesn't retry at a fixed interval either; it backs off exponentially, then gives up and logs instead of retrying forever.
+- The 30-second resync period re-adds *every* key on a timer regardless of whether anything changed, which is why a reconcile loop fires with no apparent trigger: nothing is wrong, the informer is doing a periodic correctness sweep in case a watch event was ever dropped (a long-lived watch connection resetting can silently drop events).
+
+This is also why Tier 4's note about `subresources: status: {}` is load-bearing, not a minor YAML detail: `Status().Update()` writes to the `/status` subresource, which does **not** bump the generation watched by the main object's update handler the way a spec change does. Without that split, every status write the operator makes would re-enqueue the same key, which re-triggers reconcile, which writes status again — an infinite loop hiding behind a single line of CRD YAML.
+
+controller-runtime's `Manager` and `Reconciler` interface are this exact informer-plus-workqueue machinery, generated and wired up for you from the types you register with `SetupWithManager`. A Terraform provider solves the identical desired-vs-observed problem with a different trigger: there's no persistent watch — `terraform plan` calls your provider's `Read` function on demand to pull current state, diffs it against the HCL, and `Create`/`Update`/`Delete` only run if `apply` confirms the diff. Same reconcile shape, pull-triggered instead of push-triggered:
+
+```go
+func resourceWidget() *schema.Resource {
+	return &schema.Resource{
+		Schema: map[string]*schema.Schema{
+			"name": {Type: schema.TypeString, Required: true, ForceNew: true},
+			"size": {Type: schema.TypeInt, Required: true},
+		},
+		CreateContext: resourceWidgetCreate,
+		ReadContext:   resourceWidgetRead, // called by `terraform plan` to detect drift
+		UpdateContext: resourceWidgetUpdate,
+		DeleteContext: resourceWidgetDelete,
+	}
+}
+```
+
+`ForceNew: true` on `name` tells Terraform that field can't be changed in place — it has to destroy and recreate, the same way changing an immutable field on a Kubernetes object (a PVC's storage class, say) forces a replace instead of a patch.
+
+## Designing an API Other Engineers Will Depend On
+
+Every tool above is also a dependency the moment someone else's script calls it. The contrast that matters isn't "clean code" — it's whether a tool can be depended on inside automation you'll never see fail. Take one task implemented two ways: a `prune` command that deletes CI artifacts older than N days.
+
+**Badly designed:**
+
+```bash
+$ prune 30
+Deleting old stuff...
+done
+$ echo $?
+0
+```
+
+```go
+// bad-prune/main.go (excerpt)
+func main() {
+	days, _ := strconv.Atoi(os.Args[1]) // panics if os.Args[1] is missing
+	for _, a := range listArtifacts() {
+		if time.Since(a.Created) > time.Duration(days)*24*time.Hour {
+			if err := delete(a); err != nil {
+				fmt.Println("error:", err) // printed to stdout, not stderr
+				continue                   // loop continues, exit code still 0
+			}
+		}
+	}
+	fmt.Println("done")
+}
+```
+
+Everything wrong here is something a dependent eventually hits in production: the age threshold is a bare positional argument with no name, so nobody reading a script six months later knows what `30` means without finding the source; a missing argument panics with a stack trace instead of a usage message; a partial failure (three artifacts failed to delete, one didn't) still exits `0`, so a CI step gating `prune && deploy` happily deploys past a prune that silently did less than it claimed; and the error went to stdout, so anything piping `prune`'s output into a log parser sees an error line mixed into what should be clean output.
+
+**The same tool, designed to be depended on:**
+
+```bash
+$ prune --older-than 720h --dry-run
+would delete: artifact-8821 (created 41d ago)
+would delete: artifact-8822 (created 38d ago)
+2 artifacts would be deleted
+
+$ prune --older-than 720h
+error: failed to delete artifact-8822: registry returned 503 (1 of 2 deletions failed)
+$ echo $?
+1
+```
+
+```go
+func runPrune(args []string) error {
+	fs := flag.NewFlagSet("prune", flag.ContinueOnError)
+	olderThan := fs.Duration("older-than", 0, "delete artifacts older than this (e.g. 720h); required")
+	dryRun := fs.Bool("dry-run", false, "list what would be deleted without deleting")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *olderThan == 0 {
+		return fmt.Errorf("--older-than is required, e.g. --older-than 720h")
+	}
+
+	var failed int
+	for _, a := range listArtifacts() {
+		if time.Since(a.Created) <= *olderThan {
+			continue
+		}
+		if *dryRun {
+			fmt.Printf("would delete: %s (created %s ago)\n", a.ID, humanAge(a.Created))
+			continue
+		}
+		if err := delete(a); err != nil {
+			fmt.Fprintf(os.Stderr, "error: failed to delete %s: %v\n", a.ID, err)
+			failed++
+		}
+	}
+	if failed > 0 {
+		return fmt.Errorf("%d deletion(s) failed", failed)
+	}
+	return nil
+}
+```
+
+Four concrete differences, each tied to a real failure mode:
+
+1. **A named, typed flag instead of a bare positional int.** `--older-than 720h` is self-documenting in a script and in `--help`; a positional `30` is not, and a future version can't safely add a second positional argument without breaking every existing call site's argument order. Flags can be added indefinitely without breaking callers who don't use them — positional arguments can't.
+2. **Errors to stderr, never stdout.** `1>output.json 2>errors.log` is how Unix tools compose; a tool that mixes the two streams breaks that composition for every downstream consumer.
+3. **An exit code that reflects what actually happened.** Partial failure is failure. `prune && deploy` depending on `$?` is only safe if `$?` is honest about partial success — the same discipline behind Terraform's three exit codes (`0` success/no changes, `2` success/changes applied, `1` error), which let a `terraform plan -detailed-exitcode` caller branch on which of those three actually happened, not just "did the process crash."
+4. **`--dry-run` as a first-class, load-bearing flag**, not an afterthought. A large share of production incidents traced back to a CLI are someone running the real version of a command they meant to preview — a tool that makes dry-run cheap and obvious prevents that class of incident structurally, instead of relying on the operator remembering to be careful.
+
+None of this is abstract taste. `kubectl`, `terraform`, and `git` are trusted inside millions of scripts specifically because their flags stay stable across minor versions (a flag is deprecated with a warning for several releases before removal, never silently repurposed), their exit codes mean the same thing release to release, and their error messages name the specific thing that failed instead of "something went wrong." A library API earns the same trust the same way: a function returning a typed, specific error — Go's `*fs.PathError`, carrying the exact path and syscall that failed — lets a caller's error-handling branch on what actually happened, instead of grepping a string and hoping the wording never changes.
+
+## Exercise
+
+Pick one of these — both, if you want the full rep:
+
+**CLI.** Add a fourth subcommand, `relctl rollback --to <version>`, to the tool built above. It must: refuse to run if `<version>` was never tagged (shell out to `git tag -l` and check); support `--dry-run`; and return a different, documented exit code for "that version doesn't exist" versus "the rollback started and failed partway through," so a calling CI pipeline can tell those two outcomes apart from `$?` alone. Hint: don't invent a third exit-code scheme — anchor it to the same `EX_USAGE`-vs-runtime-failure split `relctl tag` already uses, and keep "I checked and did nothing" (dry-run) visibly distinct from "I checked and acted" in both the printed output and the exit code.
+
+**Operator.** The bare `client-go` controller above never handles deletion — add it. First, give `buildStatefulSetFor` an owner reference back to the `RedisCluster` so the `StatefulSet` is garbage-collected automatically when the `RedisCluster` is deleted. Then add a **finalizer**: a string in `rc.Finalizers` that blocks the object from actually leaving etcd until your reconciler removes it, for cases where something must happen *before* deletion (verifying a final backup, draining replication). On each reconcile: if `rc.DeletionTimestamp` is non-zero and your finalizer is present, run the pre-delete check and then remove the finalizer and update; if `DeletionTimestamp` is zero, make sure the finalizer is present. Hint: skipping the `DeletionTimestamp.IsZero()` check before adding the finalizer is the single most common way to write an operator that can never finish deleting its own objects.

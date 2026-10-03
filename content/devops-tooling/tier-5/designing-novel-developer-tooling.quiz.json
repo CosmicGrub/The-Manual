@@ -1,0 +1,98 @@
+[
+  {
+    "id": "devops-tooling/tier-5/designing-novel-developer-tooling/q1",
+    "type": "multiple_choice",
+    "prompt": "In the `relctl` CLI, why does each subcommand (`tag`, `promote`, `status`) create its own `flag.NewFlagSet` instead of parsing all flags from one global flag set?",
+    "choices": [
+      "So each subcommand can define and parse its own flags (like --version) independently, without colliding with another subcommand's flags of the same name",
+      "Because Go's flag package cannot parse boolean flags from a global flag set",
+      "Because os.Args can only be read once per process, so each subcommand needs a fresh copy",
+      "So each subcommand can run in its own separate OS process"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "devops-tooling/tier-5/designing-novel-developer-tooling/q2",
+    "type": "multiple_choice",
+    "prompt": "In `relctl`, exit code 64 is used when the subcommand name is missing or unrecognized, following the BSD sysexits.h convention. What does that exit code represent?",
+    "choices": [
+      "A usage error (EX_USAGE) \u2014 the invocation itself was wrong, not a runtime failure",
+      "Successful completion with no changes made",
+      "A transient failure that the caller should retry automatically",
+      "The process was terminated by an external signal"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "devops-tooling/tier-5/designing-novel-developer-tooling/q3",
+    "type": "multiple_choice",
+    "prompt": "In the hand-written client-go controller, what does calling `queue.AddRateLimited(key)` after a failed `syncHandler` call do differently from calling `queue.Add(key)`?",
+    "choices": [
+      "It requeues the key after an exponentially increasing delay based on how many times that key has already failed, instead of requeuing it immediately",
+      "It permanently removes the key from the queue so it is never retried",
+      "It immediately retries the key on a different goroutine in parallel",
+      "It pauses the entire informer's watch until the key succeeds"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "devops-tooling/tier-5/designing-novel-developer-tooling/q4",
+    "type": "multiple_choice",
+    "prompt": "The lesson rebuilds Tier 4's RedisCluster reconcile loop directly against client-go instead of controller-runtime. What does this expose that controller-runtime's Reconciler interface normally hides?",
+    "choices": [
+      "The SharedIndexInformer and workqueue plumbing that turns raw watch events into deduplicated, retried, backed-off sync calls",
+      "The OpenAPI schema validation that the API server performs on CRD objects",
+      "The etcd storage format used to persist custom resources",
+      "The kubelet's container runtime interface for starting pods"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "devops-tooling/tier-5/designing-novel-developer-tooling/q5",
+    "type": "multiple_choice",
+    "prompt": "Why does `subresources: status: {}` on the RedisCluster CRD (from Tier 4) matter for the reconcile loop built in this lesson?",
+    "choices": [
+      "It splits /status onto its own API endpoint, so the operator's status writes don't bump the same generation/update event that would re-enqueue and re-trigger the reconciler forever",
+      "It tells the API server to validate the status field against a stricter OpenAPI schema than the spec field",
+      "It makes status updates faster by skipping etcd persistence entirely",
+      "It is required before kubectl can display the object's status column at all"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "devops-tooling/tier-5/designing-novel-developer-tooling/q6",
+    "type": "multiple_choice",
+    "prompt": "A CI pipeline runs `prune && deploy`, trusting prune's exit code to decide whether to proceed. Which design choice most directly protects that pipeline across upgrades to prune's own version?",
+    "choices": [
+      "Keeping exit code meanings stable release to release (never silently repurposing what 0, 1, or 2 mean)",
+      "Printing a colorful progress bar while artifacts are being deleted",
+      "Renaming flags each release to reflect the current implementation details",
+      "Always exiting 0 regardless of outcome so the pipeline never blocks"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "devops-tooling/tier-5/designing-novel-developer-tooling/q7",
+    "type": "multiple_choice",
+    "prompt": "A Terraform provider's Read function, called during `terraform plan`, is best understood as playing which role relative to a Kubernetes operator's Reconcile function?",
+    "choices": [
+      "The same desired-vs-observed state comparison as Reconcile, but pull-triggered on demand by `plan` rather than push-triggered by a persistent watch",
+      "A completely unrelated mechanism, since Terraform has no notion of observed state at all",
+      "A function that only runs once, at provider installation, and never again",
+      "A replacement for Create and Update that makes them unnecessary"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "devops-tooling/tier-5/designing-novel-developer-tooling/q8",
+    "type": "multiple_choice",
+    "prompt": "In the badly-designed `prune` tool shown in the lesson, which detail is the clearest sign of an API that is unsafe to depend on in automation?",
+    "choices": [
+      "It exits 0 even when some deletions failed partway through, so a pipeline gating on `$?` can't detect the partial failure",
+      "It accepts a --dry-run flag before deleting anything",
+      "It prints a human-readable summary line at the end of a successful run",
+      "It uses Go's flag package instead of a third-party argument-parsing library"
+    ],
+    "correctIndex": 0
+  }
+]

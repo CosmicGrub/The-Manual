@@ -1,0 +1,98 @@
+[
+  {
+    "id": "devops-tooling/tier-5/teaching-and-technical-writing/q1",
+    "type": "multiple_choice",
+    "prompt": "When writing a tutorial on CRDs and Operators for someone who just finished Tier 3's Kubernetes fundamentals, what should the explanation anchor to, instead of inventing a fresh analogy?",
+    "choices": [
+      "The Deployment-owns-ReplicaSet-owns-Pod control loop the learner already understands",
+      "A real-world analogy like a restaurant kitchen ticket system",
+      "The Linux process scheduler",
+      "The OSI seven-layer network model"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "devops-tooling/tier-5/teaching-and-technical-writing/q2",
+    "type": "multiple_choice",
+    "prompt": "Why does anchoring a new explanation in a structurally-corresponding piece of the learner's existing knowledge work better than an analogy with no real structural correspondence?",
+    "choices": [
+      "Analogies are always factually incorrect",
+      "An analogy with no structural correspondence teaches a feeling rather than a transferable mechanism, and breaks down on the first real edge case",
+      "Analogies take more words to write than technical descriptions",
+      "Beginners prefer jargon-heavy explanations over plain language"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-5/teaching-and-technical-writing/q3",
+    "type": "multiple_choice",
+    "prompt": "What distinguishes the Pixar-pitch-style narrative arc (stable state, disruption, consequence, resolution) used to structure the conference talk from a typical feature-dump talk?",
+    "choices": [
+      "It uses a higher density of slides per minute",
+      "It creates stakes and tension around a concrete problem before revealing the mechanism, instead of listing capabilities in no particular order",
+      "It deliberately avoids any technical detail",
+      "It requires a live audience poll"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-5/teaching-and-technical-writing/q4",
+    "type": "multiple_choice",
+    "prompt": "According to the module's discussion of structuring a technical talk, what is the correct relationship between the spoken narrative and the slide deck?",
+    "choices": [
+      "The slides should carry the narrative, with the speaker reading them aloud",
+      "The narrative lives in the spoken outline (stable state, disruption, mechanism, insight, close); the slides are a separate, minimal layer of support, not the source of structure",
+      "The narrative and the slide text should be identical",
+      "Slides should never be used in a technical talk"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-5/teaching-and-technical-writing/q5",
+    "type": "multiple_choice",
+    "prompt": "By default in controller-runtime, does a write to only the `/status` subresource of a custom resource generate a watch event that enqueues another reconcile?",
+    "choices": [
+      "No \u2014 subresource writes never emit watch events",
+      "Yes \u2014 any write to the object, including through the status subresource, bumps resourceVersion and emits a watch event, which by default enqueues another reconcile",
+      "Only if the developer manually increments metadata.generation",
+      "Only on the very first reconcile after object creation"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-5/teaching-and-technical-writing/q6",
+    "type": "multiple_choice",
+    "prompt": "What actually guarantees that an operator's reconcile loop terminates once the custom resource's spec and status already match, rather than looping forever?",
+    "choices": [
+      "Kubernetes automatically throttles any object to three reconciles",
+      "The status subresource can only be written once per object",
+      "The reconcile function is idempotent, so once desired and observed state match it issues zero further API writes on that pass, producing no new watch event",
+      "etcd silently deduplicates identical watch events before delivery"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "devops-tooling/tier-5/teaching-and-technical-writing/q7",
+    "type": "multiple_choice",
+    "prompt": "In the module's worked example of revising teaching material, what specifically prompted the revision of the CRD/Operator tutorial's line about status writes?",
+    "choices": [
+      "A learner correctly pointed out that status writes do bump resourceVersion and do generate a watch event, contradicting the tutorial's simplified claim",
+      "A learner found a typo in a YAML field name in the example manifest",
+      "A learner requested more unrelated code examples",
+      "The original tutorial text was flagged as too long"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "devops-tooling/tier-5/teaching-and-technical-writing/q8",
+    "type": "multiple_choice",
+    "prompt": "Why does the module recommend ending a tutorial explanation with a 'quick check' question the learner must compute or trace through, rather than asking 'does that make sense?'",
+    "choices": [
+      "It makes the tutorial shorter overall",
+      "It forces the learner to apply the mechanism themselves, revealing whether they actually internalized it rather than just recognizing the words",
+      "It is a requirement imposed by most learning management systems",
+      "It tests how quickly the learner can type an answer"
+    ],
+    "correctIndex": 1
+  }
+]

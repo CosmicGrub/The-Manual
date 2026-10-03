@@ -1,0 +1,133 @@
+---
+trackId: devops-tooling
+tier: 5
+title: "Distributed Systems Theory for Infrastructure Engineers"
+order: 1
+estimatedHours: 10
+slug: distributed-systems-theory-for-infrastructure-engineers
+---
+
+## Why a DevOps engineer needs consensus theory, not just consensus tools
+
+In Tier 4 you built a Kubernetes Operator that watches a CRD and reconciles cluster state toward a desired spec. You never had to write a leader election algorithm — Kubernetes gave you `client-go`'s leader-election lease, and underneath *that*, every object your controller read or wrote went through etcd, which is a Raft-replicated state machine. Your reconciliation loop was a client of a consensus protocol the whole time. The same is true of your observability stack: when you set SLOs and alert thresholds in earlier modules, you were implicitly making claims about how fresh and how consistent your metrics backend's data is across replicas, under real network conditions, during a real partition.
+
+This module gives you the theory that was running underneath all of that. Not as trivia — as the thing that tells you, when a cluster you operate misbehaves, whether the misbehavior is a bug or a theorem.
+
+## Raft: consensus you can trace by hand
+
+Raft exists to answer one question for a replicated log: given a set of nodes that can crash, restart, and be partitioned from each other, how do you guarantee every node that applies entry *N* applies the *same* entry *N*, in the same order, forever? Paxos answers this too, but it's notoriously hard to reason about. Raft (Ongaro & Ousterhout, *In Search of an Understandable Consensus Algorithm*, USENIX ATC 2014) decomposes the problem into three nearly-independent sub-problems: **leader election**, **log replication**, and **safety**.
+
+Every node is a Follower, Candidate, or Leader. Time is divided into **terms** — monotonically increasing integers, each with at most one leader. A node that doesn't hear from a leader within its randomized election timeout becomes a Candidate, increments its term, votes for itself, and sends `RequestVote` RPCs to everyone else. Here's the actual RPC shape from the paper, written as Go structs, because this is what you'd implement, not just describe:
+
+```go
+type RequestVoteArgs struct {
+    Term         int // candidate's term
+    CandidateID  int
+    LastLogIndex int // index of candidate's last log entry
+    LastLogTerm  int // term of candidate's last log entry
+}
+
+type RequestVoteReply struct {
+    Term        int
+    VoteGranted bool
+}
+
+type AppendEntriesArgs struct {
+    Term         int
+    LeaderID     int
+    PrevLogIndex int
+    PrevLogTerm  int
+    Entries      []LogEntry // empty slice = heartbeat
+    LeaderCommit int
+}
+
+type AppendEntriesReply struct {
+    Term    int
+    Success bool
+}
+```
+
+A node grants a vote only if it hasn't already voted this term, and the candidate's log is at least as up-to-date as its own (the **election restriction** — this is what guarantees a new leader never overwrites already-committed entries). Once a candidate gets votes from a strict majority, it's leader for that term and starts sending `AppendEntries` — both as the replication mechanism and as the heartbeat that keeps followers from timing out.
+
+An entry is **committed** once the leader has replicated it to a majority. Only then does the leader apply it to its state machine and reply to the client. This single rule — never commit without a majority ack — is the entire safety argument for Raft in one sentence.
+
+### A concrete trace: 5 nodes, two terms, one partition
+
+Cluster: S1–S5. All start at term 0, empty logs, Followers.
+
+**Election, term 1.** S3's election timer fires first. It increments to term 1, votes for itself, sends `RequestVote{Term:1, LastLogIndex:0, LastLogTerm:0}` to S1, S2, S4, S5. All four have empty logs and haven't voted in term 1, so all grant. S3 is leader of term 1.
+
+**Replication, term 1.** A client sends `SET x=1`. S3 appends it as its own log entry and replicates:
+
+| index | term | command | S1 | S2 | S3 (leader) | S4 | S5 |
+|---|---|---|---|---|---|---|---|
+| 1 | 1 | SET x=1 | ack | ack | — | ack | ack |
+
+S3 gets acks from S1 and S2 (plus itself = 3/5), commits index 1, applies it, replies to the client. A second command, `SET y=2`, lands at index 2, term 1, and commits the same way. All five logs now match through index 2.
+
+**Partition.** The network splits into {S1, S3} and {S2, S4, S5}. S3 is still "leader" in its own head.
+
+A client (unaware of the partition, talking to the old leader) sends `SET x=3` to S3. S3 appends it at **index 3, term 1**, and tries to replicate — but it can only reach S1. Two acks (S3 + S1) out of five is not a majority. **The entry is never committed.** S3 cannot respond to the client; from the client's point of view, this is a timeout, not a wrong answer. This is Raft refusing availability to preserve consistency — the CP side of a tradeoff we'll name explicitly in the next section.
+
+Meanwhile, the majority side has no leader reachable. S4's timer fires: it increments to **term 2**, requests votes from S2 and S5 with `LastLogIndex:2, LastLogTerm:1`. S2 and S5 have the identical log (index 2, term 1), so S4's log is "at least as up to date" — both grant. S4 is leader of term 2 with 3/5 votes.
+
+A client sends `SET x=5` to S4. It's appended at index 3, term 2, replicated to S2 and S5, gets a majority, commits.
+
+| index | term | command | S1 | S2 | S3 | S4 (leader) | S5 |
+|---|---|---|---|---|---|---|---|
+| 3 | 1 | SET x=3 (uncommitted, stuck on S3's side) | ack | — | — | — | — |
+| 3 | 2 | SET x=5 (committed) | — | ack | — | — | ack |
+
+**Partition heals.** S4 sends `AppendEntries{Term:2, PrevLogIndex:2, PrevLogTerm:1, Entries:[{3,2,"SET x=5"}]}` to S3 and S1. S3 sees `Term:2 > currentTerm:1`, immediately steps down to Follower and adopts term 2. The consistency check on `PrevLogIndex/PrevLogTerm` (index 2, term 1) matches what S3 already has — so far so good — but S3's own index 3 holds `{term:1, "SET x=3"}`, which conflicts with the incoming `{term:2, "SET x=5"}` at the same index. Per the protocol, S3 **deletes its conflicting entry and appends the leader's**. The client that sent `SET x=3` correctly never got a success response, because the write was never safe. No committed data is lost; an *uncommitted* write from a deposed leader is discarded. That's the whole point.
+
+## When the control plane isn't Raft-protected: a real postmortem
+
+GitHub's October 21, 2018 incident is worth studying for exactly this reason. GitHub's MySQL failover tool, Orchestrator, runs as its own Raft-replicated cluster specifically so that *the decision of who the primary is* can't split-brain — Orchestrator nodes need a quorum to agree before promoting anyone, the same mechanism you just traced above. A roughly 43-second network partition between GitHub's US East Coast data centers caused the Orchestrator quorum to correctly (per its own Raft logic) decide the existing MySQL primary was unreachable and promote a replica in the other facility. The problem wasn't Raft — Orchestrator's consensus did exactly what it was designed to do. The problem was everything *downstream* of that decision: MySQL replication itself is not Raft-replicated, so there was no guarantee that every write the old primary had acknowledged to application servers had reached the new primary before promotion. The result was two primaries briefly accepting writes, divergent data, and roughly a day of degraded, partly read-only service while GitHub engineers manually reconciled the two datasets. The lesson generalizes: wrapping a *decision* in consensus (who's the leader) doesn't give you consensus over the *data* unless the data path uses the same quorum discipline. This is precisely why systems like etcd, CockroachDB, and TiDB put the data itself behind Raft, rather than bolting Raft-based failover onto an asynchronously-replicated store.
+
+## CAP: what it actually forbids
+
+The folk version — "pick two of consistency, availability, partition tolerance" — is wrong in a way that matters operationally. Gilbert and Lynch's formalization (2002, proving Brewer's conjecture) says: partition tolerance isn't a dial you can turn off by buying a better network. Partitions *will* happen. The actual theorem is about what you do **when one is happening**: during a partition, a node that keeps answering requests (available) cannot also guarantee every read reflects the most recent write (consistent), because it may be unable to reach the replica holding that write. You get to choose, per-request, per-partition-event — not once at design time for all eternity.
+
+Dynamo (DeCandia et al., *Dynamo: Amazon's Highly Available Key-value Store*, SOSP 2007) is the canonical system that deliberately chooses availability, and the paper's own shopping-cart example shows exactly what that choice looks like to a client. A cart key is replicated to N=3 nodes on the preference list. Dynamo uses **sloppy quorums**: a write doesn't require the "correct" N nodes — if the top nodes on the preference list are unreachable because of a partition, the coordinator writes to the next healthy nodes down the list and uses **hinted handoff** to deliver the data later. The write always succeeds as long as *some* healthy nodes exist, regardless of which ones.
+
+Walk through a real partition: a customer's cart lives on nodes {A, B, C}. A partition isolates A from B and C. The customer adds "Harry Potter" — routed to A, which is cut off, but A still has write quorum available locally/via hinted handoff, so the add **succeeds immediately**, no error, no latency spike the customer would notice. On the other side of the partition, a different session for the same customer (maybe a second device) reads the cart from B or C and does **not** see the new item — it's not there yet, and there's no way for B/C to know A even accepted a write. That's the client-observable cost: two reads of "the same" cart, at the same wall-clock time, returning different contents, with no error raised either time.
+
+It gets sharper. The paper describes the reconciliation step after the partition heals: Dynamo detects divergent versions via vector clocks and, because business logic says "never lose an add-to-cart," it **merges by union** rather than picking a winner. If the customer had *removed* an item on the B/C side during the partition while the A side still held the old version, the merge resurrects the deleted item — the customer sees something they explicitly deleted reappear in their cart. That is availability bought with consistency, priced in a specific, visible way: deletes are not safe against concurrent partitioned writes under this merge policy. This isn't a bug Amazon didn't notice; it's the documented, accepted cost of the AP choice for that workload.
+
+## Consistency models, one counter, three answers
+
+Take a counter replicated on Node A and Node B, currently both at value 10. Client 1 sends `INCR` to A. What can Client 2, reading from B, observe right after?
+
+**Strong consistency (linearizability).** Every read, from any node, reflects the most recently committed write, as if there were only one copy. This is what a Raft-replicated counter gives you if reads are served through the leader (or via Raft's `ReadIndex` protocol): the moment `INCR` commits (majority ack, exactly as in the trace above), **every** subsequent read anywhere in the system returns 11, full stop, no staleness window. `etcd` exposes this choice directly — `etcdctl get key --consistency=l` forces a linearizable read through the current Raft leader; `--consistency=s` (serializable) lets any member answer from its own local, possibly-stale state:
+
+```bash
+# Linearizable: guaranteed to reflect the latest committed write
+etcdctl get counter --consistency=l
+
+# Serializable: faster, but may be served by a lagging follower
+etcdctl get counter --consistency=s
+```
+
+That's the exact etcd your Tier 4 Operator was reading and writing CRDs through — the Kubernetes API server, by default, does linearizable reads against etcd for exactly this reason: a controller that just wrote a status update must never read its own write as stale.
+
+**Eventual consistency.** B is updated asynchronously, sometime after the write to A. Immediately after `INCR`, Client 2 reading B gets 10 — stale, not wrong, just not-yet-propagated. Cassandra at consistency level `ONE` and DynamoDB's (the AWS database, not the paper) default "eventually consistent read" option both behave exactly this way: fast, available, and willing to hand back an old value for some bounded (usually sub-second, but not guaranteed) window. If Client 2 keeps polling B, the value eventually becomes 11 — hence the name — but there is no operation that tells you *when* "eventually" has arrived.
+
+**Causal consistency.** Weaker than strong, stronger than eventual: writes that are causally related must be seen in that order everywhere, but truly concurrent, unrelated writes may be observed in different orders on different nodes without violating the model. The distinction only bites when operations depend on each other. Suppose Client 2 reads B and sees 10, then — *because* it saw 10 — issues its own `INCR` intending "set it to 11." Causal consistency guarantees that any node which later observes Client 2's write also already reflects (or receives first) the read it depended on; eventual consistency makes no such promise and could, in principle, let a node see Client 2's dependent write before the value it was based on. MongoDB implements this operationally with causally consistent sessions: a client carries an opaque `clusterTime`/session token on every request, and the driver uses it to guarantee that a session never reads behind its own prior writes, nor behind writes it has causally observed — while two different customers' unrelated writes still have no ordering guarantee between them.
+
+For a plain commutative counter the numeric end-state under all three models converges to the same total once every increment lands — that's part of why counters are a deceptively easy example. The models diverge in what a client can observe **in between**, and in whether the system gives you any tool (vector clock, session token, Raft commit index) to reason about *when* "in between" ends.
+
+## Tying it back
+
+The reconciliation loop you wrote against a CRD in Tier 4 is a Raft client: every `Get`/`Update` against the Kubernetes API is a request against an etcd cluster running exactly the leader-election-plus-log-replication protocol traced above, and the API server's default linearizable reads are a deliberate strong-consistency choice so your controller never acts on stale status. When you defined SLOs on your observability stack in earlier modules, you were making an implicit consistency-model claim about your metrics/alerting backend (most are eventually consistent across replicas) — now you have the vocabulary to say that out loud in a design doc, and to know which of your systems would behave like S3 (correctly refuse to answer) versus like Dynamo (answer, possibly with stale data) during a real partition.
+
+## Exercise
+
+Take the 5-node Raft trace above and extend it one step further: instead of the partition healing cleanly, have S3 (deposed leader, now a term-2 follower with the corrected log) itself go on to win a *later* election in term 4, after S4 has also failed. Work out what S3's log must contain for the other nodes to grant it their votes, and write out the `RequestVoteArgs` it would send. Then ask: could S3 legally become leader again while still holding a *different* uncommitted entry at some index that no other node has? (Hint: focus on the election restriction — a candidate's `LastLogIndex`/`LastLogTerm` must be compared against each voter's *own* last entry, not against what was ever committed. Think about whether an uncommitted entry can ever block an election, versus whether it can survive one.)
+
+## Further reading
+
+- Ongaro, Ousterhout. *In Search of an Understandable Consensus Algorithm* (Raft paper), USENIX ATC 2014.
+- Gilbert, Lynch. *Brewer's Conjecture and the Feasibility of Consistent, Available, Partition-Tolerant Web Services*, 2002.
+- DeCandia et al. *Dynamo: Amazon's Highly Available Key-value Store*, SOSP 2007.
+- Lamport. *Time, Clocks, and the Ordering of Events in a Distributed System*, 1978 (the causal-order foundation under vector clocks).
+- GitHub Engineering. *October 21 post-incident analysis*, 2018.

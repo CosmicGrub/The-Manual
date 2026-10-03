@@ -575,3 +575,14 @@ All notable changes to The Manual (curriculum + app) are logged here. This file 
 **Result:** `npm run build` passed clean — 258 pages, 241 unique slugs verified repo-wide.
 
 **Status:** DevOps Tier 4 complete (74h, 7 lessons). DevOps is now 5/6 tiers content-complete (Tiers 0-4, 261h); only Tier 5 (Expert/Innovator) remains.
+
+## [0.46.0] — 2026-10-03 — DevOps Tier 5: track is now fully content-complete
+
+**Context:** The final tier of the seventh track. Per The Manual's uniform Tier-5 policy, the real checkpoint is portfolio/peer/maintainer review rather than quizzes, but each module still ships its usual comprehension-check quiz. This tier ties the whole track's tooling back to the theory underneath it — the Raft leader-election and log-replication trace explicitly calls back to Tier 4's Kubernetes Operator work ("your reconciliation loop was a client of a consensus protocol the whole time") and to GitHub's real 2018 Orchestrator/MySQL postmortem.
+
+**Added**
+- `content/devops-tooling/tier-5/*.mdx` (6 files) + matching quizzes: Distributed Systems Theory for Infrastructure Engineers (a full hand-traced 5-node Raft cluster through a leader election, a network partition, and an uncommitted-entry rollback, grounded in a real GitHub postmortem), Designing Novel Developer Tooling, Advanced Observability and AIOps, Large-Scale System Design Case Studies, Becoming a Maintainer, Teaching and Technical Writing.
+
+**Result:** `npm run build` passed clean — 264 pages, 247 unique slugs verified repo-wide.
+
+**Status:** DevOps, Tooling & Professional Practice complete (all 6 tiers, 317h, 38 lessons). This is the seventh fully content-complete track in The Manual, alongside CS Foundations, Language Mastery, Software Engineering, AI/ML & Prompt Engineering, Hardware & Computer Systems, and Platforms. Remaining tracks: Cybersecurity & Ethical Hacking, Capstones & Career.

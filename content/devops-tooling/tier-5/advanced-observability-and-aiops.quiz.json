@@ -1,0 +1,86 @@
+[
+  {
+    "id": "devops-tooling/tier-5/advanced-observability-and-aiops/q1",
+    "type": "multiple_choice",
+    "prompt": "A service has normal traffic of ~20 req/s at night and ~400 req/s at midday. A static-threshold alert fires below 50 req/s. What does this threshold actually do?",
+    "choices": [
+      "Fires correctly at both night and day because 50 is between the two extremes",
+      "False-positives every night (normal nighttime traffic is below 50) and false-negatives on a real midday drop like 400 to 220 (still above 50)",
+      "Never fires at all, because req/s never crosses exactly 50",
+      "Only fires during real incidents, since 50 is well below the daytime baseline"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-5/advanced-observability-and-aiops/q2",
+    "type": "multiple_choice",
+    "prompt": "In the seasonal baseline detector built in this module, why use the median and MAD (median absolute deviation) of past same-slot samples instead of the mean and standard deviation?",
+    "choices": [
+      "Median and MAD are always numerically smaller, which makes thresholds easier to pick",
+      "Mean and standard deviation can't be computed on time-series data",
+      "Median and MAD are far less distorted by a single outlier week in the history window, so one past bad incident doesn't quietly raise the baseline and desensitize the detector",
+      "Median and MAD require fewer historical samples to compute than mean and standard deviation"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "devops-tooling/tier-5/advanced-observability-and-aiops/q3",
+    "type": "multiple_choice",
+    "prompt": "What does the PromQL `offset 7d` modifier do in the expression `sum(rate(http_requests_total[5m] offset 7d))`?",
+    "choices": [
+      "Delays the alert from firing for 7 days after the condition becomes true",
+      "Evaluates the same rate expression as if the current time were shifted back 7 days, letting you compare now against the same point last week",
+      "Averages the metric over a rolling 7-day window",
+      "Drops any data points older than 7 days from the query"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-5/advanced-observability-and-aiops/q4",
+    "type": "multiple_choice",
+    "prompt": "In the worked LLM root-cause-analysis example (checkout latency spike traced to a dropped database index), what was the actual prerequisite that made the LLM's correct answer possible?",
+    "choices": [
+      "The specific LLM model used had been fine-tuned on that company's incident history",
+      "Structured, correlated telemetry \u2014 a trace pinpointing the slow span, a deploy log naming the exact schema change, and a log line naming the exact slow query",
+      "The incident was simple enough that any automated tool would have solved it the same way",
+      "The LLM was given direct database access to run EXPLAIN ANALYZE itself"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-5/advanced-observability-and-aiops/q5",
+    "type": "multiple_choice",
+    "prompt": "In the flash-sale / Redis eviction-policy scenario, what was the actual root cause of the latency and error increase?",
+    "choices": [
+      "The checkout-service feature-flag deploy for the new upsell banner",
+      "The system simply could not handle 3x normal traffic volume",
+      "An eviction-policy change (noeviction to allkeys-lru) with maxmemory left too low, which only caused cache misses once write volume crossed a threshold that the traffic spike reached",
+      "An unrelated dependency bump in billing-service"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "devops-tooling/tier-5/advanced-observability-and-aiops/q6",
+    "type": "multiple_choice",
+    "prompt": "Why is temporal correlation between a deploy (or traffic change) and an incident's onset time not sufficient evidence of causation, as shown in the flash-sale example?",
+    "choices": [
+      "Timestamps in distributed systems are never reliable enough to compare at all",
+      "Two different changes can both correlate with the same onset time while only one combination of a long-dormant latent condition plus a new trigger is the real cause -- distinguishing that requires a counterfactual test, not just matching timestamps",
+      "Correlation is only invalid when more than three changes happen on the same day",
+      "LLMs are structurally incapable of mentioning timestamps in their reasoning"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "devops-tooling/tier-5/advanced-observability-and-aiops/q7",
+    "type": "multiple_choice",
+    "prompt": "According to this module, what is the strongest concrete reason human judgment must remain the gate on automated/LLM-assisted incident diagnosis, even when the proposed root cause sounds confident and well-evidenced?",
+    "choices": [
+      "LLMs cannot format their output clearly enough for on-call engineers to read under pressure",
+      "Confident, fluent phrasing is not evidence of correctness, and acting automatically on a plausible-but-wrong hypothesis can trigger costly or irreversible actions that a human, weighing business context and blast radius, would not take on an unverified guess",
+      "Automated systems are legally barred from touching production infrastructure in most organizations",
+      "LLMs cannot process structured logs or trace data at all"
+    ],
+    "correctIndex": 1
+  }
+]

@@ -1,0 +1,110 @@
+---
+trackId: devops-tooling
+tier: 5
+title: "Large-Scale System Design Case Studies"
+order: 4
+estimatedHours: 8
+slug: large-scale-system-design-case-studies
+---
+
+## Why This Module Exists
+
+Tier 4's SRE Practice module had you write a blameless postmortem for an incident you lived through, with your own dashboards, your own deploy logs, and engineers you could walk over and ask. That's the easy case. The skill this module teaches is the harder, more common one for someone operating at Tier 5: reading *someone else's* postmortem — a vendor's, a dependency's, a competitor's — where you get none of that. You get a few thousand words of carefully reviewed corporate prose, and your job is to extract the real architecture and the real failure mode from what it says, what it implies, and what it conspicuously leaves out. Then it teaches the thing that separates an operator from an architect: recognizing blast radius before it bites you, by studying exactly how and why it bit someone else.
+
+Three real outages anchor this: the AWS S3 US-EAST-1 disruption of February 28, 2017, the AWS Kinesis US-EAST-1 disruption of November 25, 2020, and the Fastly CDN outage of June 8, 2021. All three have public postmortems you can read in full. Nothing here is hypothetical, and the architectural fixes these providers committed to afterward are the same fixes Tier 4's Advanced Kubernetes module introduced for multi-cluster isolation and service-mesh traffic control — this module is where those tools get their actual justification.
+
+## Reading a Postmortem Critically: AWS S3, February 28, 2017
+
+Here's the shape of what AWS actually published. An authorized S3 engineer, running an established playbook, intended to take a small number of servers offline to debug a capacity issue in S3's billing subsystem. The command's input was broader than intended, and instead of removing a few servers it removed a much larger set — enough to pull meaningful capacity out of two load-bearing subsystems in the US-EAST-1 region: the **index subsystem**, which manages metadata and location information for every object stored in the region, and the **placement subsystem**, which allocates storage for new objects. Both subsystems dropped below the capacity they needed to serve requests, and both required a full restart to recover. The restart took hours, not minutes, because the safety checks that run during a cold start — checks that verify the integrity of the metadata before it's trusted again — hadn't been exercised at that scale in the region for years. GET, LIST, PUT, and DELETE were degraded or unavailable in US-EAST-1 for roughly four hours.
+
+Read that paragraph three ways.
+
+**What it says, literally:** one command, run with the wrong scope, took out capacity in two specific named subsystems, and recovery required a full, slow restart.
+
+**What it implies, if you read like an architect:** S3 is not a monolith — it's at minimum two decoupled subsystems, one for metadata/location and one for physical placement, each independently scaled and each capable of independently failing the whole region's request path. A full restart taking hours rather than minutes implies there was no fast, incremental warm-recovery path for a fleet-wide capacity loss of this size — only a cold, from-scratch integrity-verification path, which further implies this exact failure mode (losing a large fraction of index/placement capacity at once) was rare enough, or assumed rare enough, that nobody had invested in making its recovery fast. And the fact that a human-run playbook could remove *more* capacity than intended, with no system-level check stopping it, implies the blast-radius limit on that operation was procedural (a human reading a runbook carefully) rather than architectural (a system that refuses to proceed past a safe threshold) — the single most important lesson this incident teaches, and the thing AWS's own remediation commitments later targeted directly: rate-limiting and automated safety checks on exactly this class of operational command, so a human typo can no longer remove unbounded capacity.
+
+**What it leaves out:** the postmortem never names the specific validation that was missing, never states how large "a much larger set" of servers actually was as a percentage of regional capacity, and never discusses the downstream blast radius in dollar or customer-count terms — only in AWS's own service terms. It also doesn't explain *why* a subsystem this load-bearing had never had its full-region cold-start path tested at scale before this incident forced it to happen live, in production, under customer-facing pressure. Those omissions aren't necessarily dishonest — companies redact operational specifics for security reasons routinely — but a critical reader notices the shape of what's missing and treats any forward-looking claim ("we have improved X") with correspondingly more skepticism when there's no verifiable detail backing it.
+
+One detail worth noticing on its own: AWS's own Service Health Dashboard was slow to reflect the outage, because the dashboard's own backing infrastructure lived in the same region, depending on some of the same affected capacity. The team had to post updates to the dashboard manually and via Twitter. That's not a footnote — it's a second, independent architectural finding sitting right in the postmortem's narrative, and it's exactly the kind of detail Section 3 below is built around.
+
+## Reverse-Engineering Architecture From Failure Propagation
+
+The general method, independent of this specific incident: a postmortem's narrative of *how a failure spread* is a map of real dependency edges that the architecture diagram either doesn't show or actively hides behind an abstraction layer. Every sentence of the form "X became unavailable, which caused Y to fail" is a dependency arrow you can draw, whether or not the company's own architecture docs admit that arrow exists.
+
+Applying that to the S3 incident: the narrative tells you GET/PUT/LIST/DELETE all failed together, which tells you the index and placement subsystems sit on the same critical path for *every* operation type, not specialized per operation — a design choice, not an accident. It tells you recovery was gated on a single slow step (the integrity-verified restart), which tells you there was no independent, faster-to-recover replica of the index subsystem's state that could have been promoted instead of restarting the primary in place — if there had been, the postmortem would almost certainly have described a failover, not a multi-hour rebuild. And the dashboard detail tells you something AWS's own architecture marketing never would: the tool meant to tell customers "is it down" is itself dependent on the thing it reports on being up — a circular dependency that is obvious in hindsight and invisible until an incident narrative exposes it.
+
+This is the same inferential move you already made in Tier 4's Advanced Kubernetes module, just run in reverse. There, you read a CRD's `status` subresource and a controller's reconcile loop and *predicted* what would happen to a `RedisCluster` object if you edited its `spec.replicas` — forward reasoning from known mechanism to expected behavior. Here, you only have the *outcome* (what broke, in what order, for how long) and you're reconstructing the mechanism that must have produced it. S3's index subsystem, functionally, is a reconcile loop's worst case: instead of a controller resyncing a few hundred CRDs against etcd in milliseconds, it's a system resyncing the metadata for an entire region's object store against reality, and when that resync is forced to run cold instead of incrementally, "resync time" stops being a number you can ignore and becomes a multi-hour regional outage. The architectural lesson is the same lesson a reconcile loop teaches at small scale: cheap, frequent, incremental reconciliation is safe; rare, forced, full-state reconciliation is a liability you only discover the true cost of during an actual incident.
+
+A repeatable checklist for doing this on any postmortem you read:
+
+1. List every service/component name the narrative mentions, in the order it says they were affected.
+2. For each "X caused Y to fail" sentence, draw it as a directed edge: Y depends on X.
+3. Look for a cycle in those edges — something depending, even indirectly, on itself (the Service Health Dashboard depending on the region it reports on is exactly this).
+4. Ask what recovery mechanism is implied by *how long* each component took to recover. Fast recovery (seconds to low minutes) implies a warm standby or incremental catch-up path existed. Slow recovery (hours) implies a cold, from-scratch rebuild was the only path — and ask why no faster path existed.
+5. Note every place the text gets vague about scope or scale — that vagueness is usually hiding the actual severity number.
+
+## Blast Radius at Planet Scale: Fastly, June 8, 2021
+
+On June 8, 2021, a single Fastly customer pushed a configuration change that was valid under Fastly's own validation rules. That change triggered a software bug that had been sitting latent in Fastly's edge software since a deploy on May 12, 2021 — nearly a month earlier, shipped and running in production the entire time without incident, because nothing had yet exercised the specific code path it broke. Within about one minute of that single customer's change, roughly 85% of Fastly's global network began returning 5xx errors. Fastly's engineers identified and disabled the configuration causing the crashes, and had 95% of the network operating normally again within 49 minutes.
+
+The part that makes this a planet-scale blast-radius lesson, not just a bad bug: the sites that went down had nothing to do with each other and nothing to do with the customer whose config change triggered it. Reddit, Amazon, Twitch, Spotify, GitHub, PayPal, Stack Overflow, the UK government's gov.uk domain, the New York Times, and CNN all went dark or degraded within the same single minute, worldwide, simultaneously. None of those organizations made a change that day. None of them had any visibility into, or control over, the dependency that just took them down. They were all tenants sharing the same edge fleet, and one tenant's valid, policy-compliant action was sufficient to crash the shared software underneath every other tenant, because the fleet had no internal isolation boundary between tenants at the layer where the bug lived.
+
+AWS's November 25, 2020 Kinesis disruption teaches the same lesson through a different mechanism, worth knowing in brief: added capacity on Kinesis's front-end fleet pushed per-server thread counts for internal fleet-wide coordination past an operating-system limit, degrading the front-end fleet broadly. Kinesis is not a customer-facing household name, but internally it's plumbing that other AWS services route through — Cognito and CloudWatch among them, per AWS's own postmortem. So a Kinesis-internal capacity problem cascaded into authentication failures (through Cognito) and delayed metrics and alarms (through CloudWatch) for services whose teams, and whose customers, had no idea they depended on Kinesis at all. That's the second variant of planet-scale blast radius: not "shared tenant on shared edge hardware" but "hidden internal dependency that nobody outside the provider's own org chart could see," which is exactly why reverse-engineering the dependency graph from postmortem text (Section 3) matters even when you aren't the provider — it's often the only way *to find out* you depend on something.
+
+The architectural fix both incidents point at is the same one, with two names: **cell-based architecture** (partition the fleet into isolated cells, each serving a bounded subset of customers, so a fault in one cell cannot reach another) and **shuffle sharding** (assign each tenant a small, pseudo-randomly chosen subset of the available workers/cells, so that any two tenants share only a small fraction of their infrastructure, and a bad actor or a bad config in one tenant's shard overlaps with only a thin slice of everyone else's). Here's the core of shuffle sharding, minimal enough to see the whole idea:
+
+```go
+// Assign each tenant a small, pseudo-random subset of N cells.
+// Two tenants sharing ALL the same cells is extremely unlikely once
+// cellCount is reasonably large and shardSize stays small relative to it.
+func shuffleShardFor(tenantID string, cellCount, shardSize int) []int {
+	h := fnv.New64a()
+	h.Write([]byte(tenantID))
+	seed := h.Sum64()
+	rng := rand.New(rand.NewSource(int64(seed)))
+
+	cells := rng.Perm(cellCount) // deterministic given tenantID
+	return cells[:shardSize]
+}
+```
+
+Given `cellCount = 128` and `shardSize = 4`, two tenants picked independently have only about a 1-in-800,000 chance of landing on the exact same four cells — so one tenant's failure mode, whatever it is, is architecturally contained to a handful of cells almost all the time, instead of being a coin flip away from hitting everyone.
+
+Tier 4's Advanced Kubernetes module already gave you the mechanism half of this at the service-mesh layer, without naming it as blast-radius containment at the time. Extend the `DestinationRule` from that module with `outlierDetection`, and you have a real circuit breaker — the same bulkhead idea Michael Nygard's *Release It!* names explicitly as the pattern for stopping one failing dependency from draining every caller's resources:
+
+```yaml
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: pricing
+spec:
+  host: pricing
+  trafficPolicy:
+    outlierDetection:
+      consecutive5xxErrors: 5
+      interval: 10s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 50
+```
+
+Envoy tracks 5xx responses per backend instance; once one crosses 5 consecutive errors inside a 10-second window, it's ejected from the load-balancing pool for 30 seconds — automatically, with no human in the loop — capped so no more than 50% of the pool can ever be ejected at once (so a correlated spike can't empty the pool entirely and turn a partial degradation into a total one). That `maxEjectionPercent` cap is itself a small, local instance of the exact same principle as cell-based architecture: bound the fraction of the system any single failure mode is allowed to take down, as an explicit, enforced number — never as a hope.
+
+This also connects straight back to Tier 4's Platform Engineering module, where a namespace's `ResourceQuota` existed for precisely the same reason at a different layer: bounding how much damage one team's mistake could do to everyone sharing the cluster. Cell-based architecture, shuffle sharding, outlier-detection circuit breakers, and per-namespace `ResourceQuota`s are the same idea — explicit, enforced blast-radius ceilings — showing up at the fleet, tenant, request, and namespace layers respectively. Once you see the pattern, you'll spot it, or its absence, in nearly every postmortem you read.
+
+## Exercise
+
+Pick one of these real, public postmortems you haven't read yet: CrowdStrike's July 19, 2024 root-cause analysis (the Falcon sensor content-update outage), Cloudflare's July 2, 2019 CPU-exhaustion incident (a single bad regex), or GitLab's January 31, 2017 database-incident writeup. Read it once straight through for context, then produce three concrete artifacts:
+
+1. A list of every "X caused Y" sentence in the postmortem, rewritten as dependency edges (Section 3's method, step 2).
+2. One architectural fact about the system that the postmortem never states outright but that you can defend from the failure narrative alone — name the specific sentence(s) your inference rests on.
+3. A one-paragraph judgment on whether the postmortem's stated remediation actually bounds blast radius going forward (a cell/shard/quota-style enforced limit) or just adds monitoring/awareness without an enforced ceiling — and if it's the latter, say what enforced mechanism you'd add instead.
+
+**Hint:** for #3, the tell is almost always in the verb. "We have added alerting for X" bounds nothing — it tells a human faster, but the next incident can still remove unbounded capacity, crash the whole fleet, or take down every tenant at once, exactly as before. "We have capped X at N" or "we have partitioned X into isolated units of size N" is an enforced ceiling. Go back through this module's two code examples with that same test and notice that both `maxEjectionPercent` and `shardSize` are exactly that second kind of verb, expressed as a number in a config file instead of a sentence in a postmortem.
+
+## Key Takeaways
+
+- A postmortem's prose encodes an architecture diagram nobody drew: every "X caused Y to fail" sentence is a real dependency edge, present whether or not the company's own docs admit it.
+- Recovery time is architectural evidence. Fast recovery implies a warm/incremental path existed; multi-hour recovery implies the only path was a cold, from-scratch rebuild — and that gap is usually where the next outage is already waiting.
+- What a postmortem omits — exact scope, exact validation gaps, customer-facing impact in concrete numbers — is as informative as what it states, and is where your skepticism of any "we've improved monitoring" claim should concentrate.
+- Planet-scale blast radius has two distinct shapes: shared-tenant infrastructure where one customer's valid action breaks every other unrelated customer (Fastly), and hidden internal dependencies where a provider's own services break each other in ways no outside observer could predict (Kinesis → Cognito/CloudWatch).
+- The fix in both cases is the same enforced-ceiling pattern at different layers — cell-based architecture, shuffle sharding, mesh-level outlier detection, namespace `ResourceQuota`s — and the test for whether a remediation is real is whether it's a number enforced by a system or just a sentence promising better awareness.
