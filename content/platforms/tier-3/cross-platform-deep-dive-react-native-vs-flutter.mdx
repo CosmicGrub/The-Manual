@@ -1,0 +1,304 @@
+---
+trackId: platforms
+tier: 3
+title: "Cross-Platform Deep Dive: React Native vs. Flutter Architecture"
+order: 3
+estimatedHours: 35
+slug: cross-platform-deep-dive-react-native-vs-flutter
+---
+
+## Where this lands
+
+Tier 1's "How Native, Mobile, and Desktop Differ From Web" had you *read* about React Native's bridge without touching it. Tier 2's "First Cross-Platform Mobile App" had you *build* on top of it without seeing what was underneath — that module's own words were "the bridge (or, on the New Architecture, JSI directly) sends only the minimal set of native UI-update commands to real `UIView`/Android `View` instances," and then it moved on. This module takes the roof off that sentence. You'll also just spent roughly 80 hours going properly native twice, in this tier's SwiftUI module (`@State`, `@Observable`, UIKit's own view hierarchy) and its Jetpack Compose module (`remember { mutableStateOf(...) }`, Compose's own tree). Both render through zero cross-platform abstraction. Cross-platform frameworks exist specifically to avoid writing that UI logic twice across iOS and Android — this module is where you find out, concretely, what that convenience costs and what it buys you.
+
+The checkpoint at the end is the same habit-tracker idea from Tier 2's full-stack checkpoint project, rebuilt in whichever cross-platform framework you *didn't* use there. Tier 2's module defaults to React Native via Expo, with Flutter as an alternate "if you chose Flutter instead" path — so this lesson's app-building section is written in Flutter. If you actually built the Tier 2 Flutter track, build this module's app in React Native instead and mirror every contrast below in the opposite direction; the architecture lesson is identical either way.
+
+## How React Native actually gets pixels on screen: the bridge, then JSI
+
+React Native's old architecture (what you almost certainly used in Tier 2 through Expo's default SDK) has exactly one communication channel between your JS thread and the native side, called **the bridge**. Nothing crosses it except serialized messages. Here's a concrete example — measuring where a view sits on screen:
+
+```jsx
+import { findNodeHandle, UIManager } from 'react-native';
+
+function logPosition(viewRef) {
+  const handle = findNodeHandle(viewRef.current);
+  UIManager.measure(handle, (x, y, width, height, pageX, pageY) => {
+    console.log(pageX, pageY, width, height);
+  });
+}
+```
+
+`handle` isn't a pointer to a real `UIView` — it's a plain integer tag. Calling `UIManager.measure` doesn't call into native code directly; it appends a message shaped roughly like `{moduleID: 37, methodID: 2, args: [handle]}` to a queue. That queue gets JSON-serialized and flushed across the bridge at the end of the current JS event-loop tick (the bridge batches calls instead of sending each one immediately, which is itself a latency source for anything time-sensitive). Native deserializes the message, looks up the real view by tag, reads its frame, and sends the five numbers back — serialized again, flushed again, deserialized again on the JS side before your callback runs. One `measure()` call is two full serialize → queue → flush → deserialize round trips. For a button tap that's invisible. For a scroll handler or a gesture tracker firing on every frame, that round-trip cost is exactly why Reanimated and `react-native-gesture-handler` exist — they move the hot-path logic to run as compiled "worklets" that avoid the bridge entirely for 60fps-critical code.
+
+The New Architecture replaces this with **JSI (JavaScript Interface)**, a C++ layer that lets JS hold a real reference to a C++ object and call its methods synchronously, on the same call stack, with no JSON and no queue:
+
+```cpp
+// Simplified JSI HostObject method — called directly from JS as if it were
+// a normal JS function, with no serialization step at all
+jsi::Value NativeMeasure::get(jsi::Runtime& rt, const jsi::PropNameID& name) {
+  return jsi::Function::createFromHostFunction(
+    rt, name, 1,
+    [](jsi::Runtime& rt, const jsi::Value&, const jsi::Value* args, size_t) -> jsi::Value {
+      auto tag = static_cast<int>(args[0].asNumber());
+      auto frame = ShadowTreeRegistry::getFrameForTag(tag); // direct C++ call
+      jsi::Object result(rt);
+      result.setProperty(rt, "x", frame.x);
+      result.setProperty(rt, "y", frame.y);
+      return result;
+    }
+  );
+}
+```
+
+This is the real performance story — not "RN got faster" in the abstract, but "RN stopped forcing every native interaction through a JSON mailbox." TurboModules (native modules built on JSI) load lazily and can be called synchronously; Fabric (the new renderer) keeps a C++ shadow tree that both JS and native read through JSI directly, so layout queries don't need a serialized round trip at all. What JSI does *not* remove: the thread boundary. JS still runs on its own thread, native rendering still happens elsewhere, and large payloads (an image's raw pixel buffer, for instance) still have to be copied across that boundary — JSI kills serialization overhead for small, frequent, synchronous calls, not the cost of moving bulk data.
+
+## How Flutter renders: no bridge, because there's no second native UI tree
+
+Flutter doesn't have a bridge because it doesn't have anything on the other side of one to synchronize with. Consider this widget:
+
+```dart
+Container(
+  width: 200,
+  height: 48,
+  decoration: BoxDecoration(
+    color: const Color(0xFF4F46E5),
+    borderRadius: BorderRadius.circular(12),
+  ),
+  child: const Center(child: Text('Mark done')),
+)
+```
+
+That `Container` never becomes a `UIView` or an Android `View`. Flutter's framework turns it into a `RenderObject` that paints a rounded rectangle and lays out a text run; the engine converts that into a Skia (or, increasingly, Impeller) display list — a sequence of low-level draw commands like `drawRRect` and `drawParagraph` — and hands it to the GPU. Dart is ahead-of-time compiled to native ARM/x64 machine code in release builds and calls directly into the engine's C++ through compiled-in bindings, not across any message queue. The *only* native UI object in the entire app is a single surface (`FlutterViewController` on iOS, a `FlutterView`/`SurfaceView` on Android) that the OS compositor treats as one opaque texture. Every button, list cell, scrollbar, and animation frame inside that surface is pixels Flutter's own renderer drew — there's nothing to bridge because there's no second UI system to keep in sync with.
+
+The one real exception is `PlatformView` — Flutter's actual escape hatch for embedding a genuine native view (a `GoogleMap`, a `WebView`) inside its own canvas when something truly needs the OS's own compositor. It's deliberately the exception, not the rule, because it's expensive: Flutter has to composite its self-drawn content with a real native layer underneath or on top of it.
+
+Skia vs. Impeller is a concrete, shippable difference worth naming precisely: Skia compiles GPU shaders lazily, the first time a given draw operation and configuration combination is actually hit at runtime — which can cause a one-time stutter ("shader compilation jank"), most visible the first time a new animation plays. Impeller (the default renderer on iOS since Flutter 3.16, rolled out on Android since) precompiles every shader variant at build time, trading a larger binary for eliminating that runtime stutter entirely.
+
+## Navigation, concretely: React Navigation's native-stack vs. Flutter's go_router
+
+Tier 2 had you install this exact navigator:
+
+```jsx
+// App.js — the native-stack navigator from Tier 2
+import { NavigationContainer } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+
+const Stack = createNativeStackNavigator();
+
+export default function App() {
+  return (
+    <NavigationContainer>
+      <Stack.Navigator initialRouteName="Home">
+        <Stack.Screen name="Home" component={HomeScreen} />
+        <Stack.Screen name="Detail" component={DetailScreen} />
+      </Stack.Navigator>
+    </NavigationContainer>
+  );
+}
+```
+
+The name isn't marketing: `@react-navigation/native-stack`, backed by `react-native-screens`, really does drive a `UINavigationController` on iOS and a `Fragment`-backed transaction on Android. The back-swipe gesture, the push/pop animation curve, the accessibility focus handling — all of it is the real OS doing what it does for every other app on the phone, with React Navigation as a thin JS layer issuing commands to it.
+
+Flutter's equivalent, using `go_router` (the declarative router built on Navigator 2.0):
+
+```dart
+final router = GoRouter(
+  initialLocation: '/',
+  routes: [
+    GoRoute(
+      path: '/',
+      builder: (context, state) => const HomeScreen(),
+      routes: [
+        GoRoute(
+          path: 'habit/:id',
+          builder: (context, state) =>
+              DetailScreen(id: state.pathParameters['id']!),
+        ),
+      ],
+    ),
+  ],
+);
+
+// main.dart
+void main() => runApp(MaterialApp.router(routerConfig: router));
+```
+
+The transition you get from `CupertinoPageRoute` (or `go_router`'s default on iOS) *looks* like the native slide-in, and it even supports an interactive swipe-back gesture — but it's Flutter's own `PanGestureRecognizer` driving a Flutter-owned `Animation` object, painted by Impeller like everything else on screen. It's a very good imitation of `UINavigationController`'s transition, not a call into it. That's the whole architectural story in one comparison: React Native's native-stack is one of the only places where "native" is completely literal; Flutter's router is Flutter drawing something that convincingly looks native.
+
+## The escape hatch: a real Flutter platform channel
+
+Flutter's engine doesn't expose hardware APIs itself — for anything OS-specific (battery level, a native share sheet, a sensor), you cross into platform code explicitly through a `MethodChannel`. Dart side:
+
+```dart
+import 'package:flutter/services.dart';
+
+class BatteryService {
+  static const _channel = MethodChannel('com.themanual.habits/battery');
+
+  static Future<int> getBatteryLevel() async {
+    try {
+      final int level = await _channel.invokeMethod('getBatteryLevel');
+      return level;
+    } on PlatformException catch (e) {
+      throw Exception('Failed to read battery level: ${e.message}');
+    }
+  }
+}
+```
+
+Android side, registered in `MainActivity.kt`:
+
+```kotlin
+class MainActivity : FlutterActivity() {
+    private val CHANNEL = "com.themanual.habits/battery"
+
+    override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
+        super.configureFlutterEngine(flutterEngine)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
+            .setMethodCallHandler { call, result ->
+                if (call.method == "getBatteryLevel") {
+                    val bm = getSystemService(Context.BATTERY_SERVICE) as BatteryManager
+                    result.success(bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY))
+                } else {
+                    result.notImplemented()
+                }
+            }
+    }
+}
+```
+
+And the iOS side, in `AppDelegate.swift`:
+
+```swift
+import UIKit
+import Flutter
+
+@main
+@objc class AppDelegate: FlutterAppDelegate {
+  override func application(
+    _ application: UIApplication,
+    didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
+  ) -> Bool {
+    let controller = window?.rootViewController as! FlutterViewController
+    let channel = FlutterMethodChannel(name: "com.themanual.habits/battery",
+                                        binaryMessenger: controller.binaryMessenger)
+    channel.setMethodCallHandler { call, result in
+      if call.method == "getBatteryLevel" {
+        UIDevice.current.isBatteryMonitoringEnabled = true
+        result(Int(UIDevice.current.batteryLevel * 100))
+      } else {
+        result(FlutterMethodNotImplemented)
+      }
+    }
+    return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+}
+```
+
+This is Dart→native messaging, and unlike JSI, it *is* serialized (through a lightweight binary codec, not JSON, but still a marshal step) and it *is* asynchronous — platform channels are the one place Flutter looks architecturally like old-bridge React Native, because this is genuinely crossing out of Flutter's self-contained world into the OS. Use it sparingly, for exactly the things Flutter's engine can't do itself.
+
+## State management: Riverpod, concretely, and the Zustand/Redux contrast
+
+Tier 2's habit tracker only needed local `useState`/`setState` — no module there asked you to manage state shared across screens. This module's app does, because a habit's "done" status set on the detail screen has to update the list on the home screen. In Flutter, Riverpod:
+
+```dart
+final habitListProvider =
+    StateNotifierProvider<HabitListNotifier, List<Habit>>(
+  (ref) => HabitListNotifier(),
+);
+
+class HabitListNotifier extends StateNotifier<List<Habit>> {
+  HabitListNotifier() : super([]);
+
+  void toggleDone(String id) {
+    state = [
+      for (final habit in state)
+        if (habit.id == id) habit.copyWith(done: !habit.done) else habit,
+    ];
+  }
+}
+
+class HabitListScreen extends ConsumerWidget {
+  const HabitListScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final habits = ref.watch(habitListProvider);
+    return ListView.builder(
+      itemCount: habits.length,
+      itemBuilder: (context, i) => CheckboxListTile(
+        title: Text(habits[i].name),
+        value: habits[i].done,
+        onChanged: (_) =>
+            ref.read(habitListProvider.notifier).toggleDone(habits[i].id),
+      ),
+    );
+  }
+}
+```
+
+`ref.watch` subscribes the widget to just this provider, so only `HabitListScreen` rebuilds when the list changes — no prop-drilling a callback down through intermediate widgets. The React Native equivalent you'd reach for is a global store like Zustand:
+
+```jsx
+import { create } from 'zustand';
+
+const useHabitStore = create((set) => ({
+  habits: [],
+  toggleDone: (id) =>
+    set((state) => ({
+      habits: state.habits.map((h) =>
+        h.id === id ? { ...h, done: !h.done } : h
+      ),
+    })),
+}));
+
+// in any component, no provider wrapping needed:
+const habits = useHabitStore((s) => s.habits);
+const toggleDone = useHabitStore((s) => s.toggleDone);
+```
+
+Same shape, different mechanics: Zustand's selector function (`s => s.habits`) does the same "only re-render on relevant change" job that `ref.watch(habitListProvider)` does, but Zustand lives entirely in JS with no provider tree, while Riverpod's providers are statically analyzable objects the Dart compiler and tooling can reason about at compile time — part of why Riverpod largely replaced the older, more error-prone `Provider` package in the Flutter ecosystem.
+
+## Building the app: Habit Tracker, in Flutter this time
+
+This is the same product idea as Tier 2's full-stack checkpoint, rebuilt end to end: a Flutter client hitting the identical Express/Flask REST API your Tier 2 backend already exposes. `pubspec.yaml` needs three real dependencies:
+
+```yaml
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_riverpod: ^2.5.1
+  go_router: ^14.2.0
+  http: ^1.2.2
+```
+
+The habit model and the `HabitListNotifier` are exactly the ones from the previous section, except `toggleDone` now also does the network call your Tier 2 Express API already handles:
+
+```dart
+Future<void> toggleDone(String id) async {
+  final habit = state.firstWhere((h) => h.id == id);
+  final updated = habit.copyWith(done: !habit.done);
+  await http.patch(
+    Uri.parse('https://your-api.onrender.com/habits/$id'),
+    headers: {'Content-Type': 'application/json'},
+    body: jsonEncode({'done': updated.done}),
+  );
+  state = [for (final h in state) if (h.id == id) updated else h];
+}
+```
+
+Wire `go_router`'s two routes from the navigation section to `HomeScreen` (the list above) and a `DetailScreen` that reads `state.pathParameters['id']`. Three contrasts worth writing down while they're fresh, because this is exactly what the curriculum's "Explain it back" assessment for this tier will ask you to defend with a real example:
+
+- **Hot reload mechanism, not just speed.** Tier 2's Expo app got sub-second updates via Fast Refresh re-evaluating a JS bundle through Metro while React reconciles the tree. Flutter's hot reload is a different mechanism entirely — the Dart VM injects newly compiled code into the already-running process and re-runs `build()` methods, preserving widget state without re-executing `main()`. Both feel instant; neither works the same way underneath.
+- **The backend doesn't know or care.** Your Express/Flask API returns the same JSON to `fetch()` from Tier 2's RN app and to `http.patch()` from this Flutter app. That's the actual point of a REST boundary — the cross-platform-framework choice is entirely a client-side decision.
+- **List scrolling feels different for an architectural reason, not a vibes one.** A long `FlatList` in React Native dispatches native UI-update commands for recycled cells across the bridge/JSI boundary on every scroll frame; a long `ListView.builder` in Flutter never leaves the engine at all — it's Skia/Impeller repainting pixels it already owns. On a mid-range Android device with 200+ list items, that difference is measurable, not anecdotal.
+
+## Exercise
+
+Add haptic feedback when a habit is marked done: on Android, call `Vibrator.vibrate()` through a `MethodChannel`; on iOS, trigger `UIImpactFeedbackGenerator(style: .medium).impactOccurred()` the same way. Then install `expo-haptics` in your Tier 2 React Native project and add the equivalent one-line `Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)` call there. Time how long each took to wire up, and note which one required touching native project files directly and which one didn't.
+
+**Hint:** your Flutter `MethodChannel` for this doesn't need a return value — call `result.success(null)` after triggering the vibration/impact generator, and on the Dart side you can fire-and-forget with `_channel.invokeMethod('hapticTap')` without awaiting it in the UI thread's critical path.
+
+## What to actually retain
+
+React Native's old bridge serializes every native interaction into a batched JSON message queue, which is fine for infrequent calls and genuinely costly for anything that fires every frame — JSI fixes that by letting JS hold direct, synchronous references to C++ objects, not by inventing a faster bridge. Flutter sidesteps the whole problem differently: it never maps onto native widgets in the first place, drawing every pixel itself through Skia or Impeller, with platform channels as the deliberate, narrow exception for when it truly needs the OS. Neither approach is strictly better — React Native's native-stack navigator is more literally "native" than anything Flutter's router does, while Flutter's rendering has no bridge tax to pay for UI updates at all. You now have two real cross-platform apps built on the same product idea, on top of two native apps built with zero abstraction in this tier's SwiftUI and Compose modules — four implementations of one idea, which is the only way this tier's cross-platform tradeoffs stop being trivia.

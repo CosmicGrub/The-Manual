@@ -1,0 +1,98 @@
+[
+  {
+    "id": "platforms/tier-3/native-ios-with-swift-and-swiftui/q1",
+    "type": "multiple_choice",
+    "prompt": "Given `let city = user.address?.city ?? \"Unknown\"` where `user.address` is nil, what is the value of `city`?",
+    "choices": [
+      "\"Unknown\"",
+      "nil",
+      "A runtime crash",
+      "An empty string \"\""
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-3/native-ios-with-swift-and-swiftui/q2",
+    "type": "multiple_choice",
+    "prompt": "You assign `structB = structA` where both are instances of a Swift struct, then mutate a property on `structB`. What happens to `structA`?",
+    "choices": [
+      "structA is unchanged, because structs have value semantics and the assignment copied the value",
+      "structA changes too, because the assignment just copied a reference",
+      "It depends on whether the property was declared with `let` or `var`",
+      "The code fails to compile"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-3/native-ios-with-swift-and-swiftui/q3",
+    "type": "multiple_choice",
+    "prompt": "You assign `classB = classA` where both are instances of a Swift class, then mutate a property on `classB`. What happens when you read that property from `classA`?",
+    "choices": [
+      "It reflects the change, because the assignment copied a reference to the same instance",
+      "It is unchanged, because classes have value semantics",
+      "It throws a runtime error",
+      "It depends on whether the class conforms to Equatable"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-3/native-ios-with-swift-and-swiftui/q4",
+    "type": "multiple_choice",
+    "prompt": "In `enum NetworkResult { case success(data: [String]); case failure(code: Int, message: String) }`, what must a `switch` statement over a `NetworkResult` value do to compile?",
+    "choices": [
+      "Handle every case (or include a `default`), because the switch must be exhaustive",
+      "Only handle the `.success` case, since `.failure` is optional",
+      "Include an explicit `break` at the end of each case",
+      "Nothing special \u2014 Swift switches are not exhaustive by default"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-3/native-ios-with-swift-and-swiftui/q5",
+    "type": "multiple_choice",
+    "prompt": "In a parent/child SwiftUI view pair, the child needs to both display and modify a value that the parent owns as `@State`. Which property wrapper should the child use for that value?",
+    "choices": [
+      "@Binding",
+      "@State",
+      "@ObservedObject",
+      "@Environment"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-3/native-ios-with-swift-and-swiftui/q6",
+    "type": "multiple_choice",
+    "prompt": "A `CartModel: ObservableObject` is first created inside `ShopView` and then passed down to a child view, `CartSummary`, which only reads and displays it. What should `ShopView` and `CartSummary` use, respectively?",
+    "choices": [
+      "ShopView: @StateObject, CartSummary: @ObservedObject",
+      "ShopView: @ObservedObject, CartSummary: @StateObject",
+      "Both should use @StateObject",
+      "Both should use @ObservedObject"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-3/native-ios-with-swift-and-swiftui/q7",
+    "type": "multiple_choice",
+    "prompt": "Which two methods are required to implement the UIViewRepresentable protocol for wrapping a UIKit view in SwiftUI?",
+    "choices": [
+      "makeUIView and updateUIView",
+      "viewDidLoad and viewWillAppear",
+      "body and makeUIView",
+      "init and render"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-3/native-ios-with-swift-and-swiftui/q8",
+    "type": "multiple_choice",
+    "prompt": "You already uploaded build number 3 to App Store Connect for TestFlight. Before you can upload a new archive of the same app version, what must you do in Xcode?",
+    "choices": [
+      "Increase the Build number to something higher than 3, such as 4",
+      "Nothing \u2014 you can re-upload the same build number as many times as you like",
+      "Decrease the Version number",
+      "Delete the app record in App Store Connect and recreate it"
+    ],
+    "correctIndex": 0
+  }
+]

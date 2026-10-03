@@ -1,0 +1,98 @@
+[
+  {
+    "id": "platforms/tier-3/cloud-basics-for-app-backends/q1",
+    "type": "multiple_choice",
+    "prompt": "What's the primary purpose of a .dockerignore file?",
+    "choices": [
+      "To list which environment variables get injected into the container",
+      "To exclude files like node_modules and .env from being copied into the build context",
+      "To specify which CPU architecture the image targets",
+      "To define the container's exposed ports"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-3/cloud-basics-for-app-backends/q2",
+    "type": "multiple_choice",
+    "prompt": "In a Dockerfile ending with CMD [\"node\", \"server.js\"], what does that CMD line define?",
+    "choices": [
+      "The base image to build from",
+      "A build-time dependency installation step",
+      "The default command that runs when a container starts from this image",
+      "The port the container listens on"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "platforms/tier-3/cloud-basics-for-app-backends/q3",
+    "type": "multiple_choice",
+    "prompt": "Why move an API key out of hardcoded source code and into an environment variable?",
+    "choices": [
+      "Environment variables run faster than string literals",
+      "It lets you rotate the key without changing and redeploying code, and keeps secrets out of git history",
+      "Node.js refuses to start if a secret is hardcoded",
+      "Docker images cannot contain string literals"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-3/cloud-basics-for-app-backends/q4",
+    "type": "multiple_choice",
+    "prompt": "On Fly.io, which command uploads a secret like an API key to your deployed app without putting it in your code or fly.toml?",
+    "choices": [
+      "fly deploy --env",
+      "fly secrets set KEY=value",
+      "fly launch --secret",
+      "fly logs --inject"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-3/cloud-basics-for-app-backends/q5",
+    "type": "multiple_choice",
+    "prompt": "What does auto_stop_machines = true with min_machines_running = 0 in a fly.toml typically mean for a free-tier app?",
+    "choices": [
+      "The app never goes to sleep and always responds instantly",
+      "The app can scale to zero when idle, so the first request after inactivity may be slow (cold start)",
+      "The database connection pool is disabled",
+      "GitHub Actions will stop running tests after deploy"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-3/cloud-basics-for-app-backends/q6",
+    "type": "multiple_choice",
+    "prompt": "Where must a GitHub Actions workflow file live to be picked up automatically?",
+    "choices": [
+      "Anywhere in the repo as long as it ends in .yml",
+      ".github/workflows/",
+      "/ci/",
+      "The repo root only, named ci.yml"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-3/cloud-basics-for-app-backends/q7",
+    "type": "multiple_choice",
+    "prompt": "Given this workflow trigger:\n\non:\n  push:\n    branches: [main]\n  pull_request:\n    branches: [main]\n\nWhen does the job run?",
+    "choices": [
+      "Only when a release tag is created",
+      "On every push to main and on every pull request targeting main",
+      "Only once per day on a schedule",
+      "Only when manually triggered from the Actions tab"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-3/cloud-basics-for-app-backends/q8",
+    "type": "multiple_choice",
+    "prompt": "A GitHub Actions job runs npm ci before npm test. What's the main reason to use npm ci here instead of npm install?",
+    "choices": [
+      "npm ci is required to build Docker images",
+      "npm ci installs exactly the versions locked in package-lock.json for a reproducible, clean install",
+      "npm ci skips installing devDependencies needed for tests",
+      "npm ci automatically deploys the app after installing"
+    ],
+    "correctIndex": 1
+  }
+]

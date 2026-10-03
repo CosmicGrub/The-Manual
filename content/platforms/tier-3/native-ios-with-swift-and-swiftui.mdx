@@ -1,0 +1,357 @@
+---
+trackId: platforms
+tier: 3
+title: "Native iOS with Swift & SwiftUI"
+order: 1
+estimatedHours: 40
+slug: native-ios-with-swift-and-swiftui
+---
+
+## Where this sits in the track
+
+Tier 2 had you build a desktop app in Electron — HTML/CSS/JS wrapped in Chromium, one codebase targeting Windows, macOS, and Linux by rendering a webpage inside a native-looking window. Tier 2 also had you make a deliberate cross-platform mobile framework choice (React Native or Flutter) and ship one UI description to both iOS and Android through a bridge or a custom rendering engine.
+
+This module throws that abstraction away. No bridge, no shared renderer, no "write once." You are going to write Swift against Apple's actual frameworks, and the view hierarchy you build is UIKit underneath whether you like it or not. The point of Tier 3 is to feel what you gain and lose when you go native: real platform idioms, first-party performance, access to every API the day it ships — at the cost of a second, separate codebase when this tier's Android module has you build the same kind of app again in Kotlin and Jetpack Compose. Keep both modules open side by side mentally; the comparison is the lesson, not just the Swift.
+
+## Swift essentials you actually need
+
+Skip the full language tour. These four features are the ones that show up in every SwiftUI file you'll write and that trip people up coming from JavaScript, Python, or Java.
+
+### Optionals: the nil-handling example you'll use daily
+
+Swift forces you to say, in the type itself, whether a value might be absent. `String` can never be nil. `String?` might be. Everything else follows from that one distinction.
+
+```swift
+struct Address {
+    var city: String
+    var zip: String
+}
+
+struct User {
+    var name: String
+    var address: Address?   // not every user has one on file
+}
+
+let userWithAddress = User(name: "Priya", address: Address(city: "Austin", zip: "78701"))
+let userWithoutAddress = User(name: "Sam", address: nil)
+
+// Optional chaining: each `?` short-circuits to nil instead of crashing
+let city1 = userWithAddress.address?.city      // Optional("Austin")
+let city2 = userWithoutAddress.address?.city   // nil
+
+// Nil-coalescing: unwrap with a fallback, in one expression
+let label1 = userWithAddress.address?.city ?? "No city on file"     // "Austin"
+let label2 = userWithoutAddress.address?.city ?? "No city on file"  // "No city on file"
+
+// guard let: bail out early, work with a non-optional for the rest of the function
+func shippingLabel(for user: User) -> String {
+    guard let address = user.address else {
+        return "\(user.name): no shipping address"
+    }
+    return "\(user.name), \(address.city) \(address.zip)"
+}
+```
+
+`user.address!.city` (force-unwrap) would crash the moment `address` is nil. Reach for `!` only when you have already proven the value exists (e.g., right after an `if let`); everywhere else, chaining and `??` are how you write nil-handling that reads as one line instead of a defensive wall of `if` statements.
+
+### Structs vs classes: value semantics vs reference semantics
+
+This is the one JavaScript and Python don't prepare you for, because *everything* in those languages behaves like a Swift class.
+
+```swift
+struct PointStruct {
+    var x: Int
+    var y: Int
+}
+
+class PointClass {
+    var x: Int
+    var y: Int
+    init(x: Int, y: Int) {
+        self.x = x
+        self.y = y
+    }
+}
+
+var structA = PointStruct(x: 0, y: 0)
+var structB = structA        // copies the value
+structB.x = 99
+print(structA.x)             // 0 — structA was never touched
+
+let classA = PointClass(x: 0, y: 0)
+let classB = classA          // copies the reference — same object, two names
+classB.x = 99
+print(classA.x)              // 99 — classA and classB point at the same instance
+```
+
+SwiftUI's own `View` type is a struct for exactly this reason: every time state changes, SwiftUI throws away the old view value and builds a new one from scratch — cheap, because copying a struct is cheap and there's no shared mutable state to corrupt mid-render. Your data models that need identity and shared mutation across a view hierarchy (the cart, the shared user session) are classes, specifically ones that conform to `ObservableObject`, covered below. Default to struct; reach for class when you need shared, mutable identity.
+
+### Enums with associated values
+
+A Swift enum case can carry its own payload, which makes it a legitimate way to model "one of these things, each with different attached data" — something you'd otherwise fake with a tagged dictionary or a union type.
+
+```swift
+enum NetworkResult {
+    case success(data: [String])
+    case failure(code: Int, message: String)
+}
+
+func handle(_ result: NetworkResult) {
+    switch result {
+    case .success(let data):
+        print("Got \(data.count) items")
+    case .failure(let code, let message):
+        print("Request failed (\(code)): \(message)")
+    }
+}
+
+handle(.success(data: ["a", "b", "c"]))             // "Got 3 items"
+handle(.failure(code: 404, message: "Not found"))   // "Request failed (404): Not found"
+```
+
+The `switch` must be exhaustive — add a third case and every switch over `NetworkResult` fails to compile until you handle it. That's the compiler doing your error-handling review for you.
+
+### Protocols and real conformance
+
+A protocol is an interface: a list of requirements any type can promise to satisfy, plus — unlike Java interfaces — a place to hang default implementations via extensions.
+
+```swift
+protocol Drawable {
+    var area: Double { get }
+    func describe() -> String
+}
+
+extension Drawable {
+    // every conforming type gets this for free unless it overrides it
+    func describe() -> String {
+        "This shape has an area of \(area)"
+    }
+}
+
+struct Circle: Drawable {
+    var radius: Double
+    var area: Double { .pi * radius * radius }
+}
+
+class Rectangle: Drawable {
+    var width: Double
+    var height: Double
+    init(width: Double, height: Double) {
+        self.width = width
+        self.height = height
+    }
+    var area: Double { width * height }
+}
+
+let shapes: [Drawable] = [Circle(radius: 3), Rectangle(width: 4, height: 5)]
+for shape in shapes {
+    print(shape.describe())
+}
+// This shape has an area of 28.274333882308138
+// This shape has an area of 20.0
+```
+
+Notice a struct and a class conform to the same protocol side by side in one array — `Drawable` doesn't care which. This is also how SwiftUI's `View` protocol works under the hood: every view you write conforms to `View` by implementing one computed property, `body`.
+
+## SwiftUI: views as functions of state
+
+SwiftUI's whole model is: state changes → the view that depends on that state recomputes its `body` → the diff gets drawn. The property wrappers below are how you tell SwiftUI which state belongs to which view, and how much of it is shared.
+
+### @State and @Binding: data down, events up
+
+`@State` is private, view-owned state. `@Binding` is a read-write reference to someone else's `@State`, which is how a child view edits state it doesn't own.
+
+```swift
+struct CounterParent: View {
+    @State private var count = 0
+
+    var body: some View {
+        VStack(spacing: 20) {
+            Text("Count: \(count)")
+                .font(.title)
+            StepperButtons(count: $count)   // $ projects the binding
+        }
+    }
+}
+
+struct StepperButtons: View {
+    @Binding var count: Int
+
+    var body: some View {
+        HStack {
+            Button("-") { count -= 1 }
+            Button("+") { count += 1 }
+        }
+        .buttonStyle(.bordered)
+    }
+}
+```
+
+Data flows down: `CounterParent` owns `count` and passes `$count` to `StepperButtons`. Events flow up: tapping `+` inside `StepperButtons` mutates the binding, which mutates the parent's `@State`, which reruns `CounterParent.body`. Neither view reaches into the other directly — the binding is the entire contract between them. This is the same unidirectional-data-flow idea you'd recognize from a React `useState` plus a callback prop, but enforced by the type system instead of by convention.
+
+### @StateObject and @ObservedObject: a model shared across views
+
+`@State` holds value types. When you need a reference type — a class — shared across several views, with changes in one reflected everywhere, you need `ObservableObject`.
+
+```swift
+class CartModel: ObservableObject {
+    @Published var items: [String] = []
+
+    var total: Int { items.count }
+
+    func add(_ item: String) {
+        items.append(item)
+    }
+}
+
+struct ShopView: View {
+    @StateObject private var cart = CartModel()   // this view OWNS and creates the instance
+
+    var body: some View {
+        NavigationStack {
+            VStack {
+                Text("Items in cart: \(cart.total)")
+                CartSummary(cart: cart)
+                Button("Add Widget") { cart.add("Widget") }
+            }
+        }
+    }
+}
+
+struct CartSummary: View {
+    @ObservedObject var cart: CartModel   // this view BORROWS the instance, doesn't create it
+
+    var body: some View {
+        List(cart.items, id: \.self) { item in
+            Text(item)
+        }
+    }
+}
+```
+
+`@Published` on `items` is what makes every mutation trigger a re-render of any view reading `cart`. The rule that matters: whichever view *creates* the object uses `@StateObject`; every view it gets *handed down to* uses `@ObservedObject`. Get this backwards — using `@StateObject` in a child that's re-created on every parent re-render — and you'll silently reset your model's state on every redraw, a bug that's maddening to track down because nothing crashes.
+
+If you've done the Android module in this tier, this is the direct analogue of hoisting a `ViewModel` and exposing `StateFlow`/`mutableStateOf` down to `@Composable` children — same shared-mutable-model-above-the-view-tree shape, different keywords.
+
+## Navigation and lists: NavigationStack in practice
+
+`NavigationStack` plus `List` is how almost every real iOS app is structured: a scrollable collection, each row pushing a detail screen.
+
+```swift
+struct Product: Identifiable, Hashable {
+    let id = UUID()
+    var name: String
+    var price: Double
+}
+
+struct ProductListView: View {
+    let products = [
+        Product(name: "Keyboard", price: 79.00),
+        Product(name: "Monitor", price: 249.00),
+        Product(name: "Mouse", price: 29.00)
+    ]
+
+    var body: some View {
+        NavigationStack {
+            List(products) { product in
+                NavigationLink(value: product) {
+                    HStack {
+                        Text(product.name)
+                        Spacer()
+                        Text("$\(product.price, specifier: "%.2f")")
+                    }
+                }
+            }
+            .navigationTitle("Products")
+            .navigationDestination(for: Product.self) { product in
+                ProductDetailView(product: product)
+            }
+        }
+    }
+}
+
+struct ProductDetailView: View {
+    let product: Product
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Text(product.name).font(.largeTitle)
+            Text("$\(product.price, specifier: "%.2f")")
+        }
+        .navigationTitle(product.name)
+    }
+}
+```
+
+`Identifiable` is why `List(products) { }` doesn't need an explicit `id:` argument — SwiftUI reads `product.id` itself. `Hashable` is required separately by `navigationDestination(for:)`, which routes by type and value rather than by a hardcoded path string; push a `Product`, and SwiftUI finds the matching `navigationDestination(for: Product.self)` registered anywhere up the stack. This value-based routing is also what makes deep linking and programmatic navigation (pushing a `NavigationPath` from outside user taps) tractable — something string-based route tables in cross-platform frameworks usually bolt on separately.
+
+## UIKit interop: UIViewRepresentable, and why you still need it
+
+SwiftUI doesn't have a native wrapper for every UIKit control — `PDFKit`'s `PDFView`, `MKMapView`'s older annotation callbacks, camera-capture previews via `AVFoundation`, and plenty of third-party UIKit SDKs have no SwiftUI equivalent at all. `UIViewRepresentable` is the bridge: you implement two required methods, and SwiftUI treats the wrapped UIKit view as if it were a native SwiftUI view.
+
+```swift
+import SwiftUI
+import UIKit
+
+struct ActivitySpinner: UIViewRepresentable {
+    var isAnimating: Bool
+
+    func makeUIView(context: Context) -> UIActivityIndicatorView {
+        let spinner = UIActivityIndicatorView(style: .large)
+        spinner.hidesWhenStopped = true
+        return spinner
+    }
+
+    func updateUIView(_ uiView: UIActivityIndicatorView, context: Context) {
+        isAnimating ? uiView.startAnimating() : uiView.stopAnimating()
+    }
+}
+
+struct LoadingView: View {
+    @State private var isLoading = true
+
+    var body: some View {
+        VStack(spacing: 16) {
+            ActivitySpinner(isAnimating: isLoading)
+                .frame(width: 50, height: 50)
+            Button(isLoading ? "Stop" : "Start") {
+                isLoading.toggle()
+            }
+        }
+    }
+}
+```
+
+`makeUIView` runs once, when the UIKit view is first created. `updateUIView` runs on every SwiftUI state change that affects this view, and is where you push your SwiftUI-side state into the UIKit object's imperative API (`startAnimating()`/`stopAnimating()` aren't SwiftUI concepts — they're plain UIKit method calls). For anything that needs to report events back up (a `UITextFieldDelegate` callback, a map tap), you add a `Coordinator` class as the `context.coordinator`, acting as the delegate — the same down/up shape as `@Binding`, just expressed through UIKit's delegate pattern instead of SwiftUI's property wrappers.
+
+This is also the clearest spot to feel the native-vs-cross-platform tradeoff: a React Native or Flutter app hits the exact same wall — "the framework has no component for this" — but the fix there means writing a native module/plugin in Swift or Objective-C anyway. Going native from the start means you're never blocked on a bridge; you're just always one `UIViewRepresentable` away from the full UIKit surface.
+
+## Shipping to a real device: TestFlight end to end
+
+This is the actual sequence, not the theory of it.
+
+1. **Register the app.** In the Apple Developer portal, create an App ID matching your Xcode project's Bundle Identifier (e.g., `com.yourname.productlist`). Create the corresponding app record in App Store Connect.
+2. **Set the version and build number in Xcode.** Target → General. `Version` is the user-facing one (`1.0`); `Build` must increase on every single upload (`1`, then `2`, then `3`...) — App Store Connect rejects a re-upload with a build number it's already seen.
+3. **Select a real-device destination**, not a simulator — "Any iOS Device (arm64)" in the scheme selector. Archiving a simulator build is a dead end; it can't be code-signed for distribution.
+4. **Product → Archive.** Xcode builds a release configuration and opens the Organizer window on completion.
+5. **In Organizer, click "Distribute App" → "App Store Connect" → "Upload."** Xcode validates entitlements, signs with your distribution certificate and provisioning profile, and uploads the `.ipa`. You'll be asked an export-compliance question about encryption — answer it (most apps using only standard HTTPS select "no" to needing a special export license).
+6. **Wait for processing.** App Store Connect runs the build through automated checks; this typically takes 10–60 minutes. You'll get an email when it's ready, and the build appears under your app's TestFlight tab.
+7. **Add the build to an internal testing group.** Internal testers are up to 100 people on your App Store Connect team — no Apple review required, available almost immediately. (External testing groups, for anyone outside your team, require Beta App Review first — budget a day or more for that.)
+8. **Add a tester by email (their Apple ID).** They receive an email invite.
+9. **The tester installs TestFlight from the App Store**, opens the invite link or redeems the code inside TestFlight, and installs your build directly — no cable, no Xcode, no App Store review gate, running on their own physical device.
+
+Compare this to Tier 2's Electron distribution, where you could hand someone a signed `.dmg` or `.exe` directly with no platform gatekeeper involved at all. Apple's pipeline is slower and more procedural by design — every build, even an internal test build, physically passes through Apple's servers and tooling. That's the cost of the native platform integration you got in the sections above.
+
+## Exercise
+
+Build a small "Favorites" app:
+
+- A `Product`-like model (reuse the one above or make your own) with at least `id`, `name`, and one more field.
+- A `FavoritesModel: ObservableObject` holding a `@Published var favoriteIDs: Set<UUID>`, with an `toggle(_:)` method.
+- A `NavigationStack` + `List` of all items (the pattern from this lesson), where each row shows a filled or outline star depending on whether its ID is in `favoriteIDs`.
+- A detail view, pushed via `navigationDestination(for:)`, with a button that calls `favoritesModel.toggle(product.id)` — and the list row's star should update immediately when you navigate back, because both views share the same `FavoritesModel` instance.
+- Somewhere in the detail view, use a `UIViewRepresentable` wrapping `UIActivityIndicatorView` (or any other UIKit control of your choice) that spins while a fake 1-second `Task.sleep` "loads" the detail content.
+
+**Hint:** the list view should own the `FavoritesModel` with `@StateObject`; every other view that touches it — the row, the detail screen — should receive it as `@ObservedObject`, passed down as a parameter, not re-created. If your star icons stop updating after you navigate back, that's almost always a `@StateObject` created in the wrong place.
+
+Once it runs on the simulator, go one step further: run it on your own physical iPhone over a free Apple ID provisioning profile, bump the build number, archive, and walk it through TestFlight to your own device as an internal tester. Feeling that whole pipeline once is worth more than reading these nine steps twice.

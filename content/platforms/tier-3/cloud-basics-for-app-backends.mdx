@@ -1,0 +1,249 @@
+---
+trackId: platforms
+tier: 3
+title: "Cloud Basics for App Backends"
+order: 6
+estimatedHours: 15
+slug: cloud-basics-for-app-backends
+---
+
+## Where this module fits
+
+By Tier 2 of this track you built a real backend — an Express API or a Flask API — that served data to your mobile or cross-platform app. It ran on `localhost`. That's the gap this module closes: getting that same backend running on a real URL, reachable from a real phone, without you babysitting a server.
+
+This is **not** a Docker or CI/CD deep-dive. Multi-stage builds, image layers and caching strategy, container registries, blue/green deploys, self-hosted runners — that's the DevOps track's job, and it goes much deeper into all of it. Here you get exactly enough Docker and exactly enough CI to take the backend you already wrote and put it somewhere live, safely, in an afternoon.
+
+## Containers, just enough of them
+
+A container packages your app plus everything it needs to run — runtime, system libraries, dependencies — into one artifact that runs the same way on your laptop, on a teammate's laptop, and on a cloud host you've never configured by hand. The file that describes how to build that artifact is a `Dockerfile`.
+
+Take the Express API from your Tier 2 work. Assume a standard layout: `server.js` as the entry point, dependencies in `package.json`, and it listens on `process.env.PORT || 3000`.
+
+```dockerfile
+# Dockerfile
+FROM node:20-alpine
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm ci --omit=dev
+
+COPY . .
+
+ENV NODE_ENV=production
+EXPOSE 3000
+
+CMD ["node", "server.js"]
+```
+
+Walk through it line by line, because every line is a decision:
+
+- `FROM node:20-alpine` picks a small base image with Node 20 already installed. Alpine Linux keeps the image lean.
+- `WORKDIR /app` sets the working directory inside the container — everything after this runs relative to `/app`.
+- `COPY package*.json ./` copies only the manifest files first, then `RUN npm ci` installs dependencies. This two-step copy is the one "theory" point worth knowing without going deeper: Docker caches layers, so if your dependencies haven't changed, rebuilding after an app-code change skips the slow `npm ci` step entirely.
+- `COPY . .` copies the rest of your source.
+- `EXPOSE 3000` documents which port the app listens on inside the container — it doesn't publish it to the outside world by itself.
+- `CMD ["node", "server.js"]` is the default command that runs when a container starts from this image.
+
+If your Tier 2 backend is the Flask version instead, the same job looks like this:
+
+```dockerfile
+# Dockerfile
+FROM python:3.12-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+ENV FLASK_ENV=production
+EXPOSE 5000
+
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "app:app"]
+```
+
+Note the Flask version uses `gunicorn`, not Flask's own dev server — `flask run` isn't meant for anything but local development, and shipping it in a container that's supposed to serve real traffic is a classic first mistake.
+
+Add a `.dockerignore` next to the Dockerfile so the build doesn't drag in junk (or secrets):
+
+```
+node_modules
+.env
+.git
+npm-debug.log
+```
+
+Build and run it locally before touching any cloud provider:
+
+```bash
+docker build -t my-tier2-api .
+docker run -p 3000:3000 --env-file .env my-tier2-api
+```
+
+`-p 3000:3000` maps container port 3000 to your machine's port 3000. If `curl localhost:3000/health` (or whatever route you built in Tier 2) responds, the container is correct and the problem, if one shows up later, is in deployment configuration, not in your app.
+
+## Environment variables and secrets
+
+Here's the exact mistake this section exists to kill. Somewhere in your Tier 2 code you probably have something close to this:
+
+```javascript
+// server.js — before
+const WEATHER_API_KEY = "a1b2c3d4e5f6g7h8i9j0";
+
+app.get("/weather/:city", async (req, res) => {
+  const response = await fetch(
+    `https://api.openweathermap.org/data/2.5/weather?q=${req.params.city}&appid=${WEATHER_API_KEY}`
+  );
+  const data = await response.json();
+  res.json(data);
+});
+```
+
+That key is now permanently in your git history, visible to anyone who clones the repo, and the only way to change it is to edit code and redeploy. Fix it:
+
+```javascript
+// server.js — after
+import "dotenv/config";
+
+const WEATHER_API_KEY = process.env.WEATHER_API_KEY;
+
+if (!WEATHER_API_KEY) {
+  throw new Error("Missing WEATHER_API_KEY environment variable");
+}
+
+app.get("/weather/:city", async (req, res) => {
+  const response = await fetch(
+    `https://api.openweathermap.org/data/2.5/weather?q=${req.params.city}&appid=${WEATHER_API_KEY}`
+  );
+  const data = await response.json();
+  res.json(data);
+});
+```
+
+Locally, the value lives in a `.env` file that git never sees:
+
+```
+WEATHER_API_KEY=a1b2c3d4e5f6g7h8i9j0
+DATABASE_URL=postgres://user:pass@localhost:5432/mydb
+```
+
+Add `.env` to `.gitignore` immediately — before you add the key, not after. The win isn't abstract: you can rotate a leaked key in one dashboard click with no code change, you can run the exact same image with different secrets for dev/staging/prod, and a public GitHub repo (which this track has had you push to since Tier 1) never leaks a credential. In the cloud, the host's dashboard or CLI injects these same variable names at runtime — your code never changes between "running on my laptop" and "running on the internet."
+
+## Deploying to a free-tier host
+
+Render, Fly.io, and Railway all build and run a container from your Dockerfile for free at small scale. This walkthrough uses Fly.io because it drives directly off the Dockerfile you just wrote, with no dashboard clicking required.
+
+Install the CLI and authenticate:
+
+```bash
+curl -L https://fly.io/install.sh | sh
+fly auth login
+```
+
+From your project root — the one with the Dockerfile in it — run:
+
+```bash
+fly launch --no-deploy
+```
+
+This detects the Dockerfile, asks for an app name and a region, and writes a `fly.toml`:
+
+```toml
+app = "my-tier2-api"
+primary_region = "iad"
+
+[build]
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[vm]]
+  memory = "256mb"
+  cpu_kind = "shared"
+  cpus = 1
+```
+
+`internal_port` must match the port your app actually listens on inside the container (3000 for the Express example). `min_machines_running = 0` is the free-tier tradeoff worth internalizing: your app can scale to zero when nobody's hitting it, so the first request after a quiet period pays a cold-start penalty while a machine boots back up. That's a real, felt consequence of "free," not a bug.
+
+Push your secrets to Fly — never into `fly.toml`, which gets committed:
+
+```bash
+fly secrets set WEATHER_API_KEY=a1b2c3d4e5f6g7h8i9j0 DATABASE_URL=postgres://user:pass@host:5432/mydb
+```
+
+Then deploy:
+
+```bash
+fly deploy
+```
+
+Fly builds your Dockerfile remotely, ships the image, and starts a machine. `fly status` shows whether it's healthy; `fly logs` streams what your app is printing. Once `fly status` shows a running machine, hit the real deployed URL from your phone's browser or from `curl`:
+
+```bash
+curl https://my-tier2-api.fly.dev/health
+```
+
+That response is the actual milestone of this module: code you wrote and tested on `localhost` is now answering requests from the open internet, callable by the mobile app you built earlier in this tier.
+
+## Basic CI with GitHub Actions
+
+One thing is still missing: nothing stops you from pushing broken code straight to the branch that deploys. A minimal CI workflow runs your existing test suite on every push, so broken code gets caught before it reaches `fly deploy`.
+
+Save this as `.github/workflows/test.yml`:
+
+```yaml
+name: Backend Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - run: npm ci
+      - run: npm test
+```
+
+`on.push` and `on.pull_request` say when it fires: every push to `main`, and every pull request targeting `main`. `actions/checkout@v4` pulls your repo onto the runner. `actions/setup-node@v4` installs Node 20 and caches `npm` dependencies between runs. `npm ci` (not `npm install`) installs the exact versions pinned in `package-lock.json` — deterministic, which matters for CI the same way it matters in the Dockerfile. `npm test` runs whatever test command your Tier 2 work already defined.
+
+For the Flask version, swap the steps:
+
+```yaml
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install -r requirements.txt
+      - run: pytest
+```
+
+Push this file and open a pull request against `main` — GitHub shows a status check on the PR within a minute. That's the entire loop this module asks you to close: edit code, push, CI proves the tests still pass, then deploy. Wiring CI to auto-trigger a deploy on green, build multi-stage production images, or run integration tests against a live database service container are the DevOps track's problems to solve properly — here, the point is just that the loop exists and you've felt it run.
+
+## Exercise
+
+Take the actual Express or Flask API from your own Tier 2 project (not a toy example) and do all four of the following for real:
+
+1. Write a working `Dockerfile` and `.dockerignore` for it, and confirm `docker build` + `docker run -p` serves a request locally.
+2. Find one hardcoded secret or config value in that code (an API key, a database URL, a port) and move it to an environment variable, with a `.env` file that's gitignored.
+3. Deploy it to Fly.io, Render, or Railway's free tier, and hit the live URL with `curl` from a terminal that isn't your dev machine (your phone's browser works).
+4. Add a GitHub Actions workflow at `.github/workflows/test.yml` that runs your test suite on every push, and confirm it shows a green check on a real pull request.
+
+**Hint:** if your Tier 2 backend talks to a real database and your tests need one, don't try to stand up Postgres in CI yet — point your tests at SQLite or an in-memory substitute for now. Making CI talk to a real database service container is explicitly a DevOps-track topic; sidestepping it here is the correct scope call, not a shortcut you'll regret.

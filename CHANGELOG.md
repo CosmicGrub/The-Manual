@@ -487,3 +487,14 @@ All notable changes to The Manual (curriculum + app) are logged here. This file 
 **Result:** `npm run build` passed clean — 208 pages, 191 unique slugs verified repo-wide.
 
 **Status:** Platforms Tier 2 complete (97h, 5 lessons). Platforms is now 3/6 tiers content-complete (Tiers 0-2, 189h); Tiers 3-5 remain.
+
+## [0.38.0] — 2026-10-03 — Platforms Tier 3: complete (genuinely native, real codebases, real cloud)
+
+**Context:** Continuing the tier-by-tier pattern. This is the tier where cross-platform tradeoffs stop being trivia — the same kind of app gets built natively in Swift, natively in Kotlin, and in whichever cross-platform framework wasn't used back in Tier 2, with each module explicitly told to contrast against its siblings rather than teach in isolation.
+
+**Added**
+- `content/platforms/tier-3/*.mdx` (6 files) + matching quizzes: Native iOS with Swift & SwiftUI (value vs. reference semantics shown concretely with a struct/class pair, optional chaining and nil-coalescing), Native Android with Kotlin & Jetpack Compose (deliberately paralleling the SwiftUI module's state model), Cross-Platform Deep Dive: React Native vs. Flutter Architecture (the bridge/JSI vs. Skia/Impeller rendering contrast), Desktop Beyond Electron (.NET MAUI or Qt, contrasted against Tier 2's own Electron work), Reading & Contributing to Real Codebases (scoped to mobile/web app codebases specifically), Cloud Basics for App Backends (deploying Tier 2's own Express/Flask API, scoped away from DevOps' deeper Docker/CI theory).
+
+**Result:** `npm run build` passed clean — 214 pages, 197 unique slugs verified repo-wide.
+
+**Status:** Platforms Tier 3 complete (170h, 6 lessons). Platforms is now 4/6 tiers content-complete (Tiers 0-3, 359h); Tiers 4-5 remain.

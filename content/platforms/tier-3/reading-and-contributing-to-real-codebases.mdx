@@ -1,0 +1,246 @@
+---
+trackId: platforms
+tier: 3
+title: "Reading & Contributing to Real Codebases"
+order: 5
+estimatedHours: 15
+slug: reading-and-contributing-to-real-codebases
+---
+
+## Scope: mobile/web codebases, not OSS process in general
+
+This module is not about how open source works in general — CLAs, licensing, commit message conventions, squash-vs-merge policy, and the social mechanics of maintainership are covered elsewhere in this curriculum. This module is about one narrower, very practical skill: dropping into a real React Native or Flutter codebase you did not write, finding your footing, tracing a feature to where it actually does work, and landing a PR that survives review. That skill does not transfer cleanly from "I know how git works" — it is specific to how mobile/web apps are structured.
+
+It also assumes something concrete: back in Tier 2 you picked a cross-platform framework (React Native or Flutter) and shipped something small in it. This module is that same ecosystem, except the codebase is ten or a hundred times larger, nobody wrote it for you to learn from, and you don't get to design the architecture — you have to recover it by reading.
+
+## Orienting yourself in an unfamiliar app
+
+Clone something real and mid-size. Two good targets: [Expensify/App](https://github.com/Expensify/App) (React Native, TypeScript) and [immich-app/immich](https://github.com/immich-app/immich) (the `mobile/` directory is Flutter). Both are production apps with real users, real "good first issue" labels, and real PR review.
+
+```bash
+git clone https://github.com/Expensify/App.git
+cd App
+cat package.json | head -30
+```
+
+Resist the urge to read the tree top to bottom. A mid-size app has thousands of files; reading them in alphabetical order teaches you nothing about how they relate. Instead, learn the skeleton first:
+
+- `src/pages/` — screen-level components, one subfolder per feature area. This is "what the user sees."
+- `src/components/` — shared, reusable UI pieces used across multiple pages.
+- `src/libs/` — business logic: pure functions, formatting, validation.
+- `src/libs/actions/` — the functions that actually mutate app state and talk to the server.
+- `src/ONYXKEYS.ts` — the single registry of every key in the app's state store. If you want to know what state exists, this file is the index.
+
+Expensify's app uses its own state layer, Onyx (an offline-first key/value pub-sub store, not Redux), but the shape — screens, shared components, a business-logic layer, a central registry of what state exists — is the shape you'll find in almost any mid-size RN app, just with different names.
+
+The Flutter equivalent in `immich/mobile/lib/`:
+
+- `pages/` — screens, same role as React Native's `pages/`.
+- `widgets/` — shared components.
+- `providers/` — Riverpod providers, the state-management layer.
+- `services/` and `repositories/` — business logic and the actual network/database calls.
+
+Once you know the skeleton, the fastest way to find a specific feature is not "jump to definition" — it's text search for something only a human would type. UI copy is unique and unminified in source, unlike a variable name that might be reused fifty times:
+
+```bash
+rg "Mark as unread" src/
+# src/pages/home/report/ContextMenu/ContextMenuActions.ts:142:    text: 'Mark as unread',
+```
+
+One match, straight to the exact file. This is a genuinely different habit than the one you built in the SwiftUI and Android modules earlier in this tier. In an Xcode or Android Studio project, "jump to definition" works reliably because the whole codebase compiles through one IDE-integrated type-checker, and the project navigator already groups files by target. In a huge JS/TS or Dart tree opened in a general editor, jump-to-definition can time out, resolve to a type declaration instead of an implementation, or get confused by path aliases — so text search over exact, human-written strings is often faster than semantic navigation. That's a direct, felt cross-platform tradeoff, not a theoretical one.
+
+It's also a different seam than the one you crossed in Tier 2's Electron work. Electron splits a codebase into a main process (Node, OS access) and a renderer process (a web page), so "where does this feature live" starts with "which process owns it." React Native has one JS thread talking to native modules over a bridge; Flutter has one Dart tree talking to platform channels. Three different cross-platform architectures, three different first questions to ask when orienting yourself — but the same underlying move: find the seam, then search within the side that owns the UI.
+
+## Tracing a feature end-to-end
+
+Pick one feature and follow it from the tap to the actual work. Here's "mark a report as unread" traced through Expensify's React Native + Onyx stack:
+
+```tsx
+// src/pages/home/report/ReportActionContextMenu.tsx
+import * as Report from '@libs/actions/Report';
+
+<MenuItem
+    title="Mark as unread"
+    icon={Expensicons.Mail}
+    onPress={() => Report.markCommentAsUnread(report.reportID, reportAction.reportActionID)}
+/>
+```
+
+```ts
+// src/libs/actions/Report.ts
+import Onyx from 'react-native-onyx';
+import ONYXKEYS from '@src/ONYXKEYS';
+import * as API from '@libs/API';
+
+function markCommentAsUnread(reportID: string, reportActionID: string) {
+    // optimistic local write — the UI updates before the network call resolves
+    Onyx.merge(`${ONYXKEYS.COLLECTION.REPORT}${reportID}`, {lastReadTime: ''});
+
+    // tell the server, queued and replayed automatically if offline
+    API.write('MarkAsUnread', {reportID, reportActionID});
+}
+```
+
+```tsx
+// src/pages/home/sidebar/OptionRowLHN.tsx
+import {useOnyx} from 'react-native-onyx';
+import ONYXKEYS from '@src/ONYXKEYS';
+
+function OptionRowLHN({reportID}: Props) {
+    const [report] = useOnyx(`${ONYXKEYS.COLLECTION.REPORT}${reportID}`);
+    const isUnread = !report?.lastReadTime;
+    return <Text style={isUnread && styles.bold}>{report?.reportName}</Text>;
+}
+```
+
+The chain: a menu item's `onPress` calls an action creator; the action creator writes to the store and separately enqueues a network call; any component subscribed to that same key — here, a totally different file in `pages/home/sidebar/` — re-renders automatically. Nobody passed props down three levels and nobody dispatched an event by hand. The actual "work" isn't in the component at all — it's in `Onyx.merge` and `API.write`.
+
+The same shape, in Flutter + Riverpod, tracing "toggle favorite" on a photo:
+
+```dart
+// lib/widgets/asset_viewer/favorite_button.dart
+class FavoriteButton extends ConsumerWidget {
+  final Asset asset;
+  const FavoriteButton({required this.asset, super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isFavorite = ref.watch(assetProvider(asset.id))?.isFavorite ?? false;
+    return IconButton(
+      icon: Icon(isFavorite ? Icons.favorite : Icons.favorite_border),
+      onPressed: () => ref.read(assetProvider(asset.id).notifier).toggleFavorite(),
+    );
+  }
+}
+```
+
+```dart
+// lib/providers/asset.provider.dart
+class AssetNotifier extends StateNotifier<Asset?> {
+  final AssetRepository _repository;
+  AssetNotifier(this._repository, Asset asset) : super(asset);
+
+  Future<void> toggleFavorite() async {
+    final updated = state!.copyWith(isFavorite: !state!.isFavorite);
+    state = updated; // optimistic update, triggers rebuild of every watcher
+    await _repository.updateFavoriteStatus(updated.id, updated.isFavorite);
+  }
+}
+
+final assetProvider = StateNotifierProvider.family<AssetNotifier, Asset?, String>(
+  (ref, id) => AssetNotifier(ref.watch(assetRepositoryProvider), ref.watch(assetByIdProvider(id))!),
+);
+```
+
+```dart
+// lib/repositories/asset.repository.dart
+class AssetRepository {
+  final ApiService _api;
+  final AssetDatabase _db;
+  AssetRepository(this._api, this._db);
+
+  Future<void> updateFavoriteStatus(String id, bool isFavorite) async {
+    await _db.updateAsset(id, isFavorite: isFavorite); // local cache (Isar/Drift)
+    await _api.updateAsset(id, UpdateAssetDto(isFavorite: isFavorite)); // server
+  }
+}
+```
+
+`IconButton` → notifier method → optimistic state → repository → local DB write and API call. `StateNotifierProvider.family` scoping by asset id plays the same role as Onyx's `${ONYXKEYS.COLLECTION.REPORT}${reportID}` key templating. Whether the app uses Onyx, Redux Toolkit, Riverpod, Provider, or Bloc, the transferable skill is recognizing this three-layer shape — presentation triggers an action, state management applies an optimistic change and notifies subscribers, a data layer does the real network/disk work — and knowing which file to open next at each handoff.
+
+## Finding a good first issue in a mobile/web app
+
+Not every "good first issue" label is honest. In a mobile app specifically, what makes an issue genuinely tractable for a newcomer:
+
+- **Scoped to one screen or component file.** You can hold the whole change in your head.
+- **Reproducible on a simulator**, with no physical device, special hardware permission (camera, push notifications, Bluetooth), or paid backend account required.
+- **Has a screenshot or a clear expected-vs-actual description**, not just "this feels off."
+- **Stays inside the JS/TS or Dart tree.** It does not require touching `android/`, `ios/`, Gradle files, or a Podfile — native-bridge changes are a different skill with a much higher setup cost.
+- **Isn't a race condition or flaky-test fix.** Those require understanding timing and concurrency the rest of the codebase, which is not a first issue.
+
+A real example of a tractable one: "On Android, the floating action button's shadow is invisible; on iOS it looks like a flat gray square instead of a soft shadow." The cause, once you look, is almost always this:
+
+```jsx
+const styles = StyleSheet.create({
+  fab: {
+    backgroundColor: '#6C5CE7',
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+  },
+});
+```
+
+`shadowColor`, `shadowOpacity`, and `shadowRadius` are iOS-only style props in React Native; Android renders elevation through a separate `elevation` property entirely. This is a one-file fix, visually verifiable on both platforms' simulators in under a minute, and doesn't touch a single native project file — which is exactly the profile of a good first issue.
+
+Contrast with a non-tractable one: "App crashes intermittently on Android 12 only, right after tapping a push notification to return from background." That needs a physical device or a specific emulator image, notification-permission setup, reading native crash logs (logcat/Crashlytics), and possibly Kotlin code in `android/app/src/main` — it crosses from the JS/Dart layer into the native bridge, which is a different, harder job.
+
+## Opening a PR and surviving review
+
+Fix the FAB shadow bug with a platform-conditional style:
+
+```jsx
+import {Platform, StyleSheet} from 'react-native';
+
+const styles = StyleSheet.create({
+  fab: {
+    backgroundColor: '#6C5CE7',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: {width: 0, height: 2},
+        shadowOpacity: 0.25,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 6,
+      },
+    }),
+  },
+});
+```
+
+Open the PR with before/after screenshots from both the iOS and Android simulators — a reviewer usually can't run both themselves, so the screenshots are your proof the fix actually works on each platform, not just one. Link the issue: "Fixes #1423".
+
+A real reviewer comment on a change like this: *"We already have a `shadowStyles.card` token in `src/styles/shadows.ts` — can you use that instead of hardcoding the shadow values here, so this stays in sync with the rest of the app?"*
+
+The right response is a new commit, not an amended force-push: an open PR's review comments are often anchored to specific lines in a specific commit, and GitHub/GitLab mark a diff "outdated" rather than losing it when you push on top — rewriting history mid-review destroys that context for no benefit. Push the fix, reply to the thread explaining what changed, re-request review:
+
+```jsx
+import {shadowStyles} from '@styles/shadows';
+
+const styles = StyleSheet.create({
+  fab: {
+    backgroundColor: '#6C5CE7',
+    ...Platform.select({
+      ios: shadowStyles.card,
+      android: {elevation: 6},
+    }),
+  },
+});
+```
+
+If the repo also ships to web via `react-native-web`, check whether `Platform.OS === 'web'` needs its own branch too — two platform cases can quietly become three.
+
+The Flutter equivalent of this review conversation looks slightly different. A naive platform check:
+
+```dart
+import 'dart:io' show Platform;
+
+BoxShadow? get cardShadow =>
+    Platform.isIOS ? const BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2)) : null;
+```
+
+A Flutter reviewer will often push back on `dart:io`'s `Platform.isIOS` specifically, and ask for `defaultTargetPlatform` (or `Theme.of(context).platform`) instead — because `defaultTargetPlatform` can be overridden in a widget test, so the conditional behavior stays testable on CI without conditional compilation tricks. That's a mobile-app-specific review concern you won't encounter reviewing a plain web PR, and it's the kind of thing that only shows up once you've had a real reviewer ask for it.
+
+The mechanics around all of this — branch naming, conventional commit messages, CLAs, squash-vs-merge policy — are general open-source process and are covered in this curriculum's dedicated contribution module. What's specific to mobile/web review, and what this module is actually teaching, is the substance above: proving a fix on both platforms, choosing the right platform-conditional API, and iterating with commits instead of rewrites while a review is live.
+
+## Exercise
+
+Clone `immich-app/immich`, `flutter/samples`, or `Expensify/App`. Find an issue closed in the last six months that was labeled "good first issue." Before opening the merged PR's diff, read only the issue description and any attached screenshot, and write down which 2-3 files you'd expect the fix to touch, based on the orientation technique from this module (find the screen name, grep for visible UI text).
+
+Then open the diff and check yourself. Were you close? If not, figure out why — did the actual fix live in a shared component you didn't know existed, or in a utility file the UI text search wouldn't have found?
+
+Finally, go find a currently open "good first issue" in the same repo and trace its feature path end-to-end, the way section two did above, writing down the full call chain from UI entry point to the line of code that actually performs the work — network call, database write, or otherwise. You don't have to submit a fix. The goal is the trace.
+
+**Hint:** if the issue has no screenshot, check whether it references a string the UI actually displays (an error message, a button label, a screen title). Grep for that string first — it is almost always faster than guessing a folder based on the issue's category label.

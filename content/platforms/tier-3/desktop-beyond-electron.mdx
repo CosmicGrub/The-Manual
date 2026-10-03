@@ -1,0 +1,312 @@
+---
+trackId: platforms
+tier: 3
+title: "Desktop Beyond Electron: .NET MAUI or Qt"
+order: 4
+estimatedHours: 25
+slug: desktop-beyond-electron
+---
+
+## Beyond the browser you already shipped
+
+In Tier 2 of this track you built a desktop app with Electron: HTML/CSS/JS wrapped in a bundled Chromium renderer plus a Node.js runtime, shipped as its own private copy of a browser. That got you a real desktop app fast, with the web skills you already had. It also cost you something specific: every Electron app, no matter how small, drags along a full Chromium process and a Node runtime. A "Hello World" Electron app routinely sits at 80-120MB of idle RAM and a 150MB+ installer, because you are not running *a* browser, you are shipping *your own* browser, just to render a button.
+
+This module is about the other way to build desktop software: toolkits that render through the operating system's real UI layer (or close to it) instead of a bundled browser engine. You'll contrast two production-grade options — .NET MAUI and Qt — against each other and against the Electron approach you already know firsthand, build a real MVVM app with data binding, and package it for actual distribution.
+
+## What "native-ish" actually buys you
+
+Neither .NET MAUI nor Qt is "literally the OS's own widgets" in the same sense everywhere, and the differences matter enough to spell out precisely:
+
+**.NET MAUI** uses a *handler* architecture: a MAUI `Button` in your C#/XAML is a cross-platform abstraction that maps, at runtime, to the actual native control class on each platform — a `UIButton` on iOS, a `Button` from WinUI 3 on Windows, a `Button` view on Android. There is no custom rendering engine drawing a button that looks like a button; the OS is drawing its own real control. This is the strongest "native" claim of the three.
+
+**Qt** is more nuanced and splits into two UI stacks:
+- **Qt Widgets** (the older stack) does *not* embed real OS controls. It custom-paints every widget itself, using `QStyle` plugins tuned to match each platform's look (Fusion, Windows, macOS styles). It gets window chrome, menus, and file dialogs from the real OS, but the button itself is Qt's own pixels made to resemble the platform's button.
+- **Qt Quick (QML)** throws out platform mimicry entirely and renders through its own GPU-accelerated scene graph (OpenGL/Metal/Vulkan/software fallback) — fully custom UI, which is why it's the default choice for dashboards, infotainment, and branded product UI where you *don't* want platform chrome.
+
+**Electron**, for contrast, renders everything — buttons, text, layout — as a web page inside Chromium's layout and paint engine. Nothing is native; the entire UI is HTML/CSS composited by a browser engine you're carrying as a dependency.
+
+The resource numbers track this directly. A minimal Qt Widgets app, compiled and dynamically linked against Qt's shared libraries, typically idles around 15-25MB of RAM with a binary a few megabytes in size. A minimal .NET MAUI app on Windows idles higher — roughly 30-50MB — because you're also carrying the .NET runtime (less if you publish trimmed and AOT-compiled, which you can on MAUI). Electron's 80-120MB idle floor is the toll for shipping a browser. None of these numbers are exotic; open Task Manager or Activity Monitor on a shipped app of each kind and you'll see this pattern reliably. The gap compounds in installer size too: a self-contained MAUI Windows app with trimming can land around 25-40MB; a comparable Qt app a few MB if you rely on system-installed Qt libraries, tens of MB if you statically link; Electron apps routinely ship 100-150MB+ because Chromium alone is most of that weight.
+
+None of this makes Electron wrong — it's still the fastest path from "I know JS" to "shipped desktop app," which is exactly why Tier 2 used it. But now that you've felt both sides, you can make the toolkit choice on real tradeoffs: Electron for web-skill reuse and the richest cross-platform web UI ecosystem; MAUI when you want real .NET and literal native controls and you're comfortable mostly targeting Windows/macOS (plus mobile) with Microsoft's stack; Qt when you want the smallest footprint, true C++ performance, and you're fine investing in a different language and a different widget/binding idiom.
+
+## MVVM: the pattern, for real this time
+
+Earlier this tier, in the Android module, you used `androidx.lifecycle.ViewModel` to pull state and logic out of your Activity/Fragment/Compose screen, exposing `LiveData`/`StateFlow` that the UI observed. That *is* MVVM: a Model holds data, a ViewModel holds state and behavior and knows nothing about any specific UI widget, and a View binds to the ViewModel and re-renders when it changes. .NET MAUI and Qt both implement the same pattern, with different plumbing.
+
+### .NET MAUI: `ObservableObject` + data binding
+
+MAUI's binding system relies on `INotifyPropertyChanged`. The CommunityToolkit.Mvvm package generates that boilerplate for you with source generators:
+
+```csharp
+// Models/TaskItem.cs
+namespace DeskTasks.Models;
+
+public class TaskItem
+{
+    public string Title { get; set; } = string.Empty;
+    public bool IsDone { get; set; }
+}
+```
+
+```csharp
+// ViewModels/TaskListViewModel.cs
+using System.Collections.ObjectModel;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using DeskTasks.Models;
+
+namespace DeskTasks.ViewModels;
+
+public partial class TaskListViewModel : ObservableObject
+{
+    public ObservableCollection<TaskItem> Tasks { get; } = new();
+
+    [ObservableProperty]
+    private string newTaskText = string.Empty;
+
+    [ObservableProperty]
+    private int pendingCount;
+
+    [RelayCommand]
+    private void AddTask()
+    {
+        if (string.IsNullOrWhiteSpace(NewTaskText))
+            return;
+
+        Tasks.Add(new TaskItem { Title = NewTaskText });
+        NewTaskText = string.Empty;
+        RecalculatePending();
+    }
+
+    [RelayCommand]
+    private void ToggleDone(TaskItem item)
+    {
+        item.IsDone = !item.IsDone;
+        RecalculatePending();
+    }
+
+    private void RecalculatePending() =>
+        PendingCount = Tasks.Count(t => !t.IsDone);
+}
+```
+
+`[ObservableProperty]` on `newTaskText` generates a public `NewTaskText` property that raises `PropertyChanged` on every set — the same notification contract `LiveData`/`StateFlow` give you on Android, just expressed as an interface event instead of an observable stream. `[RelayCommand]` generates an `ICommand` (`AddTaskCommand`) the view can bind a button to, so the view never needs a click handler in code-behind.
+
+The view binds declaratively in XAML — no manual "read the value, set the label" code anywhere:
+
+```xml
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:DeskTasks.ViewModels"
+             x:Class="DeskTasks.Views.TaskListPage"
+             x:DataType="vm:TaskListViewModel">
+
+    <VerticalStackLayout Padding="20" Spacing="12">
+        <Label Text="{Binding PendingCount, StringFormat='{0} pending'}" FontSize="18"/>
+
+        <HorizontalStackLayout Spacing="8">
+            <Entry Placeholder="New task" Text="{Binding NewTaskText}" WidthRequest="260"/>
+            <Button Text="Add" Command="{Binding AddTaskCommand}"/>
+        </HorizontalStackLayout>
+
+        <CollectionView ItemsSource="{Binding Tasks}">
+            <CollectionView.ItemTemplate>
+                <DataTemplate>
+                    <HorizontalStackLayout Spacing="10" Padding="4">
+                        <CheckBox IsChecked="{Binding IsDone}"/>
+                        <Label Text="{Binding Title}"/>
+                    </HorizontalStackLayout>
+                </DataTemplate>
+            </CollectionView.ItemTemplate>
+        </CollectionView>
+    </VerticalStackLayout>
+</ContentPage>
+```
+
+Register the ViewModel for injection in `MauiProgram.cs`:
+
+```csharp
+builder.Services.AddSingleton<TaskListViewModel>();
+builder.Services.AddSingleton<TaskListPage>();
+```
+
+### Qt's version of the same idea
+
+Qt doesn't enforce MVVM by convention the way MAUI/WPF do; its native idiom is **Model/View**, built on `QAbstractItemModel` subclasses, with QML or widgets as the View. To get MVVM-style binding you expose a C++ object's properties to QML and let QML bind to them directly — conceptually the same ViewModel role, different notification mechanism (Qt's signal/slot system instead of `INotifyPropertyChanged`):
+
+```cpp
+// taskmodel.h
+#pragma once
+#include <QAbstractListModel>
+#include <QList>
+#include <QString>
+
+struct Task { QString title; bool done; };
+
+class TaskModel : public QAbstractListModel {
+    Q_OBJECT
+    Q_PROPERTY(int pendingCount READ pendingCount NOTIFY pendingCountChanged)
+
+public:
+    enum Roles { TitleRole = Qt::UserRole + 1, DoneRole };
+    explicit TaskModel(QObject *parent = nullptr) : QAbstractListModel(parent) {}
+
+    int rowCount(const QModelIndex & = {}) const override { return m_tasks.size(); }
+
+    QVariant data(const QModelIndex &index, int role) const override {
+        const auto &t = m_tasks.at(index.row());
+        if (role == TitleRole) return t.title;
+        if (role == DoneRole) return t.done;
+        return {};
+    }
+
+    bool setData(const QModelIndex &index, const QVariant &value, int role) override {
+        if (role != DoneRole) return false;
+        m_tasks[index.row()].done = value.toBool();
+        emit dataChanged(index, index, {DoneRole});
+        emit pendingCountChanged();
+        return true;
+    }
+
+    QHash<int, QByteArray> roleNames() const override {
+        return { {TitleRole, "title"}, {DoneRole, "done"} };
+    }
+
+    int pendingCount() const {
+        int n = 0;
+        for (const auto &t : m_tasks) if (!t.done) ++n;
+        return n;
+    }
+
+    Q_INVOKABLE void addTask(const QString &title) {
+        beginInsertRows(QModelIndex(), m_tasks.size(), m_tasks.size());
+        m_tasks.push_back({title, false});
+        endInsertRows();
+        emit pendingCountChanged();
+    }
+
+signals:
+    void pendingCountChanged();
+
+private:
+    QList<Task> m_tasks;
+};
+```
+
+```qml
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
+
+ApplicationWindow {
+    width: 360; height: 480; visible: true
+
+    ColumnLayout {
+        anchors.fill: parent
+        anchors.margins: 20
+        spacing: 12
+
+        Label { text: taskModel.pendingCount + " pending"; font.pixelSize: 18 }
+
+        RowLayout {
+            TextField { id: input; placeholderText: "New task"; Layout.preferredWidth: 220 }
+            Button {
+                text: "Add"
+                onClicked: { taskModel.addTask(input.text); input.text = "" }
+            }
+        }
+
+        ListView {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            model: taskModel
+            delegate: RowLayout {
+                CheckBox { checked: model.done; onToggled: model.done = checked }
+                Label { text: model.title }
+            }
+        }
+    }
+}
+```
+
+```cpp
+int main(int argc, char *argv[]) {
+    QGuiApplication app(argc, argv);
+    QQmlApplicationEngine engine;
+
+    TaskModel taskModel;
+    engine.rootContext()->setContextProperty("taskModel", &taskModel);
+    engine.load(QUrl(u"qrc:/Main.qml"_qs));
+    return app.exec();
+}
+```
+
+Same pattern, different notification wiring: MAUI's `PropertyChanged` event vs. Qt's `Q_PROPERTY`/`NOTIFY` signal and role-based `dataChanged()`. Once you've written the Android ViewModel, the MAUI ViewModel, and this Qt model, you've now implemented "separate state/logic from UI, notify the UI on change" four different ways across this track (Android, Tier 2's framework choice, MAUI, Qt) — which is the actual point: the pattern survives the toolkit.
+
+## Packaging and distribution, for real
+
+A dev build that only runs from your IDE isn't a shipped app. Each toolkit has its own path to an installable artifact.
+
+**.NET MAUI → Windows (MSIX):** set the target framework to a Windows SDK and publish self-contained:
+
+```xml
+<!-- DeskTasks.csproj, inside the existing <PropertyGroup> -->
+<WindowsPackageType>MSIX</WindowsPackageType>
+<WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+```
+
+```bash
+dotnet publish -f net8.0-windows10.0.19041.0 -c Release \
+  -p:WindowsPackageType=MSIX -p:PublishTrimmed=true
+```
+
+This produces a signed-ready `.msix` package with its manifest declared in `Package.appxmanifest` — identity, capabilities, icons — installable via double-click or sideload, or submittable to the Microsoft Store.
+
+**Qt → Windows/macOS/Linux in one CMake config, via CPack:**
+
+```cmake
+# CMakeLists.txt
+cmake_minimum_required(VERSION 3.21)
+project(DeskTasks LANGUAGES CXX)
+
+find_package(Qt6 REQUIRED COMPONENTS Quick)
+qt_add_executable(DeskTasks main.cpp taskmodel.h)
+qt_add_qml_module(DeskTasks URI DeskTasks VERSION 1.0 QML_FILES Main.qml)
+target_link_libraries(DeskTasks PRIVATE Qt6::Quick)
+
+install(TARGETS DeskTasks RUNTIME DESTINATION bin BUNDLE DESTINATION .)
+
+include(InstallRequiredSystemLibraries)
+set(CPACK_PACKAGE_NAME "DeskTasks")
+set(CPACK_PACKAGE_VERSION "1.0.0")
+
+if(WIN32)
+  set(CPACK_GENERATOR "NSIS")
+elseif(APPLE)
+  set(CPACK_GENERATOR "DragNDrop")
+elseif(UNIX)
+  set(CPACK_GENERATOR "DEB;TGZ")
+  set(CPACK_DEBIAN_PACKAGE_MAINTAINER "you@example.com")
+endif()
+
+include(CPack)
+```
+
+```bash
+cmake --install build --prefix out
+cpack --config build/CPackConfig.cmake
+```
+
+On Windows that `cpack` run emits an NSIS `.exe` installer; on macOS, a `.dmg` built via `DragNDrop` (you'll still need `macdeployqt` beforehand to bundle Qt's frameworks into the `.app`, and Apple notarization before Gatekeeper will let a downloaded copy run without a warning); on Linux, a `.deb` plus a `.tar.gz`. For a distro-agnostic Linux artifact, `linuxdeploy` plus the AppImage plugin wraps the same binary and its Qt libraries into a single executable `.AppImage` file that runs without an install step.
+
+Code signing and notarization specifics, and setting any of this up as an automated CI pipeline that builds all three targets on every tag, belong to the DevOps material elsewhere in the curriculum — here, know that `dotnet publish` and `cpack` are the commands that actually produce the artifact; signing wraps around them afterward.
+
+## Exercise
+
+Take the `TaskListViewModel` MAUI example above and add a "Clear completed" feature:
+
+1. Add a `[RelayCommand]` method `ClearCompleted()` that removes every `TaskItem` where `IsDone == true` from `Tasks`.
+2. Add a bound `Button` in the XAML, visible only when `PendingCount < Tasks.Count` (hint: you'll want a second observable property, or a computed one that recalculates alongside `PendingCount`, since plain MAUI bindings don't recompute from expressions automatically — `CanExecute` on the command is one clean way to gate this without a second property).
+3. Port the same feature to the Qt example: add a `Q_INVOKABLE void clearCompleted()` to `TaskModel` that removes done rows (you'll need `beginRemoveRows`/`endRemoveRows` around the mutation, not just `dataChanged`), and a QML `Button` calling it.
+
+Don't look up the MAUI `CanExecute` syntax from a tutorial first — try wiring it from what `[RelayCommand]` already generates, then check the CommunityToolkit.Mvvm docs only if the command never seems to re-evaluate.

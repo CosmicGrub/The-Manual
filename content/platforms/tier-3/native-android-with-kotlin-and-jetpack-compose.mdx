@@ -1,0 +1,292 @@
+---
+trackId: platforms
+tier: 3
+title: "Native Android with Kotlin & Jetpack Compose"
+order: 2
+estimatedHours: 40
+slug: native-android-with-kotlin-and-jetpack-compose
+---
+
+## Where this lands
+
+You've just spent 40 hours going properly native on iOS: Swift's optionals and structs, SwiftUI's `@State`/`@Binding`/`@ObservedObject`, and a TestFlight submission. This module is the same depth, on the other OS. The goal isn't "learn Android" as a checklist — it's to feel, concretely, where Kotlin and Jetpack Compose rhyme with Swift and SwiftUI and where they genuinely don't, because that felt contrast is what Tier 4's "native vs. cross-platform, per feature" reasoning will later be built on. It's also the same comparison your Tier 2 React Native/Flutter module was already warming you up for: "UI = f(state), rendered to a different backend" is now a pattern you've seen four times.
+
+By the end you'll have a Compose screen backed by a `ViewModel`, a lifecycle bug you caused and fixed on purpose, a real runtime permission request, and an `.aab` sitting in Play Console's internal testing track with a tester actually installing it on their phone.
+
+## Kotlin essentials
+
+### Null safety: the safe-call and Elvis operators
+
+Swift has `Optional<T>` and `?`/`!`. Kotlin has the same idea baked directly into the type system: `String` and `String?` are *different types*, and the compiler refuses to let you call a method on the nullable one without proving it's safe.
+
+```kotlin
+data class User(val name: String, val email: String?)
+
+fun describeUser(user: User): String {
+    // Safe call: if user.email is null, the whole expression short-circuits to null
+    // instead of crashing, and .uppercase() never runs.
+    val shoutedEmail = user.email?.uppercase()
+
+    // Elvis operator: "use shoutedEmail, unless it's null, then use this fallback instead."
+    return "${user.name}: ${shoutedEmail ?: "NO EMAIL ON FILE"}"
+}
+
+fun main() {
+    println(describeUser(User("Dana Reyes", "dana@example.com")))
+    // Dana Reyes: DANA@EXAMPLE.COM
+    println(describeUser(User("Sam Okafor", null)))
+    // Sam Okafor: NO EMAIL ON FILE
+}
+```
+
+Try `user.email.uppercase()` without the `?.` and it won't compile — "Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver type." That's the whole point: a `NullPointerException` becomes a compile-time error instead of a runtime crash a QA tester finds for you. `!!` exists (force-unwrap, exactly like Swift's `!`) and it crashes exactly as hard if you're wrong — use `?:` or `?.` by default and reach for `!!` only when you can prove the value can't be null at that point.
+
+### Data classes
+
+A Kotlin `data class` is the rough equivalent of a Swift `struct` conforming to `Equatable` plus free `CustomStringConvertible`-style printing — the compiler generates `equals()`, `hashCode()`, `toString()`, and a `copy()` method for you from the constructor properties:
+
+```kotlin
+data class Exercise(val name: String, val targetSets: Int, val setsCompleted: Int = 0)
+
+fun main() {
+    val pushups = Exercise(name = "Push-ups", targetSets = 3)
+    val updated = pushups.copy(setsCompleted = 1) // copy() clones + overrides just one field
+    println(pushups)   // Exercise(name=Push-ups, targetSets=3, setsCompleted=0)
+    println(updated)   // Exercise(name=Push-ups, targetSets=3, setsCompleted=1)
+    println(pushups == updated) // false — equals() compares all properties
+}
+```
+
+You'll use `data class` for almost everything that models state in this module: it's the natural shape for what you hand into a Composable or store in a `ViewModel`.
+
+### A real coroutine: `suspend fun` and `launch`
+
+Kotlin coroutines solve the same problem Swift's `async`/`await` solves: running something that takes time (a network call, a disk read) without blocking the thread that's drawing your UI. A function marked `suspend` can pause and resume without blocking:
+
+```kotlin
+suspend fun fetchUser(id: String): User {
+    delay(1200) // suspends this coroutine for 1.2s — does NOT block the thread
+    return User(name = "Dana Reyes", email = "dana@example.com")
+}
+```
+
+`delay()` is itself `suspend`, which is why you can only call it from inside another `suspend` function or a coroutine. You can't call a `suspend` function from ordinary code — you need a coroutine to run it in, and `launch` starts one:
+
+```kotlin
+class UserViewModel : ViewModel() {
+    var user by mutableStateOf<User?>(null)
+        private set
+
+    fun loadUser(id: String) {
+        viewModelScope.launch {   // starts a coroutine tied to this ViewModel's lifetime
+            user = fetchUser(id)  // suspends here, UI thread stays free the whole time
+        }
+    }
+}
+```
+
+`viewModelScope` is a `CoroutineScope` the Android libraries give every `ViewModel` for free; it automatically cancels anything still running inside `launch` when the `ViewModel` is destroyed, so you don't leak a network call updating state nobody can see anymore. That's the direct Kotlin-side equivalent of Swift's structured concurrency guarantees around `Task` cancellation — different API, same promise: work tied to a scope that goes away gets cleaned up with it.
+
+## Jetpack Compose: `@Composable` and recomposition
+
+A `@Composable` function is Compose's unit of UI, the same role a SwiftUI `View` struct's `body` plays. Here's a real one:
+
+```kotlin
+@Composable
+fun CounterScreen() {
+    var count by remember { mutableStateOf(0) }
+
+    Column {
+        Greeting()
+        Text("Count: $count")
+        Button(onClick = { count++ }) {
+            Text("Increment")
+        }
+    }
+}
+
+@Composable
+fun Greeting() {
+    println("Greeting composed")
+    Text("Hello!")
+}
+```
+
+`remember { mutableStateOf(0) }` creates a `State<Int>` object that survives recomposition (without `remember`, a plain `var` would be reset to its initial value every time the function re-runs). Tapping the button mutates `count`, and Compose schedules a **recomposition**: it re-runs the `@Composable` functions that actually *read* `count`.
+
+That's the concrete part most explanations skip: **what triggers recomposition is reading a `State` object during composition, inside the scope that gets re-run.** `Text("Count: $count")` reads `count`, so it recomposes every tap. `Greeting()` never reads `count` — it's a sibling inside the same `Column`, but Compose tracks reads per call site, not per parent. Run this for real and `"Greeting composed"` prints exactly once, not on every click, because Compose's smart recomposition skips `Greeting()` entirely.
+
+Now contrast that with your SwiftUI module. In SwiftUI, mutating an `@State` property marks the *entire view struct's* `body` as needing to re-execute — `body` is one computed property, and when it reruns, every `Text`/`VStack`/subview call inside it gets re-evaluated as Swift code (SwiftUI then diffs the resulting view *values* to decide what actually repaints). Compose's granularity is finer: it's not "rerun this function's body," it's "rerun only the individual composable calls that read the state that changed," which is why a sibling composable that never touches `count` can be skipped outright rather than merely diffed away after being re-evaluated.
+
+Here's what does **not** trigger recomposition, concretely — a broken version of the same counter:
+
+```kotlin
+@Composable
+fun BrokenCounter() {
+    var count = 0 // plain Int var — NOT a Compose State object
+
+    Column {
+        Text("Count: $count")
+        Button(onClick = { count++ }) { Text("Increment") }
+    }
+}
+```
+
+Tap this button and nothing happens on screen. `count` really does increment in memory, but Compose has no idea — it only reschedules recomposition for `State`/`MutableState` objects it's tracking via the snapshot system. A plain `var` mutated inside a lambda is invisible to it. This is the single most common first bug Android beginners hit in Compose, and now you know exactly why it happens: no `remember`/`mutableStateOf`, no observed write, no recomposition.
+
+## ViewModel and state hoisting
+
+`remember` only survives recomposition — it does **not** survive the Activity being destroyed and recreated, which happens on every screen rotation by default. Prove it to yourself:
+
+```kotlin
+@Composable
+fun RotationLosesThis() {
+    var count by remember { mutableStateOf(0) }
+    Column {
+        Text("Count: $count")
+        Button(onClick = { count++ }) { Text("Increment") }
+    }
+}
+```
+
+Tap it to 5, rotate the emulator (Ctrl+F11 on Windows/Linux, Cmd+Fn+Left on macOS), and it's back to 0. The Activity got torn down and rebuilt, so the Composable function re-ran from scratch with a fresh `remember`. This is why state that needs to survive configuration changes — and state that represents real app/business logic rather than pure UI bookkeeping — belongs in a `ViewModel`, not in a Composable:
+
+```kotlin
+class CounterViewModel : ViewModel() {
+    var count by mutableStateOf(0)
+        private set
+
+    fun increment() { count++ }
+}
+
+@Composable
+fun CounterScreen(viewModel: CounterViewModel = viewModel()) {
+    Column {
+        Text("Count: ${viewModel.count}")
+        Button(onClick = { viewModel.increment() }) { Text("Increment") }
+    }
+}
+```
+
+`viewModel()` doesn't construct a new instance on every recomposition or every rotation — it fetches the *same* `CounterViewModel` from a `ViewModelStore` that's scoped to the Activity (or a `NavBackStackEntry`, if you're using Navigation-Compose), which survives the Activity instance being destroyed and recreated. Rotate this version and the count holds.
+
+The second half of this pattern is **state hoisting**: keep the Composable itself "dumb" — no `ViewModel` reference at all — and pass state down as parameters plus an event callback up:
+
+```kotlin
+@Composable
+fun CounterScreen(viewModel: CounterViewModel = viewModel()) {
+    CounterBody(count = viewModel.count, onIncrement = viewModel::increment)
+}
+
+@Composable
+fun CounterBody(count: Int, onIncrement: () -> Unit) {
+    Column {
+        Text("Count: $count")
+        Button(onClick = onIncrement) { Text("Increment") }
+    }
+}
+```
+
+`CounterBody` now has zero dependency on where `count` comes from — you can preview it, test it, or reuse it with a fake value with no `ViewModel` in sight. This is Compose's answer to SwiftUI's `@Binding`, but notice the API shape is different, not just the syntax: SwiftUI's `@Binding<T>` is a genuine two-way connection (the child can write through it directly), while Compose hoists state the way React does — a plain value down, a plain callback up, no magic two-way wire. Same architectural idea ("the owner of the state is above the thing that displays it"), two different mechanisms for it.
+
+## Activity and lifecycle basics
+
+Every Android screen is backed by an `Activity` (or, in a Compose app, usually one `ComponentActivity` hosting your whole Compose tree) that moves through a fixed sequence of lifecycle callbacks: `onCreate` → `onStart` → `onResume` → ... → `onPause` → `onStop` → `onDestroy`. Here's a real bug from treating that sequence carelessly:
+
+```kotlin
+class MainActivity : ComponentActivity() {
+    private lateinit var locationManager: LocationManager
+    private val listener = LocationListener { location ->
+        Log.d("MainActivity", "lat=${location.latitude} lon=${location.longitude}")
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        locationManager = getSystemService(LocationManager::class.java)
+        setContent { MapScreen() }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        locationManager.requestLocationUpdates(
+            LocationManager.GPS_PROVIDER, 1000L, 1f, listener
+        )
+    }
+
+    // No onStop() override here. That's the bug.
+}
+```
+
+Press the home button and `onStop()` runs — but there's no override to match the `onStart()` that turned the GPS on, so `requestLocationUpdates` keeps firing and `listener` keeps running in the background. The real symptom: the app shows up in Android's own battery-usage settings as a background drain culprit, and on a real device the GPS radio stays hot for an app the user thinks they've closed. The fix is the same lesson every Android lifecycle bug teaches — pair your callbacks symmetrically:
+
+```kotlin
+    override fun onStop() {
+        super.onStop()
+        locationManager.removeUpdates(listener)
+    }
+```
+
+`onCreate`/`onDestroy`, `onStart`/`onStop`, `onResume`/`onPause` — whatever you acquire in one half of a pair, release in its matching half. This is the direct Android-side equivalent of what UIKit interop briefly surfaced in your SwiftUI module: a declarative UI framework still sits on top of an imperative OS lifecycle, and ignoring that lifecycle is where real device bugs — battery drain, leaked listeners, crashes from touching a destroyed Activity — actually come from.
+
+## The Android permissions model
+
+"Dangerous" permissions (camera, location, contacts, microphone, and others) need two separate steps since Android 6.0: a declaration in `AndroidManifest.xml`, *and* a runtime request the user can grant or deny live, per-permission, no matter what the manifest says:
+
+```xml
+<uses-permission android:name="android.permission.CAMERA" />
+```
+
+```kotlin
+@Composable
+fun CameraScreen() {
+    val context = LocalContext.current
+    var hasPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
+                PackageManager.PERMISSION_GRANTED
+        )
+    }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted -> hasPermission = granted }
+
+    if (hasPermission) {
+        Text("Camera ready")
+    } else {
+        Button(onClick = { permissionLauncher.launch(Manifest.permission.CAMERA) }) {
+            Text("Grant camera access")
+        }
+    }
+}
+```
+
+`rememberLauncherForActivityResult` wires up the system permission dialog and hands you back a plain `Boolean` in a callback — no manual `onRequestPermissionsResult` override needed, which is what made this painful before Compose and `ActivityResultContracts` existed. The manifest entry alone gets you nothing for a dangerous permission; `checkSelfPermission` will report `PERMISSION_DENIED` until the user actually taps "Allow" on the real dialog `permissionLauncher.launch(...)` triggers. Declaring it without requesting it at runtime is a guaranteed crash the first time you call a camera API that enforces the permission.
+
+## Play Console internal testing: build to install
+
+Everything above gets you a working app. Shipping it to one real tester's real phone, concretely:
+
+1. **Build a signed release bundle.** In Android Studio: Build → Generate Signed Bundle / APK → Android App Bundle. First time through, create a new upload keystore (`.jks` file, a password, a key alias) — this is your app's identity; do not lose it or commit it to git. The output is `app-release.aab`.
+2. **Create the app in Play Console** (play.google.com/console) if it doesn't exist yet: app name, default language, app or game, free or paid.
+3. **Go to Testing → Internal testing → Create new release.** Upload `app-release.aab`. Play Console runs it through automated pre-launch checks and lets you add release notes.
+4. **Add testers.** Internal testing uses an email list (or a Google Group) you manage directly in the console — add the tester's Google account email, save.
+5. **Roll out the release**, then open the internal testing page's **"Copy link"** — this is the opt-in URL.
+6. **Send the tester that link.** They open it on their Android phone, tap "Become a tester," then "Download it on Google Play" — the Play Store app installs it exactly like any store app, updates included, no sideloading, no USB cable.
+
+Internal testing is deliberately the lowest-friction track (up to 100 testers, near-instant availability, no review wait) — it exists precisely so this last step works the same day you upload. That's the Android-side equivalent of what your SwiftUI module's TestFlight submission did for iOS: same idea, same checkpoint-project requirement ("a real app into an app store's testing track"), different console and a Google account standing in for an Apple ID.
+
+## Exercise
+
+Take the two-screen "Workout Log" app you (or your Tier 2 self, in React Native/Flutter) already designed once, and build the Android-native version:
+
+- A `data class Exercise(val name: String, val targetSets: Int)` list, hardcoded, rendered with `LazyColumn` and clickable rows.
+- Tapping a row navigates (via Navigation-Compose or simple state-based screen switching) to a details screen showing a "Sets completed: N / target" counter.
+- The counter's state must survive device rotation — which means it cannot live in a bare `remember` inside the details Composable.
+- Request `CAMERA` permission on a third "add a progress photo" button, even if you don't actually do anything with the camera yet — just prove the permission dialog appears and `hasPermission` updates correctly when the user taps Allow or Deny.
+
+**Hint:** the rotation requirement is the whole point of this exercise — if you reach for `remember { mutableStateOf(0) }` for the counter, it will pass every manual test you do without rotating the emulator and then silently fail the one test that matters. Put the counter in a `ViewModel` keyed per-exercise (a `Map<String, Int>` inside the ViewModel, keyed by exercise name, is enough) before you call this done.
+
+## What to actually retain
+
+Kotlin's null safety and Swift's optionals solve the identical problem with near-identical syntax (`?.` and `?:` map directly to Swift's own safe-call and nil-coalescing operators) — that one transfers almost for free. Compose and SwiftUI share the exact same "UI = f(state)" philosophy you've now seen on both OSes, but their recomposition granularity genuinely differs: Compose skips individual composable calls that don't read changed state, SwiftUI re-executes a whole view's `body` and diffs the result. State hoisting and `ViewModel` exist because Compose functions, unlike `ViewModel`s, do not survive configuration changes — that single fact is the real reason "where does state live" is a designed decision here, not a style preference. And the lifecycle and permissions models are where "declarative UI on top of an imperative OS" stops being a slogan and starts being the actual cause of real bugs: an unpaired lifecycle callback drains a battery, and a permission declared but never requested at runtime crashes on the first real device it meets.

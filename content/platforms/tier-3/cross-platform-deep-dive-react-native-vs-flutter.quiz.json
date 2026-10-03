@@ -1,0 +1,98 @@
+[
+  {
+    "id": "platforms/tier-3/cross-platform-deep-dive-react-native-vs-flutter/q1",
+    "type": "multiple_choice",
+    "prompt": "In React Native's old (pre-JSI) architecture, what actually crosses the bridge when you call a native module method like UIManager.measure?",
+    "choices": [
+      "A direct memory pointer to the real native view",
+      "A serialized JSON-shaped message (module id, method id, args) queued and flushed in batches",
+      "Compiled machine code for the native method",
+      "The entire native view hierarchy"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-3/cross-platform-deep-dive-react-native-vs-flutter/q2",
+    "type": "multiple_choice",
+    "prompt": "What does JSI fundamentally change compared to the old React Native bridge?",
+    "choices": [
+      "It removes the separate UI thread entirely",
+      "It lets JavaScript hold a direct reference to a C++ host object and call its methods synchronously, with no serialization or queue",
+      "It replaces JavaScript with Dart in React Native apps",
+      "It makes all native modules load eagerly at app startup instead of lazily"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-3/cross-platform-deep-dive-react-native-vs-flutter/q3",
+    "type": "multiple_choice",
+    "prompt": "Why doesn't Flutter need a bridge the way React Native does for UI updates?",
+    "choices": [
+      "Flutter apps run inside a WebView",
+      "Flutter uses JSI internally just like React Native",
+      "Flutter renders every pixel itself through its own engine (Skia/Impeller) instead of mapping widgets onto native UIView/View instances, so there is no second native UI tree to keep synchronized",
+      "Flutter doesn't support animations"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "platforms/tier-3/cross-platform-deep-dive-react-native-vs-flutter/q4",
+    "type": "multiple_choice",
+    "prompt": "What is the main practical difference between Skia and Impeller in Flutter's rendering pipeline?",
+    "choices": [
+      "Skia only renders text while Impeller only renders images",
+      "Impeller precompiles GPU shaders ahead of time, avoiding the runtime shader-compilation jank Skia can cause the first time an animation plays",
+      "Impeller is written in Dart and Skia is written in JavaScript",
+      "Skia requires a native module and Impeller does not"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-3/cross-platform-deep-dive-react-native-vs-flutter/q5",
+    "type": "multiple_choice",
+    "prompt": "In the React Navigation native-stack navigator used in Tier 2's React Native app, what actually drives the screen push/pop transition and the back-swipe gesture?",
+    "choices": [
+      "A pure JavaScript animation library with no OS involvement",
+      "The real platform navigation controller: UINavigationController on iOS, a Fragment-backed stack on Android",
+      "Flutter's PageRouteBuilder, reused via a native module",
+      "A WebView-based router"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-3/cross-platform-deep-dive-react-native-vs-flutter/q6",
+    "type": "multiple_choice",
+    "prompt": "In Flutter's go_router / Navigator, how is an iOS-style swipe-back page transition actually implemented?",
+    "choices": [
+      "By delegating directly to the real UINavigationController, exactly as React Native does",
+      "By Flutter's own gesture recognizer driving its own Animation object, painted by Flutter's renderer to resemble the native transition",
+      "It cannot be implemented in Flutter at all",
+      "Through a platform channel call on every animation frame"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-3/cross-platform-deep-dive-react-native-vs-flutter/q7",
+    "type": "multiple_choice",
+    "prompt": "What problem does a Flutter MethodChannel (platform channel) solve?",
+    "choices": [
+      "It replaces Dart's widget tree with native views",
+      "It lets Dart code invoke platform-specific native code (Kotlin on Android, Swift on iOS) for capabilities the Flutter engine can't provide on its own, such as reading battery level through the OS",
+      "It is required before any widget can be rendered",
+      "It compiles Dart source directly into Skia draw commands"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-3/cross-platform-deep-dive-react-native-vs-flutter/q8",
+    "type": "multiple_choice",
+    "prompt": "Riverpod's StateNotifierProvider pattern in Flutter is architecturally closest to which approach in a React Native app that needs the same kind of shared, cross-screen state?",
+    "choices": [
+      "A single screen's local useState call",
+      "A global store such as Zustand or Redux, where update logic lives outside any one component and components subscribe to just the slice of state they need",
+      "Passing the same callback prop down through ten nested components",
+      "Storing the value in a CSS custom property"
+    ],
+    "correctIndex": 1
+  }
+]

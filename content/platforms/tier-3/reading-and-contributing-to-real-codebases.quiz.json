@@ -1,0 +1,98 @@
+[
+  {
+    "id": "platforms/tier-3/reading-and-contributing-to-real-codebases/q1",
+    "type": "multiple_choice",
+    "prompt": "When you first open an unfamiliar React Native or Flutter codebase to find where a specific on-screen feature lives, what is usually the fastest way in?",
+    "choices": [
+      "Read every file in the project top to bottom until the UI shows up",
+      "Search the source tree for the exact visible UI text (e.g. a button label), since UI copy is rarely minified or renamed",
+      "Start by reading the native android/ and ios/ project folders first",
+      "Open the app's compiled bundle and search the minified JavaScript"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-3/reading-and-contributing-to-real-codebases/q2",
+    "type": "multiple_choice",
+    "prompt": "In the traced 'mark report as unread' example (React Native + Onyx), what actually re-renders the sidebar row showing the unread state?",
+    "choices": [
+      "The menu item's onPress handler calls setState directly on the sidebar component",
+      "The action creator imports the sidebar component and calls its render method",
+      "The sidebar row is subscribed to the same Onyx key via useOnyx, so it's notified automatically after the merge",
+      "A global event bus emits a 'report-updated' event that the sidebar listens for manually"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "platforms/tier-3/reading-and-contributing-to-real-codebases/q3",
+    "type": "multiple_choice",
+    "prompt": "In the Flutter/Riverpod 'toggle favorite' example, which layer is responsible for actually writing to the server and local database?",
+    "choices": [
+      "The FavoriteButton widget",
+      "The AssetNotifier's state field directly",
+      "The AssetRepository",
+      "The ConsumerWidget's build method"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "platforms/tier-3/reading-and-contributing-to-real-codebases/q4",
+    "type": "multiple_choice",
+    "prompt": "Which of these mobile-app issues is the most tractable 'good first issue' for a newcomer, all else equal?",
+    "choices": [
+      "An intermittent crash on Android 12 only, reproducible after tapping a push notification",
+      "A floating action button's shadow looks wrong on Android because the component only sets iOS-only shadow* style props",
+      "A race condition in the offline sync queue that only appears under flaky network conditions",
+      "A performance regression found only by profiling a release build on a specific chipset"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-3/reading-and-contributing-to-real-codebases/q5",
+    "type": "multiple_choice",
+    "prompt": "Why do shadowColor, shadowOpacity, and shadowRadius style props have no visible effect on Android in React Native?",
+    "choices": [
+      "They are deprecated in the latest React Native version",
+      "Android requires camelCase prop names instead",
+      "Those props only exist on iOS; Android renders shadows via the separate elevation property, so a platform-conditional style is needed",
+      "They only work inside a ScrollView"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "platforms/tier-3/reading-and-contributing-to-real-codebases/q6",
+    "type": "multiple_choice",
+    "prompt": "A reviewer asks you to replace a hardcoded shadow style with the app's existing shadowStyles.card token, mid-review on an open PR. What's the best way to apply this?",
+    "choices": [
+      "Force-push an amended commit that silently replaces the earlier commit the reviewer already looked at",
+      "Push a new commit that makes the change, then reply to the review comment explaining what changed",
+      "Close the PR and open a fresh one so the history starts clean",
+      "Leave the code as-is and explain in a comment why the token isn't necessary"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-3/reading-and-contributing-to-real-codebases/q7",
+    "type": "multiple_choice",
+    "prompt": "Why might a Flutter reviewer prefer defaultTargetPlatform (or Theme.of(context).platform) over dart:io's Platform.isIOS for a platform-conditional style?",
+    "choices": [
+      "dart:io's Platform.isIOS doesn't compile on Android",
+      "defaultTargetPlatform can be overridden in widget tests, so the conditional behavior stays testable without conditional compilation",
+      "Platform.isIOS is only available in Dart's web runtime",
+      "There is no difference; they are interchangeable in every context including tests"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-3/reading-and-contributing-to-real-codebases/q8",
+    "type": "multiple_choice",
+    "prompt": "This module's scope is specifically mobile/web app codebases. What does the curriculum cover elsewhere instead of here?",
+    "choices": [
+      "How to read a package.json or pubspec.yaml file",
+      "General open-source contribution process: PR etiquette, licensing/CLAs, and commit conventions that apply across any project, not just mobile/web apps",
+      "How React Navigation works",
+      "How Onyx and Riverpod differ"
+    ],
+    "correctIndex": 1
+  }
+]

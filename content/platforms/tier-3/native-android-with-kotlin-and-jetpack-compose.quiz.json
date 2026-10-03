@@ -1,0 +1,98 @@
+[
+  {
+    "id": "platforms/tier-3/native-android-with-kotlin-and-jetpack-compose/q1",
+    "type": "multiple_choice",
+    "prompt": "Given `val email: String? = null` in Kotlin, what does `email?.uppercase() ?: \"NONE\"` evaluate to?",
+    "choices": [
+      "\"NONE\"",
+      "null",
+      "A NullPointerException is thrown",
+      "\"\" (empty string)"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-3/native-android-with-kotlin-and-jetpack-compose/q2",
+    "type": "multiple_choice",
+    "prompt": "In the CounterScreen example, `Greeting()` is a sibling of `Text(\"Count: $count\")` inside the same `Column`. Why does `Greeting()` NOT recompose when `count` changes?",
+    "choices": [
+      "Compose tracks state reads per call site, and Greeting() never reads the count state",
+      "Siblings inside a Column never recompose, only the first child does",
+      "Greeting() is cached permanently after its first call and can never run again",
+      "count is declared outside the Column so Compose cannot see it at all"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-3/native-android-with-kotlin-and-jetpack-compose/q3",
+    "type": "multiple_choice",
+    "prompt": "In BrokenCounter, `count` is declared as a plain `var count = 0` instead of `var count by remember { mutableStateOf(0) }`. Why does tapping the button fail to update the UI?",
+    "choices": [
+      "The button's onClick lambda isn't actually attached because count isn't a State object",
+      "Compose only reschedules recomposition for tracked State/MutableState objects, and a plain var mutation is invisible to it",
+      "Plain var properties are immutable at runtime in Kotlin, so count++ silently does nothing",
+      "Column requires every child to use remember or it throws a compile error"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-3/native-android-with-kotlin-and-jetpack-compose/q4",
+    "type": "multiple_choice",
+    "prompt": "Why does a counter stored with `remember { mutableStateOf(0) }` inside a Composable reset to 0 after rotating the device, while the same counter stored in a ViewModel does not?",
+    "choices": [
+      "remember only survives recomposition, not the Activity being destroyed and recreated on rotation, while the ViewModel is retrieved from a ViewModelStore that survives that recreation",
+      "Rotation always resets all mutableStateOf values regardless of where they're declared",
+      "ViewModel automatically persists its data to disk on every write",
+      "remember is only valid inside Text composables, not inside stateful screens"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-3/native-android-with-kotlin-and-jetpack-compose/q5",
+    "type": "multiple_choice",
+    "prompt": "In the MainActivity location example, GPS updates keep running after the user presses home and backgrounds the app. What is the root cause?",
+    "choices": [
+      "requestLocationUpdates is called in onCreate() instead of onResume()",
+      "onStart() starts location updates but there is no matching onStop() override to call removeUpdates(), so the lifecycle callbacks are unpaired",
+      "LocationListener objects cannot be stopped once created on Android",
+      "The app is missing the ACCESS_FINE_LOCATION permission entirely"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-3/native-android-with-kotlin-and-jetpack-compose/q6",
+    "type": "multiple_choice",
+    "prompt": "An app declares `<uses-permission android:name=\"android.permission.CAMERA\" />` in AndroidManifest.xml but never calls anything like rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) at runtime. What happens when the app calls a camera API on a real device running Android 6.0+?",
+    "choices": [
+      "The camera opens normally because the manifest declaration alone is sufficient",
+      "The permission is auto-granted the first time the app is installed",
+      "checkSelfPermission still reports denied, and the camera call fails or crashes until the user is actually prompted and taps Allow",
+      "Android silently falls back to a lower-resolution camera mode"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "platforms/tier-3/native-android-with-kotlin-and-jetpack-compose/q7",
+    "type": "multiple_choice",
+    "prompt": "What is required to upload a release to Play Console's internal testing track?",
+    "choices": [
+      "A raw, unsigned .apk built in debug mode",
+      "A signed Android App Bundle (.aab), produced via Generate Signed Bundle / APK using an upload keystore",
+      "A .ipa file exported from Xcode",
+      "A Docker image containing the compiled app"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-3/native-android-with-kotlin-and-jetpack-compose/q8",
+    "type": "multiple_choice",
+    "prompt": "A Composable `CounterBody(count: Int, onIncrement: () -> Unit)` takes count and onIncrement as plain parameters instead of reading a ViewModel directly. This is an example of which pattern, and how does it differ mechanically from SwiftUI's @Binding?",
+    "choices": [
+      "State hoisting; Compose passes a value down plus a callback up (like React), while @Binding gives the child a genuine two-way read/write connection to the parent's state",
+      "Dependency injection; it is mechanically identical to @Binding in every respect",
+      "Recomposition skipping; it has nothing to do with where state is owned",
+      "ViewModel scoping; CounterBody is itself a ViewModel in this example"
+    ],
+    "correctIndex": 0
+  }
+]

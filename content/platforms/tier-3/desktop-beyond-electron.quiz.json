@@ -1,0 +1,98 @@
+[
+  {
+    "id": "platforms/tier-3/desktop-beyond-electron/q1",
+    "type": "multiple_choice",
+    "prompt": "What is the key architectural difference between how .NET MAUI renders a Button and how Electron renders one?",
+    "choices": [
+      "MAUI maps the Button to the real native control class on each platform via handlers; Electron renders it as an HTML element inside a bundled Chromium instance",
+      "They render identically, since both ultimately call into the OS's windowing system",
+      "MAUI renders entirely in software with no GPU involvement, while Electron always uses GPU compositing",
+      "Electron maps to native controls through handlers; MAUI renders HTML inside WebView2"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-3/desktop-beyond-electron/q2",
+    "type": "multiple_choice",
+    "prompt": "In the CommunityToolkit.Mvvm example, what does decorating a private field with [ObservableProperty] actually generate?",
+    "choices": [
+      "A background thread that polls the field for changes every frame",
+      "A public property that raises PropertyChanged when set, without you writing that boilerplate by hand",
+      "A QML-style role binding usable from XAML without any property declaration",
+      "A read-only property that can only be set once at construction"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-3/desktop-beyond-electron/q3",
+    "type": "multiple_choice",
+    "prompt": "Why does a minimal Electron desktop app typically idle at a much higher RAM footprint than a minimal Qt Widgets or MAUI app?",
+    "choices": [
+      "Electron apps are written in JavaScript, which is inherently slower than compiled code",
+      "Electron bundles a full Chromium renderer process and a Node.js runtime even for a trivial UI, while the others draw through the OS's own UI layer or a lightweight native widget stack",
+      "Electron apps cannot be trimmed or minified in any way",
+      "Qt and MAUI apps never allocate heap memory for UI state"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-3/desktop-beyond-electron/q4",
+    "type": "multiple_choice",
+    "prompt": "In the Qt TaskModel example, how does the ListView in QML learn that a row's data changed after setData() runs?",
+    "choices": [
+      "QML polls the model's properties every frame automatically",
+      "TaskModel emits the dataChanged() signal for that index/role, which QAbstractItemModel-backed views are wired to observe",
+      "The C++ code must manually call a QML function to re-render the row",
+      "Qt recompiles the QML file on every data change"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-3/desktop-beyond-electron/q5",
+    "type": "multiple_choice",
+    "prompt": "Which statement correctly describes the difference between Qt Widgets and Qt Quick (QML) in terms of rendering?",
+    "choices": [
+      "Qt Widgets embeds the literal native OS control classes; Qt Quick does not render UI at all",
+      "Both stacks embed literal native OS widgets, identically to MAUI's handler approach",
+      "Qt Widgets custom-paints controls styled to resemble the platform (via QStyle), while Qt Quick renders entirely through its own GPU scene graph; neither uses the OS's actual native control objects the way MAUI's handlers do",
+      "Qt Quick is only usable on Linux, while Qt Widgets is only usable on Windows and macOS"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "platforms/tier-3/desktop-beyond-electron/q6",
+    "type": "multiple_choice",
+    "prompt": "Which packaging format does the .NET MAUI example use to produce a Windows app installable via sideload or the Microsoft Store?",
+    "choices": [
+      "AppImage",
+      "MSIX",
+      "DEB",
+      "DragNDrop DMG"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-3/desktop-beyond-electron/q7",
+    "type": "multiple_choice",
+    "prompt": "In the CMakeLists.txt/CPack example, which CPACK_GENERATOR value is set for Linux to produce a .deb package?",
+    "choices": [
+      "NSIS",
+      "DragNDrop",
+      "DEB",
+      "MSIX"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "platforms/tier-3/desktop-beyond-electron/q8",
+    "type": "multiple_choice",
+    "prompt": "What problem does a RelayCommand (bound to a Button's Command property) solve in the MVVM pattern?",
+    "choices": [
+      "It lets the view trigger ViewModel logic directly from XAML, without a code-behind click handler coupling the view to that logic",
+      "It replaces the need for any Model class in the app",
+      "It forces the UI to re-render on a fixed timer regardless of data changes",
+      "It is required by the .NET compiler for any button to be clickable"
+    ],
+    "correctIndex": 0
+  }
+]
