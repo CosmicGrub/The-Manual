@@ -1,0 +1,209 @@
+---
+trackId: capstones-career
+tier: 4
+title: "Open-Source Leadership Track"
+order: 4
+estimatedHours: 15
+slug: open-source-leadership-track
+---
+
+## Ownership Is The Capstone Skill
+
+Tier 3's Sustained Open-Source Contribution module got you merging real PRs on a real project, cleanly, repeatedly. That is necessary and it is not the same skill as this module teaches. A contributor who merges fifteen independent, well-reviewed PRs over six months is still, from the maintainers' point of view, a contributor. A contributor who takes one gnarly subsystem, drives it through a design disagreement, lands it in three or four PRs over a month, then comes back three weeks later to fix the edge case a user reported -- that person is becoming a maintainer, whether or not anyone hands them the title.
+
+This module is 15 hours because that is roughly what it takes to do one real ownership cycle on an existing project: find the thing, argue about the approach, build it in reviewable pieces, hold the aftermath, and do it once from the other side of the review by reading someone else's PR with a maintainer's eyes. We continue the worked-example thread from Tier 2 and Tier 3: portwatch.py, your port-scanning / CVE-checking tool. In Tier 2 you extended it; in Tier 3 you upgraded its CVE matching to do real semantic-version range checking. That upgrade is not a toy exercise anymore -- it is exactly the skill a real vulnerability-scanning project needs, and that is the lever this module uses to get you from "I built my own tool" to "I own a piece of someone else's."
+
+## From Sustained Contribution to Ownership
+
+"Taking ownership of a feature" has a specific, checkable shape. It is not vibes. For a maintainer deciding who to trust with something bigger than a one-line fix, ownership looks like four things happening on the same piece of surface area, over time:
+
+1. **You showed up before the code existed.** You read the issue or discussion, understood why it was unresolved, and said something specific about the tradeoff before writing a line.
+2. **You shipped it in more than one PR**, because real features don't fit in one diff -- the fix, the tests that prove the fix, and the docs/changelog that let the next person trust it are separable, reviewable units.
+3. **You stayed when it broke.** Someone filed a regression against your merged code, and you were the one who triaged and fixed it, not the maintainer cleaning up after you.
+4. **You can explain the subsystem to someone else**, which is what makes the next section -- reviewing a newer contributor's PR in the same area -- possible at all.
+
+The worked example below walks all four with a project chosen specifically because your Tier 3 CVE range-checking work in portwatch.py is directly transferable: `pip-audit`, the PyPA project that audits installed Python environments against known vulnerabilities. Its core job -- deciding whether an installed version falls inside a vulnerability's affected range -- is the exact problem you already solved for portwatch.py. That overlap is not a coincidence manufactured for the lesson; it is how real ownership opportunities actually get found: you go looking in projects adjacent to problems you've already solved, because that is where you can tell, on sight, that something is wrong.
+
+## Worked Example: Owning the Version-Range Matcher
+
+**The issue.** `pip-audit` (and the OSV ecosystem it reads from) represents a vulnerability's affected versions as a list of `events`:
+
+```json
+{
+  "ranges": [
+    {
+      "type": "ECOSYSTEM",
+      "events": [
+        {"introduced": "0"},
+        {"fixed": "1.2.0"},
+        {"introduced": "2.0.0"},
+        {"fixed": "2.0.4"}
+      ]
+    }
+  ]
+}
+```
+
+Read that correctly and it says something specific: the package was vulnerable from its first release up to (not including) 1.2.0, fixed in 1.2.0, then a *regression* reintroduced the same vulnerability starting at 2.0.0, fixed again in 2.0.4. Two disjoint vulnerable intervals, one range object. This is a real, documented OSV pattern -- security regressions happen, and the schema accounts for it. An open issue on the tracker read: "pip-audit says I'm not affected by GHSA-xxxx-xxxx-xxxx, but I'm on 2.0.1 and the advisory text clearly says 2.0.x is affected." The existing matcher only looked at the first `introduced`/`fixed` pair.
+
+**Design discussion, before any code.** You don't open a PR against a matching bug like this -- you comment on the issue first, because the fix has a real design question buried in it: do you special-case "pairs" of events, or do you treat the whole list as a sweep? A real exchange reads like this:
+
+```text
+Maintainer: Confirmed, our matcher does
+    affected = version >= introduced and version < fixed
+  which only reads events[0] and events[1]. Want to take this?
+
+You: I'd rather not patch it as "handle one more pair" -- OSV
+  explicitly allows an arbitrary number of introduced/fixed events
+  per range (see their schema docs, the "multiple events" note). If
+  we hardcode pair-handling we'll be back here for the next
+  three-interval advisory. I'd rewrite it as a sweep: walk events in
+  order, flip an `affected` boolean on `introduced`, flip it off on
+  `fixed`/`last_affected`. That's O(events) and handles N intervals
+  for free. I already have this exact logic in a side project
+  (CVE range checks against semver), happy to port the approach.
+
+Maintainer: Agreed on the sweep. One constraint: events aren't
+  guaranteed sorted in third-party OSV mirrors even though upstream
+  sorts them, so sort defensively before sweeping. Go ahead, split
+  it into fix + tests + docs rather than one big diff, we've been
+  trying to keep PRs reviewable.
+```
+
+That exchange is the ownership moment that matters most and is the easiest to skip: you proposed the *general* fix instead of the *local* patch, you named why the narrow fix was wrong (it would recur), and you let the maintainer's constraint (defensive sorting) change your design before you wrote code. That is design discussion participation, not "I read the issue and agreed."
+
+**PR 1 -- the fix.**
+
+```python
+from packaging.version import Version, InvalidVersion
+
+def is_version_affected(version_str: str, events: list[dict]) -> bool:
+    """Sweep an OSV-style events list and decide whether version_str
+    falls inside any of the (possibly disjoint) affected intervals.
+
+    Events are sorted defensively: upstream OSV guarantees order,
+    but some third-party mirrors re-serialize advisories and drop it.
+    """
+    try:
+        version = Version(version_str)
+    except InvalidVersion:
+        return False
+
+    def boundary(event: dict) -> Version:
+        return Version(next(iter(event.values())))
+
+    affected = False
+    for event in sorted(events, key=boundary):
+        kind, value = next(iter(event.items()))
+        edge = Version(value)
+        if kind == "introduced":
+            affected = affected or version >= edge
+        elif kind == "fixed" and version >= edge:
+            affected = False
+        elif kind == "last_affected" and version > edge:
+            affected = False
+    return affected
+```
+
+The PR description is three sentences: what broke (only the first interval was checked), why the fix is a sweep and not a pair-patch (arbitrary interval counts are valid per schema), and a link back to the design-discussion comment thread above so the reviewer doesn't have to re-derive the reasoning.
+
+**PR 2 -- the tests**, filed separately so the fix diff stays reviewable on its own:
+
+```python
+def test_disjoint_ranges_both_intervals_match():
+    events = [
+        {"introduced": "0"}, {"fixed": "1.2.0"},
+        {"introduced": "2.0.0"}, {"fixed": "2.0.4"},
+    ]
+    assert is_version_affected("1.0.0", events) is True
+    assert is_version_affected("1.5.0", events) is False   # between intervals
+    assert is_version_affected("2.0.1", events) is True    # the reported bug
+    assert is_version_affected("2.0.4", events) is False   # fixed is exclusive
+
+def test_unsorted_events_are_handled():
+    # third-party mirror re-serialized out of order
+    events = [{"fixed": "1.2.0"}, {"introduced": "0"}]
+    assert is_version_affected("1.0.0", events) is True
+```
+
+The second test exists only because the maintainer named the "mirrors don't preserve order" constraint in the discussion. That is a direct trace from conversation to test, and a reviewer who was in that thread sees it land exactly where they expected.
+
+**PR 3 -- docs**, updating the matcher's module docstring and the CHANGELOG with language a future contributor (maybe the newer one in the next section) will actually read before touching this code again: "ranges may contain multiple introduced/fixed pairs representing disjoint vulnerable intervals (e.g. a fixed vulnerability that regressed); the matcher sweeps all events rather than assuming exactly one pair."
+
+**Follow-up maintenance, three weeks later.** A user files: "1.2.0rc1 shows as affected, but 1.2.0 doesn't -- that can't be right." `packaging.Version` orders `1.2.0rc1 < 1.2.0`, so the sweep is technically correct -- the real bug is that pre-release handling wasn't part of the original advisory's intent, and the fix is a one-line comparison change plus a new test, not a redesign. You take it, because it's your subsystem now: you reply on the issue within a day, you already have the mental model loaded, and the fix ships the same week instead of sitting for a month waiting for someone to re-learn the matcher. That response time, not the original three PRs, is what a maintainer actually remembers.
+
+## Reviewing a Newer Contributor's PR
+
+You've been on the receiving end of review since Tier 2. This is the other side: a hypothetical newer contributor opens a PR against the same `pip-audit`-style project, adding a `--ignore-vuln` flag to suppress specific vulnerability IDs. Their diff:
+
+```diff
++ parser.add_argument("--ignore-vuln", action="append", default=[])
+...
++ def filter_results(results, ignored):
++     return [r for r in results if r.id not in ignored]
+```
+
+A drive-by review says "LGTM, thanks!" A maintainer-track review looks like this, left as actual inline comments:
+
+```text
+On `action="append", default=[]`:
+  Nice, this correctly allows repeated flags. One thing to check:
+  vuln IDs from different sources aren't always cased consistently
+  (GHSA ids are upper, some OSV mirrors lowercase PYSEC ids). Can
+  you normalize both sides (`.upper()` or `.casefold()`) before the
+  `not in` check? Right now `--ignore-vuln ghsa-xxxx` silently fails
+  to match `GHSA-xxxx` and the user gets no error telling them why.
+
+On `filter_results`:
+  This is O(n*m) with a list membership check per result -- fine at
+  our typical result-set sizes, no action needed, just flagging so
+  you know why I'm not asking you to change it (I'd ask on a hot
+  path, this isn't one).
+
+  Bigger question: what should happen when `--ignore-vuln` names an
+  ID that never appears in the results? Right now it's silently a
+  no-op. I'd lean toward warning on stderr ("ignored vuln FOO-123
+  was not found in results") since a typo here means someone thinks
+  they're suppressing a known-false-positive and isn't, and ships
+  with a hidden vuln back on their report next scan. Worth a test
+  either way -- can you add one for "ignored ID not present" so the
+  intended behavior is pinned down regardless of which way we go?
+
+Missing: a CHANGELOG entry and a line in the CLI `--help` epilog
+  mentioning IDs are matched case-insensitively (once the above is
+  resolved) -- that's the kind of detail someone will file an issue
+  about in three months if it's not documented where they'd look.
+
+Nice touch keeping this as its own PR separate from the exit-code
+  work you mentioned in the issue -- makes this much easier to review
+  and land independently.
+```
+
+Notice what that review is doing that a drive-by reviewer's comment never does: it cites a concrete failure mode with real inputs (`ghsa-xxxx` vs `GHSA-xxxx`), it explicitly declines to nitpick something that doesn't matter (the O(n*m) scan) and says why, it asks a real design question rather than issuing a command ("what should happen when..."), it requests a test that pins down behavior regardless of how the open question resolves, and it closes with specific, genuine credit for a good process decision (splitting the PR). That is the maintainer move: you are reviewing for the project's long-term cost, not just whether this diff compiles. Newer contributors remember the first maintainer who reviewed them like this, and it is usually the moment they start treating the project as theirs too.
+
+## Becoming a Recognized Regular
+
+"Recognized regular" is a specific, observable state, not a feeling. Contrast two contributors six months in:
+
+| Signal | Drive-by contributor | Recognized regular |
+|---|---|---|
+| PR count | 1, maybe 2, unrelated to each other | A cluster of related PRs around one subsystem |
+| Issue presence | Never comments except on their own PR | Comments on others' issues in their area before being asked |
+| Maintainer memory | Maintainer re-reads the PR from scratch | Maintainer says "isn't this the thing you fixed in #412?" |
+| @-mentions | None | Tagged in unrelated issues ("@you, does this touch your matcher work?") |
+| Review requests | Never asked to review | Asked to review PRs touching their area |
+| Access | None | Triage or write access offered, not requested |
+
+The load-bearing row is "maintainer memory." It is the cheapest signal to observe and the hardest to fake: it means the maintainer has built a model of you as a specific person who knows a specific part of the codebase, rather than a stream of anonymous diffs. You get there by being the one who answers the question before the maintainer has to -- someone opens an issue tangential to your matcher work, and you reply with the right context before anyone pings you. Do that three or four times and the @-mentions start arriving on their own: "@you -- you touched the range-matching code, does this edge case affect your sweep logic too?" That sentence is the actual, checkable marker that you have crossed from contributor to regular. It is not granted by a maintainer deciding to grant it; it is the maintainer's accurate prediction, based on evidence, that pinging you is more useful than not.
+
+Consistency matters more than volume. A regular commit cadence of one meaningful interaction every week or two, sustained for months, reads completely differently to a maintainer than a burst of ten PRs in one weekend followed by silence -- even if the burst is higher quality in the moment. Maintainers are triaging for who will still be there when something breaks at 11pm on a Friday; your git history since Tier 3 is the only evidence they have.
+
+## Exercise
+
+Using the project you've already landed at least one PR into (from Tier 3's Sustained Open-Source Contribution module -- don't start a new relationship from zero), do both halves below on that same project.
+
+**Ownership half.** Find one open issue or discussion thread that cannot be resolved in a single obvious PR -- look for issues with disagreement in the comments, or a "needs design" / "help wanted: design" label, not a "good first issue." Write a design-discussion comment (not code yet) that: states the narrow fix someone might reach for, explains why it's insufficient for the general case, and proposes the general fix, citing something concrete in the issue thread or codebase as evidence. Post it. Whatever the maintainer says back, write up (in your own notes, this doesn't need to be public) how their response changed your plan -- if it didn't change at all, you likely didn't propose anything that gave them a real decision to make.
+
+**Review half.** On the same repository, find a PR from a contributor other than yourself -- ideally one tagged `good first issue` or similarly entry-level -- and leave a review with at least three comments, each anchored to a specific line or hunk, each stating a concrete failure scenario (not "this could be cleaner"). At least one comment must be something you explicitly choose *not* to block on, with your reasoning stated, the way the `filter_results` performance comment above did.
+
+*Hint:* if you can't find a disagreement-shaped issue on your project, search closed issues for ones that were reopened, or PRs that were merged and then reverted -- both are signals that the "obvious" fix wasn't, and the real design question is usually still sitting in the comments, unresolved, waiting for someone to pick it back up.

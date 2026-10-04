@@ -700,3 +700,14 @@ All notable changes to The Manual (curriculum + app) are logged here. This file 
 **Result:** `npm run build` passed clean — 295 unique slugs verified repo-wide.
 
 **Status:** Capstones Tier 3 complete (76h, 5 lessons). Capstones is now 4/6 tiers content-complete (Tiers 0-3, 144h); Tiers 4-5 remain.
+
+## [0.57.0] — 2026-10-03 — Capstones & Career Tier 4: complete (300 lessons, "can prove it to a stranger")
+
+**Context:** Continuing the tier-by-tier pattern. This tier closes out the learner's security-lean worked-example thread that's run since Tier 2's portwatch.py: Tier 3 upgraded it to real semantic-version CVE matching, and this tier's capstone module pushes it one step further — from a host scanner into a real SBOM-based dependency-vulnerability gate wired into CI, validated against a labeled corpus with a reported false-positive/false-negative rate instead of an unverified "it found some CVEs" claim.
+
+**Added**
+- `content/capstones-career/tier-4/*.mdx` (5 files) + matching quizzes: Specialization Deep Dive (real depth for all six branches — security explicitly pointed at the Cybersecurity track's own Tiers 2-4 rather than re-taught here, a real Sigma detection rule, a real batch+streaming data-engineering architecture, a real PID control loop, real paper-implementation guidance, a real toy-compiler progression), Advanced Capstone Tier 4 (the portwatch.py → SBOM/CycloneDX → CI-gated CVE scanner, validated against a labeled corpus, plus a real ADR excerpt), Interview Prep Intensive (a real system-design contrast of Tier 2's single-machine URL shortener against designing the same system at real scale), Open-Source Leadership Track, Portfolio Case Studies (a real case-study rewrite of the Tier 3 TrailLink capstone).
+
+**Result:** `npm run build` passed clean — 300 unique slugs verified repo-wide.
+
+**Status:** Capstones Tier 4 complete (113h, 5 lessons). Capstones is now 5/6 tiers content-complete (Tiers 0-4, 257h); only Tier 5 (Expert/Innovator) remains — the final tier of the final track in the entire curriculum.

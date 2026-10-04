@@ -1,0 +1,98 @@
+[
+  {
+    "id": "capstones-career/tier-4/interview-prep-intensive/q1",
+    "type": "multiple_choice",
+    "prompt": "In a DS&A miss-tracking log, what makes a 'fix_insight' entry actually useful on spaced review, versus a wasted row?",
+    "choices": [
+      "It records the exact time in minutes the attempt took, down to the second",
+      "It says 'practice more of this pattern' so you know to schedule another attempt",
+      "It names the trigger phrase that should cue the pattern and re-derives the core insight in a sentence you could hand to someone else",
+      "It copies the accepted solution code from an online judge so you can compare line by line"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "capstones-career/tier-4/interview-prep-intensive/q2",
+    "type": "multiple_choice",
+    "prompt": "Why does a single monotonic counter for generating short-code ids (as used in Tier 2's Cross-Track Capstone #2) break once the URL shortener runs on multiple app servers instead of one?",
+    "choices": [
+      "Base62 encoding only works correctly on a single machine",
+      "Multiple servers sharing no coordination can race on the same counter value, producing duplicate codes, or require a shared lock that caps write throughput at one bottleneck",
+      "Short codes become too long once traffic increases",
+      "Monotonic counters cannot be persisted to disk across a restart"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-4/interview-prep-intensive/q3",
+    "type": "multiple_choice",
+    "prompt": "The single-machine URL shortener needed no cache, but the at-scale version adds a Redis cache-aside layer in front of the database. What's the actual reason the cache earns its place at scale?",
+    "choices": [
+      "Redis is required by law for any production web service",
+      "Caches make write operations faster, which is the real bottleneck at scale",
+      "Redirect traffic is heavily read-skewed toward recent/popular links, and caching converts 'every redirect hits the database' into 'only cold misses hit the database,' which is what lets read throughput scale past one database's limits",
+      "The original Python dict lookup was O(n), and Redis makes lookups O(1) instead"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "capstones-career/tier-4/interview-prep-intensive/q4",
+    "type": "multiple_choice",
+    "prompt": "Why move click-count incrementing off the synchronous redirect request path and into an async queue-and-consumer pipeline at scale?",
+    "choices": [
+      "Databases cannot perform increment operations under any circumstances",
+      "The redirect is the most latency-sensitive request in the system, so it should not pay the cost or risk of a synchronous database write just to update a counter the user isn't waiting on",
+      "Queues are always faster than direct database writes regardless of load",
+      "Click counts are not important data and can be discarded safely"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-4/interview-prep-intensive/q5",
+    "type": "multiple_choice",
+    "prompt": "On the DS&A mock-interview rubric in this module, which criterion specifically captures whether a candidate confirmed input constraints and edge cases before writing any code?",
+    "choices": [
+      "Complexity analysis",
+      "Clarification & framing",
+      "Code quality & communication",
+      "Pattern recognition"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-4/interview-prep-intensive/q6",
+    "type": "multiple_choice",
+    "prompt": "On the system-design mock-interview rubric, what is the 'deep dive under pressure' criterion specifically designed to catch?",
+    "choices": [
+      "Whether the candidate drew a neat diagram",
+      "Whether the candidate memorized the names of enough distributed-systems buzzwords",
+      "Whether the candidate can go genuinely deep on one component (like a sharding key choice or the id-generation problem) when pushed, rather than staying generic",
+      "Whether the candidate finished within the time limit"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "capstones-career/tier-4/interview-prep-intensive/q7",
+    "type": "multiple_choice",
+    "prompt": "In the Trapping Rain Water miss example in the tracking log, what was the actual misconception the 'fix_insight' field identified?",
+    "choices": [
+      "The learner used the wrong programming language for the solution",
+      "The learner tried to track a single global maximum instead of recognizing that trapped water above each bar depends on the lower of the running max on each side, solvable with two pointers converging from both ends",
+      "The learner forgot to import the correct library for array operations",
+      "The learner ran out of time before reading the problem statement fully"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-4/interview-prep-intensive/q8",
+    "type": "multiple_choice",
+    "prompt": "In the exercise extending Cross-Track Capstone #2's SlidingWindowLimiter across 5 load-balanced app servers, what specifically breaks if each server keeps its own independent in-memory deque?",
+    "choices": [
+      "The deque data structure stops working correctly above a certain size",
+      "A client round-robined across servers is checked against each server's independent count, so the effective limit they experience is close to limit times the number of servers rather than the intended limit",
+      "Load balancers cannot route traffic to more than 3 servers at once",
+      "Timestamps become inaccurate once more than one process reads the system clock"
+    ],
+    "correctIndex": 1
+  }
+]

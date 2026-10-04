@@ -1,0 +1,140 @@
+---
+trackId: capstones-career
+tier: 4
+title: "Interview Prep Intensive"
+order: 3
+estimatedHours: 30
+slug: interview-prep-intensive
+---
+
+## Where this fits
+
+Tier 3 gave you two things this module assumes cold: the DS&A Pattern Mastery module's vocabulary of shapes — BFS/DFS, heaps, memoized/tabulated DP, two pointers, sliding window, binary search on the answer, plus Kahn's algorithm from that module's own exercise — and a track record of sustained, real engineering work. This module does not re-teach any of that. It does three things instead: turns pattern recognition into **volume with memory** instead of volume alone, adds the system-design vocabulary those DS&A patterns never cover, and puts both in front of a rubric instead of a vibe. By the end you should be able to sit a 45-minute DS&A round, a 45-60 minute system-design round, and a behavioral round, and know — not guess — how you did, because you graded yourself against the same criteria a real interviewer uses.
+
+## 1. 150+ problems, tracked like you mean it
+
+Grinding 150 problems without a log is 150 problems you'll half-remember in six weeks. The number that actually matters isn't "problems solved," it's "problems that stay solved" — and that only happens with spaced review of the ones you missed, which means you need a structure to miss into, not a checklist to tick.
+
+**Coverage first.** Tier 3's module covered six shapes well. Tier 4 fills in the rest of what a real DS&A loop tests, and 150+ is the floor, not the target — pull from a known list (NeetCode 150, Blind 75, or LeetCode's own curated lists) rather than solving randomly, so your coverage is provably complete, not just large:
+
+| Pattern family | Target # solved | New vs. Tier 3 |
+|---|---|---|
+| Arrays/strings, two pointers, sliding window | 25 | Builds directly on Tier 3 — more surface area, same shape |
+| Trees, BFS/DFS, graph traversal | 20 | Builds directly on Tier 3 |
+| Graphs: Dijkstra, Union-Find, topological sort | 20 | New — weighted shortest path, disjoint-set, Kahn's beyond the one exercise |
+| Heaps/priority queues | 10 | Builds directly on Tier 3 |
+| Dynamic programming (1D, 2D, knapsack family, LCS/edit distance) | 25 | Builds directly on Tier 3's recurrence-finding skill, new recurrences |
+| Backtracking (subsets, permutations, N-Queens-class) | 15 | New |
+| Binary search (array index + on answer) | 10 | Builds directly on Tier 3 |
+| Intervals (merge, insert, meeting rooms) | 10 | New |
+| Monotonic stack/queue | 10 | New |
+| Trie | 5 | New |
+| Bit manipulation | 8 | New |
+| Greedy | 7 | New |
+| **Total** | **165** | |
+
+**The log structure.** A spreadsheet (Google Sheets, or a CSV you version in your Learning OS repo from Tier 0) with these columns, one row per attempt:
+
+```text
+id, date, source, problem, pattern, difficulty, result, time_min,
+root_cause, fix_insight, review_interval, next_review, miss_count
+```
+
+`result` is one of `solved_optimal / solved_suboptimal / hint_needed / failed`. `root_cause` is a short, honest tag from a fixed taxonomy — `didnt_recognize_pattern / edge_case_missed / off_by_one / wrong_complexity_assumed / froze_under_time / syntax_slip` — because "I was slow" tells you nothing to fix next time, but "didn't recognize pattern" tells you exactly what drill to run. A row only becomes useful once `fix_insight` says something you can act on, not "practice more."
+
+Here's what a genuinely useful entry looks like, in full, for a real miss:
+
+```text
+id: 0042
+date: 2026-09-14
+source: NeetCode 150
+problem: Trapping Rain Water (LeetCode 42)
+pattern: two_pointers
+difficulty: hard
+result: hint_needed
+time_min: 38
+root_cause: didnt_recognize_pattern
+fix_insight: "Trigger phrase for next time: 'water trapped between
+  bars' / 'bounded by the LOWER of two sides'. Kept trying to track
+  a single global max — the actual insight is that water trapped
+  above any bar i is min(max_left_of_i, max_right_of_i) - height[i].
+  Two pointers converging from both ends, each carrying a running
+  max for its own side, lets you compute this in one pass: whichever
+  side's running max is currently smaller is the side you can safely
+  resolve next, because that side's bound is already decided and
+  can't improve."
+review_interval: 1
+next_review: 2026-09-15
+miss_count: 1
+```
+
+That `fix_insight` field is the whole point: it names the *trigger phrase* in the problem statement that should have cued the pattern, and it re-derives the one-sentence insight in your own words — not "redo it," a sentence you could hand a stranger and have them solve it. Without that, re-reading your own old log is as useless as re-reading the original problem.
+
+**The spaced-review schedule.** Reuse the SM-2-style interval ladder from Tier 0's flashcard decks, applied to misses instead of vocabulary: 1 day, 3 days, 7 days, 16 days, 35 days. Pass a scheduled review (solve it cold, no peeking at your old notes, in under your target time) and advance to the next interval. Fail it — same root cause resurfaces, or a different one does — and `miss_count` increments and `review_interval` resets to 1. A problem that resets three or more times goes on a separate "foundational gap" list: that's not a problem to re-memorize, it's a sign the underlying pattern itself (not this one instance of it) needs to go back through worked examples like Tier 3's, traced by hand again.
+
+## 2. System design at scale: the URL shortener, for real this time
+
+Tier 2's Cross-Track Capstone #2 had you build a URL shortener: a hash map for O(1) code lookup, a base62-encoded monotonically increasing internal id, file/SQLite persistence so data survives a restart, and — on the security lean — an in-process `SlidingWindowLimiter` built on a `deque` of timestamps. All of that was correct, and all of it was correct **for one machine**. System design fundamentals are what change when "one machine" stops being true, and this module walks the exact same project through that change so the contrast is concrete, not abstract.
+
+**Capacity estimate first — this is the step most people skip.** Say the product targets 100 million new short links a month and a 100:1 read-to-write ratio (redirects vastly outnumber creations, which is realistic — most links get clicked far more than once). That's roughly 40 writes/sec average, spiking to maybe 10x that at peak, and ~4,000 reads/sec average, spiking higher. Storage: ~500 bytes per record (code, long URL, timestamp, click count) times 100M/month times 60 months (5-year retention) is around 30 GB — small for storage, but the *request rate*, not the data size, is what breaks a single machine first.
+
+| Component | Capstone #2 (single machine) | At scale |
+|---|---|---|
+| Serving | One Flask process on one port | Load balancer in front of N stateless app servers, health-checked, horizontally scalable |
+| Code generation | A single monotonic counter in one process's memory | A distributed ID scheme — pre-allocated id blocks per server, or Snowflake-style ids (timestamp + worker id + sequence) so no server needs to coordinate with another on every request |
+| Lookup | A Python dict in one process's RAM | A cache-aside Redis layer in front of a real database, keyed by short code |
+| Storage | One SQLite file on local disk | A primary-replica relational DB (read replicas for the 100:1 read skew), or a sharded key-value store if lookup is the only access pattern that matters |
+| Sharding | None — one store | Consistent hashing across DB/cache nodes, so adding or removing a node remaps roughly 1/N of keys instead of nearly all of them |
+| Click counting | Synchronous increment in the same request that serves the redirect | Redirect handler publishes a "click" event to a queue; a separate consumer aggregates and writes asynchronously, so the redirect's latency never waits on a counter write |
+| Rate limiting | In-process `SlidingWindowLimiter`, correct because there's only one process to share state | Breaks the moment you add a second app server — see the exercise below |
+
+Walk the reasoning on the two biggest changes, because "add a cache" and "add a queue" are easy to say and easy to get wrong about *why*:
+
+**Why the id scheme has to change, not just move.** A single auto-incrementing counter is perfectly safe in one process because there's exactly one writer. The instant you put two app servers behind a load balancer, both can receive a `POST /links` in the same millisecond, and if they share nothing, they'll either race on the same counter value (duplicate codes — silent data corruption) or need to take a lock on every single write (a serialization point that caps your entire write throughput at whatever one lock can do, which defeats the point of adding servers). The fix isn't "use a bigger database counter" — a shared counter is still one coordination point. The fix is to make id generation require **zero coordination per request**: either each app server reserves a block of, say, 1 million ids up front from a tiny coordination service and hands them out locally until the block is exhausted, or you adopt a Snowflake-style id (a timestamp component + a fixed per-server worker id + a per-millisecond sequence number) so uniqueness is structural, not negotiated.
+
+**Why click counting has to move off the hot path.** In Capstone #2, incrementing the click counter cost nothing extra because it was a dict mutation in the same process already serving the redirect. At scale, the redirect is the single most latency-sensitive request in the whole system — a user is actively waiting on that 302 — so making it also perform a synchronous database write (which can be slow, lock rows, or fail) trades the one request users actually feel for data that's genuinely fine arriving a few seconds late. Publishing a lightweight event and returning immediately is the real-world version of "decouple what the user is waiting on from what can happen eventually" — and it's also an explicit, documented tradeoff (the stats endpoint is now eventually consistent by design), which is exactly the kind of tradeoff a system-design interviewer is listening for you to name out loud, not discover when pressed.
+
+The caching layer earns its place the same way: a Python dict needed no cache because the entire dataset already lived in RAM in one process. At scale the dataset lives in a database that cannot sustain thousands of reads/sec directly, and real redirect traffic is heavily skewed toward recently created and currently popular links — so a cache-aside Redis layer (check cache, miss, read DB, populate cache with a TTL) turns "every redirect hits the database" into "only cold misses hit the database," which is the actual mechanism that lets read throughput scale past what one database can serve.
+
+## 3. Structured mock interviews, graded like the real thing
+
+A mock interview without a rubric just produces a feeling ("that went okay"). Grade every mock against one of these two tables, as a peer, a mentor, or yourself reviewing your own recording within 24 hours — before memory fades the details of what you actually said.
+
+**DS&A round rubric (45 minutes, 1-2 problems). Score each 0-4, total out of 20:**
+
+| Criterion | 0 | 2 | 4 |
+|---|---|---|---|
+| Clarification & framing | Started coding immediately, no questions | Asked one surface question | Confirmed input constraints, edge cases, and expected scale before writing a line |
+| Pattern recognition | Never identified a workable approach | Found a brute force and stopped there | Named the pattern (e.g. "this is sliding window because...") and justified why, before coding |
+| Correctness | Code fails the given example | Passes the given example, fails an edge case when traced | Passes the given example and a hand-traced edge case you supply on the spot |
+| Communication & code quality | Silent coding, unreadable names | Talks occasionally, code works but is messy | Narrates reasoning continuously, clean structure, a silent interviewer could follow along |
+| Complexity analysis | Can't state Big-O of their own solution | States it but can't justify it | States it, justifies it, and names whether a better bound exists |
+
+Bands: 17-20 strong hire signal · 12-16 borderline, needs a second data point · 7-11 no-hire on this round alone · 0-6 clear no-hire.
+
+**System design round rubric (45-60 minutes, one prompt — use the URL shortener above as the prompt itself, since you already own the single-machine version to contrast against):**
+
+| Criterion | 0 | 2 | 4 |
+|---|---|---|---|
+| Requirements clarification | Jumped to a diagram with no numbers | Asked about scale once, moved on | Pinned down read/write ratio, latency needs, and consistency requirements before designing anything |
+| Capacity estimation | No math attempted | Numbers present but wildly off order of magnitude | Back-of-envelope QPS and storage, right order of magnitude, shown explicitly |
+| High-level architecture | Components missing or disconnected | Components named, data flow unclear | Load balancer, app tier, cache, DB, and queue all present with a coherent end-to-end data flow |
+| Deep dive under pressure | Stays generic when pushed ("what happens at 10x scale?") | Goes one level deeper on request | Can go genuinely deep on ONE component unprompted — sharding key choice, cache invalidation, or the id-generation problem above — not just name-drop it |
+| Tradeoff articulation | No tradeoffs named | Tradeoffs named without justification | States a real consistency/availability tradeoff (e.g. "redirects can be eventually consistent, so I chose availability here") and defends it |
+
+Same 0-20 bands apply.
+
+**The behavioral round, reusing a project you already own.** "Tell me about a technical decision you're proud of" is answerable right now, honestly, from your own Tier 3 work: the move from `portwatch.py`'s exact-substring `VULN_SIGNATURES` matching to `vulncheck.py`'s real semantic-version range checking. Outline it in STAR before your first mock, not during it:
+
+- **Situation:** a security tool that flagged vulnerable service banners by exact string match.
+- **Task:** that approach silently misses any version string that doesn't match character-for-character — a Debian patch suffix, or any version falling inside a vulnerable *range* rather than hitting one exact string.
+- **Action:** replaced the dict lookup with real semantic-version range comparisons against a small vulnerability database, re-run against the same saved scan state from Tier 2.
+- **Result:** caught a genuine new finding (a MySQL version inside a vulnerable range) the old exact-match version had silently missed — a concrete, falsifiable before/after, not a vague "it got better."
+
+Having one real project rehearsed this precisely means you're not improvising a story under time pressure in the room — the actual skill a behavioral round tests.
+
+## Exercise: scale the rate limiter
+
+Cross-Track Capstone #2's `SlidingWindowLimiter` (security lean) is correct on one process: a `deque` of timestamps per client key, checked and trimmed on every request. Put that exact class behind a load balancer with 5 app server instances, each running its own copy in its own memory, and answer: what actually breaks, concretely — not "it doesn't scale," name the specific failure a client could exploit. Then redesign it to work correctly across all 5 servers.
+
+**Hint:** each server's deque only sees the requests *that server* happened to receive. A client hitting the load balancer repeatedly can get round-robined across all 5 servers, and each one independently thinks the client is well under the limit — so the *effective* limit a determined client experiences is close to `limit × 5`, not `limit`. The fix requires shared state the limiter check can read and update atomically from any server: a Redis-backed counter (`INCR` + `EXPIRE`, or a Lua script so the check-and-increment is atomic across concurrent requests from different servers) implementing either a sliding-window-log or a token-bucket algorithm. Write the Lua script or the Redis command sequence yourself; don't just name "use Redis" and stop — that's exactly the gap the "deep dive under pressure" row in the system-design rubric above is built to catch.

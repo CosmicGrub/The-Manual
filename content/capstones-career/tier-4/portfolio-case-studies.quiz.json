@@ -1,0 +1,98 @@
+[
+  {
+    "id": "capstones-career/tier-4/portfolio-case-studies/q1",
+    "type": "multiple_choice",
+    "prompt": "What does a case study's Constraints section add that a four-part README (Problem/Solution/Architecture/Demo) has no equivalent for?",
+    "choices": [
+      "The exact commands needed to install and run the project",
+      "The real limits that shaped the build, such as time, team size, or data you didn't control",
+      "The exact file layout and data flow between modules",
+      "A terminal transcript or GIF proving the demo actually ran"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-4/portfolio-case-studies/q2",
+    "type": "multiple_choice",
+    "prompt": "A case study's main prose is written primarily for which reader?",
+    "choices": [
+      "A fellow engineer who will audit your implementation details and jargon",
+      "A hiring manager or reviewer skimming for impact and judgment, not mechanism",
+      "An automated resume-parsing script",
+      "The open-source maintainer who reviewed your pull request"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-4/portfolio-case-studies/q3",
+    "type": "multiple_choice",
+    "prompt": "Which of these is an honest, falsifiable metric rather than a vague unquantified claim?",
+    "choices": [
+      "\"Blazing-fast, enterprise-grade routing engine\"",
+      "\"Cut /route's measured p95 latency from ~190ms to ~9ms on cache hits, measured with hey against the live Fly.io URL\"",
+      "\"Built a scalable and robust backend trusted by hikers everywhere\"",
+      "\"A powerful, production-ready API\""
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-4/portfolio-case-studies/q4",
+    "type": "multiple_choice",
+    "prompt": "TrailLink's cache-invalidation bug (a stale adjacency list after POST /segments) has a natural home in which part of the case study, where the original four-part README had no equivalent section for it at all?",
+    "choices": [
+      "Demo",
+      "Architecture",
+      "Decisions and Lessons Learned",
+      "License"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "capstones-career/tier-4/portfolio-case-studies/q5",
+    "type": "multiple_choice",
+    "prompt": "Why does a case study typically skip reproducing the README's full file-by-file Architecture breakdown?",
+    "choices": [
+      "Because the Architecture section is factually wrong",
+      "Because a hiring manager skimming for impact and judgment doesn't need implementation-level file layout; that detail still lives in the README the case study links to",
+      "Because case studies may not mention any code",
+      "Because Architecture sections cannot legally be reused"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-4/portfolio-case-studies/q6",
+    "type": "multiple_choice",
+    "prompt": "A solo capstone has no real production traffic to measure. What's the honest way to fill in its Metrics section?",
+    "choices": [
+      "Invent a plausible-sounding number so the section isn't empty",
+      "Run your own measurable test (a load test, a coverage run, a timed before/after) and report that number scoped to exactly what you tested, or state plainly that no quantified number exists yet",
+      "Copy a benchmark figure from a well-known open-source project in the same space",
+      "Delete the Metrics section and hope a reviewer doesn't notice"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-4/portfolio-case-studies/q7",
+    "type": "multiple_choice",
+    "prompt": "The Black 'Preview flag' pull request, drawn from this track's Sustained Open-Source Contribution module, mainly demonstrates which point about open-source work as case-study material?",
+    "choices": [
+      "Any merged PR, even a one-line doc fix, is automatically strong case-study material",
+      "Incorporating specific maintainer feedback into a concrete architectural decision is itself a case-study-worthy Decision, not just a resume line",
+      "Open-source contributions should never appear in a portfolio case study",
+      "The Preview flag system has no relevance to how the PR should be written up"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-4/portfolio-case-studies/q8",
+    "type": "multiple_choice",
+    "prompt": "What is the main structural difference between a portfolio card and a case study for the same project?",
+    "choices": [
+      "The case study is shorter and uses no headings at all",
+      "The card is a roughly 30-second skim-level pitch; the case study is the deeper 2-3 minute read a hiring manager opens after the card earns the click",
+      "They are the same document, just published at two different URLs",
+      "The card quantifies impact with real numbers and the case study never does"
+    ],
+    "correctIndex": 1
+  }
+]

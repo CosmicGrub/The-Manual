@@ -1,0 +1,98 @@
+[
+  {
+    "id": "capstones-career/tier-4/specialization-deep-dive/q1",
+    "type": "multiple_choice",
+    "prompt": "In the Security/Red-Blue branch, why does this module not teach new pentesting techniques?",
+    "choices": [
+      "Because pentesting is considered an obsolete skill",
+      "Because that content already lives in the Cybersecurity & Ethical Hacking track's Tiers 2-4, and this module's job is choosing and polishing a capstone checkpoint",
+      "Because this track assumes a paid security certification already covers it",
+      "Because red team content requires a lab environment this course doesn't provide"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-4/specialization-deep-dive/q2",
+    "type": "multiple_choice",
+    "prompt": "In the Airflow DAG example, why is extraction parameterized off data_interval_start/data_interval_end instead of datetime.now()?",
+    "choices": [
+      "It makes the DAG execute faster",
+      "It lets failed tasks be skipped automatically",
+      "It makes the task idempotent and correctly re-runnable or backfillable for any historical date",
+      "It removes the need for a database connection"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "capstones-career/tier-4/specialization-deep-dive/q3",
+    "type": "multiple_choice",
+    "prompt": "In a discrete PID controller, which term specifically dampens overshoot by reacting to how fast the error is changing?",
+    "choices": [
+      "Proportional",
+      "Integral",
+      "Derivative",
+      "Setpoint"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "capstones-career/tier-4/specialization-deep-dive/q4",
+    "type": "multiple_choice",
+    "prompt": "What problem does the fixed-timestep-plus-accumulator pattern solve that a naive 'update by variable frame delta' loop does not?",
+    "choices": [
+      "It makes rendering faster on low-end hardware",
+      "It makes simulation behavior deterministic and independent of variable framerate",
+      "It eliminates the need for collision detection",
+      "It automatically prevents memory leaks"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-4/specialization-deep-dive/q5",
+    "type": "multiple_choice",
+    "prompt": "Why does scaled dot-product attention divide the dot products by sqrt(d_k)?",
+    "choices": [
+      "To normalize the output directly into a probability distribution",
+      "To prevent dot products from growing large with dimensionality and pushing softmax into a near-zero-gradient saturated regime",
+      "To make the matrix multiplication run faster on GPUs",
+      "To convert the queries and keys into unit vectors"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-4/specialization-deep-dive/q6",
+    "type": "multiple_choice",
+    "prompt": "What capability does a tree-walking interpreter with an environment model add beyond this track's Tier 1 toy calculator?",
+    "choices": [
+      "Faster arithmetic evaluation",
+      "Support for floating-point numbers",
+      "Variables with scope, real control flow, and functions/closures -- statements, not just expressions",
+      "The ability to parse larger numbers"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "capstones-career/tier-4/specialization-deep-dive/q7",
+    "type": "multiple_choice",
+    "prompt": "In the portwatch.py AppSec capstone path, how should detection quality actually be validated?",
+    "choices": [
+      "By visually inspecting a handful of scan results",
+      "By running the tool against a corpus with known, labeled vulnerabilities and measuring false-positive and false-negative rate",
+      "By comparing scan speed against a competitor tool",
+      "By checking that the output is valid JSON"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-4/specialization-deep-dive/q8",
+    "type": "multiple_choice",
+    "prompt": "What is the purpose of generating an SBOM (e.g. in CycloneDX format) as part of the AppSec capstone?",
+    "choices": [
+      "To replace the need for a CI pipeline entirely",
+      "To produce a complete, machine-readable inventory of a project's components so vulnerability status can be tracked per component",
+      "To encrypt the project's dependency list",
+      "To automatically patch vulnerable dependencies"
+    ],
+    "correctIndex": 1
+  }
+]

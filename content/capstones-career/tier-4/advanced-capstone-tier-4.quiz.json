@@ -1,0 +1,86 @@
+[
+  {
+    "id": "capstones-career/tier-4/advanced-capstone-tier-4/q1",
+    "type": "multiple_choice",
+    "prompt": "What primarily distinguishes a Tier 4 'Advanced Capstone' from a Tier 1-3 capstone in this track?",
+    "choices": [
+      "It must be written in a brand-new programming language the learner has never used",
+      "It must integrate into a larger real engagement or system, document measured non-functional behavior and architectural tradeoffs, and hold up under external validation rather than just running correctly",
+      "It must be built without any AI assistance at any stage",
+      "It must take at least twice as many hours as Cross-Track Capstone #3"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-4/advanced-capstone-tier-4/q2",
+    "type": "multiple_choice",
+    "prompt": "In the worked example, where does the ad_recon_scan.py extension fit into the Active Directory pentest-and-detect engagement's PTES methodology?",
+    "choices": [
+      "It replaces Kerberoasting and pass-the-hash as the engagement's primary attack technique",
+      "It runs only during the final Reporting phase to format the write-up",
+      "It runs during Intelligence Gathering and Vulnerability Analysis, before exploitation, flagging known-vulnerable banners across the lab's host list",
+      "It runs exclusively on the domain controller itself rather than being launched from the attacker's box"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "capstones-career/tier-4/advanced-capstone-tier-4/q3",
+    "type": "multiple_choice",
+    "prompt": "Per this curriculum's de-duplication rule, where should a learner actually go to learn Kerberoasting, pass-the-hash, and BloodHound enumeration in depth?",
+    "choices": [
+      "This module's worked-example section",
+      "The Cybersecurity & Ethical Hacking track's own Tier 3/4 material",
+      "The Interview Prep Intensive module",
+      "Tier 0's Specialization Map"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-4/advanced-capstone-tier-4/q4",
+    "type": "multiple_choice",
+    "prompt": "Why does running a full nmap -p- scan per host sequentially become a real performance liability once the AD recon scanner is scaled from a 3-host lab to a realistic 30-50 host engagement?",
+    "choices": [
+      "nmap cannot scan more than three hosts in a single invocation under any configuration",
+      "Per-host scan time stays roughly the same, but sequential execution makes total time grow linearly (or worse, with slow hosts) with host count, which can blow through a time-boxed engagement window",
+      "The packaging library used for version comparison cannot parse Windows service banners at all",
+      "nmap requires a graphical interface once more than one target is specified"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-4/advanced-capstone-tier-4/q5",
+    "type": "multiple_choice",
+    "prompt": "In an Architecture Decision Record, what is the purpose of the 'Alternatives Considered' section?",
+    "choices": [
+      "To list every tool the author has ever used, for completeness",
+      "To document other real options that were seriously evaluated and explicitly rejected, with the specific reasons why, so a future reader doesn't have to re-litigate the decision from scratch",
+      "To describe only the chosen option in more technical detail",
+      "To list features planned for some future version of the tool"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-4/advanced-capstone-tier-4/q6",
+    "type": "multiple_choice",
+    "prompt": "What concurrency approach does ADR-004 choose for the multi-host AD recon scan, and why?",
+    "choices": [
+      "Fully sequential scanning, because performance doesn't matter during reconnaissance",
+      "One unbounded thread per host, since real AD engagements never exceed a handful of hosts",
+      "A bounded worker pool (ThreadPoolExecutor with max_workers=8) wrapping per-host nmap invocations, trading some raw speed for not overwhelming the lab network or resembling a denial-of-service against the client's own systems",
+      "Rewriting nmap itself in pure Python to eliminate subprocess calls entirely"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "capstones-career/tier-4/advanced-capstone-tier-4/q7",
+    "type": "multiple_choice",
+    "prompt": "Which of these is a concrete example of the kind of 'documented architecture tradeoff' a Tier 4 capstone is expected to produce, as distinct from mere correctness?",
+    "choices": [
+      "Confirming that vulncheck.py prints the right CVE for one known test banner",
+      "An ADR explaining why bounded concurrent scanning was chosen over a single combined nmap invocation and over unbounded concurrency, with the rejected alternatives and their consequences recorded",
+      "Adding a one-line docstring to a helper function",
+      "Renaming a local variable for readability"
+    ],
+    "correctIndex": 1
+  }
+]

@@ -1,0 +1,298 @@
+---
+trackId: capstones-career
+tier: 4
+title: "Specialization Deep Dive (choose one)"
+order: 1
+estimatedHours: 30
+slug: specialization-deep-dive
+---
+
+## How This Module Actually Works
+
+Thirty hours, one branch — not thirty hours split six ways. You picked your lean back in Tier 3's Specialization Selection module, where you ran a security-flavored thread through portwatch.py and sized up the other five branches against your own interests and market read. This module is where that choice stops being a preference and starts being hours logged against a real deliverable.
+
+Read your branch's section below in full before you touch code. Skim the other five anyway — not because you're switching, but because the depth bar described there is the bar a hiring panel will implicitly compare your capstone against even from a different branch, and because "what would this rigor look like in game dev vs. ML" is a question that sharpens your own branch's standards.
+
+Budget the thirty hours roughly as: 4-6 hours deciding the exact checkpoint and scope — not reading, deciding, in writing, with a one-page spec you commit to — 18-22 hours building, and 4-6 hours on the part everyone skips: the writeup, the demo, the postmortem. A capstone that isn't legible to a stranger in fifteen minutes doesn't function as a capstone, no matter how good the code underneath it is.
+
+## Branch 1: Security / Red-Blue
+
+Nothing here teaches a new attack technique, a new detection-rule syntax, or a new tool. That content is the Cybersecurity & Ethical Hacking track's job, specifically its Tiers 2-4 — Active Directory attack paths, log-source coverage, Sigma/YARA authoring, MITRE ATT&CK mapping, the AppSec-vs-Red-vs-Blue path split. If you haven't done that track's Tier 2 and Tier 3 at minimum, this section describes work you can't yet do. Go do that track first; come back with a Tier 3 Active Directory pentest-and-detect report already sitting on disk.
+
+Assuming you do: "going deep" at this point does not mean learning more attack surface. It means taking a checkpoint you already produced in that track and deciding, explicitly, whether it becomes your capstone centerpiece — then pushing its production quality from "lab exercise" to "work sample a stranger would pay for." Two real paths:
+
+**Path A — elevate the Tier 3 AD report.** A lab writeup and a capstone-grade pentest report differ in specific, auditable ways. Check your existing report against this list rather than rewriting from scratch: (1) an executive summary written for a non-technical reader, stating business risk in business terms — "an attacker on the guest VLAN can reach Domain Admin in four hops" beats "we found Kerberoasting was possible"; (2) every attack step tagged with a MITRE ATT&CK technique ID (T1558.003, T1003.001, etc.), not prose alone; (3) a detection section with one real, testable rule per technique you exploited, not a paragraph of advice. A Sigma rule for the Kerberoasting step:
+
+```yaml
+title: Kerberoasting via Abnormal RC4 TGS Request
+status: stable
+logsource:
+  product: windows
+  service: security
+detection:
+  selection:
+    EventID: 4769
+    TicketEncryptionType: '0x17'
+  filter:
+    ServiceName|endswith: '$'
+  condition: selection and not filter
+level: high
+```
+
+(4) prioritized remediation tied to effort and risk, not a generic "patch everything" list; (5) an appendix with raw tool output so the narrative is auditable. Target fifteen to twenty-five pages. Grade it with a rubric a hiring manager would actually use: does the exec summary survive being read alone; does every finding have a real detection rule; would the remediation section let an IT team act without a follow-up call to you.
+
+**Path B — the Tier 4 AppSec path project, continuing portwatch.py.** This keeps your established thread alive instead of branching sideways. You built portwatch.py in Tier 2 as a port scanner with banner grabbing; Tier 3 upgraded it to do real semantic-version CVE range matching against NVD/OSV data instead of string-matching version numbers. The AppSec capstone move is to stop scanning live hosts and start scanning *projects*: parse `requirements.txt`, `package-lock.json`, `go.sum` into a real Software Bill of Materials, emit it as CycloneDX, and run your existing CVE-range logic against every component in it:
+
+```python
+from packageurl import PackageURL
+from cyclonedx.model.bom import Bom
+from cyclonedx.model.component import Component, ComponentType
+
+def sbom_component(name: str, version: str, ecosystem: str) -> Component:
+    purl = PackageURL(type=ecosystem, name=name, version=version)
+    return Component(name=name, version=version, component_type=ComponentType.LIBRARY, purl=purl)
+
+bom = Bom()
+for name, version, ecosystem in parse_lockfile("requirements.txt"):
+    bom.components.add(sbom_component(name, version, ecosystem))
+```
+
+Then wire it into CI as a real gate: fail the build on any CRITICAL CVE unless it's in an allowlist with an expiry date, so "temporarily accepted risk" can't quietly become "permanently forgotten risk." The part most people skip, and the part that makes this a legitimate capstone instead of a script: validate it. Run your scanner against a corpus with known, labeled vulnerabilities — a deliberately vulnerable dependency snapshot, or a frozen OSV dataset with ground truth — and report an actual false-positive and false-negative rate. "It found some CVEs" is a toy. "It caught 94% of known-critical CVEs in this corpus with a 3% false-positive rate, and here's why it missed the other 6%" is a capstone.
+
+Pick one path, not both. Whichever you pick, name it explicitly in your capstone proposal as building on the specific Tier 2/3 artifact it extends.
+
+## Branch 2: Data Engineering
+
+A pipeline that only does batch, or only does streaming, isn't representative of the job. Most real data platforms run both, for different reasons, and the architecture decisions that matter are about how the two layers meet.
+
+Concrete running example: an e-commerce "orderflow" platform. Two real sources: an OLTP Postgres database holding orders, updated throughout the day, where you need a consistent nightly snapshot; and a Kafka topic of clickstream events — page views, add-to-cart — each one a fact as it happens, where you need near-real-time aggregates for a live dashboard.
+
+**Batch layer.** Once a day, extract orders modified since the last watermark — not "all orders," which doesn't scale, and not a naive `updated_at > yesterday`, which breaks on backfills and reruns. Land raw extracts in a data lake as Parquet, partitioned by date, untouched — this is your replay buffer if a downstream transform has a bug. Then transform into a star schema: `fact_order_lines` at the grain of one row per order line item, not per order, because returns and refunds happen at the line-item level, and getting the grain wrong here is the single most common data-modeling mistake in a junior pipeline — with `dim_customer`, `dim_product`, and `dim_date` around it:
+
+```sql
+CREATE TABLE fact_order_lines (
+    order_line_id BIGINT PRIMARY KEY,
+    order_id BIGINT NOT NULL,
+    customer_key INT REFERENCES dim_customer(customer_key),
+    product_key INT REFERENCES dim_product(product_key),
+    date_key INT REFERENCES dim_date(date_key),
+    quantity INT NOT NULL,
+    unit_price NUMERIC(10,2) NOT NULL,
+    line_status VARCHAR(16) NOT NULL  -- fulfilled, returned, refunded
+);
+```
+
+**Orchestration.** An Airflow DAG, scheduled, idempotent by construction — every task is parameterized off the DAG run's data interval, never `datetime.now()`, so re-running yesterday's DAG run reprocesses yesterday's data instead of today's:
+
+```python
+from airflow import DAG
+from airflow.operators.python import PythonOperator
+from datetime import datetime, timedelta
+
+default_args = {"retries": 3, "retry_delay": timedelta(minutes=5)}
+
+with DAG(
+    "orderflow_daily",
+    schedule="0 3 * * *",
+    start_date=datetime(2026, 1, 1),
+    catchup=True,
+    default_args=default_args,
+) as dag:
+
+    def extract_orders(data_interval_start, data_interval_end, **_):
+        rows = fetch_postgres_orders(since=data_interval_start, until=data_interval_end)
+        write_parquet(rows, partition=data_interval_start.date())
+
+    def load_fact_table(data_interval_start, **_):
+        upsert_fact_order_lines(partition=data_interval_start.date())
+
+    extract = PythonOperator(task_id="extract_orders", python_callable=extract_orders)
+    load = PythonOperator(task_id="load_fact_table", python_callable=load_fact_table)
+    extract >> load
+```
+
+`catchup=True` plus interval-based extraction is what makes backfilling three months of history a one-line schedule change instead of a one-off manual script — that's the actual point of an orchestrator, not just "runs things on a cron."
+
+**Streaming layer.** The clickstream side runs a continuous aggregation (Kafka Streams, Flink, or ksqlDB) computing tumbling-window metrics — page views per minute, cart-abandon rate — with an explicit watermark: events arriving more than, say, two minutes late get routed to a dead-letter/late-arrivals path instead of silently corrupting a window that already closed. This speed-layer output lands in a separate "hot" table that your dashboard query unions with the batch fact table, so a user sees today's numbers refresh near-real-time while everything older than today is the durable, reprocessable batch truth.
+
+**The semantics that actually bite in production:** decide, explicitly, whether each stage is at-least-once or exactly-once, because "the pipeline ran twice after a retry" is not hypothetical. Make loads idempotent with `MERGE`/upsert semantics keyed on a natural key, not blind `INSERT`, so a duplicate run doesn't double-count revenue.
+
+If your capstone is this branch, the deliverable is the DAG, the schema, the streaming job, and a design doc that states your grain decision and your late-data policy explicitly — those two decisions are what a senior data engineer will probe in a review, not whether you know what Airflow is.
+
+## Branch 3: Robotics / IoT
+
+Concrete example: a two-wheeled line-following robot using an IR sensor array to compute a single signed error value — how far off-center the line is — corrected by a PID controller that adjusts the differential between left and right wheel PWM.
+
+**The control loop, exactly:** read sensors, compute error, run PID, write actuators, sleep until the next fixed tick. The fixed-tick part is not optional — PID math assumes a roughly constant `dt`, and a loop whose timing jitters because it's also doing other work (unbuffered serial logging, a blocking delay call) will oscillate or drift in ways that look like a tuning problem but are actually a timing problem. Discrete PID, derivative computed on the error signal, integral clamped to prevent windup during saturation:
+
+```c
+typedef struct {
+    float kp, ki, kd;
+    float integral;
+    float prev_error;
+    float integral_max;
+} PID;
+
+float pid_update(PID *pid, float setpoint, float measured, float dt) {
+    float error = setpoint - measured;
+    pid->integral += error * dt;
+    if (pid->integral > pid->integral_max)  pid->integral = pid->integral_max;
+    if (pid->integral < -pid->integral_max) pid->integral = -pid->integral_max;
+    float derivative = (error - pid->prev_error) / dt;
+    pid->prev_error = error;
+    return pid->kp * error + pid->ki * pid->integral + pid->kd * derivative;
+}
+```
+
+Tune with a real procedure, not trial and error with no model: raise `kp` alone until the system oscillates at a steady amplitude, record that critical gain `Ku` and oscillation period `Tu`, then derive starting `kp`/`ki`/`kd` from the Ziegler-Nichols table and fine-tune from there. You want the "why" of each term legible in your writeup: `kp` reacts to current error — too high causes overshoot and oscillation; `ki` eliminates steady-state error `kp` alone can't close — too high causes slow oscillation and windup; `kd` dampens the approach by reacting to the error's rate of change — too high amplifies sensor noise, since differentiating a noisy signal amplifies the noise in it.
+
+**The embedded constraints that actually shape the design, not just flavor it:** pick a sample rate relative to your fastest actuator dynamics — a motor that can meaningfully change speed in 5ms is not well served by a 20Hz loop; 100Hz, a 10ms budget per iteration, is a common choice and genuinely tight once you account for sensor-read latency (an I2C IMU read can cost 1-2ms on its own), filtering, PID math, and PWM write. On an 8-bit AVR with no FPU, floating-point multiply/divide is expensive enough to single-handedly blow that budget, which is why real embedded PID implementations frequently move to fixed-point (Q15 or similar) arithmetic, trading a small amount of precision for deterministic, fast integer math. RAM matters too: a loop logging every sample to a growing buffer on a chip with 2KB of SRAM will not survive to the next sensor read; you log to a fixed-size ring buffer or stream over serial instead.
+
+**Sensor noise is not optional to handle.** A raw gyro/accelerometer reading for a balancing robot is noisy enough that feeding it directly into PID's derivative term produces mostly noise as output. A complementary filter — blend the gyro's fast-but-drifting estimate with the accelerometer's slow-but-stable one, `angle = 0.98 * (angle + gyro_rate * dt) + 0.02 * accel_angle` — is the cheap, real-time-budget-friendly answer most projects reach for before a full Kalman filter's extra complexity and CPU cost is justified.
+
+If this is your capstone, the deliverable is the control loop running on real (or simulated, e.g. in Webots) hardware, a logged step-response plot showing underdamped, overdamped, and your final tuned response side by side, and a short writeup of the one embedded constraint that most shaped your design — named specifically, since that's what a reviewer will probe.
+
+## Branch 4: Game Development
+
+A one-screen script with a sprite and a keypress handler is not a game in the sense this branch means. "Complete small game" means a loop that's correct under variable framerate, state management across more than one screen, physics and AI that are actual systems rather than special-cased per-level hacks, and a real engine's build pipeline taking you to a shippable artifact — not just "runs in the editor."
+
+**Game loop architecture.** The naive loop — advance physics by however much time passed since last frame, then render — makes simulation behavior depend on the player's framerate, which is both a bug (physics that behaves differently at 30fps vs. 144fps isn't deterministic, which breaks replays, networked play, and reproducible bug reports) and bad game feel (inconsistent jump arcs, inconsistent collision tunneling). The fix is a fixed timestep with an accumulator: advance simulation time in fixed-size chunks regardless of render framerate, and interpolate the render using whatever fractional chunk remains:
+
+```gdscript
+var accumulator := 0.0
+const FIXED_DT := 1.0 / 60.0
+
+func _process(delta):
+    accumulator += delta
+    while accumulator >= FIXED_DT:
+        _physics_step(FIXED_DT)
+        accumulator -= FIXED_DT
+    var alpha = accumulator / FIXED_DT
+    _render_interpolated(alpha)
+```
+
+This is the actual reason engines like Godot and Unity expose a separate fixed-timestep physics callback distinct from the per-frame one — you're not required to hand-roll the accumulator, but misusing the two (putting physics logic in the variable-timestep callback) is the most common source of "my game behaves differently on different machines" bugs.
+
+**Basic physics, for real.** Axis-aligned bounding box (AABB) collision detection — checking overlap on each axis independently — plus resolution via minimum translation vector (push the object out along whichever axis requires the smallest correction) handles most 2D platformer needs. The bug everyone hits: at high velocity, an object can move farther than its own size in one fixed step and tunnel straight through a thin wall without ever registering overlap. The real fix is substepping (run the physics step multiple times per fixed tick at a smaller `dt` when velocity is high) or a swept/continuous collision check against the full path, not just start and end position.
+
+**Basic AI, for real.** A finite state machine is the right starting complexity for enemy behavior — not a pathfinding-and-utility-AI stack, that's overbuild for a small game, but also not a pile of per-frame `if` statements with no explicit state:
+
+```python
+class EnemyAI:
+    def __init__(self):
+        self.state = "patrol"
+
+    def update(self, player_visible, player_in_range):
+        if self.state == "patrol" and player_visible:
+            self.state = "chase"
+        elif self.state == "chase":
+            if player_in_range:
+                self.state = "attack"
+            elif not player_visible:
+                self.state = "patrol"
+        elif self.state == "attack" and not player_in_range:
+            self.state = "chase"
+```
+
+For movement, grid-based A* with Manhattan distance as the heuristic (admissible for 4-directional movement, meaning it never overestimates true cost, which is what guarantees A* finds the optimal path) is the standard, teachable amount of pathfinding depth for a small game — full navmesh pathfinding is a scope decision to make consciously, not default into.
+
+**What "complete" adds beyond mechanics:** a main menu, pause, and game-over/win state the core loop can transition into and out of cleanly; save/load with an actual serialization format (even just JSON of a game-state dict) rather than "restart the process"; audio with real mixing (separate music/SFX buses, not one global volume slider); a level-loading system that reads level data instead of hardcoding entity positions in script, so adding level two doesn't mean copy-pasting level one's code; and an actual export to a runnable binary for your target platform, tested on a machine that isn't your dev machine.
+
+If this is your capstone: ship something a stranger can download and finish in fifteen to thirty minutes with no one present to explain a workaround.
+
+## Branch 5: ML Research
+
+"Implement the paper's core model from scratch" has one specific failure mode to avoid: using a high-level library primitive that does the exact thing you're supposed to be learning. Calling `nn.MultiheadAttention` and wiring it into a training loop proves you can use a library; it does not prove you understand attention. The depth this branch asks for means building the mechanism out of matrix multiplies and a softmax, by hand:
+
+```python
+import torch
+import torch.nn.functional as F
+
+def scaled_dot_product_attention(q, k, v, mask=None):
+    d_k = q.size(-1)
+    scores = torch.matmul(q, k.transpose(-2, -1)) / d_k**0.5
+    if mask is not None:
+        scores = scores.masked_fill(mask == 0, float("-inf"))
+    weights = F.softmax(scores, dim=-1)
+    return torch.matmul(weights, v), weights
+```
+
+Then multi-head: project `q`, `k`, `v` through learned linear layers, reshape `(batch, seq, d_model)` into `(batch, heads, seq, d_head)`, run the attention above per head in parallel, concatenate heads back to `(batch, seq, d_model)`, and pass through one more output projection. Doing this by hand confronts the details a library call hides: why the scale factor is `sqrt(d_k)` and not something else (unscaled dot products grow with dimensionality, pushing softmax into a saturated regime with near-zero gradients), how the causal mask is constructed as a boolean upper-triangular matrix applied before softmax, and why splitting into heads is a reshape-and-transpose, not literally running separate smaller attention modules.
+
+This is also where your Tier 3 DS&A Pattern Mastery work pays off directly rather than being a separate skill: attention's O(n^2) memory in sequence length is a complexity-analysis fact, not a performance-tuning footnote, and reasoning about when to chunk, cache keys/values, or fall back to a linear-attention approximation is the same big-O reasoning you built there, applied to tensors instead of arrays.
+
+**"Understanding training dynamics" concretely, not as a vibe:**
+
+*Loss curves.* A healthy run, on a log-scale y-axis, is a mostly-monotonic decreasing curve with decreasing-magnitude noise. A curve flat from step zero usually means the learning rate is too low, gradients are vanishing before reaching early layers, or — check this first, it's the most common actual bug — the loss function or label shape is wrong and the model is already at its achievable floor. A curve with sudden spikes that jump up then recover is almost always exploding gradients on a particular batch; the fix is gradient clipping, not a lower learning rate across the board, which also slows down the 99% of steps that were fine.
+
+*Gradient norms, logged every step, not assumed:*
+
+```python
+total_norm_sq = 0.0
+for p in model.parameters():
+    if p.grad is not None:
+        total_norm_sq += p.grad.data.norm(2).item() ** 2
+total_norm = total_norm_sq ** 0.5
+```
+
+A norm that trends toward zero over training in a deep network without residual connections is vanishing gradients, concretely visible, not theoretical — this is the actual, measurable reason residual connections and layer normalization exist in modern architectures, and implementing a deep network without them, then watching the gradient norm collapse, is a more convincing lesson than reading about the vanishing gradient problem.
+
+*Learning rate schedule.* The transformer-paper-standard warmup-then-decay schedule exists for a concrete reason: early in training, with randomly initialized weights, a large learning rate causes large, uninformative updates because the loss landscape near random init is poorly conditioned; a short linear warmup lets the optimizer's adaptive moment estimates (with Adam) stabilize before the LR reaches its peak. Implement the schedule yourself, plot LR against step, and overlay it on your loss curve — you should be able to point at the warmup period and the loss curve's behavior during it and explain the relationship, not just cite that "warmup helps."
+
+If this is your capstone: implement the paper's model with no shortcut on the core mechanism, train it on a real (small is fine) dataset, and submit your loss curve, your gradient-norm plot, and a written account of at least one failure you diagnosed using those plots — not just the final numbers.
+
+## Branch 6: Systems / Compilers
+
+This track's own Tier 1 had you build a toy calculator — tokenize an arithmetic expression, parse it (likely shunting-yard or a small recursive-descent parser), evaluate it. That's expression evaluation: no statements, no variables, no control flow, no functions. The jump this module asks for is qualitatively different, not just "a bigger calculator": an environment model (variable scope, a chain of scopes for nested blocks and functions), control flow that actually changes execution order rather than just evaluating to a value, and functions as first-class values, including closures — a function that captures variables from an enclosing scope that has already returned.
+
+**Two real progressions; pick one.**
+
+*Progression A — tree-walking interpreter, then bytecode VM, for a Lox-sized language.* Build a lexer and recursive-descent parser producing an AST for a language with variables, `if`/`while`, functions, and closures. First implementation: walk the AST directly, with an `Environment` class holding a dict of bindings and a pointer to its enclosing environment — this chain is literally how lexical scoping and closures work, since looking up a name walks the chain outward until found. Once that works, the real depth move is compiling to bytecode instead of re-walking the tree every time:
+
+```python
+OP_CONST, OP_ADD, OP_GET_LOCAL, OP_CALL, OP_RETURN = range(5)
+
+class VM:
+    def __init__(self, code, constants):
+        self.code = code
+        self.constants = constants
+        self.stack = []
+        self.frames = []  # call frames, each with its own locals + return address
+        self.ip = 0
+
+    def run(self):
+        while self.ip < len(self.code):
+            op = self.code[self.ip]
+            self.ip += 1
+            if op == OP_CONST:
+                idx = self.code[self.ip]; self.ip += 1
+                self.stack.append(self.constants[idx])
+            elif op == OP_ADD:
+                b, a = self.stack.pop(), self.stack.pop()
+                self.stack.append(a + b)
+            elif op == OP_CALL:
+                self._call_function()
+            elif op == OP_RETURN:
+                self._return_from_frame()
+```
+
+Closures are the part that actually separates a toy bytecode VM from a correct one: when an inner function captures an outer local, and the outer function returns, that local's stack slot is gone — so you need "upvalues" that get closed over (boxed onto the heap) at the point of closure creation, the same problem every real language runtime this design is modeled on (JS, Lua) solves explicitly.
+
+*Progression B — OS-fundamentals progression.* If you'd rather go toward operating systems than language runtimes, the equivalent-depth checkpoint sequence is: a boot sector that loads your kernel off disk (real-mode to protected-mode transition, setting up a GDT); a minimal physical memory allocator; paging — virtual memory and page tables as the actual mechanism, not a description of it; interrupt handling (IDT, a timer interrupt firing a scheduler tick); and a cooperative or preemptive round-robin scheduler that context-switches between at least two running tasks. A pedagogical OS like xv6 is the right reference to build against — read its source for the real mechanism, then implement your own version rather than running its code unmodified. The depth bar is the same as Progression A: you should be able to explain, concretely, how a page fault is handled end to end, or how a context switch actually swaps register state, not just that these things "happen."
+
+Either progression is real systems work, and either is a legitimate capstone centerpiece. What's not sufficient for this tier: extending the Tier 1 calculator with a few more operators, or a tutorial-followed OS you can't explain a layer of. The test for "did I actually go deep enough": pick any single mechanism in your project — closures' upvalue capture, or paging's page-table walk — and explain it to someone else without looking at your own code. If you can't, that's the part to rebuild until you can.
+
+## Exercise: The Capstone Commitment
+
+Before you write a line of your chosen branch's capstone code, produce a one-page capstone proposal. This is the actual exercise, and skipping it is how people burn twenty hours building the wrong scope.
+
+Your proposal must state, concretely:
+
+1. Which branch, and which specific path within it — e.g. "Security, Path B: portwatch.py to AppSec SBOM/CI-gate tool," not just "security."
+2. The exact checkpoint from an earlier tier or track you're building on, named explicitly — e.g. "builds on Tier 2 portwatch.py's port scanner and Tier 3's semantic-version CVE range matching upgrade."
+3. The specific artifact that proves depth, not effort — one concrete, falsifiable claim about what the finished thing will do, e.g. "detects at least 90% of known-critical CVEs in a labeled test corpus with a measured false-positive rate under 5%," not "scans for vulnerabilities."
+4. What you will NOT build — the scope cut. Every real capstone proposal has one; if yours doesn't, your scope is still too big.
+
+If your branch is security: write the actual proposal for one of the two paths above, including which specific portwatch.py extension (SBOM format, CI gate design) or which specific AD report sections you're elevating, and what numeric claim you'll validate it against.
+
+Hint, not a solution: the failure mode to watch for in your own draft is claim #3 being unfalsifiable. "Make the scanner better" is not falsifiable — you can't fail at it, which means it also can't prove anything to a stranger. Rewrite it until a reviewer could, in principle, check your claim against your finished artifact and say "yes, it does that" or "no, it doesn't," with no judgment call involved. If you're stuck, work backward from the demo: what's the one thing you'll show a reviewer in the first two minutes, and what number or behavior in that demo is the proof?

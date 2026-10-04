@@ -1,0 +1,254 @@
+---
+trackId: capstones-career
+tier: 4
+title: "Portfolio Case Studies"
+order: 5
+estimatedHours: 8
+slug: portfolio-case-studies
+---
+
+## Why this module exists
+
+Tier 3 gave you a portfolio site with three project cards and a README behind each one. That's real work, and it's not finished. A README proves a project runs. A card gets a stranger to click. Neither one does the job a hiring manager or a technical reviewer actually needs done: deciding, in two or three minutes, whether you're worth 45 minutes of their calendar for a screen — and then, if you get that screen, giving you the exact talking points you'll need when they ask "walk me through a project you're proud of."
+
+That's a case study: a fifth document, sitting between the card and the README, written for a different reader asking a different question. The card asks "is this worth a click?" The README asks "does this actually run, and how is it built?" The case study asks "did this person make good decisions under real constraints, and can they tell me so in language I don't have to decode?" You already have the raw material — TrailLink from Tier 3's Cross-Track Capstone #3, the `portwatch.py` → `vulncheck.py` security thread from Tier 2 and Tier 3, and whatever Sustained Open-Source Contribution PRs you landed. This module doesn't ask you to build anything new. It asks you to rewrite what you already shipped, for a reader you haven't been writing for yet.
+
+## Three documents, one project, three jobs
+
+| Document | Audience | Time budget | Built in |
+|---|---|---|---|
+| Portfolio card | Anyone scanning your site | ~30 seconds | Tier 3, Build Your Portfolio Site |
+| README | Someone who clicked "Source" and wants to verify the thing works | ~90 seconds | Tier 1, Writing Project Narratives |
+| Case study | A hiring manager or reviewer deciding whether to advance you | ~2-3 minutes | This module |
+
+These stack, they don't compete. The case study doesn't replace the README's Architecture section or the card's stack tags — it assumes a reader who wants neither of those yet and instead wants to know what you decided, why, and what it cost or saved. Get the case study right and the README still does its job for the reader who goes looking for mechanism afterward.
+
+## The five-part structure: Problem, Constraints, Decisions, Metrics, Lessons Learned
+
+Writing Project Narratives' four parts — Problem, Solution, Architecture, Demo — are built to prove a project is real and runs. A case study's five parts are built to prove you can reason under pressure, which is a different claim and needs different sections, not a trim of the same four:
+
+| Case-study part | Job | Relationship to the README |
+|---|---|---|
+| Problem | The real-world pain, framed around who felt it, not the technical gap | Same raw material as the README's Problem, reframed outward instead of inward |
+| Constraints | The real limits that shaped the build — time, team size, an unfamiliar domain, data you didn't control | No equivalent in the README at all. This is the section that actually differentiates a case study. |
+| Decisions | The specific choices made, the alternatives you rejected, and why | Replaces the README's Architecture — names tradeoffs instead of file layout |
+| Metrics | Honest, falsifiable numbers wherever they genuinely exist | New. The README's Demo proves the thing ran; Metrics proves it mattered. |
+| Lessons Learned | What you'd change now, knowing what you know | New. A README that admits "I'd do this differently" reads like unfinished work; a case study that does is read as self-aware judgment. |
+
+Constraints and Lessons Learned are the two sections a README structurally cannot hold without reading strangely — and they're exactly the two sections a hiring manager is actually trying to extract when they ask you to "walk me through a project."
+
+## Worked example, part one: TrailLink's README as it stands
+
+Here's the README TrailLink actually ships with, following the Problem/Solution/Architecture/Demo structure Tier 1 taught and Tier 3's capstone module told you to reuse directly:
+
+```markdown
+# TrailLink
+
+Models a hiking-trail network as a weighted graph and returns the
+shortest route between two trailheads by distance or by elevation
+gain, instead of forcing hikers to guess from a flat trail map.
+
+    fly deploy          # backend
+    vercel --prod        # frontend
+
+## Problem
+
+Hikers picking a route between two trailheads had no way to compare
+options by elevation gain, only by rough distance on a paper map or a
+generic hiking app. Two routes between the same two points can have
+wildly different climbs, and nothing surfaced that tradeoff directly.
+
+## Solution
+
+TrailLink stores trailheads and segments as a weighted, undirected
+graph and runs Dijkstra's algorithm twice over the same adjacency
+list — once weighted by distance, once by elevation gain — returning
+genuinely different paths when the data calls for it.
+
+## Architecture
+
+- `graph.py` — pure shortest-path logic, zero HTTP or SQL imports,
+  unit-testable with a plain dict.
+- `routes.py` — Flask handlers; parses HTTP, calls `graph.py`.
+- `store.py` — SQLite persistence for trailheads, segments, hikes.
+- React frontend, deployed separately on Vercel, calling the Flask
+  API over HTTPS with CORS explicitly allowlisted.
+
+      routes.py --> graph.py --> store.py
+
+## Demo
+
+![TrailLink finding two different routes by distance vs. elevation](demo.gif)
+
+## License
+
+MIT
+```
+
+That's a good README. It proves the thing runs, shows real layering, and links a GIF of two different optimize modes returning two different paths. It is also exactly the kind of document a hiring manager skimming forty tabs will not finish reading, because nothing in it answers "why should I care" or "how did this person think."
+
+## Worked example, part two: the same project as a case study
+
+```markdown
+# TrailLink — case study
+
+## Problem
+
+Hikers comparing two routes between the same trailheads had no way to
+see the real tradeoff between distance and elevation gain — a
+"shorter" route on a flat map can be the harder climb. I built an API
+and frontend that compute and visibly contrast both.
+
+## Constraints
+
+- Solo build, 20-hour budget, inside a tier that also owed sustained
+  open-source work and a DS&A practice sprint — no room to over-build.
+- No existing dataset of real, surveyed trail segments; the graph had
+  to be realistic enough to force genuinely different distance vs.
+  elevation paths, not just technically correct on trivial input.
+- First time deploying two separately-hosted services (API, frontend)
+  that had to talk to each other over the open internet instead of
+  `localhost` — no prior CORS experience to draw on.
+
+## Decisions
+
+- **Two Dijkstra runs over one adjacency list, not one run with a
+  combined score.** A blended distance+elevation weight would have
+  been faster to ship but would have hidden the actual tradeoff I was
+  building the project to expose. Running the real algorithm twice,
+  once per weight function, was the only version that could prove
+  `optimize=distance` and `optimize=elevation` genuinely diverge.
+- **Kept `graph.py` free of HTTP and SQL imports.** The alternative —
+  routing logic inline in the Flask handler — would have shipped
+  faster but made the algorithm untestable without a running server.
+  I paid the extra half hour of indirection up front so the core logic
+  could be unit-tested with a plain Python dict.
+- **In-process cache, invalidate-on-write, not a version-counter
+  cache.** Once segment counts grew, rebuilding the adjacency list
+  from SQLite on every `/route` call got slow enough to matter. A
+  version-counter cache-aside pattern survives multiple server
+  processes sharing one database; a single Fly.io instance doesn't
+  have that problem, so I took the simpler invalidate-on-write path
+  instead of building coherency machinery the deployment target
+  didn't need.
+
+## Metrics
+
+- 6 of 6 floor acceptance tests pass, including the two shortest-path
+  tests that can only both pass if the two weight functions produce
+  genuinely different paths on the same graph — not a coverage number
+  inflated by trivial tests.
+- `graph.py` — the one module the architecture decision above made
+  unit-testable in isolation — has 96% line coverage under
+  `pytest --cov`, measured directly, not estimated.
+- Caching cut `/route`'s measured p95 latency from ~190ms to ~9ms on
+  cache hits, measured with `hey -n 500 -c 10` against the live
+  `fly.dev` URL, after the invalidation bug below was fixed.
+
+## Lessons learned
+
+- I shipped the cache before writing a test for the exact sequence
+  that breaks it — write, then read. The bug (a new segment not
+  showing up in `/route` until a restart) was deterministic and
+  10-for-10 reproducible, which should have been a five-minute
+  regression test from day one instead of something I found by
+  manual testing after the fact. I added that test after the fix;
+  next time it ships with the cache, not after it.
+- I hardcoded `localhost` as the allowed CORS origin and only
+  discovered the mismatch once both services were actually live on
+  separate domains. I'd configure the allowed origin from an
+  environment variable from the first deploy, not the second.
+```
+
+## What changed, and what that proves
+
+Read the two side by side and three differences explain the whole exercise. First, the case study's Problem sentence drops "weighted graph" and "shortest-path algorithm" — words a hiring manager has to translate — and keeps "see the real tradeoff," a phrase that needs no translation. Second, the Architecture section's file list is gone entirely; the same information survives only inside Decisions, reframed as a choice with a rejected alternative ("a blended score would have hidden the tradeoff") instead of a diagram. Third, the cache-invalidation bug — which the README never mentions, because a bug you already fixed has no natural home in Problem/Solution/Architecture/Demo — becomes the single most load-bearing sentence in the whole case study, because "found a deterministic bug, fixed it, and added the regression test that would have caught it" is a direct answer to the exact question a hiring manager is actually asking when they say "tell me about a bug you're proud of catching."
+
+## Writing for a hiring manager who skims, not a peer developer
+
+A peer developer reading your work can audit mechanism — they know what `_graph_cache = None` means and want to see it. A hiring manager skimming forty candidates cannot audit mechanism, and asking them to is asking them to do your job of translating it. Same fact, two audiences, two sentences:
+
+```text
+Peer-developer register:
+"Fixed a stale in-process `_graph_cache` that wasn't invalidated on
+`POST /segments`; added an invalidate-on-write call that nulls the
+cache reference immediately after insert, re-verified against the
+floor test suite."
+
+Hiring-manager register:
+"Found and fixed a caching bug where newly added trails wouldn't show
+up in route results until a server restart — shipped same day, and
+added a regression test so it can't come back silently."
+```
+
+Both sentences are true and neither one is dumbed down — the hiring-manager version drops implementation nouns (`_graph_cache`, "invalidate-on-write," "floor test suite") and keeps every piece of information that signals judgment: found it, fixed it fast, made sure it stays fixed. That last clause — "so it can't come back silently" — is doing real work: it's a compact proof you think about regression, not just the one-off fix, without using the word "regression." The move generalizes: write the peer-developer sentence first, because you need the precise version to know you're telling the truth, then strip every noun a non-engineer would have to look up, keeping every clause that signals scope, speed, or judgment. Don't delete the peer-developer sentence — put it in the README or an engineering-notes appendix, because the peer developer still shows up later, in your actual technical interview, and will want exactly that version.
+
+## Quantifying impact honestly, not inflating it
+
+Tier 1's Writing Project Narratives drew the line between documentation (falsifiable) and marketing (not) for sentences. The same line applies to numbers, and a vague claim fails it exactly the same way a vague sentence does:
+
+```text
+Unquantified, unfalsifiable:
+"Built a blazing-fast, highly scalable routing engine for TrailLink."
+
+Quantified, falsifiable:
+"Cut /route's measured p95 latency from ~190ms to ~9ms on cache hits,
+measured with `hey -n 500 -c 10` against the live Fly.io URL."
+```
+
+The second sentence names the tool, the sample size, and the exact before/after — a reader could run the same load test against the same live URL and check it. The first sentence can't be checked against anything, because "blazing-fast" has no unit and "highly scalable" has no load figure attached. The discipline isn't "always have an impressive number" — it's "never write a number, or a number-shaped adjective, that you couldn't defend if someone asked how you got it."
+
+That discipline gets harder, not easier, on a solo capstone with no production traffic to measure — and that's exactly where it matters most, because the temptation to round up is strongest when there's no real data to be honest about yet. Three honest options, in order of preference: run a real measurement yourself (a load test against your own live URL, a `pytest --cov` run, a timed before/after on a controlled input, all three used above); if that's genuinely not possible yet, scope the claim to exactly what you tested and say so plainly ("flagged 2 of 2 known-vulnerable rows seeded in a lab scan, 0 false positives on the other open ports in that scan — numbers from one lab host, not production traffic"); and if there's truly no number anywhere, fall back to a falsifiable *sentence* instead of inventing a falsifiable-sounding number, the same move Tier 1 already taught. A real number scoped to a lab test, labeled as a lab test, is honest. A production-sounding number pulled from nowhere is not — and a technical reviewer who asks "how did you measure that" during a screen will find out which one you wrote in about one follow-up question.
+
+## A second case study, briefer: the security thread
+
+The `portwatch.py` → `vulncheck.py` upgrade from Tier 2 and Tier 3 compresses the same five parts fast, because the Decisions section is mostly already written — Tier 3's module stated its own tradeoff out loud when it chose to fail closed on an unparseable version string:
+
+**Problem.** Exact-substring matching (`"vsftpd 2.3.4" in banner`) missed any real-world version string with a patch suffix, and had no concept of a vulnerable *range* at all.
+
+**Constraints.** No live CVE feed inside an 8-hour Tier 2 timebox; the database had to be small enough to hand-audit, not pulled from a production-scale API.
+
+**Decisions.** Chose `packaging.Version` for real semantic-version comparison over continuing to grow the exact-string dict; chose to return `False` rather than raise on an unparseable version, accepting a possible false negative in exchange for never crashing a scan over one malformed banner.
+
+**Metrics.** Flagged 2 of 2 known-vulnerable rows seeded in the Tier 2 lab scan — the carried-over exact match plus a genuinely new range-based catch on `5.0.51a-3ubuntu5` the old substring check could never have caught — with 0 false positives on the scan's other open ports. Scoped honestly: one lab host, not a fleet.
+
+**Lessons learned.** A hand-maintained `VULN_DB` dict doesn't scale past a handful of entries; the next real step is pulling from the OSV API directly instead of adding rows by hand indefinitely.
+
+## A third case study: a merged PR, not just a link
+
+Sustained Open-Source Contribution's worked PR — gating a new Black formatting behavior behind a `Preview.nested_call_trailing_comma` flag after a maintainer flagged that changing default output breaks anyone diffing Black's output in CI — is itself a case study, and a strong one, because open-source collaboration is exactly the evidence a resume bullet like "contributed to Black" can't carry on its own.
+
+**Problem.** A new formatting behavior would silently break any team's CI pipeline that diffs Black's output against a pinned version.
+
+**Constraints.** Working inside an existing feature-flag architecture you didn't design, under a project rule you only learned from a maintainer's review comment, not before writing the first draft.
+
+**Decisions.** Gated the behavior behind a new `Preview` enum member and added it to `UNSTABLE_FEATURES`, following the exact precedent `string_processing` had already set, instead of arguing for shipping it as default behavior.
+
+**Metrics.** Merged in one review round after the requested architectural change — a specific, checkable fact (the PR number, the round count), not "I contributed to a major open-source project."
+
+**Lessons learned.** Reading `mode.py`'s `Preview` enum before the first draft, instead of after the maintainer's comment, would have saved that entire review round.
+
+## Where this actually lives
+
+Don't rebuild the portfolio site from Tier 3 to fit this. Add one subpage per case study — `case-studies/traillink.html` sitting next to `index.html`, reusing the same CSS from Build Your Portfolio Site rather than inventing new styling — and add one more link to each existing project card:
+
+```html
+<div class="card-links">
+  <a href="https://traillink-api.fly.dev/health">Live demo</a>
+  <a href="https://github.com/jordancasey/traillink">Source + full README</a>
+  <a href="case-studies/traillink.html">Read the case study</a>
+</div>
+```
+
+The card still earns the 30-second click. The README still proves the thing runs. The case study is the page a hiring manager actually opens before deciding to schedule a screen — and the page you reread five minutes before that screen starts, because it's already written in the exact register you'll need to speak it out loud in.
+
+## Exercise
+
+Pick your actual third portfolio project — not TrailLink and not the security thread, both already modeled above. Write its case study:
+
+1. Fill in all five sections — Problem, Constraints, Decisions, Metrics, Lessons Learned — using real specifics from how you actually built it, not generic placeholders.
+2. For the Decisions section, name at least one alternative you considered and rejected, and the concrete reason you rejected it — not "I decided to use X," but "I considered Y, and rejected it because Z."
+3. Write one sentence about this project in peer-developer register, then rewrite it in hiring-manager register, keeping every piece of signal and dropping every noun a non-engineer would have to look up.
+4. For Metrics, write at least one number you actually measured (a timing, a test count, a coverage percentage) rather than a number-shaped adjective. If you genuinely have no measurable number for this project, write the honest scoped fallback sentence instead — and say in one line why no number exists yet.
+
+**Hint, not a solution:** if Decisions feels thin, you likely built the project without consciously rejecting anything — go back through your own commit history or your notes from when you built it and find the point where you almost did it a different way, even if you never wrote that alternative down at the time. Every real project has at least one of those moments; the case study's job is just to surface it.

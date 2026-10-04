@@ -1,0 +1,86 @@
+[
+  {
+    "id": "capstones-career/tier-4/open-source-leadership-track/q1",
+    "type": "multiple_choice",
+    "prompt": "Per this module, what actually distinguishes 'taking ownership' of a feature from merging a single well-reviewed PR?",
+    "choices": [
+      "Ownership requires the PR to touch more files than a typical contribution",
+      "Ownership means participating in the design discussion before coding, shipping the work across multiple related PRs, and handling follow-up maintenance after merge",
+      "Ownership is granted automatically once a contributor has ten merged PRs on a project",
+      "Ownership only requires writing more thorough tests than other contributors"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-4/open-source-leadership-track/q2",
+    "type": "multiple_choice",
+    "prompt": "In the pip-audit worked example, what was the actual bug in the version-range matcher?",
+    "choices": [
+      "It crashed on any version string containing a pre-release suffix",
+      "It rejected all OSV advisories that used the ECOSYSTEM range type",
+      "It only evaluated the first introduced/fixed event pair, missing advisories with multiple disjoint (non-contiguous) vulnerable intervals",
+      "It compared versions as raw strings instead of using the packaging library at all"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "capstones-career/tier-4/open-source-leadership-track/q3",
+    "type": "multiple_choice",
+    "prompt": "Why did the contributor propose a general 'sweep over all events' fix instead of just patching the matcher to read one more introduced/fixed pair?",
+    "choices": [
+      "Because the sweep approach was shorter code to write",
+      "Because OSV's schema allows an arbitrary number of introduced/fixed pairs per range, so a pair-specific patch would just recur on the next multi-interval advisory",
+      "Because the maintainer refused to accept any PR under 50 lines",
+      "Because the project's style guide banned conditional branches in matcher functions"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-4/open-source-leadership-track/q4",
+    "type": "multiple_choice",
+    "prompt": "Why were the fix, the tests, and the docs/changelog update split into three separate PRs instead of one combined diff?",
+    "choices": [
+      "The project's CI only allowed one file change per pull request",
+      "Splitting let each reviewable unit (behavior fix, proof via tests, and documentation for future contributors) be reviewed and landed independently",
+      "The maintainer required a minimum of three PRs per contributor each month",
+      "Tests and docs could not technically be included in the same repository as the fix"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-4/open-source-leadership-track/q5",
+    "type": "multiple_choice",
+    "prompt": "In the example maintainer-style review of the --ignore-vuln PR, which of the following best characterizes what made it a 'maintainer-track' review rather than a drive-by one?",
+    "choices": [
+      "It approved the PR immediately with no comments, since the code compiled and tests passed",
+      "It only pointed out style nitpicks like variable naming and line length",
+      "It cited a concrete failure scenario with real inputs, explicitly declined to block on something that didn't matter while explaining why, asked a genuine open design question, and requested a test to pin down the answer either way",
+      "It rewrote the entire PR itself and pushed the changes directly to the contributor's branch without comment"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "capstones-career/tier-4/open-source-leadership-track/q6",
+    "type": "multiple_choice",
+    "prompt": "Which signal most reliably distinguishes a 'recognized regular' from someone who merged one PR and vanished?",
+    "choices": [
+      "Having a profile picture and bio filled out on their GitHub account",
+      "A maintainer referencing the contributor's past work from memory (e.g. 'isn't this the thing you fixed in #412?') or @-mentioning them for input on an unrelated issue in their area",
+      "The number of total lines of code changed across all their PRs combined",
+      "Whether they starred the repository before contributing"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-4/open-source-leadership-track/q7",
+    "type": "multiple_choice",
+    "prompt": "Why did the module treat the three-weeks-later regression fix (the pre-release version edge case) as an important part of 'ownership,' even though it was a small, one-line change?",
+    "choices": [
+      "Because small fixes are inherently more impressive to maintainers than large ones",
+      "Because it demonstrates the contributor stayed accountable for the subsystem's correctness over time rather than disappearing once the original PRs merged",
+      "Because the fix required rewriting the entire matcher from scratch",
+      "Because the maintainer offered a monetary bounty for regression fixes"
+    ],
+    "correctIndex": 1
+  }
+]

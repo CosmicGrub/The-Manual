@@ -1,0 +1,216 @@
+---
+trackId: capstones-career
+tier: 4
+title: "Advanced Capstone (Tier 4)"
+order: 2
+estimatedHours: 30
+slug: advanced-capstone-tier-4
+---
+
+## What this module is for, and what it isn't
+
+Tier 4's Specialization Deep Dive (the module right before this one) teaches the domain-specific depth of whichever branch you confirmed in Tier 3 — for security that means going straight to the Cybersecurity & Ethical Hacking track's own Tier 2-4 material and picking a real checkpoint from it. This module teaches something different and reusable across all six branches: how to actually *scope and execute* a Tier 4-grade capstone once you have that domain depth, because "deep technical skill" and "a capstone that reads as Tier 4 work to a stranger" are not the same achievement. You can know Kerberoasting cold and still ship a capstone that reads like a Tier 2 project with more jargon in it. This module is about closing that gap: what "substantial" concretely means at this tier, generic guidance that applies no matter which branch you picked, and then one fully worked example — continuing this track's own security-lean thread (`portwatch.py`, upgraded in Tier 3 to real semantic-version CVE-range checking) — carried through all three of the things a Tier 4 capstone actually has to demonstrate: scale, performance, and documented architectural tradeoffs.
+
+## What makes a capstone "substantial" at Tier 4, concretely
+
+"Bigger" is not the bar. A capstone twice the line count of Capstone #3 with the same shape — one person, one machine, correctness as the only success criterion — is still a Tier 3 project wearing a bigger coat. Four concrete properties separate a Tier 4 capstone from everything before it:
+
+| Property | Tier 1-3 capstone | Tier 4 capstone |
+|---|---|---|
+| Scope | A self-contained project that *is* the whole assignment | A component that plugs into a larger real engagement or system — it has to interoperate, not just run |
+| Success criterion | "It produces the correct output" | Correct output *and* measured, stated performance behavior under realistic load |
+| Decision record | Decisions live in your head or a commit message, if anywhere | At least one real architectural decision is written down as an ADR, with alternatives you actually considered and rejected |
+| Validation | You test it yourself, or a peer-review kata checks it | A domain-specific external standard (a real CVE database, a real detection log, a rubric a stranger would apply) checks it, not just your own assertions |
+
+The concrete example this curriculum already gives you for "substantial" in the security branch is the Cybersecurity & Ethical Hacking track's own Tier 3 checkpoint: the **Active Directory pentest-and-detect report**. Look at its actual shape, not its technique list: a self-built domain lab (one domain controller plus two client VMs), a full PTES methodology run start to finish — pre-engagement scoping, intelligence gathering, threat modeling, vulnerability analysis, exploitation, post-exploitation, reporting — attacks chained into an actual compromise path (not one isolated exploit), the *same lab then instrumented with Sysmon and Windows Event Logging* to detect the exact techniques just used, a re-attack to prove the detections fire, and all of it written up as a professional report a client would actually receive. That's four of this table's cells satisfied at once: it's a component of a larger simulated engagement (not an isolated script), it has a stated detection-performance criterion ("did the alert actually fire"), its methodology section is effectively a string of documented decisions, and PTES/the report format are the external standard it's validated against.
+
+This module does not re-teach how to run that engagement — Kerberoasting, pass-the-hash, BloodHound enumeration, and the Sysmon detection logic all belong to the Cybersecurity & Ethical Hacking track's own Tier 3 and Tier 4 material, and that's where you go for the technique depth. What this module adds is narrower and still real: a genuine extension to that report's **reconnaissance phase**, built directly out of your own `portwatch.py`/`vulncheck.py` lineage, plus the performance and architecture-documentation work a Tier 4 capstone is graded on regardless of branch.
+
+## Generic guidance: the same scoping lens, any branch
+
+Before the worked example, here is the reusable checklist behind that table — apply it to whichever branch you're in, security or otherwise:
+
+1. **Name the larger system or engagement your capstone plugs into.** Not "a project," but a specific host system: a pentest engagement's recon phase, a game's existing save-system architecture, an ETL pipeline's ingestion stage, a robot's existing control loop, a compiler's existing pass pipeline, a paper-replication codebase's training loop. If you can't name one, you haven't scoped Tier 4 work yet — you've scoped a bigger standalone script.
+2. **Pick one non-functional property you will actually measure, not assert.** Scan time against host count, frame time under load, training throughput per epoch, query latency under concurrent writes, compile time against input size. "It's fast enough" is not a measurement; a number with a method behind it is.
+3. **Write down one real architectural decision as an ADR before you build past it, not after.** The decision has to have had a real alternative you seriously considered and rejected — if there was only ever one way to do it, it isn't architecture, it's syntax.
+4. **Find or construct an external check that isn't your own opinion of your own work.** A real vulnerability database, a benchmark suite, a rubric used by people who didn't write the code, a detection log that either fires or doesn't. Self-assessment caps out at Tier 3; Tier 4 needs a check that would embarrass you if you were wrong.
+5. **Scale the test case past your own comfort zone on purpose.** One lab host, one save file, one small CSV — all fine for Tier 1-3. Tier 4 means deliberately testing against a host list, a long play session, a dataset bigger than fits comfortably in memory, a grammar with real edge cases, a model run long enough to actually plateau.
+
+Quick translation per branch, one line each — the deep version of each lives in that branch's own Specialization Deep Dive work, not here: data engineering's larger system is the orchestrated pipeline the single script feeds into, and its measured property is throughput/row under a realistic batch size, not a 20-row CSV. Robotics/IoT's larger system is the full control loop the single sensor read feeds into, measured as loop latency under real sensor noise, not a clean simulator run. Game dev's larger system is the save/scene architecture the one mechanic has to coexist with, measured as frame time with the mechanic active alongside everything else already on screen. ML research's larger system is the full training/eval loop the from-scratch model slots into, measured as wall-clock time per epoch against a real dataset size, not a 50-example smoke test. Systems/compilers' larger system is the full pass pipeline the one optimization or grammar feature has to survive, measured as compile time against a program large enough that an O(n^2) pass actually shows it.
+
+## The worked example: extending `portwatch.py` into the AD engagement's recon phase
+
+Tier 2 built `portwatch.py` — a stateful scanner that diffs nmap scans over time and flags banners by exact substring match. Tier 3's Specialization Selection module upgraded its vulnerability logic into `vulncheck.py`: real semantic-version range checking against a small `VULN_DB`, instead of brittle exact strings, and wired a version of it (`audit_deps.py`) into a CI pipeline as a dependency-vulnerability gate. Both of those lived against a single target or a single project's dependency file. The Tier 4 extension takes the exact same `vulncheck.py` logic — `VULN_DB`, `version_in_range`, the normalize-then-compare pipeline — and points it at the actual host list from your Cybersecurity track AD lab's Intelligence Gathering phase, before Kerberoasting or any exploitation step runs:
+
+```python
+#!/usr/bin/env python3
+"""ad_recon_scan.py -- run vulncheck.py's real version-range logic
+against every host in an Active Directory engagement's scope, as
+part of PTES Phase 2 (Intelligence Gathering) / Phase 4 (Vulnerability
+Analysis), before any exploitation begins.
+
+This does NOT replace BloodHound/PowerView enumeration or the actual
+Kerberoasting/pass-the-hash attack chain -- those are the Cybersecurity
+& Ethical Hacking track's Tier 3 material, and this script only covers
+the service-banner recon slice feeding into that report's own
+Intelligence Gathering and Vulnerability Analysis sections.
+"""
+import subprocess
+import xml.etree.ElementTree as ET
+from dataclasses import dataclass
+
+from vulncheck import VULN_DB, version_in_range  # reused unmodified from Tier 3
+
+# Windows/AD-relevant rows added to the same VULN_DB shape vulncheck.py
+# already defines -- service name, CVE, severity, min/max version.
+VULN_DB.extend([
+    {
+        "service": "smb", "cve": "CVE-2017-0144", "severity": "CRITICAL",
+        "description": "EternalBlue -- SMBv1 remote code execution",
+        "min": "1.0", "max": "1.0",
+    },
+    {
+        "service": "ms-wbt-server", "cve": "CVE-2019-0708", "severity": "CRITICAL",
+        "description": "BlueKeep -- unauthenticated RDP remote code execution",
+        "min": "6.0", "max": "6.1",
+    },
+])
+
+AD_LAB_HOSTS = ["192.168.56.10", "192.168.56.20", "192.168.56.21"]  # DC01, CLIENT01, CLIENT02
+
+
+@dataclass
+class HostFinding:
+    host: str
+    port: str
+    banner: str
+    cve: str
+    severity: str
+
+
+def scan_host(host: str) -> str:
+    """Single-host nmap run. See the Performance Considerations
+    section below for why this signature is about to change."""
+    result = subprocess.run(
+        ["nmap", "-sV", "-p-", "--open", "-oX", "-", host],
+        capture_output=True, text=True, check=True,
+    )
+    return result.stdout
+
+
+def check_host(host: str) -> list:
+    root = ET.fromstring(scan_host(host))
+    findings = []
+    for port_el in root.findall("host/ports/port"):
+        svc = port_el.find("service")
+        if svc is None:
+            continue
+        service = svc.get("name", "").lower()
+        version = svc.get("version", "0")
+        for entry in VULN_DB:
+            if entry["service"] != service:
+                continue
+            if version_in_range(version, entry["min"], entry["max"]):
+                findings.append(HostFinding(
+                    host, port_el.get("portid"), f"{service} {version}",
+                    entry["cve"], entry["severity"],
+                ))
+    return findings
+
+
+if __name__ == "__main__":
+    all_findings = [f for host in AD_LAB_HOSTS for f in check_host(host)]
+    for f in sorted(all_findings, key=lambda f: f.severity):
+        print(f"[{f.severity:8}] {f.host} {f.port}/tcp {f.banner} -> {f.cve}")
+```
+
+Run once against the lab from the Cybersecurity track's own topology (DC01 at `.10`, CLIENT01 and CLIENT02 at `.20`/`.21`):
+
+```text
+[CRITICAL] 192.168.56.20 445/tcp smb 1.0 -> CVE-2017-0144
+```
+
+That single line is the real, if small, contribution to the AD engagement's reconnaissance phase: an automated, repeatable check that CLIENT01 still has SMBv1 enabled — the EternalBlue surface — found during Intelligence Gathering, before anyone touches Kerberoasting, and it feeds the report's Vulnerability Analysis section with a timestamped, scripted finding instead of a tester's memory of having noticed it. It does not replace the AD-specific attack chain; it sits one phase earlier than it, doing exactly the kind of automatable version-range checking `vulncheck.py` was already built for, just against a Windows host list instead of a single Linux target or a `requirements.txt`.
+
+## Performance considerations: scan time against a real host list
+
+`portwatch.py` and `vulncheck.py` were both built and tested against one target. `ad_recon_scan.py`'s `scan_host` function runs a full `-p-` TCP scan (all 65,535 ports) per host, sequentially, in a loop over `AD_LAB_HOSTS`. Against a 3-host lab that's survivable — each full-port scan against a lightly-loaded lab VM typically runs one to a few minutes, so three hosts sequentially costs single-digit minutes. The moment this capstone claims "AD engagement recon," though, the realistic host list for even a small internal network is 20-50 live hosts, and a real engagement, per the Cybersecurity track's own Formal Pentest Methodology module, runs on a client-imposed clock — days, not an open-ended weekend. Sequential full-port scanning doesn't degrade gracefully here: total time grows linearly with host count at best, and a few unresponsive or filtered hosts (which eat nmap's full per-port timeout before giving up) can blow that up far worse than linearly. 50 hosts at even 90 seconds each sequentially is 75 minutes before a single finding reaches the report — before Threat Modeling, before Vulnerability Analysis even starts correlating anything.
+
+The fix is not "make nmap faster" — nmap's own scan engine already does real multi-host parallelism internally when you hand it a target list instead of looping in Python. The actual decision is at the orchestration layer: should `ad_recon_scan.py` hand nmap one combined invocation across all hosts, or run several nmap processes concurrently from Python, or stay sequential? That decision — with real alternatives and a real rejection — is worth writing down, which is exactly what the next section does.
+
+## Architecture Decision Record: scan orchestration for multi-host AD recon
+
+```text
+# ADR-004: Scan Orchestration Strategy for ad_recon_scan.py
+
+## Status
+Accepted
+
+## Context
+ad_recon_scan.py's check_host() runs one `nmap -sV -p- --open` invocation
+per host, in a sequential Python loop over AD_LAB_HOSTS. Measured against
+the 3-host Tier 3 AD lab, each full-port scan takes ~70-140s depending on
+host responsiveness, for a total sequential run of 3.5-7 minutes. Scaled
+to a realistic 30-50 host internal engagement, sequential execution
+projects to 35-115 minutes before any finding reaches the report, which
+does not fit inside a time-boxed engagement window and delays every
+downstream PTES phase that depends on this output.
+
+## Decision
+Run host scans concurrently via a bounded worker pool
+(concurrent.futures.ThreadPoolExecutor, max_workers=8), rather than a
+single combined nmap invocation across all hosts or unbounded
+concurrency.
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        results = pool.map(check_host, AD_LAB_HOSTS)
+
+## Alternatives Considered
+
+1. Single nmap invocation across all hosts
+   (`nmap -sV -p- --open -oX - host1 host2 ... hostN`)
+   Rejected: nmap's own internal parallelism is real and would likely
+   outperform the thread pool on raw throughput, but it produces one XML
+   document for the whole run instead of one result per host, which
+   breaks the per-host HostFinding records the report template already
+   expects, and it offers no way to bound how aggressively nmap probes
+   the lab network -- a flat-out scan against a live client's internal
+   segment is a real operational risk this engagement's Rules of
+   Engagement explicitly bounds against.
+
+2. Unbounded concurrency (one thread, or one subprocess, per host,
+   no cap)
+   Rejected: against 50 real hosts this launches 50 simultaneous
+   full-port nmap scans from one attack box, which risks saturating the
+   lab network, producing unreliable results on slower hosts, and -- in
+   a real engagement -- resembling a denial-of-service against the
+   client's own network, which the signed Rules of Engagement from the
+   Formal Pentest Methodology module explicitly prohibits regardless of
+   intent.
+
+3. Stay sequential, reduce scope instead (top-1000 ports only, not -p-)
+   Rejected as the sole fix, though adopted as a complementary follow-up:
+   a faster scan profile reduces per-host time but doesn't address the
+   structural problem that sequential execution doesn't scale with host
+   count at all -- it only moves the wall where it breaks.
+
+## Consequences
+Positive: total scan time against a 50-host list drops from a projected
+60+ minutes sequential to roughly 8-10 minutes at max_workers=8 (50 hosts
+/ 8 concurrent ~ 7 batches x ~90s), fitting inside a time-boxed
+engagement window. Per-host results stay independent, so one failed or
+slow host does not block the rest, and the existing HostFinding-per-host
+shape is unchanged.
+Negative: max_workers=8 is a manually chosen constant, not derived from
+the lab network's actual measured capacity -- a future revision should
+make it configurable and document the lab's measured safe concurrency
+ceiling rather than carrying a magic number forward silently.
+```
+
+That ADR is the actual Tier 4 artifact, not the code change by itself. The code change — wrapping `check_host` calls in a `ThreadPoolExecutor` — is a two-line diff. The decision record is what makes it defensible: it names the real alternatives (nmap's own multi-target mode, unbounded concurrency), states why each was rejected with a reason specific to this engagement rather than a generic "it's slower," and records a tradeoff that was accepted rather than solved (the unexplained `max_workers=8` constant). A reviewer — a mock interviewer, a hiring manager reading your Portfolio Case Study later this tier — can disagree with the decision, but they can't accuse you of not having made one on purpose.
+
+## Exercise
+
+Extend `ad_recon_scan.py` with real timing instrumentation: wrap each `check_host` call with `time.perf_counter()` before and after, and log per-host elapsed time alongside its findings. Run it twice against your own Tier 3 AD lab — once with the sequential loop as shown in the Performance Considerations section, once with the `ThreadPoolExecutor` version from the ADR — and record both total wall-clock times. Then write a second ADR entry (or a "Revisited" addendum to ADR-004) stating whether your measured numbers actually matched the ADR's projected 7-10x speedup, and if they didn't, what in your specific lab (VM resource limits, a slow or unresponsive host, network overhead on the host-only adapter) explains the gap.
+
+**Hint, not a solution:** the trap here is measuring total wall-clock time only and declaring victory — that confirms the pool is faster, but not *why*, and a reviewer will ask. Capture each host's individual elapsed time in both runs and look specifically at whether the sequential run's total is close to the sum of its per-host times (it should be, by definition) and whether the concurrent run's total is close to the slowest single host's time rather than the sum (that's the actual signature of real concurrency working, versus a pool that's silently falling back to serial execution because `max_workers` got set to 1 somewhere, or because something outside the pool — a shared file write, a lock — is serializing the work anyway).
