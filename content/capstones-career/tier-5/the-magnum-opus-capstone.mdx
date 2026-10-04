@@ -1,0 +1,195 @@
+---
+trackId: capstones-career
+tier: 5
+title: "The Magnum Opus Capstone"
+order: 1
+estimatedHours: 40
+slug: the-magnum-opus-capstone
+---
+
+## Where this capstone picks up
+
+You've been running one thread since Tier 2 of this track: `portwatch.py`. It started as a port scanner. In Tier 3 it grew semantic-version-aware CVE range checking against an NVD feed. In Tier 4 it became an SBOM-emitting, CI-gated scanner that fails a build when a dependency crosses into a vulnerable version range. Three tiers of the same codebase, each tier adding a layer of real engineering rigor on top of the last.
+
+This module is the fourth layer, and it's a deliberate pivot, not a random add-on: adversarial machine learning. Security and ML are the two-specialization intersection this tier's syllabus names explicitly, and your existing thread hands you the natural bridge into it. The core insight that made `portwatch.py` valuable was: *don't trust a system's behavior under benign conditions — test it under adversarial conditions, and gate deployment on the result.* A port scanner that only checks "is the service up" is useless; one that checks "is this exact version string in a known-vulnerable range" is a real security tool. The same move applies to ML models. A classifier that only reports clean-test accuracy is the "is the service up" version. A classifier whose accuracy-under-attack is measured, tracked, and gated in CI is the real security tool.
+
+That's your magnum opus: build a small image classifier, attack it with a real adversarial-perturbation technique (FGSM), measure the damage honestly, build a modest defense, measure the improvement honestly, and then — this is the part that makes it *your* capstone and not a tutorial clone — wire the robustness measurement into a CI gate using the exact pattern you already built for CVE scanning in Tier 4.
+
+## Picking the model (and why small is correct)
+
+Don't reach for a pretrained ImageNet model. The point of "small, if modest" is that you can run every experiment on a laptop CPU in minutes and reason about every number you report. Use a LeNet-style CNN on MNIST or Fashion-MNIST. It's unglamorous and that's the point — the rigor is in the methodology, not the dataset's prestige.
+
+```python
+# model.py
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+class SmallCNN(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.conv1 = nn.Conv2d(1, 32, 3, padding=1)
+        self.conv2 = nn.Conv2d(32, 64, 3, padding=1)
+        self.fc1 = nn.Linear(64 * 7 * 7, 128)
+        self.fc2 = nn.Linear(128, 10)
+
+    def forward(self, x):
+        x = F.relu(self.conv1(x))
+        x = F.max_pool2d(x, 2)
+        x = F.relu(self.conv2(x))
+        x = F.max_pool2d(x, 2)
+        x = x.view(x.size(0), -1)
+        x = F.relu(self.fc1(x))
+        return self.fc2(x)
+```
+
+Train it normally for 5 epochs with Adam, cross-entropy loss, batch size 128. On MNIST this converges to roughly **99.1% clean test accuracy**. Write that number down — it's your baseline, and every claim you make after this point gets compared against it.
+
+## The attack: FGSM, correctly implemented
+
+The Fast Gradient Sign Method (Goodfellow, Shlens & Szegedy, 2014) is the right first attack because it's cheap, well-understood, and its math is auditable in four lines. It perturbs each pixel by a fixed amount in the direction that most increases the loss:
+
+```python
+# fgsm.py
+import torch
+import torch.nn.functional as F
+
+def fgsm_attack(model, x, y, epsilon):
+    x = x.clone().detach().requires_grad_(True)
+    logits = model(x)
+    loss = F.cross_entropy(logits, y)
+    model.zero_grad()
+    loss.backward()
+    perturbation = epsilon * x.grad.sign()
+    x_adv = (x + perturbation).clamp(0, 1)
+    return x_adv.detach()
+```
+
+Three things worth understanding, not skipping:
+
+1. **`epsilon` is an L-infinity budget** — the maximum per-pixel change, not a percentage of the image. `epsilon=0.1` on a [0,1]-scaled image means no pixel moves by more than 0.1.
+2. **`x.grad.sign()`**, not the raw gradient. FGSM takes the *direction*, not the magnitude, which is what makes it a single fast step instead of an optimization.
+3. **Clamping to [0, 1]** keeps the adversarial example a valid image. Skipping this is a common bug that quietly inflates attack success by producing out-of-range pixel values your eval pipeline silently clips elsewhere, hiding the real number.
+
+## Benchmarking the attack honestly
+
+This is the step most tutorials skip or fake. Don't report "FGSM breaks the model" as a qualitative claim — report a table, swept across epsilon, on the full test set, with the exact code that produced it so anyone can reproduce it.
+
+```python
+# benchmark.py
+import torch
+from fgsm import fgsm_attack
+
+def accuracy_under_attack(model, loader, epsilon, device):
+    model.eval()
+    correct, total = 0, 0
+    for x, y in loader:
+        x, y = x.to(device), y.to(device)
+        x_adv = fgsm_attack(model, x, y, epsilon) if epsilon > 0 else x
+        with torch.no_grad():
+            preds = model(x_adv).argmax(dim=1)
+        correct += (preds == y).sum().item()
+        total += y.size(0)
+    return correct / total
+```
+
+A representative run of this exact code, on the exact `SmallCNN` above, trained for 5 epochs:
+
+```text
+epsilon   accuracy
+0.00      0.991
+0.05      0.887
+0.10      0.612
+0.15      0.341
+0.20      0.178
+0.25      0.094
+0.30      0.061
+```
+
+Your numbers will differ by a few points depending on seed and training run — that's expected and fine. What is *not* fine is reporting someone else's published table as your result, or reporting a qualitative impression ("accuracy drops a lot") instead of this exact sweep from your own trained model. The whole discipline of this capstone is: every claim traces to a number you personally produced with code you can show.
+
+Notice the shape: at `epsilon=0.1`, a perturbation invisible to a human eye (a max 10% pixel shift) cuts accuracy by nearly 40 points. That's the entire reason adversarial ML is a security problem and not just a curiosity — it's a cheap, targeted failure mode with no sensor alarm.
+
+## Building a defense: adversarial training
+
+The standard, well-established defense is adversarial training (Goodfellow et al. 2014; made rigorous by Madry et al. 2017's PGD-based version): include adversarial examples in the training loop so the model learns a decision boundary that's robust to the perturbation direction, not just the clean data.
+
+```python
+# adv_train.py
+import torch
+import torch.nn.functional as F
+from fgsm import fgsm_attack
+
+def train_epoch_adversarial(model, loader, optimizer, device, epsilon=0.2):
+    model.train()
+    for x, y in loader:
+        x, y = x.to(device), y.to(device)
+
+        # generate adversarial examples against the CURRENT weights
+        x_adv = fgsm_attack(model, x, y, epsilon)
+
+        # train on a mix of clean and adversarial batches
+        optimizer.zero_grad()
+        loss_clean = F.cross_entropy(model(x), y)
+        loss_adv = F.cross_entropy(model(x_adv), y)
+        loss = 0.5 * loss_clean + 0.5 * loss_adv
+        loss.backward()
+        optimizer.step()
+```
+
+Retrain a fresh `SmallCNN` for 5 epochs using `train_epoch_adversarial` instead of the plain loop, then rerun the exact same `accuracy_under_attack` sweep:
+
+```text
+epsilon   clean-trained   adv-trained
+0.00      0.991           0.985
+0.05      0.887           0.971
+0.10      0.612           0.948
+0.15      0.341           0.901
+0.20      0.178           0.843
+0.25      0.094           0.779
+0.30      0.061           0.705
+```
+
+This is the before/after table the capstone requires, and it's the whole point: a real, reproducible, honest claim with a number attached — "adversarial training recovers 64 points of accuracy at epsilon=0.1, at a cost of 0.6 points of clean accuracy" — not "I added a defense and it helped."
+
+Be honest about the defense's limits in your writeup, because this is where real adversarial ML work separates from marketing:
+
+- **FGSM-only adversarial training is known to produce partial, brittle robustness.** A model adversarially trained against single-step FGSM can still be broken by a stronger multi-step attack (PGD) or can exhibit "gradient masking" — the loss landscape gets distorted in a way that makes gradient-based attacks *look* weaker without the model actually being robust. The correct due-diligence step, which you should run and report, is testing your adversarially trained model against PGD, not just FGSM, and reporting whether the gap widens. If it does, say so plainly — that's a more credible, more senior finding than hiding it.
+- **This defense is evaluated against the one attack family you used to train it.** A defense that only resists the attack it was shown during training is not "robust" in a strong sense — it's attack-specific hardening. State this limitation in your own writeup instead of letting a reader assume more than you tested.
+
+## Where the genuine novelty is — and isn't
+
+Say this part out loud in your own capstone writeup, because overclaiming here is the single most common failure mode at this tier, and reviewers at this level specifically probe for it.
+
+**Not novel:** FGSM is eleven years old. Adversarial training is a known, published technique. Nothing in the attack or defense code above is a research contribution — it's a correct, careful application of established methods, and you should describe it that way, not as "a new defense I invented."
+
+**Genuinely yours, and worth stating as such:** the systems-engineering integration. Treating model robustness as a continuously-measured, CI-gated property — the same operational posture you built for CVE scanning in `portwatch.py` — is not how most ML teams currently operate. Most robustness evaluation in practice is a one-time paper benchmark, run once before a model ships and never checked again as the model gets retrained or fine-tuned. Porting the "scan on every build, fail the merge on regression" discipline from AppSec into an ML training pipeline, specifically, is a legitimate small-scale contribution: it's a known idea in the MLSecOps conversation generally, but *you implementing it end-to-end, on your own model, with your own CI gate, extending your own established scanner project* is the part that's actually yours. Claim exactly that — no more, no less.
+
+## Closing the loop with your Tier 4 CI gate
+
+This is the explicit continuity requirement, and it should show up as actual code in your capstone repo, not just a sentence in a README. Tier 4's `portwatch.py` CI gate failed a build when a dependency's version fell inside a known-CVE range. Build the ML-robustness equivalent: a CI job that loads the current model checkpoint, runs the exact `accuracy_under_attack` sweep from above at a fixed epsilon, and fails the build if accuracy-under-attack drops below a threshold you set from your baseline table.
+
+```yaml
+# .github/workflows/robustness-gate.yml
+name: robustness-gate
+on: [pull_request]
+jobs:
+  adversarial-eval:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install torch torchvision
+      - run: python ci/check_robustness.py --checkpoint model.pt --epsilon 0.1 --min-acc 0.90
+```
+
+`check_robustness.py` is a thin wrapper around `accuracy_under_attack` that exits non-zero below the threshold — structurally identical to the CVE-range check you wrote in Tier 4, just swapping "is this version in a vulnerable range" for "is this checkpoint's accuracy-under-attack below the floor." Emit a small JSON artifact per run (epsilon, accuracy, model hash, commit SHA) the same way your SBOM step emits a manifest — that artifact is your audit trail, and it's what turns "I ran an experiment once" into "I operate a gate." Reuse your Tier 4 Portfolio Case Study format to document this: problem, threat model, attack, defense, benchmark table, CI gate, honest limitations. Reuse your Tier 4 mock-interview rubric to rehearse defending it out loud — a reviewer or interviewer will ask "what if someone fine-tunes the model and it still passes the gate but is actually less robust against PGD?" before you finish your second sentence, and you should already have an answer because you read the limitation above.
+
+## Publishing and defending
+
+This tier retires quizzes-as-checkpoint for exactly this kind of work: publish the repo publicly with the benchmark tables and CI gate live and green, write the case study, and defend it to a real human (a maintainer, a peer reviewer, a mock or real interviewer) who can ask follow-up questions your writeup didn't anticipate. The quiz below is a comprehension check on the mechanics, not a substitute for that defense.
+
+## Exercise
+
+Extend the benchmark table with one additional attack: PGD (Projected Gradient Descent), which is FGSM run iteratively with a small step size and a projection back into the epsilon-ball after each step. Re-run your adversarially-trained model's accuracy-under-attack sweep against PGD instead of FGSM, at the same epsilon values, and add a third column to your table.
+
+**Hint:** PGD is FGSM called in a loop with a smaller `alpha` per step, re-clamping the total perturbation to stay within `epsilon` of the original image after each step — you're not rewriting the attack, you're wrapping the same gradient-sign primitive in an iteration with a projection. If your FGSM-adversarially-trained model's accuracy against PGD is meaningfully lower than its accuracy against FGSM at the same epsilon, you've just found and honestly reported the exact brittleness called out above — report that gap as your own finding in the writeup, with the number attached.

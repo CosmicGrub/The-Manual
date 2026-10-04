@@ -1,0 +1,86 @@
+[
+  {
+    "id": "capstones-career/tier-5/publish-and-present/q1",
+    "type": "multiple_choice",
+    "prompt": "A dev-audience blog post about the Magnum Opus and an arXiv preprint of the same work differ most fundamentally in which way?",
+    "choices": [
+      "The preprint requires a formalized threat model, a dedicated related-work section with per-paper differentiation, and reported variance across seeds; the blog post can state one point estimate and link to prior work inline",
+      "The preprint can use looser language than the blog post because reviewers only check the abstract",
+      "There is no real structural difference; only the file format changes",
+      "The blog post must include a formal threat model while the preprint can describe it in a single sentence"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "capstones-career/tier-5/publish-and-present/q2",
+    "type": "multiple_choice",
+    "prompt": "In the PortWatch-ML writeup, why is the feature-space PGD attack explicitly labeled a 'sanity check' rather than presented as the paper's main result?",
+    "choices": [
+      "It achieved a lower attack success rate than the problem-space attack",
+      "It perturbs the feature vector directly with no guarantee that any real packet sequence an attacker could send would produce that perturbed vector",
+      "It requires white-box access to the model weights, which is always unrealistic",
+      "It was run on a different dataset than the rest of the experiments"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-5/publish-and-present/q3",
+    "type": "multiple_choice",
+    "prompt": "An audience member asks a tough question that exposes a real limitation of the capstone. Which response matches the pattern recommended in this module?",
+    "choices": [
+      "Acknowledge the critique is valid, give the actual unflattering number if one exists, name exactly what wasn't tested, and point to a concrete next step",
+      "Agree it's a great question, say it's future work, and move to the next question without further detail",
+      "Reframe the question so it no longer applies to the specific result being challenged",
+      "Defer entirely to the Q&A moderator and answer only in a follow-up email"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "capstones-career/tier-5/publish-and-present/q4",
+    "type": "multiple_choice",
+    "prompt": "Why does the module recommend anchoring a related-work search on a Systematization of Knowledge (SoK) or survey paper first, rather than starting with primary research papers?",
+    "choices": [
+      "SoK papers are always more recent than primary papers",
+      "A SoK paper typically maps the field's most-cited work and often explicitly names an open gap, giving a fast path to a specific, honest positioning sentence",
+      "Primary papers cannot be cited in a capstone writeup",
+      "SoK papers replace the need to read any other related work at all"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-5/publish-and-present/q5",
+    "type": "multiple_choice",
+    "prompt": "What is the honest, defensible way to position a small-scale capstone against well-established prior work like IDSGAN or Alhajjar et al.'s GAN-based evasion research?",
+    "choices": [
+      "Claim the capstone's results outperform the established papers on their own benchmark to justify the comparison",
+      "Avoid citing the strongest prior work so the capstone looks more novel by comparison",
+      "State plainly that the capstone is not a new attack family and does not beat prior results on a harder benchmark, while naming the specific, narrower contribution it does make",
+      "Cite only survey papers and omit primary research papers entirely"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "capstones-career/tier-5/publish-and-present/q6",
+    "type": "multiple_choice",
+    "prompt": "In the timed talk outline for the Magnum Opus, why does the live demo of the classifier catching, then being evaded by, the attack come before any explanatory slides?",
+    "choices": [
+      "Slides are not permitted in capstone defense talks",
+      "It establishes the stakes and result concretely before the audience has to follow any theory, rather than building up to the result at the end",
+      "Live demos are required to run exactly at the midpoint of the talk",
+      "It replaces the need for a Q&A session afterward"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-5/publish-and-present/q7",
+    "type": "multiple_choice",
+    "prompt": "The module ties the related-work positioning paragraph back to specific earlier work in this track. What is that connection?",
+    "choices": [
+      "It has no connection to earlier tiers; related-work writing is introduced for the first time at Tier 5",
+      "It mirrors the Tier 4 Portfolio Case Study, which positioned the SBOM-gate contribution against existing tools like Grype, Trivy, and Syft without claiming to replace them",
+      "It replaces the need for the Tier 4 mock-interview rubric entirely",
+      "It is identical in structure to the original Tier 2 port-scanner README"
+    ],
+    "correctIndex": 1
+  }
+]

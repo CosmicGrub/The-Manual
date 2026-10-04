@@ -1,0 +1,98 @@
+[
+  {
+    "id": "capstones-career/tier-5/upstream-maintainership/q1",
+    "type": "multiple_choice",
+    "prompt": "Which GitHub repository permission tier lets you label, close, and reopen issues and PRs, but does NOT let you merge code?",
+    "choices": [
+      "Read",
+      "Triage",
+      "Write",
+      "Maintain"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-5/upstream-maintainership/q2",
+    "type": "multiple_choice",
+    "prompt": "In the backlog-triage example, what is the correct action for a bug report with no traceback and no environment details?",
+    "choices": [
+      "Close it immediately as invalid",
+      "Request the exact missing information (traceback, version numbers) before further triage",
+      "Assign it to yourself and start debugging blind",
+      "Label it wontfix and move on"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-5/upstream-maintainership/q3",
+    "type": "multiple_choice",
+    "prompt": "What does the module say actually distinguishes a maintainer-level PR review from a contributor-level drive-by review?",
+    "choices": [
+      "Maintainers only check whether the code compiles",
+      "Maintainers weigh long-term project cost: release timing, changelog discipline, and whether a second reviewer is required",
+      "Maintainers never leave inline comments, only a final verdict",
+      "Maintainers always block on every stylistic nitpick to be safe"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-5/upstream-maintainership/q4",
+    "type": "multiple_choice",
+    "prompt": "In the breaking-change scenario, why did the maintainers ship a deprecation shim plus a minor version bump instead of changing the function signature in place?",
+    "choices": [
+      "SemVer forbids changing any function ever",
+      "Downstream libraries imported the function directly, so an in-place change would break them silently instead of visibly",
+      "Python itself requires a major bump for any dataclass",
+      "Their CI pipeline rejects any PR that adds a new function"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-5/upstream-maintainership/q5",
+    "type": "multiple_choice",
+    "prompt": "Per the module, what is the most reliable, checkable signal that a contributor has become a 'recognized regular' before being offered access?",
+    "choices": [
+      "They have merged more PRs than any other contributor",
+      "The maintainer references their past work from memory and other users @-mention them unprompted",
+      "They were given commit access by default after 30 days",
+      "They closed the most issues in a single week"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-5/upstream-maintainership/q6",
+    "type": "multiple_choice",
+    "prompt": "In the worked example, what access did the maintainer offer the recognized regular first, before Write access?",
+    "choices": [
+      "Admin access immediately",
+      "Triage access, as a lower-risk trust-building step",
+      "Full ownership transfer of the repository",
+      "A paid maintainer contract"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-5/upstream-maintainership/q7",
+    "type": "multiple_choice",
+    "prompt": "When a maintainer notices something in a PR they choose not to block on, what does the module say they should do?",
+    "choices": [
+      "Say nothing and approve silently",
+      "Block the PR anyway to be cautious",
+      "State explicitly that they noticed it and explain why they aren't requiring a change",
+      "Escalate the decision to a different maintainer"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "capstones-career/tier-5/upstream-maintainership/q8",
+    "type": "multiple_choice",
+    "prompt": "What governance pattern did the maintainers use to reach the breaking-API-change decision in the worked example?",
+    "choices": [
+      "A unilateral call by the most senior maintainer with no discussion",
+      "Rough/lazy consensus: a concrete proposal posted publicly, objections addressed in place, merged after a quiet period",
+      "A secret vote with no public record",
+      "Waiting until a user complained, then deciding reactively"
+    ],
+    "correctIndex": 1
+  }
+]

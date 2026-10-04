@@ -1,0 +1,98 @@
+[
+  {
+    "id": "capstones-career/tier-5/the-magnum-opus-capstone/q1",
+    "type": "multiple_choice",
+    "prompt": "What does the Fast Gradient Sign Method (FGSM) actually compute to build an adversarial example?",
+    "choices": [
+      "It adds epsilon times the sign of the gradient of the loss with respect to the input to the input image",
+      "It adds random Gaussian noise scaled by epsilon to every pixel",
+      "It replaces the model's final layer weights with their sign",
+      "It iteratively searches over all possible pixel values to find the worst-case image"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "capstones-career/tier-5/the-magnum-opus-capstone/q2",
+    "type": "multiple_choice",
+    "prompt": "In an FGSM attack on a [0,1]-scaled image, what does the epsilon parameter bound?",
+    "choices": [
+      "The fraction of training epochs used to generate the attack",
+      "The maximum per-pixel change allowed, i.e. the L-infinity norm of the perturbation",
+      "The number of pixels that may be modified",
+      "The learning rate used to retrain the model after the attack"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-5/the-magnum-opus-capstone/q3",
+    "type": "multiple_choice",
+    "prompt": "Based on the benchmark table in this lesson, what happens to a normally-trained small CNN's accuracy on MNIST when attacked with FGSM at epsilon=0.1?",
+    "choices": [
+      "Accuracy is unaffected because MNIST digits are too simple to attack",
+      "Accuracy improves slightly due to regularization effects",
+      "Accuracy drops sharply, from about 99% clean to roughly 60%, despite a perturbation invisible to the human eye",
+      "The model stops producing valid outputs entirely"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "capstones-career/tier-5/the-magnum-opus-capstone/q4",
+    "type": "multiple_choice",
+    "prompt": "Why does adversarial training typically reduce clean (unattacked) accuracy slightly compared to normal training?",
+    "choices": [
+      "Because adversarial training uses a smaller dataset",
+      "Because it introduces a robustness/accuracy trade-off: fitting a decision boundary that tolerates perturbations costs some fit to the unperturbed data distribution",
+      "Because adversarial training always doubles the number of training epochs needed",
+      "Because FGSM corrupts the test set labels"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-5/the-magnum-opus-capstone/q5",
+    "type": "multiple_choice",
+    "prompt": "What is a known, honest limitation of a model adversarially trained only against FGSM, as this lesson describes it?",
+    "choices": [
+      "It can only run on images smaller than 28x28 pixels",
+      "It requires a GPU and cannot be evaluated on CPU",
+      "It may still be broken by a stronger multi-step attack like PGD, and can exhibit gradient masking that makes it look more robust than it is",
+      "It becomes immune to all future attack techniques, including unknown ones"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "capstones-career/tier-5/the-magnum-opus-capstone/q6",
+    "type": "multiple_choice",
+    "prompt": "In this capstone, what is the honest, defensible claim of 'genuine novelty' versus what is a known technique being applied?",
+    "choices": [
+      "FGSM and adversarial training are novel techniques the learner is expected to have invented from scratch",
+      "There is no novelty at all; the capstone is purely a tutorial clone",
+      "FGSM and adversarial training are known, established techniques; the genuine contribution is the systems-engineering integration of continuous robustness measurement into a CI gate, extending the learner's own CVE-scanning CI pattern from Tier 4",
+      "The novelty lies in training the model for more epochs than published papers used"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "capstones-career/tier-5/the-magnum-opus-capstone/q7",
+    "type": "multiple_choice",
+    "prompt": "How does the ML robustness CI gate described in this lesson structurally mirror the Tier 4 portwatch.py CVE-scanning CI gate?",
+    "choices": [
+      "Both gates check that code compiles without warnings",
+      "Both gates run on a fixed schedule rather than on pull requests",
+      "Both gates run an automated check against a defined threshold on every build (a CVE version-range check vs. an accuracy-under-attack check) and fail the build when the threshold is crossed",
+      "Both gates are purely manual review checklists with no automation"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "capstones-career/tier-5/the-magnum-opus-capstone/q8",
+    "type": "multiple_choice",
+    "prompt": "Per this tier's assessment policy described in the lesson, what role does the short comprehension-check quiz play relative to the real capstone checkpoint?",
+    "choices": [
+      "The quiz entirely replaces the need to publish or defend the work",
+      "The quiz is a basic mechanics check; the real checkpoint for this tier is portfolio/peer/maintainer review, including publishing the work and defending it to a real reviewer",
+      "The quiz score directly determines whether the CI gate passes",
+      "There is no quiz at this tier, only live defense"
+    ],
+    "correctIndex": 1
+  }
+]

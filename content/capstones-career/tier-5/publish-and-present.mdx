@@ -1,0 +1,204 @@
+---
+trackId: capstones-career
+tier: 5
+title: "Publish & Present"
+order: 3
+estimatedHours: 10
+slug: publish-and-present
+---
+
+PortWatch-ML exists now. You trained a classifier that scores scan sessions as benign, reconnaissance, or malicious using features pulled straight out of the portwatch.py telemetry you've been collecting since Tier 2 — ports touched, inter-probe timing, SYN/ACK ratios, service-fingerprint entropy. You broke it with a problem-space evasion attack: a timing-and-ordering search that fools the classifier using only moves a real `nmap` invocation can actually make. You hardened it with adversarial training and wired a robustness gate into the Tier 4 CI pipeline that already blocks PRs on SBOM and CVE-severity regressions. That's the work. Nobody knows it exists yet.
+
+This module is about the three things that change that: a writeup, a talk, and an honest accounting of who else has done this. None of them are optional add-ons to "real" work. A capstone nobody can find, verify, or build on didn't close the loop — it just stopped.
+
+## The three outputs, one body of work
+
+The blog post, the talk, and the related-work search aren't three separate projects bolted onto the end of the capstone. They're three views of the same evidence, built for three different failure modes: the blog post fails if it's not scannable by a developer with four minutes; the talk fails if you can't survive a question you didn't rehearse; the related-work section fails if you either claim to have invented adversarial ML or imply your three-week capstone is beneath citing against decade-deep prior work. Get the underlying numbers right once — attack success rate, robust accuracy, perturbation budget, seed count — and all three outputs just reformat the same table for a different reader.
+
+## 1. Writing it up: the blog post version
+
+Dev-audience posts die from buried leads. Here is the structure that survives, with real section content for PortWatch-ML:
+
+**Title:** "I Taught a Classifier to Spot Port Scans, Then Taught an Attacker to Fool It"
+
+**Opening paragraph — the result, not the setup:**
+
+> My port-scan classifier hit 97.8% F1 on held-out traffic from my home-lab sensors. Then I spent two weeks trying to break it. A change to how `nmap` paces its probes — no new packets, no new ports, just slower and reordered — cut recall to 41% without tripping a single existing alert. This post covers building the detector, breaking it on purpose, and the CI gate I added so that doesn't happen silently in production.
+
+That's four sentences and it already contains the whole story. Everything after it is detail, not reveal.
+
+**"Where this started"** — two sentences, not a history lesson: portwatch.py began as a Tier 2 port scanner, grew a CVE-matching layer, then an SBOM/CI-gated scan pipeline in Tier 4. Readers who followed the series get the thread; readers who didn't get just enough to not be lost.
+
+**"The classifier"** — features and baseline, in a table, because developers skim tables and skip prose:
+
+| Feature | Description |
+|---|---|
+| `unique_dst_ports` | distinct ports touched in the session window |
+| `syn_ack_ratio` | SYN packets sent vs SYN-ACK received |
+| `inter_probe_mean_ms`, `inter_probe_var_ms` | timing distribution between probes |
+| `port_order_entropy` | how sequential vs randomized the port visitation is |
+| `fingerprint_entropy` | diversity of service-banner responses probed |
+
+Model: gradient-boosted trees (XGBoost), chosen over an MLP baseline because the feature set is low-dimensional, tabular, and the team running the CI gate needs to inspect feature importances during incident review, not just trust a black box. Baseline, three-class, held-out test set: 97.8% F1, precision 98.1%, recall 97.5%.
+
+**"Breaking it: two attacks, only one of them honest"**
+
+Run the obvious attack first, as a sanity check, and say so plainly: feature-space PGD directly perturbing the feature vector within an L∞ budget. It works, flips 94% of malicious-labeled sessions to benign at ε=0.3 — and it's a toy result, because nothing guarantees a real scan can produce that exact feature vector. State that limitation in the post itself, immediately, rather than let a reader discover it:
+
+```text
+Feature-space PGD, eps=0.3: 94% attack success rate.
+Caveat: no check that a perturbed feature vector corresponds
+to any packet sequence a real scanner could emit. This number
+is a sanity check that the model has exploitable slack, not
+a claim about real-world evadability.
+```
+
+Then the real attack — problem-space, parameterized over what an attacker actually controls:
+
+```python
+import random
+
+def mutate_scan_plan(plan):
+    """plan: dict with inter_probe_ms, port_order, decoy_count.
+    Returns a neighbor reachable by one realistic nmap change."""
+    new_plan = dict(plan)
+    move = random.choice(["slow", "shuffle", "decoy"])
+    if move == "slow":
+        new_plan["inter_probe_ms"] *= random.uniform(1.2, 3.0)
+    elif move == "shuffle":
+        new_plan["port_order"] = partially_shuffle(plan["port_order"])
+    elif move == "decoy":
+        new_plan["decoy_count"] = min(plan["decoy_count"] + 1, 8)
+    return new_plan
+
+def search_evasion(plan, classifier, simulator, budget=200):
+    best = plan
+    best_score = classifier.predict_proba(simulator.run(plan))[1]  # P(malicious)
+    for _ in range(budget):
+        candidate = mutate_scan_plan(best)
+        traffic = simulator.run(candidate)        # produces real packet features
+        score = classifier.predict_proba(traffic)[1]
+        if score < best_score:
+            best, best_score = candidate, score
+    return best, best_score
+```
+
+This is simulated annealing over scan *behavior*, not over the feature vector. The classifier only ever sees features derived from a packet trace the simulator actually produced. That constraint is the whole contribution — more on why in the related-work section.
+
+**Results table, the one that matters:**
+
+| Attack | Budget | Attack success rate | Note |
+|---|---|---|---|
+| Feature-space PGD | ε=0.3 | 94% | not problem-space realizable |
+| Problem-space search | 200 queries, timing+order only | 61% | realizable |
+| Problem-space search | 200 queries, + decoys | 78% | realizable |
+
+**"Defending it"** — adversarially trained on problem-space-generated examples mixed into training data, 30% of each batch:
+
+| Model | Clean F1 | Robust F1 (problem-space attack) |
+|---|---|---|
+| Baseline | 97.8% | 54.1% |
+| Adversarially trained | 93.6% | 81.9% |
+
+State the tradeoff in the same sentence as the win: four points of clean accuracy bought back twenty-eight points of robustness. A reader who's been burned by robustness papers before will trust the post more for showing the cost, not less.
+
+**"Wiring this into CI"** — this is where it connects to Tier 4's existing gate, and the post should say that explicitly rather than re-explain SBOM gating from scratch:
+
+```yaml
+# .github/workflows/scan-gate.yml (new step, appended to Tier 4's SBOM gate)
+- name: robust-accuracy-gate
+  run: |
+    python eval_robustness.py --model model.xgb \
+      --attack problem_space --budget 200 --min-robust-f1 0.78
+```
+
+The PR fails if robust F1 drops below 0.78, same mechanism, same pipeline, as the CVE-severity gate the learner built two tiers ago.
+
+**"What I'd do with more time"** — stated plainly, not buried: only white-box and limited-budget black-box attacks tested, no query-efficient black-box method like HopSkipJump; three random seeds; training and test traffic both drawn from one home-lab/honeypot setup, so generalization to a different network's baseline traffic is untested.
+
+### As an arXiv preprint instead
+
+Same numbers, different contract with the reader. A blog post trusts the reader to skim and trust the author's framing. A preprint reader checks every claim against evidence and against what's already published. That changes the structure, not just the tone:
+
+| Aspect | Blog post | arXiv preprint |
+|---|---|---|
+| Opening | concrete result, first person, no abstract | 150-250 word Abstract: problem, method, headline result, stated without hedging |
+| Structure | narrative: build, break, fix | fixed: Intro, Threat Model, Method, Experimental Setup, Results, Related Work, Limitations, Ethics, Conclusion |
+| Threat model | described in a sentence | formalized: attacker knowledge (white/gray/black-box), capability set, perturbation budget defined as a constraint, not prose |
+| Related work | linked inline where relevant | dedicated section, every prior paper gets one sentence on how this work differs, not just "see also" |
+| Statistics | point estimates (97.8% F1) | multiple seeds, mean ± std or confidence interval, because reviewers will ask |
+| Figures | screenshots and inline tables | numbered figures, captions that stand alone without body text, axis units labeled |
+| Limitations | one honest closing paragraph | a required section reviewers specifically check for — vague limitations read as a red flag, not humility |
+| Reproducibility | a GitHub link | explicit statement: commit hash, hardware, hyperparameter table, seed list, usually in an appendix |
+| Ethics | optional | near-mandatory for an attack paper: a dual-use / responsible-disclosure statement, even for a defensive capstone |
+| Voice | "I built," "I broke" | "we" even solo, passive constructions tolerated, hedged claims ("suggests" not "proves") |
+
+The single biggest trap going from blog to preprint: carrying over the blog's confident framing into a venue that penalizes it. "Cuts recall to 41%" is a fine blog hook; a preprint abstract needs "reduces recall from 97.5% to 41% under a 200-query problem-space search, averaged over 3 seeds (σ=4.2)" — the same fact, with the uncertainty attached instead of hidden.
+
+## 2. Giving the talk
+
+Timed for a 20-minute slot plus 10 for questions — standard for a capstone defense or local security meetup:
+
+| Time | Content |
+|---|---|
+| 0:00–1:00 | Live terminal: run the classifier on a real scan, watch it catch it. Then run the evasion attack live, watch it slip through. No slides yet. |
+| 1:00–3:30 | One slide: portwatch.py's pipeline, scan → features → CVE match → SBOM/CI gate, with the new ML node added on top. |
+| 3:30–8:00 | The classifier: feature table, model choice, baseline numbers. One slide, one table. |
+| 8:00–14:00 | The attack: state the threat model out loud (gray-box — attacker knows the feature schema, not the weights), show the problem-space search, show the success-rate-vs-budget plot. |
+| 14:00–17:30 | The defense: adversarial training, results, and the tradeoff stated as a cost, not buried. |
+| 17:30–20:00 | CI gate, limitations, one sentence placing this against prior NIDS evasion work, call to action (repo link, open issues). |
+| 20:00–30:00 | Questions. |
+
+### The question you don't want, answered anyway
+
+**Q: "Isn't this attack kind of unrealistic? A real attacker doesn't get 200 free queries against your exact model."**
+
+The deflecting answer sounds like: "Great question, that's definitely future work, but the main point still stands." Don't give that answer. Give this one:
+
+> "Fair, and it's worse than 200 queries if the attacker can't get feedback at all — fully blind. What I actually tested is gray-box: the attacker knows the feature schema from the open-source repo but not the model weights, and gets a label back each query, which is realistic if they're attacking a honeypot they control to tune against before hitting the real target. I did not test a fully blind, no-feedback attacker, and I didn't test query-efficient black-box methods like HopSkipJump that would need far fewer than 200 queries. That's explicitly in my limitations section, and it's the first thing I'd do with another month."
+
+That answer gives up nothing flattering and loses no credibility — it's more convincing than a hedge, because it shows the presenter already knows exactly where the result stops being load-bearing.
+
+**Q: "Three seeds isn't a lot. How do you know 81.9% robust F1 isn't just noise?"**
+
+> "It might be close to noise — across three seeds the robust F1 after adversarial training was 81.9%, 79.4%, and 83.1%, so call it 81.5% ± 1.9. The baseline's robust F1 without defense was 54.1%, 52.8%, 55.6%, so 54.2% ± 1.4. The gap between those two ranges doesn't overlap, so the direction of the effect holds, but I would not defend the exact 81.9% number in front of a statistician with only three seeds. Ten would make that interval tight enough to actually trust the magnitude, not just the sign."
+
+Both answers follow the same shape: restate the critique accurately, give the real number even when it's unflattering, name exactly what wasn't tested, and point to a concrete next step instead of a vague "future work." That shape is reusable for any hard question in any defense — the content changes, the honesty pattern doesn't.
+
+## 3. Finding and honestly positioning related work
+
+The search, run for real against arXiv and Semantic Scholar:
+
+```text
+arXiv full-text search: "adversarial examples" "network intrusion detection"
+arXiv full-text search: "adversarial robustness" "port scan"
+Semantic Scholar: "adversarial robustness network intrusion detection",
+  sorted by citation count, then by recency
+```
+
+That turns up a real, non-empty literature, which matters to know before writing a single word of the positioning paragraph:
+
+- **IDSGAN** (Lin, Shi, Xue, 2018, arXiv:1809.02077) — a GAN that generates adversarial malicious traffic *records* to evade a black-box NIDS, evaluated on NSL-KDD.
+- **Alhajjar, Maxwell, Bahnsen, 2020** (arXiv:2005.07519), "Evaluating and Improving Adversarial Robustness of Machine Learning-Based Network Intrusion Detectors" — GAN and search-based black-box evasion against several classifiers, also on NSL-KDD, plus a defense evaluation.
+- **"SoK: Realistic Adversarial Attacks and Defenses for Intelligent Network Intrusion Detection"** (arXiv:2308.06819, 2023) — a systematization paper whose central argument is that most prior NIDS evasion work perturbs the *feature vector* without checking whether any real packet sequence maps to that perturbed vector — i.e., it's not clear the attacks are problem-space realizable at all.
+- Two 2024 surveys, arXiv:2412.13880 and arXiv:2409.18736, mapping the field's open problems.
+
+The SoK paper is the one to build the positioning paragraph around, because it names, in print, the exact gap the capstone's design decision fills:
+
+> Prior adversarial-ML work against network intrusion detectors is substantial but almost entirely evaluated in feature space on canonical benchmark datasets — NSL-KDD and CICIDS2017 appear across the overwhelming majority of the papers I found, including IDSGAN (Lin et al., 2018) and Alhajjar et al. (2020), both of which perturb the already-extracted feature vector rather than the raw packets an attacker would send. The 2023 SoK on realistic adversarial attacks against NIDS makes this exact critique the center of its argument: most of this literature produces perturbations with no demonstrated path back to a real packet sequence. My contribution is narrow but real: I run the search directly over scan behavior — timing, port order, decoy count — that a real `nmap` invocation can produce, and feature values fall out as a consequence rather than the thing being optimized. I am not claiming a new attack family, and I am not claiming better numbers than Alhajjar et al.'s GAN-based approach against a harder, larger benchmark. I am claiming a complementary data point, on self-collected scan telemetry rather than the decade-old NSL-KDD, on a problem the SoK explicitly flags as under-studied, at a scale appropriate to a single-author capstone rather than a lab.
+
+Three rules that paragraph follows, worth naming separately:
+
+1. **Cite the strongest prior work you can find, not the weakest.** Citing only a weak 2015 paper to make a 2026 capstone look comparatively sophisticated is a credibility risk the moment one reader finds IDSGAN or the SoK themselves.
+2. **State the difference in one concrete sentence per paper, not a hand-wave.** "Different from prior work" is not a sentence a reviewer or a sharp commenter will accept; "perturbs behavior, not the feature vector directly" is.
+3. **If a survey or SoK paper already names the gap, cite it saying so.** It's the strongest form of positioning available to a small project — it means the "this is worth doing" case was already made by someone with no stake in this particular capstone.
+
+This is the same move as the Portfolio Case Study written back in Tier 4, positioning the SBOM-gate contribution against Grype, Trivy, and Syft without claiming to replace any of them — and the same muscle used filing a PR against someone else's open-source project during the Open-Source Leadership Track: know exactly what's already there before claiming anything is new.
+
+## Exercise: position your own magnum opus
+
+Run the same search against your own capstone's intersection — not PortWatch-ML's, whatever two specializations your own magnum opus actually combines. Find at minimum one SoK/survey paper and two primary research papers on arXiv or Semantic Scholar that sit closest to what you built. Write the positioning paragraph: one sentence per paper on how your approach differs, and one explicit sentence on what you are *not* claiming.
+
+Hint, not the paragraph itself: start from the survey or SoK paper, not a primary paper — it will usually hand you a ranked list of the field's most-cited work in its own related-work section, and often states the exact open gap your project happens to sit in, which is the fastest path to an honest, specific sentence instead of a vague one.
+
+Get this paragraph right and the blog post, the talk's closing slide, and the arXiv preprint's Related Work section are the same three sentences, reformatted three times.

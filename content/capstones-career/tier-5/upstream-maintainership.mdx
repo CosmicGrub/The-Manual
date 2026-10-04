@@ -1,0 +1,172 @@
+---
+trackId: capstones-career
+tier: 5
+title: "Upstream Maintainership"
+order: 2
+estimatedHours: 20
+slug: upstream-maintainership
+---
+
+## From Recognized Regular to Maintainer
+
+Tier 4's Open-Source Leadership Track left you in a specific, checkable state on a real project (the pip-audit-style vulnerability scanner where your Tier 3 semver-range-matching work in portwatch.py became the sweep-based `is_version_affected` fix): the maintainer references your past PRs from memory, other contributors tag you in issues that touch your subsystem, and you've shipped a follow-up fix within a day of a regression being filed. That is "recognized regular." It is not maintainer. The gap between the two is not skill -- you already triaged, designed, and fixed a real bug through three PRs and a follow-up. The gap is *access and authority*, and it gets granted through a specific, observable mechanism, not a vibe.
+
+Here is what actually happens, concretely, on a GitHub-hosted project. GitHub has five repository permission tiers: **Read**, **Triage**, **Write**, **Maintain**, **Admin**. Each one unlocks a specific, checkable set of capabilities:
+
+| Tier | Can do | Cannot do |
+|---|---|---|
+| Read | Comment, open issues/PRs | Label, close others' issues, merge |
+| Triage | Label, close/reopen issues and PRs, request changes, mark duplicate, apply milestones | Push code, merge PRs, edit repo settings |
+| Write | Everything in Triage, plus push branches and merge PRs | Edit branch protection, manage other collaborators |
+| Maintain | Everything in Write, plus manage some repo settings (labels, protections) | Delete the repo, manage billing/admins |
+| Admin | Everything | -- |
+
+A real maintainer does not jump a recognized regular straight to Write. The actual sequence, almost every time, looks like this -- and it is worth knowing exactly because the DM you'll eventually get will look like it:
+
+```text
+Maintainer (on your 4th merged PR in the matcher subsystem):
+
+  You've been the fastest person to respond to anything touching
+  the version-matching code for two months now, including that
+  prerelease regression you caught before I even saw the issue.
+  I'd rather you be able to triage incoming reports in that area
+  yourself instead of waiting on me to see them. Would you be open
+  to Triage access on the repo? If that goes well I'll put you up
+  for Write in a release or two -- I want you self-merging your own
+  fixes, not queued behind my review backlog.
+```
+
+Notice what is and is not in that message. It is offered, not requested -- you do not email a maintainer asking "can I have commit access," because that question answers itself with "not yet" almost every time; access follows from evidence the maintainer already has, and asking for it before the evidence exists reads as the wrong kind of confidence. It starts with Triage, a low-blast-radius tier that lets you prove judgment on issue/PR *process* before anyone trusts you with the merge button. And it names a concrete, time-bound path to Write ("a release or two"), not a vague someday.
+
+Real-project texture for calibrating what "a release or two" means: PyPA-governed projects like `pip-audit`, `pip`, and `packaging` typically move someone from first merged PR to Triage in two to four months of sustained activity, and from Triage to Write in another two to six months -- faster on smaller, higher-trust projects, slower on anything touching security-sensitive code (which, if you're following the portwatch.py thread, is exactly the kind of project you're in). Maintain and Admin are rarely handed to anyone who isn't effectively co-running the project; most working maintainers spend their entire tenure at Write and that is a complete, respected role.
+
+## Triaging a Backlog Like a Maintainer
+
+Once you have Triage, the job changes immediately: you are no longer deciding "is my fix right," you are deciding "what does this backlog need, right now, from someone who isn't going to write the code today." A real backlog triage pass on a pip-audit-style tracker looks like this -- ten issues, ten decisions, each with a reason:
+
+| # | Title | Action | Why |
+|---|---|---|---|
+| 1 | "Crashes on Python 3.8" | Request repro: exact command, full traceback, `python --version` | No traceback attached; can't diagnose blind |
+| 2 | "--ignore-vuln doesn't work" | Close as duplicate of #412 | Identical report, already tracked, link forward |
+| 3 | "False positive on GHSA-xxxx" | Label `bug`, `needs-investigation`; ask for `pip-audit -o json` output | Plausible, but needs the raw scan data to confirm |
+| 4 | "Add Rust ecosystem support" | Label `enhancement`, `needs-design`; do not assign | Real feature, no design agreement yet -- not ready for a PR |
+| 5 | "Typo in README" | Label `good-first-issue`; comment with the exact line number | Trivially scoped, perfect for a first-time contributor |
+| 6 | "Scan is slow on large lockfiles" | Label `performance`; ask for a lockfile size and timing | Vague as filed; needs a number before it's actionable |
+| 7 | "Feature request from 2021, no activity" | Comment asking if still wanted; label `stale` | Six issue-bot pings ignored; close in 2 weeks if silent |
+| 8 | "Works for me, not sure why it was reported" | Close, explain why, thank reporter | Reporter's own follow-up resolved it; close politely |
+| 9 | "Security: matcher mishandles pre-release tags" | Label `bug`, `security`, pin to current milestone | This is the exact regression class from Tier 4 -- route it to the subsystem's owner, which might be you |
+| 10 | "Why not support Poetry lockfiles directly" | Convert to Discussion | Question, not a bug or scoped feature -- doesn't belong in the issue tracker |
+
+The skill being exercised is almost entirely "does this issue have enough information to be actionable, and if not, what exact information is missing." A duplicate-closing comment that does the job in one line: `"Thanks -- this is the same root cause as #412, closing to keep discussion in one place. Please subscribe there for updates."` A repro-request comment that doesn't just say "please provide more info" but names the exact three things needed: `"Could you paste the full traceback and the output of pip-audit --version and python --version? Without the traceback I can't tell if this is the matcher or the CLI argument parsing."` Vague requests get vague, unusable replies back; specific requests get the information you actually need on the first try.
+
+## Reviewing as a Maintainer, Not a Contributor
+
+You reviewed a `--ignore-vuln` PR back in Tier 4 as a recognized regular -- thorough, but advisory. As a maintainer with Write access, the same review carries different weight, because you can now actually press the merge button, which means you're also answering questions a contributor-reviewer never has to: *does this ship in the next patch release or wait for a minor; does it need a second maintainer's sign-off; does it touch the public API surface in a way that needs a CHANGELOG entry under "Changed" instead of "Added."*
+
+Concretely, that changes what you write. A contributor-level review says "this looks right to me." A maintainer-level review says:
+
+```text
+Logic and tests look right, approving.
+
+Before I merge: this adds a new CLI flag but doesn't touch the
+JSON output schema, so I'm comfortable shipping it in next
+patch release (0.7.4) rather than holding it for 0.8.0. I'll
+add the CHANGELOG line myself under "Added" when I merge,
+since it's one sentence and not worth a round-trip.
+
+One maintainer process note for next time: anything that
+changes `filter_results`'s return type (not the case here)
+needs a second maintainer's review per our CONTRIBUTING.md --
+tagging @other-maintainer FYI, not for this PR, just flagging
+the rule since you'll likely touch that function again.
+```
+
+That last paragraph is the real maintainer move: you're not just reviewing the diff, you're actively operating the project's *process* -- release cadence, changelog discipline, and the two-reviewer rule for anything that could be a breaking change. A contributor doesn't get to decide what release a fix lands in. A maintainer does, and has to, because someone has to.
+
+## A Real Architectural Decision: The Breaking API Change
+
+This is where maintainer-level judgment gets tested for real, and it's worth walking through completely because "weigh a breaking API change" is easy to say and genuinely hard to do well. The scenario, continuing the portwatch.py/pip-audit thread directly: your `is_version_affected` sweep function from Tier 4 was merged as an internal helper, but it turns out three downstream libraries now import it directly (`from pip_audit._matcher import is_version_affected`) because it's the only correct OSV-range sweep implementation on PyPI. Someone opens a Discussion: should it become officially public API, and if so, should its signature change from `(version_str: str, events: list[dict])` to a typed `(version: Version, vuln_range: VulnerabilityRange)` -- which is more type-safe and catches malformed OSV data at the boundary instead of deep inside the sweep, but breaks every existing caller's argument types.
+
+The real discussion thread, with real tradeoff reasoning:
+
+```text
+Contributor A: I'd vote for the typed version. Raw dicts mean
+  every caller re-implements the same validation, and we've
+  had two bug reports now from people passing already-parsed
+  Version objects as strings by mistake.
+
+You (maintainer): Agreed the typed version is better long-term,
+  but let's be precise about what breaks. Three libraries import
+  this directly today -- I checked PyPI's reverse-dependency
+  search. If we change the signature in place, their next
+  `pip install --upgrade` breaks silently at import time with a
+  TypeError three calls deep, not at their top level where they'd
+  see it coming. That's worse than the problem we're fixing.
+
+  Proposal: ship both. Add `is_version_affected_v2(version:
+  Version, vuln_range: VulnerabilityRange) -> bool` as the new
+  typed public API. Keep `is_version_affected(str, list[dict])`
+  as a thin wrapper that parses into the typed form and calls v2,
+  with a DeprecationWarning. Bump to 0.8.0 (minor, not major --
+  nothing breaks yet). Remove the string/dict path in 1.0.0,
+  which we announce as the only release with intentional removals,
+  so downstream has one clearly-flagged version to pin against
+  before upgrading past it.
+
+Maintainer B: +1 on the shim. One addition: the DeprecationWarning
+  message should name the exact replacement call, not just say
+  "deprecated" -- that's the difference between someone fixing it
+  in five minutes versus filing an issue asking what to do.
+
+(No further objections after 5 days -- merged as proposed.)
+```
+
+That is lazy/rough consensus: a clear proposal, specific objections addressed in the same proposal, a short public window for anyone else to object, then a merge. No vote, no blocking minority, no single person deciding alone either. The code that ships:
+
+```python
+import warnings
+from dataclasses import dataclass
+from packaging.version import Version
+
+@dataclass(frozen=True)
+class VulnerabilityRange:
+    events: list[dict]
+
+def is_version_affected_v2(version: Version, vuln_range: VulnerabilityRange) -> bool:
+    """Typed public API. Sweeps vuln_range.events for disjoint
+    affected intervals. See CHANGELOG 0.8.0 for migration notes."""
+    affected = False
+    for event in sorted(vuln_range.events, key=lambda e: Version(next(iter(e.values())))):
+        kind, value = next(iter(event.items()))
+        edge = Version(value)
+        if kind == "introduced":
+            affected = affected or version >= edge
+        elif kind == "fixed" and version >= edge:
+            affected = False
+        elif kind == "last_affected" and version > edge:
+            affected = False
+    return affected
+
+def is_version_affected(version_str: str, events: list[dict]) -> bool:
+    """Deprecated: use is_version_affected_v2(Version, VulnerabilityRange).
+    Will be removed in 1.0.0."""
+    warnings.warn(
+        "is_version_affected(str, list) is deprecated and will be removed "
+        "in 1.0.0; use is_version_affected_v2(Version, VulnerabilityRange) instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return is_version_affected_v2(Version(version_str), VulnerabilityRange(events))
+```
+
+The tradeoff reasoning that mattered, generalized: a breaking change's real cost isn't "will this take effort to fix," it's "will the person affected find out about it *before* it breaks something they depend on." A SemVer major bump plus a deprecation shim converts a silent break into a visible warning with a deadline. That conversion -- not the type-safety improvement itself -- is the actual architectural decision a maintainer is making. Anyone can see that typed arguments are "better." Deciding how to ship "better" without breaking people who trusted your public contract is the job.
+
+## Exercise
+
+On the project where you're a recognized regular (from Tier 3/4 -- do not start a new relationship from zero):
+
+1. If you don't already have it, ask for Triage access using the pattern above: don't ask bluntly for access, point to specific evidence (recent PRs, issues you've already been answering unprompted) and ask if it would help the maintainer for you to be able to label/close directly.
+2. Do a real backlog triage pass on 5 open issues: for each, write down the action (label / close-as-duplicate / request-repro / convert-to-discussion / mark-stale) and the one-sentence reason, in the same shape as the ten-row table above.
+3. Find one merged PR or closed Discussion in that project's history that changed a public function's signature, a CLI flag's default, or an output format -- search closed issues/PRs for "breaking," "deprecat," or "BREAKING CHANGE" in the title or commit messages. Write up the tradeoff reasoning as if you had been in that discussion, then compare your reasoning against what the maintainers actually wrote and decided.
+
+*Hint:* if your project has no visible breaking-change history, look at its CHANGELOG.md for any entry under a major version bump -- nearly every actively maintained library has shipped at least one, and the PR or issue linked from that changelog line is usually exactly the discussion you're looking for.

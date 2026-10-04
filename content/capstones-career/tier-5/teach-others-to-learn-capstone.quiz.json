@@ -1,0 +1,98 @@
+[
+  {
+    "id": "capstones-career/tier-5/teach-others-to-learn-capstone/q1",
+    "type": "multiple_choice",
+    "prompt": "The mini-curriculum design in this module borrows a four-part structure directly from this curriculum's own tier design. Which four parts?",
+    "choices": [
+      "Goal, Guided Practice, Checkpoint, Creative Teaching Method",
+      "Introduction, Lecture, Quiz, Certificate",
+      "Reading, Video, Discussion, Exam",
+      "Overview, Theory, Lab, Grade"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "capstones-career/tier-5/teach-others-to-learn-capstone/q2",
+    "type": "multiple_choice",
+    "prompt": "In the worked merge-conflict mini-curriculum, why is Lesson 1's goal explicitly 'label which lines are yours/theirs' rather than 'resolve the conflict'?",
+    "choices": [
+      "Labeling is easier to grade automatically than resolving",
+      "It separates the diagnosis skill (reading markers) from the treatment skill (resolving), so a failure in resolution can't be confused with a failure in reading",
+      "Resolving conflicts requires a checkpoint project, and checkpoints can't appear in Lesson 1",
+      "Git does not allow editing a file until all markers are first annotated"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-5/teach-others-to-learn-capstone/q3",
+    "type": "multiple_choice",
+    "prompt": "Which of these is an example of specific, useful learner feedback rather than vague praise?",
+    "choices": [
+      "\"This was really helpful, thanks! I feel a lot more confident now.\"",
+      "\"Great lesson, 10/10, would recommend.\"",
+      "\"I didn't need more practice reading markers by lesson 2's end, but once I saw both sides' fixes in conflict C I didn't know how to decide which one was correct -- I needed a step that let me check what each side's tests actually proved before opening the diff.\"",
+      "\"I liked the pacing and the examples were clear.\""
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "capstones-career/tier-5/teach-others-to-learn-capstone/q4",
+    "type": "multiple_choice",
+    "prompt": "After Priya's feedback pinpointed confusion specifically in Lesson 2's conflict C, what was the correct scope of the iteration?",
+    "choices": [
+      "Rewrite all four lessons to add more conflict examples throughout, to be thorough",
+      "Add one new step (Step 0: check each side's tests before opening the diff) targeted at conflict C only, leaving conflicts A and B unchanged",
+      "Remove conflict C entirely since it caused confusion",
+      "Add a fifth lesson covering semantic merge conflicts in general theory before Lesson 2"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-5/teach-others-to-learn-capstone/q5",
+    "type": "multiple_choice",
+    "prompt": "What makes a target skill for a teach-others-to-learn mini-curriculum well-chosen, according to this module?",
+    "choices": [
+      "It should cover as much ground as possible so the learner gets maximum value",
+      "It should be narrow enough that you can tell, within one sitting, whether it transferred -- e.g. resolving one specific class of merge conflict rather than 'learning Git'",
+      "It should avoid any checkpoint so the learner doesn't feel tested",
+      "It should be a topic the learner already mostly knows, to guarantee a successful session"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-5/teach-others-to-learn-capstone/q6",
+    "type": "multiple_choice",
+    "prompt": "This module's assessment note says the Teach-Others-to-Learn capstone is graded primarily on what?",
+    "choices": [
+      "How polished the written lesson plan looks",
+      "The real learner's actual results on the checkpoint, not just their satisfaction or praise",
+      "Whether the lessons were delivered on the exact planned schedule",
+      "Whether an AI assistant reviewed the lesson plan for clarity"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-5/teach-others-to-learn-capstone/q7",
+    "type": "multiple_choice",
+    "prompt": "How does this module explicitly close the loop back to Tier 0 of the entire curriculum?",
+    "choices": [
+      "By having the learner retake Tier 0's original quizzes",
+      "By pointing out that Tier 0 assumed git mechanics were already known and built communication skills on top; this module has the learner build the same goal/practice/checkpoint/creative-method structure around that exact mechanic (merge) for someone else, turning the former reader of teaching material into its author",
+      "By requiring the mini-curriculum to be published as a new Tier 0 module in the official curriculum repository",
+      "By having the real learner also complete Tier 0's Specialization Map exercise before the teaching session begins"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-5/teach-others-to-learn-capstone/q8",
+    "type": "multiple_choice",
+    "prompt": "In the worked example, why are the three seeded conflicts in Lesson 2 ordered as whitespace-only, then overlapping-added-lines, then semantic (both sides fixed the same bug differently)?",
+    "choices": [
+      "Alphabetical ordering of conflict types is the Git documentation standard",
+      "Each step adds exactly one new kind of difficulty rather than several at once, the same ramping principle used elsewhere in this curriculum (e.g. DS&A pattern progression)",
+      "Semantic conflicts must always be taught before textual conflicts in Git pedagogy",
+      "The order has no pedagogical reasoning behind it; any order would work equally well"
+    ],
+    "correctIndex": 1
+  }
+]

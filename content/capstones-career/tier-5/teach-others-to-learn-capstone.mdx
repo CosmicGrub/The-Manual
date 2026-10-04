@@ -1,0 +1,175 @@
+---
+trackId: capstones-career
+tier: 5
+title: "Teach-Others-to-Learn Capstone"
+order: 4
+estimatedHours: 15
+slug: teach-others-to-learn-capstone
+---
+
+## Why This Module Exists
+
+Every module before this one in the entire curriculum had someone else's name on the lesson plan. Tier 0's Open-Source Etiquette module taught you to read a README someone else wrote. The Specialization Map had you read someone else's "day in the life" account. Tier 4's Interview Prep Intensive had someone else grade you against someone else's rubric. For nine tracks and five tiers, you have been the learner on the receiving end of a curriculum design.
+
+This module reverses that, for real, with a real person, with real stakes if the lesson doesn't land. You are going to design a small curriculum — 3 to 5 lessons, one narrow skill, a few hours total — and teach it to someone who isn't you. Not a simulation of teaching. Not a blog post about teaching. An actual person who didn't have the skill before your lesson and either does or doesn't have it after. That gap is the only grade that counts here, which is why Tier 5's assessment note says the mentee's actual results, not their satisfaction, are what this module is graded on.
+
+The reason this sits at hour 15 of the final tier, after the Magnum Opus and Upstream Maintainership, isn't sequencing for its own sake. You cannot design a good mini-curriculum until you've been inside one for five tiers and can see its load-bearing parts instead of just its surface. This module asks you to take the parts apart and rebuild them at a scale small enough to run in an afternoon.
+
+## The Shape You're Borrowing
+
+Open any tier of this curriculum — literally any of them — and the shape repeats: a **Goal** that states what changes in the learner, not what topics get covered; **Modules** that build toward it; **Guided practice** embedded in those modules; a **Checkpoint project** that proves the skill transferred, not just that the material was read; and a **Creative teaching method** that forces the learner to produce something, not just consume something. Tier 0's Open-Source Etiquette module, for instance, has exactly this skeleton: a goal ("how you communicate when a human — not a compiler — is on the other end"), worked examples the learner reads and compares, an exercise that makes them rewrite their own README and PR description, and a hint instead of a solution.
+
+That skeleton is what you're borrowing, deliberately, at a fraction of the scale. A 3-5 lesson mini-curriculum needs the same four moving parts this whole curriculum uses at every tier:
+
+```text
+GOAL              — one sentence: what can the learner do after lesson N
+                    that they couldn't do before, stated as a behavior,
+                    not a topic ("resolve a conflict without panicking,"
+                    not "learn about merge conflicts")
+GUIDED PRACTICE   — you watching them do it, with scaffolding you remove
+                    lesson by lesson, not you doing it while they watch
+CHECKPOINT        — one task, done with the scaffolding gone, that proves
+                    the skill transferred rather than was narrated at them
+CREATIVE METHOD   — something they produce (a teach-back, an artifact, a
+                    cheat sheet) that forces active recall instead of
+                    passive review
+```
+
+Skip the checkpoint and you have a tutorial, not a lesson — exactly the distinction Tier 0's Career Literacy 101 module drew between a tutorial-follower and a portfolio project, now applied to your teaching instead of your building. Skip guided practice and you have a lecture. The four parts are not decoration; each one is load-bearing against a specific failure mode, the same way they are at full curriculum scale.
+
+## Picking the Skill and the Learner
+
+Two constraints, both non-negotiable, both things this curriculum's own design already modeled for you:
+
+**The skill must be narrow enough to falsify in one sitting.** "Teach someone Git" is not a skill, it's a track. "Teach someone to read three conflict markers and correctly resolve a conflict where both sides changed the same function" is a skill — you will know within twenty minutes of the checkpoint whether it transferred. Every real module in this curriculum picks a target this narrow (Tier 1's DS&A Primer doesn't teach "algorithms," it teaches "read a function and estimate its complexity"); yours needs to be just as narrow.
+
+**The learner must be real and must not already have the skill.** Not a rubber duck, not an AI assistant playing a learner, not a hypothetical. Someone whose actual confusion you cannot predict in advance, because predicting it in advance is exactly the muscle this exercise is built to train. A junior dev at your job, a friend mid-bootcamp, a study-group partner, someone in an online cohort you're already part of — the only requirement is that their "I get it now" or "I'm still stuck" is genuine and not performed for you.
+
+## Worked Example: "Read and Fix Your First Merge Conflict"
+
+The learner: Priya, three weeks into her first junior role, comfortable with `git add`/`commit`/`push` but who has never once resolved a conflict — her actual coping strategy so far has been deleting her branch and starting over the moment she sees `CONFLICT (content): Merge conflict in`.
+
+The skill, narrowed the way the curriculum's own modules narrow theirs: *read conflict markers correctly, resolve a conflict where both sides changed overlapping code without losing either side's intent, and do it once, unassisted, on a conflict she hasn't seen.*
+
+Four lessons, mirroring Goal / Guided Practice / Checkpoint / Creative Method at a scale she can do in one lunch break plus a follow-up session:
+
+```markdown
+# Mini-curriculum: Your First Merge Conflict (4 lessons, ~2.5h total)
+
+## Lesson 1 — What the markers are actually telling you (30 min)
+Goal: correctly label which lines are "yours," which are "theirs," and
+which are shared context in a conflict file — WITHOUT resolving anything.
+Guided practice: I hand Priya a pre-seeded conflicted file. She
+annotates it with comments, doesn't delete a single character.
+
+## Lesson 2 — Resolving with intent, not panic (45 min)
+Goal: resolve three seeded conflicts of increasing difficulty without
+silently dropping either side's change.
+Guided practice: conflict A (whitespace, trivial), conflict B (both
+sides added different lines to the same function), conflict C (both
+sides fixed the same bug two different ways — a semantic conflict, not
+just a textual one). I narrate my reasoning out loud on A, she drives
+B and C with me watching.
+
+## Lesson 3 — Checkpoint: solo, unrehearsed conflict (30 min)
+Goal: resolve a conflict she has never seen, alone, and narrate her
+reasoning afterward. No hints during. This is the grade.
+
+## Lesson 4 — Creative method: the cheat sheet (20 min)
+Goal: Priya writes a 10-line "what I'll remember" cheat sheet in her
+own words, for her own future self — the same move Tier 0's Learning
+OS module calls "write it last, write it sharp." I don't edit it.
+```
+
+Lesson 1's constraint — *don't resolve anything yet* — exists because the single most common failure watching someone's first conflict is that they start editing before they've correctly identified which half is whose. Decoupling "can you read it" from "can you fix it" is the same move Tier 1's DS&A Primer makes by teaching Big-O intuition before any real algorithm — separate the diagnosis skill from the treatment skill, or you can't tell which one actually broke later.
+
+Lesson 2's three conflicts are ordered on a real axis: textual-only (A), textual-plus-overlapping-intent (B), semantic (C, where both sides are "correct" individually and the real work is deciding which fix — or both — survives). That's not an arbitrary difficulty ramp; it's the same shape as Tier 3's DS&A Pattern Mastery module moving from traversal to dynamic programming — each step adds exactly one new kind of difficulty, not several at once.
+
+## Running It With a Real Person
+
+Here is what actually happened in Priya's session, not the plan — because the gap between the plan and the session is the entire point of running this with a real human instead of writing the curriculum and calling it done.
+
+Lesson 1 went almost exactly as scripted; she annotated the markers correctly on the first try. Lesson 2's conflict A took ninety seconds. Conflict B took four minutes and one wrong turn — she initially deleted one side's added line entirely instead of keeping both, which is the single most common real mistake with overlapping-but-compatible changes, and precisely why conflict B exists in the lesson at all; walking her back from that mistake live was more valuable than if she'd gotten it right immediately. Conflict C — the semantic one — is where the real session diverged from the plan, which is covered in the next section, because what happened there is also the clearest example of real feedback this module is asking you to collect.
+
+## Honest Feedback vs. Vague Praise
+
+After the session, "that was really helpful, thanks!" is the single most common thing a grateful learner says, and it is nearly worthless as teaching data. It's not dishonest — Priya meant it — but it tells you nothing about which of your four lessons worked, which one you got lucky on, and which one is about to fail with the next learner who isn't as generous as Priya about papering over confusion.
+
+Compare the two, from the same person, same session:
+
+```text
+VAGUE PRAISE (what most feedback defaults to):
+"This was really helpful, thanks! I feel a lot more confident about
+merge conflicts now."
+
+HONEST, USEFUL FEEDBACK (what you actually asked for):
+"Lesson 2's conflict C — the one where both sides fixed the same bug
+differently — is the one that actually confused me. Not because I
+couldn't read the markers anymore, by that point I could. It's that
+once I could see both versions clearly, I didn't know how to DECIDE
+which fix was right, or whether I needed both. You jumped straight
+from 'here's the conflicted file' to reading the diff, and I think I
+needed a step before that: run the tests on main, run the tests on
+the other branch separately, and see what each side was actually
+trying to fix, before even opening the conflicted file. Conflicts A
+and B felt obvious in hindsight, like fifteen minutes after doing them
+I couldn't remember why they'd ever been confusing. C is the one I'd
+still be nervous about if it showed up at work tomorrow."
+```
+
+The useful version is specific enough to act on and it names exactly where the lesson plan and the learner's actual cognition diverged — the gap between "read the markers" (which transferred) and "decide which side's intent should win" (which didn't), plus a concrete fix Priya herself proposed. The vague version can't be iterated on at all; there's no lesson number, no moment, no mechanism to change. You asked for the second kind by asking a different question than "did that help?" — the actual prompt that produced it was "tell me the exact moment in any of the four lessons where you were still guessing, even if you got the right answer anyway."
+
+This is the same discipline Tier 4's Portfolio Case Studies module applies to your own project write-ups: a falsifiable, specific claim beats an unfalsifiable, flattering one, whether you're writing about your own work or asking someone to evaluate it.
+
+## Iterating on One Piece of Feedback
+
+Priya's feedback pointed at a real gap in Lesson 2, not a vague "make it better" — so the fix is a single, targeted change, not a rewrite:
+
+```diff
+ ## Lesson 2 — Resolving with intent, not panic (45 min)
+ Goal: resolve three seeded conflicts of increasing difficulty without
+ silently dropping either side's change.
+-Guided practice: conflict A (whitespace, trivial), conflict B (both
+-sides added different lines to the same function), conflict C (both
+-sides fixed the same bug two different ways — a semantic conflict, not
+-just a textual one). I narrate my reasoning out loud on A, she drives
+-B and C with me watching.
++Guided practice: conflict A (whitespace, trivial), conflict B (both
++sides added different lines to the same function), conflict C (both
++sides fixed the same bug two different ways — a semantic conflict, not
++just a textual one). I narrate my reasoning out loud on A, she drives
++B and C with me watching.
++
++NEW — Step 0, added before conflict C only: before opening the
++conflicted file at all, run the test suite on `main` and separately
++on the other branch (`git stash`, checkout, test, checkout back).
++Write one sentence per side: "this side's tests show it was fixing
++___." Only open the conflicted file once both sentences exist. This
++turns "which fix is right" from a guess into a question you can
++answer from evidence you already have, before you've even looked at
++the diff.
+```
+
+That's the entire iteration: one new step, inserted at the exact point the real session showed the real gap, not a redesign of lessons that already worked. It's worth noticing what you're *not* doing — rewriting conflicts A and B, which Priya's own feedback said were fine, or adding more conflicts "to be thorough." Tier 2's Open Source 101 module teaches handling review feedback without taking it personally; this is the other half of that same discipline — handling it without over-correcting past what the feedback actually said, which is the mirror-image mistake of ignoring it.
+
+If you run this lesson again with a second learner, Step 0 is now permanent, because it was earned from real evidence, not a hypothesis about what might help.
+
+## Closing the Loop: From Tier 0 to Here
+
+Tier 0's Open-Source Etiquette & Licensing module opened with a flat assumption: "You already know how to commit, branch, and merge from CS Foundations Tier 0. That's mechanics." Everything that module and the ones around it taught was the layer on top — how to communicate about code to another human. You were, at that exact moment, on the far end of someone else's teaching decisions: someone else picked which mechanic to assume, someone else chose the worked examples, someone else wrote the exercise and the hint instead of the solution.
+
+Look at what you just did. You took "merge," the exact mechanic Tier 0 waved past as already-known, found its single sharpest edge — the moment it actually breaks for a real beginner — and built the same four-part structure around it that was built around you: a goal stated as a behavior, guided practice with scaffolding you removed on purpose, a checkpoint that was the actual grade, and a creative method that made someone else produce something instead of just nod along. You asked for feedback specific enough to act on, the same specificity Tier 0's Career Literacy module asked of your own project write-ups. You iterated on exactly the piece of evidence the feedback gave you, the same restraint Tier 2 asked of you when a maintainer reviewed your PRs. And the cheat sheet Priya wrote for her own future self in Lesson 4 is, structurally, the same artifact as the dev-journal entry Tier 0's Learning OS module had you write about your own first debugging session — "write it last, write it sharp" — except this time you weren't the one writing it. You built the conditions for someone else to.
+
+The Specialization Map, in Tier 0, had you read a "day in the life" account of a field you hadn't entered yet, written by someone who already knew what they were doing, to orient someone who didn't. Priya's four-lesson arc, her cheat sheet, and her honest "C is the one I'd still be nervous about" are exactly that account — except this time it exists because you wrote it, about a skill you taught, to orient someone who hadn't learned it yet. That is the loop this entire curriculum has been pointing at since Tier 0's first module: you started as the reader of someone else's teaching material. You are now its author.
+
+## Exercise
+
+Design and run your own 3-5 lesson mini-curriculum, on a real narrow skill, with a real learner who doesn't have it yet. It does not have to be a coding skill — teaching a non-technical friend to read a flame graph, teaching a junior dev to write a bisectable commit, teaching someone to read a stack trace instead of panicking at it, all qualify, as long as the skill is narrow enough to falsify in one sitting.
+
+1. Write the lesson plan using the four-part structure (Goal / Guided Practice / Checkpoint / Creative Method) for each lesson, the way the worked example above does — a goal stated as a behavior, not a topic.
+2. Run it with a real person. Do not skip or fake this step; the checkpoint has to be their actual, unassisted performance, not your prediction of it.
+3. After the session, ask a question specific enough to produce useful feedback rather than praise — "tell me the exact moment you were still guessing" works; "did that help?" does not — and write down what they actually said, verbatim, not your summary of it.
+4. Pick one concrete piece of that feedback and make one targeted change to one lesson, the way Lesson 2's Step 0 was added above. Write the before/after of that one change.
+5. Write two or three sentences, in your own learning journal, explicitly naming which earlier tier or module of this curriculum the skill, the learner's confusion, or the teaching move you used traces back to — the way this module traced Priya's merge-conflict cheat sheet back to Tier 0's Learning OS journal entry.
+
+**Hint:** if you can't think of a skill narrow enough, look at the last thing *you* got stuck on for more than twenty minutes somewhere in this curriculum, and teach that exact thing, the exact way you wish someone had taught it to you — the gap between how you learned it and how you'd teach it now is usually the whole lesson plan, already sitting in your own dev journal if you kept one since Tier 0.

@@ -1,0 +1,175 @@
+---
+trackId: capstones-career
+tier: 5
+title: "Career Launch Sprint"
+order: 5
+estimatedHours: 10
+slug: career-launch-sprint
+---
+
+## Where this fits
+
+Four modules in this tier did the actual work: the Magnum Opus took `vulncheck.py`'s semantic-version CVE matching — the thread running since Tier 2's `portwatch.py` — and pushed it into the security+ML intersection this tier's own syllabus names as its canonical example: an ML risk-ranking layer on top of the SBOM/CI-gate scanner, red-teamed with adversarial evasion attacks and then hardened. Upstream Maintainership turned your Tier 3 PR history on `pip-audit` into real ownership of a subsystem. Publish & Present put a defensible writeup and a recorded talk behind both. Teach-Others-to-Learn proved you can transfer what you know to someone who didn't already have it.
+
+None of that is a job, a client, or a grant yet. This module is the 10 hours where you convert four finished bodies of work into the specific documents and conversations that get a stranger to say yes — and then you actually have that conversation, not just prepare for a hypothetical one. Three things, in order: rewrite the resume, LinkedIn, and portfolio site around what you actually just built, not what you built two tiers ago; run a full mock onsite loop, not the single round Tier 4's Interview Prep Intensive gave you; and apply the three real paths to landing something, honestly compared, because "apply and see" is not a plan.
+
+## 1. The resume rewrite: before/after, graded by Tier 4's own discipline
+
+Tier 4's Portfolio Case Studies module taught one discipline for numbers: never write a number, or a number-shaped adjective, you couldn't defend if asked how you got it. That discipline applies to a resume bullet exactly as hard as it applies to a case study's Metrics section — a resume bullet is just a case study's Metrics section compressed to one line. Here's the actual before/after, not a hypothetical one.
+
+**Before** — the kind of bullet every self-taught resume ships with, including probably your own from Tier 3:
+
+```text
+- Built a machine learning project that analyzes security
+  vulnerabilities, using Python and scikit-learn.
+- Contributed to open source projects including pip-audit.
+```
+
+Both sentences are true. Neither is falsifiable, neither names a decision, and neither gives a reader anything to ask a follow-up question about — which means neither survives the first thirty seconds of a skim.
+
+**After**, built directly from the Magnum Opus's own eval harness and the Open-Source Leadership Track's `pip-audit` ownership cycle:
+
+```text
+- Designed and red-teamed an ML vulnerability-triage model for an
+  existing CVE scanner; found a way to make 89% of critical
+  vulnerabilities evade detection with small, realistic input
+  changes, then cut that evasion rate to 11% through adversarial
+  hardening -- a security weakness I found and fixed before anyone
+  else could exploit it.
+- Owned a correctness bug in pip-audit's OSV version-range matcher
+  that silently missed valid regression-pattern CVEs; landed the
+  general fix as 3 reviewed PRs (sweep logic, tests, docs), then
+  triaged and fixed a related edge case a user reported three weeks
+  later -- the kind of repeat ownership that got me offered triage
+  access on the subsystem.
+```
+
+Write the peer-developer version first, same as Tier 4 taught, because you need the precise version to know you're telling the truth before you compress it:
+
+```text
+Peer-developer register (engineering notes / case study, full precision):
+Built riskrank.py on vulncheck.py's SBOM/CVE match output: an 11-feature
+gradient-boosted triage classifier (CVSS sub-scores, days-since-
+disclosure, CISA KEV membership, package download rank) trained on 600
+hand-labeled historical CVEs. Red-teamed it with a bounded,
+greedy feature-perturbation search (max 2 of 11 features altered,
+within realistic per-feature bounds) and measured an 89% attack
+success rate (182/200 held-out critical CVEs pushed from "urgent" to
+"low" predicted priority) pre-hardening. Added monotonic constraints
+on CVSS and days-since-disclosure plus 2,000 rounds of adversarial-
+example augmentation; attack success rate fell to 11% (22/200), at a
+cost of 2 points of clean holdout accuracy (92% -> 90%).
+```
+
+The resume bullet above is that paragraph with every implementation noun (`riskrank.py`, "gradient-boosted," "monotonic constraints," the exact feature list) stripped, and every number that proves judgment kept: the 89%-to-11% before/after, and the explicit, honestly-stated cost (2 points of clean accuracy) — because naming the cost of your own fix is exactly the signal Tier 4 flagged as the thing that separates a real tradeoff from a marketing sentence. A hiring manager who reads "89% to 11%" and asks "how did you measure that" in a screen gets the peer-register paragraph verbatim, out loud, without you having to reconstruct it under pressure.
+
+## 2. LinkedIn: the same discipline, one register further compressed
+
+LinkedIn gets even less reading time than a resume — a headline is skimmed in under two seconds, before a stranger decides whether to open the profile at all. Same discipline, smaller space:
+
+```text
+Before:
+Headline: "Aspiring Software Engineer | Python | Learning ML and Security"
+About:    "I am a passionate self-taught developer eager to break into
+           tech. I love learning new things and solving problems.
+           Looking for opportunities!"
+
+After:
+Headline: "Software Engineer -- Security + ML | Cut an adversarial
+           evasion rate from 89% to 11% | pip-audit contributor"
+About:    "I build security tooling that has to survive someone
+           actively trying to fool it. My capstone project found that
+           a CVE-triage ML model could be evaded 89% of the time with
+           small, realistic input changes -- then cut that to 11% with
+           adversarial training and monotonic constraints, both
+           numbers reproducible from the published eval harness. I'm
+           also a recognized contributor on pip-audit, where I rewrote
+           its vulnerable-version-range matcher and hold triage access
+           on the subsystem I own. Open to security+ML roles, or a
+           scoped contract if your problem looks like this one."
+```
+
+The "before" headline describes a category of person ("aspiring," "learning") a recruiter has seen ten thousand times. The "after" headline is a specific claim nobody else on the platform can truthfully copy-paste, because it's your number. That's the actual test for whether a LinkedIn rewrite worked: could a stranger search for your exact headline and find anyone else's profile. If yes, it's still generic.
+
+## 3. Portfolio site v2: promoting the Magnum Opus
+
+Tier 3's Build Your Portfolio Site built three cards; Tier 4's Portfolio Case Studies added a `case-studies/<project>.html` subpage per card, linked from a third `card-links` entry. V2 doesn't rebuild either pattern — it reorders and adds one card, reusing both exactly:
+
+```html
+<!-- index.html, v2: Magnum Opus promoted to the first card -->
+<div class="card-links">
+  <a href="https://riskrank-demo.fly.dev/eval">Live eval harness</a>
+  <a href="https://github.com/jordancasey/riskrank">Source + full README</a>
+  <a href="case-studies/riskrank.html">Read the case study</a>
+</div>
+<!-- TrailLink and the portwatch/vulncheck thread move to cards 2 and 3 --
+     chronological order was never the right order; relevance to the
+     role you're applying for is, and the Magnum Opus is now the most
+     relevant thing you own. -->
+```
+
+The new `case-studies/riskrank.html` uses the identical five-part structure from Tier 4 — Problem, Constraints, Decisions, Metrics, Lessons Learned — now filled with the real adversarial-ML numbers instead of a placeholder. Metrics reuses the 89%-to-11% figure verbatim; Decisions covers the one real tradeoff (monotonic constraints cost 2 points of clean accuracy, chosen anyway because an evadable triage gate is worse than a slightly less accurate one); Lessons Learned names the honest next step (the perturbation search is greedy, not exhaustive — a stronger attacker with a real gradient-based tabular attack might find a higher baseline ASR than 89%, which means 11% is a floor on remaining risk, not a ceiling).
+
+One more change v2 makes that v1 didn't need: a dedicated card for the `pip-audit` ownership itself, separate from any one PR link. By Tier 3 you had a merged PR. By Tier 5 you have triage access and a maintainer who tags you by name — that's a different, strictly bigger claim, and it deserves its own card linking to the issue thread where the design discussion happened, not just the final diff.
+
+## 4. The full mock onsite loop, extending Tier 4's single-round rubric
+
+Tier 4's Interview Prep Intensive gave you two rubric tables — DS&A, system design — each scored alone, usually self-graded or peer-graded in isolation. A real onsite loop is not one round graded once; it's multiple rounds, different interviewers, scored independently, then reconciled in a debrief. Here's the shape, concretely:
+
+| Stage | Format | Who | What it's actually checking |
+|---|---|---|---|
+| Recruiter screen | 20-30 min call | Recruiter, not an engineer | Logistics, basic fit, comp range — not graded on any rubric |
+| Phone screen / OA | 45-60 min | One engineer | The Tier 4 DS&A rubric, one round |
+| Onsite round 1-2 | 45-60 min each | Two different engineers | DS&A rubric again, different problems — most companies run two coding rounds, not one |
+| Onsite round 3 | 45-60 min | A senior engineer | The Tier 4 system-design rubric |
+| Onsite round 4 | 45 min | The hiring manager | Behavioral, usually unscored on the 0-20 scale but weighted heavily on team fit |
+| Bar raiser (many companies) | 45-60 min | A senior engineer from an unrelated team, no stake in the hire | Deliberately the most skeptical round — exists specifically to counter other interviewers' bias toward liking a candidate they got along with |
+
+The part Tier 4's single-round rubric structurally can't teach: **every interviewer scores independently, before the debrief, without seeing anyone else's score.** This matters for the same reason witness statements get taken separately before anyone compares notes — scores given after hearing a senior interviewer's opinion aren't independent evidence anymore, they're anchored to it. A real debrief sheet looks like this:
+
+```text
+Candidate: <name>
+Round          Interviewer   Score (0-20)   Submitted before debrief?
+DS&A #1        A. Chen       16             yes
+DS&A #2        R. Osei       14             yes
+System design  M. Alvarez    18             yes
+Behavioral     (HM)          strong yes     yes
+Bar raiser     T. Nwosu      11             yes
+
+Debrief order: most junior interviewer speaks first, states their
+score AND the specific evidence behind it, before the bar raiser or
+HM speaks -- so the room isn't anchored to the most senior opinion
+before the others get a word in.
+
+Decision: no round scored in the 0-6 "clear no-hire" band; 4 of 5
+rounds landed 14+ ("strong hire" or "borderline, needs a second data
+point" per Tier 4's bands). Level discussion (which level to hire at,
+not whether) centers on the system-design round specifically, because
+that's the round that most directly tests scope.
+```
+
+Getting a real practitioner to run even one of these rounds with you is the actual hard part, and "find a mentor" is not a plan. Concrete channels that work: ADPList (built specifically for free, scoped mock sessions — book one round, not an open-ended mentorship); Exponent's mock-interview marketplace if you can pay for one round; your own `pip-audit` relationships — the maintainer who's tagged you by name has standing to either run a round themselves or refer you to someone who will, and that ask is easy precisely because the relationship already exists; a security or ML meetup (virtual or local) tied to your Magnum Opus's actual field, where "will you run one 45-minute system-design round against my own capstone's architecture, I'll send the prompt in advance and return the favor" is a scoped, easy yes. A full five-interviewer loop on one calendar day isn't realistic to assemble yourself — the honest adaptation is to run each round with a different practitioner across two or three weeks, then compile every scoresheet into one debrief document yourself immediately after, reading your own weakest round with the same skepticism a bar raiser would apply, not the generosity a friend giving feedback usually does.
+
+## 5. Three paths to landing something real, compared honestly
+
+"Apply and see" isn't a plan because the three real paths to a Tier-5 finish line require genuinely different things, and conflating them wastes the ten hours this module has to spend:
+
+| Path | What landing it concretely requires | Realistic volume & lead time | Who decides | What a weak attempt looks like |
+|---|---|---|---|---|
+| Traditional interview loop | The rewritten resume above + referrals wherever you can get one + 150+ DS&A problems logged (Tier 4) + at least one full mock loop completed with real debrief feedback incorporated | 30-50 *targeted* applications to roles matching your Magnum Opus's actual stack, not 500 scattershot ones; screen-to-offer typically spans 3-6 weeks once a loop starts, but most applications never reach a screen at all | A hiring committee in a debrief, not one person | One resume blasted to 500 listings, no referral attempts, first real onsite is also the first mock loop |
+| Freelance client | A narrow, nameable offer ("I harden ML-based security tools against adversarial evasion," not "I do Python dev") + one finished public proof-of-work artifact a prospect can see before paying you + direct outbound to a specifically chosen audience | 20-30 specifically-chosen prospects contacted to land one client — the fit has to be narrow enough that most contacted leads genuinely won't match | One decision-maker (the client, at most plus one technical reviewer) | A generic marketplace profile offering "Python development," waiting for inbound instead of pitching a named prospect a named problem |
+| OSS fellowship / grant | A specific, scoped proposal with a concrete deliverable and timeline + a public, independently-verifiable track record (your actual merged PRs and ownership history) + usually a budget line | Low volume, long and lumpy lead time — many programs (NGI Zero/NLnet, the Sovereign Tech Fund, a project's own GitHub Sponsors tier) run fixed rounds months apart, not rolling hiring; one well-matched proposal beats ten scattershot ones | The funding body's reviewers, often including the project's own maintainers | "I want to keep maintaining X" with no budget, no timeline, no deliverable a reviewer could check off |
+
+Read the "who decides" column again: it's the real reason these paths feel so different to pursue. A hiring committee needs you to survive several independent, skeptical readings of the same evidence — which is exactly what the mock loop above rehearses. A single freelance client needs you to convince one person who can see your proof-of-work directly, which is why a narrow, demonstrated offer beats a broad, described one. A grant reviewer is often reading your public GitHub history directly — which means the Open-Source Leadership Track module wasn't separate prep for this path, it *is* this path's evidence, already written, before you apply.
+
+None of these are mutually exclusive, and running more than one in parallel is normal. But the honest expectation for a Tier-5 finisher's first real attempt isn't "I get to pick." It's "I land exactly one of these, and it's probably not the most prestigious-sounding option on the list — and landing that one is the actual finish line this entire curriculum has been building toward."
+
+## Exercise: commit to one path, this week
+
+Pick exactly one of the three paths above — not the one that sounds best, the one your actual evidence already supports — and take the one concrete, falsifiable step named for it, this week, not "start applying" in the abstract:
+
+- **Traditional loop:** assemble your first batch of 10 targeted applications (not 100), using the rewritten resume bullets above, to roles whose JD explicitly mentions security, ML, or vulnerability management. Log, for each one, whether it's a cold application or a referral.
+- **Freelance client:** write your one-sentence narrow offer (model it on "I harden ML-based security tools against adversarial evasion," scoped to what you actually just proved you can do) and send it to 5 specifically named prospects — not a profile on a platform.
+- **Fellowship/grant:** write the one-paragraph scoped-deliverable proposal for one specific, named program (NGI Zero, the Sovereign Tech Fund, or a project's own sponsorship tier), and check it line-by-line against that program's actual public call for proposals before sending anything.
+
+**Hint, not a solution:** don't pick the path that sounds most impressive on paper — pick the one your evidence already makes true. If a maintainer already knows your name and tags you in issues, the grant path's "public, verifiable track record" requirement is already half-satisfied before you write a word. If nobody outside your own GitHub profile has ever reviewed your code, that same path is the wrong one to attempt first, no matter how well-written the proposal is — go run the mock loop and the targeted-application batch instead, and come back to the grant once the track record exists to point to.
