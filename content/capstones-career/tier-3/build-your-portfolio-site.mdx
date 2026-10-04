@@ -1,0 +1,281 @@
+---
+trackId: capstones-career
+tier: 3
+title: "Build Your Portfolio Site"
+order: 5
+estimatedHours: 6
+slug: build-your-portfolio-site
+---
+
+## Why this module exists
+
+Tier 0's Career Literacy 101 already told you what a portfolio *is*: evidence that you made decisions under constraints, not a trophy case of finished tutorials. Tier 1's Writing Project Narratives already gave you the structure for proving that about one project, in depth, inside a README: Problem, Solution, Architecture, Demo, with a compressed 30-second first screen sitting on top of all four. Both of those are done. What's missing is the container — a real, live URL a stranger can open without cloning anything, that shows 2-3 of your projects side by side instead of forcing them to go dig through separate repos one at a time. That container is what this module builds, and it's 6 hours because there's no new theory in it: it's packaging and deploying things you already know how to write.
+
+## A GitHub profile README is not a portfolio site
+
+A GitHub profile README (the special `username/username` repo GitHub renders on your profile page) is real and worth having, but it is not a substitute for a site you deploy yourself. It only renders inside GitHub's own page chrome — you don't control layout, you can't embed a live link next to a project in a way that reads as a demo rather than a wall of text, and the second someone isn't already a GitHub user, it's one more click away from wherever you actually sent them (a resume, a job application, a LinkedIn post). A deployed site is yours: your own URL, your own layout, a place you can point a non-technical hiring manager at and have it make sense in five seconds, not thirty. The profile README and the portfolio site aren't competitors — keep the README short and put a single link at the top of it pointing at the real site. This module builds that real site.
+
+## The minimal viable stack: one HTML file, one CSS file, zero build step
+
+You already have the only two languages this needs from Platforms Tier 1's HTML & CSS Fundamentals module. Resist the urge to reach for React (Platforms Tier 2) or a static-site generator before you've shipped anything — every extra moving part is one more thing that can break the deploy, and a portfolio site's entire job is to load fast and not break. Start with exactly this file layout:
+
+```text
+portfolio/
+  index.html
+  style.css
+  resume.pdf
+  assets/
+    traillink-demo.gif
+    portwatch-diff.png
+```
+
+And this `index.html` skeleton — a hero section, a projects section, a contributions section, nothing else yet:
+
+```html
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Jordan Casey — Software Engineer</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="hero">
+    <h1>Jordan Casey</h1>
+    <p>
+      I build backend systems that handle real, messy constraints — most
+      recently a weighted-graph routing API and a stateful security scanner.
+      <a href="#projects">See the work</a> or
+      <a href="resume.pdf">grab my resume</a>.
+    </p>
+  </header>
+
+  <section id="projects" class="project-grid">
+    <!-- project cards go here -->
+  </section>
+
+  <section id="contributions">
+    <h2>Open-source contributions</h2>
+    <ul><!-- merged PR links go here --></ul>
+  </section>
+
+  <footer>
+    <p>jordan@example.com · <a href="https://github.com/jordancasey">GitHub</a> · <a href="https://linkedin.com/in/jordancasey">LinkedIn</a></p>
+  </footer>
+</body>
+</html>
+```
+
+That's the whole document. No framework, no `npm install`, no build step — open it in a browser right now and it already works.
+
+## The 30-second rule, applied to a hero instead of a README
+
+Tier 1 taught you that a README's top has to pass the 30-second test before the full four-part structure underneath ever gets read. The exact same rule applies to the first thing a visitor sees on your site, and the hero section above is that compressed first screen: a name, one sentence naming the kind of real problem you solve (not "aspiring developer" — a concrete claim: "backend systems that handle real, messy constraints"), and two links — one into the proof, one into a format a recruiter can forward. If a stranger closes the tab after reading only the `<header>`, that single paragraph is the only chance you got to earn the scroll. Write it last, after the project cards exist, and cut it until it's three lines — the same discipline Tier 1 applied to `prune-branches`'s compressed Problem+Solution.
+
+## From README to project card: adapting Tier 1's four-part structure
+
+A portfolio card has less room than even a README's compressed first screen, so each of the four parts from Writing Project Narratives compresses further, not disappears:
+
+| README section (Tier 1) | Portfolio card equivalent |
+|---|---|
+| Problem + Solution (full) | 2-3 sentences, same compression move as the README's own first screen |
+| Architecture (prose + diagram) | A row of stack tags — enough to signal real tools, not enough to explain data flow |
+| Demo (GIF or transcript) | An actual embedded screenshot or GIF, always — a card with no visual proof reads as unfinished |
+| License | Dropped entirely — that's a repo concern, not a portfolio concern |
+
+Here's that mapping applied to a real card for TrailLink, this tier's own Cross-Track Capstone #3 — the hiking-trail-network REST API that models trails as a weighted graph and returns the shortest route between two trailheads by distance or by elevation gain:
+
+```html
+<article class="card">
+  <img src="assets/traillink-demo.gif"
+       alt="TrailLink's /route endpoint returning a shortest path between two trailheads on a map"
+       class="card-demo">
+  <h2>TrailLink</h2>
+  <p>
+    Hikers picking a route between two trailheads had no way to compare
+    options by elevation gain, only by rough distance. TrailLink models a
+    real trail network as a weighted graph and returns the shortest route
+    by distance or by elevation gain in a single request.
+  </p>
+  <ul class="stack">
+    <li>Python / Flask</li>
+    <li>Dijkstra's algorithm</li>
+    <li>PostgreSQL</li>
+    <li>Fly.io</li>
+  </ul>
+  <div class="card-links">
+    <a href="https://traillink-api.fly.dev/health">Live demo</a>
+    <a href="https://github.com/jordancasey/traillink">Source + full README</a>
+  </div>
+</article>
+```
+
+Notice the card doesn't try to re-explain the architecture in prose — the stack tags do that job at a glance, and the "Source + full README" link is exactly where the full Problem/Solution/Architecture/Demo structure from Tier 1 already lives, in the actual repo. The card is the 30-second version; the README it links to is the 90-second version. You're not writing the narrative twice — you're writing it once, in the repo, and compressing it once more for the card.
+
+## The other two cards: specialization proof and contribution evidence
+
+Three projects, not one, is the point — a single strong project reads as luck, three with different shapes reads as a pattern. Card two should come from this tier's own Specialization Selection + Applied Project work. If you're on the security lean, that work sits directly on top of Tier 2's Specialization Deep-Dive Intro worked example — `portwatch.py`, the tool that turned a one-shot `nmap` scan into a stateful diff-and-flag monitor. Its card looks different on purpose, because not every real project has a safe public "Live demo" link:
+
+```html
+<article class="card">
+  <img src="assets/portwatch-diff.png"
+       alt="portwatch.py terminal output showing a closed port and a flagged CVE on a second scan"
+       class="card-demo">
+  <h2>portwatch</h2>
+  <p>
+    Extends a one-shot <code>nmap</code> scan into a stateful tool that diffs
+    two scans of the same lab host and automatically flags known-vulnerable
+    service banners, instead of a human eyeballing raw scan output by hand.
+  </p>
+  <ul class="stack">
+    <li>Python</li>
+    <li>nmap</li>
+    <li>XML parsing</li>
+  </ul>
+  <div class="card-links">
+    <a href="https://github.com/jordancasey/portwatch">Source</a>
+  </div>
+</article>
+```
+
+No "Live demo" link, and that's correct, not a gap — a tool that scans a lab VM has nothing honest to deploy publicly. An honest card with only a source link beats a dishonest one with a fake live link that 404s.
+
+The third slot isn't a project card at all — it's the contributions section already sitting in the `index.html` skeleton above, and it's where this tier's Sustained Open-Source Contribution work (the 3+ merged PRs across the tier) becomes visible to someone who isn't going to go digging through your GitHub activity graph:
+
+```html
+<section id="contributions">
+  <h2>Open-source contributions</h2>
+  <ul>
+    <li><a href="https://github.com/acme/queue-lib/pull/412">Add configurable timeout to retry queue</a> — merged, acme/queue-lib</li>
+    <li><a href="https://github.com/acme/queue-lib/pull/429">Fix race condition in connection pool teardown</a> — merged, acme/queue-lib</li>
+    <li><a href="https://github.com/acme/queue-lib/pull/451">Document the retry-backoff config in README</a> — merged, acme/queue-lib</li>
+  </ul>
+</section>
+```
+
+That list is arguably the single highest-signal section on the whole page: it's proof a stranger with no relationship to you decided your code was good enough to merge into something they maintain. No side project, however polished, carries that specific kind of proof.
+
+## Responsive layout and accessibility, borrowed not re-derived
+
+The mobile-first media query pattern and the `viewport` meta tag you need for this to render correctly on a phone (which is how most of the people checking your site will see it) are exactly what Platforms Tier 1's HTML & CSS Fundamentals module already taught — this module doesn't re-derive any of it, it just applies it:
+
+```css
+.project-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+  padding: 1.5rem;
+}
+
+@media (min-width: 640px) {
+  .project-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+.card {
+  border: 1px solid #333;
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.card-demo {
+  width: 100%;
+  border-radius: 4px;
+}
+
+.stack {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  list-style: none;
+  padding: 0;
+  font-size: 0.85rem;
+}
+```
+
+One pair of columns at 640px and up, one column below it — the same mobile-first direction Tier 1 taught, built as pure addition rather than a desktop layout you have to unwind. Keep the alt text on every `card-demo` image real and specific (as above), not the filename — that's the same accessibility rule from the same module, applied here instead of re-explained.
+
+## Deploying for real: GitHub Pages
+
+This is the actual milestone — a URL that works from your phone, not `file:///` on your laptop. GitHub Pages serves a static site straight from a repo for free, with no server to manage:
+
+```bash
+git init
+git add index.html style.css resume.pdf assets
+git commit -m "Initial portfolio site"
+git branch -M main
+git remote add origin git@github.com:jordancasey/jordancasey.github.io.git
+git push -u origin main
+```
+
+Name the repo exactly `yourusername.github.io` and GitHub Pages serves it automatically at `https://yourusername.github.io`, zero configuration. If you'd rather keep a different repo name, it still works — go to that repo's Settings > Pages, set Source to "Deploy from a branch," pick `main` and `/ (root)`, save, and it serves instead at `https://yourusername.github.io/reponame/`. Either way, GitHub shows you the live URL directly on that settings page once the first deploy finishes, usually under a minute.
+
+## Netlify as the alternative, and linking back to Fly.io instead of re-deriving it
+
+Netlify does the same job with a different workflow, worth knowing because some employers' repos use it and you should recognize the pattern:
+
+```bash
+npm install -g netlify-cli
+netlify login
+netlify deploy --prod --dir=.
+```
+
+Or skip the CLI entirely: drag the whole `portfolio/` folder onto `app.netlify.com/drop` and it's live in seconds, no git required at all. Either host is a correct choice for this module — pick one and ship it; don't spend the 6 hours comparing them.
+
+One more deployment decision this module deliberately does *not* make for you: TrailLink's "Live demo" link on the card above has to point at something real, and that something is a live Flask API, not a static file — which is a different deployment problem than the one this module just solved. Don't re-derive that from scratch. Platforms Tier 3's Cloud Basics for App Backends module already walked you through exactly this: write a `Dockerfile`, run `fly launch --no-deploy` to get a `fly.toml`, push secrets with `fly secrets set`, then `fly deploy`, and confirm with `curl` against the real `fly.dev` URL. Point that same flow at your actual TrailLink app instead of that module's generic Tier 2 example, and the URL it gives you is exactly what belongs in the card's `href`. If TrailLink isn't deployed yet, that's the real blocker to clear before the card's link is genuine — ship a card with an honestly missing demo link before you ship one that points at a URL that 404s.
+
+## Optional: deploying via GitHub Actions instead of a plain branch push
+
+The plain `git push` deploy above is correct and sufficient for this module. If you want the exact same CI pattern you already built in Platforms Tier 3's Backend Tests workflow — push triggers a job, the job does the work, you watch it go green — GitHub Pages supports that too, as a separate deploy mechanism from the "Deploy from a branch" setting:
+
+```yaml
+# .github/workflows/deploy.yml
+name: Deploy Portfolio
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  pages: write
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+      - id: deployment
+        uses: actions/deploy-pages@v4
+```
+
+Switch the repo's Settings > Pages > Source to "GitHub Actions" (instead of "Deploy from a branch") for this workflow to take over. The payoff over a plain branch push is small for a one-file static site like this one, but it's the same mechanism you'd reach for the moment the site gains a real build step — a Vite-built React version, say — where something has to run `npm run build` before anything gets served. Know it exists; don't feel obligated to use it yet when a plain push already works.
+
+## A detail that costs five minutes and matters when you share the link
+
+When this URL gets pasted into a Slack message, a LinkedIn post, or a job application field, most of those surfaces render a link preview — and without help, that preview is blank or just the raw URL. Fix it with Open Graph tags in `index.html`'s `<head>`, right next to the `viewport` meta tag from Platforms Tier 1:
+
+```html
+<meta property="og:title" content="Jordan Casey — Software Engineer">
+<meta property="og:description" content="Backend systems that handle real, messy constraints.">
+<meta property="og:image" content="https://jordancasey.github.io/assets/og-preview.png">
+<meta property="og:url" content="https://jordancasey.github.io">
+```
+
+`og:image` should point at a real, already-deployed image — 1200x630px is the safe size most platforms expect — not a placeholder. A link that unfurls into a clean title, one-line pitch, and a real screenshot gets opened; a bare gray box next to a URL mostly doesn't.
+
+## Exercise
+
+Build and deploy your own three-section portfolio site, for real, following the exact structure above:
+
+1. A hero section that passes the 30-second test — name, one concrete sentence, two links.
+2. One project card for TrailLink (or whichever capstone you actually built this tier), using the compressed Problem+Solution, stack tags, embedded demo image, and source link structure from the worked example.
+3. One card for your own Specialization Selection + Applied Project work this tier, following the same structure — with an honest "no live demo" omission if the project genuinely has none.
+4. A contributions section linking whatever merged PRs you have from this tier's Sustained Open-Source Contribution work, even if it's currently fewer than three.
+5. Deploy the whole thing live, to GitHub Pages or Netlify, and load the real URL from your phone — not from `localhost`, not from a code editor's preview pane.
+
+**Hint:** if you're stuck compressing a project's Problem+Solution down to card-sized 2-3 sentences, don't write the short version from scratch. Write (or reuse) the full four-part README for that project first, exactly like Tier 1 taught, then do the identical move Tier 1 did on `prune-branches`'s first screen: delete sentences from the Problem+Solution section one at a time until only what a stranger needs to decide "worth clicking into" survives. Whatever's left when you can't cut anything else without losing meaning is your card copy.

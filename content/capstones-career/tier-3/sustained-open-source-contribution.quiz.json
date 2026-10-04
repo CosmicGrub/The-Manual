@@ -1,0 +1,98 @@
+[
+  {
+    "id": "capstones-career/tier-3/sustained-open-source-contribution/q1",
+    "type": "multiple_choice",
+    "prompt": "Why does landing 5 merged PRs on one project beat landing 5 merged PRs across 5 different projects, according to this module?",
+    "choices": [
+      "It doesn't \u2014 a diverse contribution history always looks stronger to employers",
+      "Context from earlier PRs on the same project compounds, making later PRs faster to scope and more ambitious",
+      "Maintainers only trust contributors who stick to one repo",
+      "GitHub's contribution graph only counts repos you've contributed to 5+ times"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-3/sustained-open-source-contribution/q2",
+    "type": "multiple_choice",
+    "prompt": "Which signal most directly shows a project is actively maintained, not just old and popular?",
+    "choices": [
+      "The repo has a high star count",
+      "Recent commit and release cadence, e.g. commits in the last 3 months and tagged releases every few weeks",
+      "The README mentions it was 'battle-tested in production'",
+      "The repo has more than 10 contributors listed"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-3/sustained-open-source-contribution/q3",
+    "type": "multiple_choice",
+    "prompt": "What is the recommended first move when opening a large, unfamiliar codebase to avoid panic?",
+    "choices": [
+      "Read every file in the repo from top to bottom before writing any code",
+      "Find the real entry point and trace one specific, concrete user action through the call chain",
+      "Run the test suite and read whichever files have the most failing tests",
+      "Ask the maintainers to summarize the entire architecture before doing anything"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-3/sustained-open-source-contribution/q4",
+    "type": "multiple_choice",
+    "prompt": "In the Black trace (main -> reformat_one -> format_file_in_place -> format_file_contents -> format_str -> _format_str_once), where does actual per-line splitting logic get applied?",
+    "choices": [
+      "Inside main(), while parsing CLI flags",
+      "Inside lib2to3_parse(), while building the AST",
+      "Inside transform_line(), called from _format_str_once() after the LineGenerator produces Line objects",
+      "Inside format_file_in_place(), before the file is even read"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "capstones-career/tier-3/sustained-open-source-contribution/q5",
+    "type": "multiple_choice",
+    "prompt": "Why should a contributor's third PR on the same project be more ambitious than their first, while taking comparable or less time?",
+    "choices": [
+      "Maintainers lower their review standards for repeat contributors",
+      "The subsystem map and conventions learned from PR 1 and PR 2 carry over, cutting orientation time even as scope increases",
+      "Later PRs are automatically smaller because easy issues run out",
+      "GitHub automatically assigns harder issues to contributors with more merged PRs"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-3/sustained-open-source-contribution/q6",
+    "type": "multiple_choice",
+    "prompt": "A maintainer asks you to gate a new formatting behavior behind a feature flag instead of changing default output directly, because it would silently break users' CI diffs. What is the constructive response this module models?",
+    "choices": [
+      "Argue that the change is small enough not to matter and push back on the request",
+      "Go silent for a few weeks and hope the PR gets merged as-is during a busy review period",
+      "Acknowledge the specific concern, implement the requested flag-gating pattern, and name exactly what was changed and why",
+      "Close the PR and open an issue instead, since the maintainer disagreed with the approach"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "capstones-career/tier-3/sustained-open-source-contribution/q7",
+    "type": "multiple_choice",
+    "prompt": "What makes a codebase's architecture 'compounding' in the sense this module uses the word?",
+    "choices": [
+      "It has a large number of total files, so there's always something new to learn",
+      "Understanding one well-factored subsystem makes future issues in related files faster to scope, not just familiar",
+      "It uses a popular programming language with lots of online tutorials",
+      "It has 100% test coverage, so every change is automatically safe"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-3/sustained-open-source-contribution/q8",
+    "type": "multiple_choice",
+    "prompt": "Which of these is the strongest red flag when evaluating a project for sustained, multi-PR investment?",
+    "choices": [
+      "The CONTRIBUTING.md was last meaningfully updated over a year ago and recent first-time-contributor PRs get closed with one-line dismissals or no response at all",
+      "The project has a Discord server for contributor discussion",
+      "The maintainers tag releases every few weeks",
+      "The codebase is split into a small number of clearly named subsystems"
+    ],
+    "correctIndex": 0
+  }
+]

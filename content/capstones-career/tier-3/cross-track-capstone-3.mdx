@@ -1,0 +1,277 @@
+---
+trackId: capstones-career
+tier: 3
+title: "Cross-Track Capstone #3"
+order: 1
+estimatedHours: 20
+slug: cross-track-capstone-3
+---
+
+## What Capstone #3 asks of you
+
+Capstone #2 gave you a brief and a floor spec stated as tests, with zero reference implementation — that was the whole lesson: scope it, build it, find your own bugs. Capstone #3 keeps that same no-hand-holding contract and raises the stakes in one specific way: last time you shipped one service (an API, persisted, running on your machine by the end). This time you ship a real system — an API, a database schema that models something nontrivial, and a frontend that actually talks to that API over the network — and then you put the whole thing on the open internet, not just on `localhost`. That's what "real-world scale" means at this tier: not a bigger toy, but a system with more than one moving part that someone other than you can actually open in a browser.
+
+Nothing below re-teaches material you already have. If you don't remember why a hash map beats a sorted list for O(1) lookup, that's Capstone #2 and CS Foundations Tier 2 — go reread, don't re-derive it here. The same discipline applies to everything in the table below.
+
+## The quartet: what each track's Tier 3 gave you, and what it's for here
+
+Four tracks land Tier 3 material at roughly the same point, and this capstone is where they stop being four separate reading lists and start being one repository:
+
+| Track | Tier 3 material this leans on | What it's for in this project |
+|---|---|---|
+| CS Foundations | Graph Theory Fundamentals (Tier 2) + Greedy and Graph Algorithms II (Tier 3) | The actual algorithm behind the app's core feature: a real weighted shortest-path computation, not a database query pretending to be one |
+| Language Mastery | Advanced SQL and Data Modeling (Tier 3) | A real relational schema with foreign keys and aggregate queries, not three tables bolted together with no thought to normalization |
+| Software Engineering | API Design Deep Dive + Clean Architecture and Hexagonal Design + End-to-End and Contract Testing (Tier 3) | Separating routes, domain logic, and persistence into real layers, and testing the whole stack together, not just one function at a time |
+| Platforms | Front-End Framework Basics (React, Tier 2) + Cloud Basics for App Backends (Tier 3) | The browser-facing half of the app, and the exact deployment path that already took a Tier 2/3 backend from `localhost` to a live URL |
+
+If any cell in that table is unfamiliar, that's the signal to go read that module now, not to wing it here.
+
+## The assignment: one project, stated as a brief
+
+Build **TrailLink**: a hiking-trail network stored as a weighted graph, with a REST API that computes real shortest routes between trailheads, a frontend that lets a person request and see a route, and a logbook that remembers hikes across restarts. Here's the floor — everyone building this has to clear it:
+
+- The trail network is a weighted, undirected graph: `trailheads` are nodes, `segments` are edges between two trailheads, and every segment carries both a `distance_km` and an `elevation_gain_m`.
+- `POST /trailheads` and `POST /segments` let you build the network; `GET /trailheads` lists what exists.
+- `GET /route?from=<id>&to=<id>&optimize=distance|elevation` returns the best path between two trailheads as an ordered list of trailhead names, plus the total distance and total elevation gain of that path — computed by **actually running a weighted shortest-path algorithm**, not by hardcoding a few known routes.
+- `optimize=distance` and `optimize=elevation` must return genuinely different paths over the same graph when the data calls for it, because they're optimizing two different edge weights on the same edges. If your implementation always returns the same path regardless of `optimize`, you haven't built the thing yet — you've built a cache of one path.
+- `POST /hikes` logs a completed hike (user, trailhead sequence, date) against real data; `GET /users/<id>/stats` returns that user's total distance hiked, total elevation gained, and single longest hike, computed from the logged hikes.
+- All of it survives a process restart — a relational database, not an in-memory dict.
+- A frontend page lets a person pick a start trailhead, an end trailhead, and an optimize mode, calls `GET /route`, and renders the result; a "log this hike" action calls `POST /hikes` for the route just shown.
+
+That `optimize` parameter is the real design decision in this project, the same way base62 encoding was the real design decision in Capstone #2. It forces you to actually implement Dijkstra's algorithm (or an equivalent priority-queue-based shortest path) over an adjacency list you build from the `segments` table — twice, with two different weight functions — instead of writing a `/route` endpoint that looks right on one test case and falls over on the second.
+
+## The floor, as acceptance tests
+
+```python
+# test_floor_api.py — you did not write this file, you make it pass
+import requests
+
+BASE = "http://localhost:5000"
+
+def seed_diamond_graph():
+    """A -> B -> D is short but steep. A -> C -> D is longer but flat."""
+    ids = {}
+    for name in ["A", "B", "C", "D"]:
+        r = requests.post(f"{BASE}/trailheads", json={"name": name})
+        ids[name] = r.json()["id"]
+    requests.post(f"{BASE}/segments", json={
+        "from_id": ids["A"], "to_id": ids["B"], "distance_km": 2, "elevation_gain_m": 400})
+    requests.post(f"{BASE}/segments", json={
+        "from_id": ids["B"], "to_id": ids["D"], "distance_km": 2, "elevation_gain_m": 400})
+    requests.post(f"{BASE}/segments", json={
+        "from_id": ids["A"], "to_id": ids["C"], "distance_km": 5, "elevation_gain_m": 50})
+    requests.post(f"{BASE}/segments", json={
+        "from_id": ids["C"], "to_id": ids["D"], "distance_km": 5, "elevation_gain_m": 50})
+    return ids
+
+def test_shortest_by_distance_takes_the_steep_short_path():
+    ids = seed_diamond_graph()
+    r = requests.get(f"{BASE}/route", params={"from": ids["A"], "to": ids["D"], "optimize": "distance"})
+    body = r.json()
+    assert body["path"] == ["A", "B", "D"]
+    assert body["total_distance_km"] == 4
+
+def test_shortest_by_elevation_takes_the_flat_long_path():
+    ids = seed_diamond_graph()
+    r = requests.get(f"{BASE}/route", params={"from": ids["A"], "to": ids["D"], "optimize": "elevation"})
+    body = r.json()
+    assert body["path"] == ["A", "C", "D"]
+    assert body["total_elevation_gain_m"] == 100
+
+def test_unreachable_trailhead_is_404():
+    ids = seed_diamond_graph()
+    island_id = requests.post(f"{BASE}/trailheads", json={"name": "Island"}).json()["id"]
+    r = requests.get(f"{BASE}/route", params={"from": ids["A"], "to": island_id, "optimize": "distance"})
+    assert r.status_code == 404
+
+def test_logging_a_hike_updates_user_stats():
+    seed_diamond_graph()
+    requests.post(f"{BASE}/hikes", json={
+        "user_id": 1, "path": ["A", "B", "D"], "date": "2026-09-01"})
+    stats = requests.get(f"{BASE}/users/1/stats").json()
+    assert stats["total_distance_km"] == 4
+    assert stats["longest_hike_km"] == 4
+
+def test_persists_across_restart():
+    ids = seed_diamond_graph()
+    # -- restart your server process here, by hand, before re-running this test --
+    r = requests.get(f"{BASE}/route", params={"from": ids["A"], "to": ids["D"], "optimize": "distance"})
+    assert r.json()["path"] == ["A", "B", "D"]
+```
+
+Six tests, zero implementation. The two shortest-path tests are the load-bearing pair: they run against the exact same graph, so the only way both pass is if your route computation genuinely runs twice with two different edge weights — there is no shortcut that makes both green by accident.
+
+## The schema and the layering
+
+The persistence layer is three tables, built with the normalization and foreign-key discipline from Language Mastery's Advanced SQL and Data Modeling module — don't re-derive third normal form from scratch here, apply it:
+
+```sql
+CREATE TABLE trailheads (
+    id   INTEGER PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE
+);
+
+CREATE TABLE segments (
+    id               INTEGER PRIMARY KEY,
+    from_id          INTEGER NOT NULL REFERENCES trailheads(id),
+    to_id            INTEGER NOT NULL REFERENCES trailheads(id),
+    distance_km      REAL NOT NULL,
+    elevation_gain_m REAL NOT NULL,
+    closed           INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE hikes (
+    id      INTEGER PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    path    TEXT NOT NULL,   -- JSON array of trailhead names, in order
+    date    TEXT NOT NULL
+);
+```
+
+Software Engineering's Clean Architecture and Hexagonal Design module already gave you the reason to keep these concerns in separate files instead of one `app.py`: a `routes` layer that only parses HTTP and calls into a `graph` module, a `graph` module that only knows about nodes/edges/Dijkstra and nothing about HTTP or SQL, and a `store` module that only knows SQL. The test for whether you actually did this: can you unit-test `graph.shortest_path(adjacency, start, end, weight="elevation")` with a plain Python dict and zero running server? If you can't, HTTP and your algorithm are tangled together — exactly the coupling that module exists to prevent. CS Foundations' Multi-File Project Architecture module covers the file-layout side of the same decision; reuse it instead of guessing at a layout.
+
+## Testing it end to end, not just the API in isolation
+
+Unit tests on `graph.py` prove the algorithm is right. They don't prove a person can actually click "find route" in a browser and see a path. Software Engineering's End-to-End and Contract Testing module already covers the Playwright setup you need — apply it here instead of improvising your own:
+
+```python
+# test_e2e_route.py
+from playwright.sync_api import sync_playwright
+
+def test_user_can_request_and_see_a_route():
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.goto("http://localhost:3000")
+        page.select_option("#from-trailhead", label="A")
+        page.select_option("#to-trailhead", label="D")
+        page.select_option("#optimize", label="distance")
+        page.click("#find-route")
+        page.wait_for_selector(".route-result")
+        assert "A" in page.inner_text(".route-result")
+        assert "4" in page.inner_text(".route-result")  # total_distance_km
+        browser.close()
+```
+
+This test only passes if the frontend, the network call, and the API's Dijkstra implementation are all correct and actually wired together — a gap a frontend-only or backend-only test suite can't see.
+
+## Deploying it somewhere real
+
+Nothing here is finished while it only runs on `localhost`. The backend half of this deploy is a direct reuse of Platforms Tier 3's Cloud Basics for App Backends module — same Dockerfile shape, same `fly launch` / `fly secrets set` / `fly deploy` sequence, same free-tier scale-to-zero tradeoff it already walked you through. Don't re-derive that; follow it against this app's Flask or Express service and land on a real `https://traillink-api.fly.dev` URL.
+
+The net-new piece is the frontend half, because nothing earlier in the curriculum deployed a standalone static frontend talking to a separately-hosted API. Vercel's free tier does this directly from a React build:
+
+```bash
+npm run build
+npm install -g vercel
+vercel --prod
+```
+
+```text
+Vercel CLI 34.x
+Inspect: https://vercel.com/you/traillink/abc123
+Production: https://traillink.vercel.app
+```
+
+Your frontend is now on one domain and your API on another, which means the browser's cross-origin rules apply — and the single most common first failure here is a frontend that worked on `localhost` and shows nothing but CORS errors once both halves are live. Fix it on the API side, explicitly allowlisting your real frontend origin:
+
+```python
+# Flask
+from flask_cors import CORS
+CORS(app, origins=["https://traillink.vercel.app"])
+```
+
+```javascript
+// React, pointed at the deployed API instead of localhost
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+fetch(`${API_URL}/route?from=${from}&to=${to}&optimize=${optimize}`);
+```
+
+Set `VITE_API_URL=https://traillink-api.fly.dev` in Vercel's project environment variables, not committed to git — the same secrets discipline Cloud Basics for App Backends already taught you — then rebuild. The two live services are now talking to each other over the open internet, not just on your laptop.
+
+## The bug you will plausibly hit
+
+Say you add an in-memory cache so `/route` doesn't rebuild the adjacency list from the database on every single request — a reasonable optimization once the network has a few hundred segments:
+
+```python
+_graph_cache = None
+
+def get_graph():
+    global _graph_cache
+    if _graph_cache is None:
+        _graph_cache = build_adjacency_list_from_db()
+    return _graph_cache
+```
+
+You add a new, much shorter segment with `POST /segments`, then call `GET /route` between the two trailheads it connects — and it still returns the old, longer path. Every single time, not occasionally.
+
+**That "every single time" is the diagnostic clue.** Capstone #2's race condition failed intermittently, because two threads were genuinely racing for the same resource. This bug is deterministic: it fails 10 times out of 10, the same way, which rules out concurrency as the cause before you've even opened a debugger. A bug that's wrong on *every* run is a logic error, not a timing error — go looking in whatever code path runs identically each time, not in thread interleaving.
+
+Trace it: `get_graph()` builds `_graph_cache` once, on the very first call, and after that every request — including the one right after your `POST /segments` — reads that same stale object back. The write path and the read path never talk to each other.
+
+This is a real, named system-design problem, not a one-off typo: **cache invalidation**, specifically a cache with no eviction or refresh trigger tied to the writes that should invalidate it. Two real fixes, with real tradeoffs:
+
+| Approach | Mechanism | Cost |
+|---|---|---|
+| Invalidate on write | `POST /segments` sets `_graph_cache = None` right after the insert | Simple and correct, but every write pays for a full rebuild on the very next read |
+| Cache-aside with a version counter | Store a `graph_version` row in the DB; the cache remembers which version it was built from and rebuilds when they diverge | Survives multiple server processes sharing one database, which a plain in-process global does not |
+
+Pick the invalidate-on-write version first — it's the one that actually matches a single-process deploy like the Fly.io target above — and confirm the earlier test passes again after a `POST /segments`, with no process restart in between.
+
+## Shipping it
+
+Build it in reviewable slices and tag a release, the same git hygiene Capstone #2 already had you practicing:
+
+```bash
+git checkout -b feat/floor-api
+# ... schema, graph.py, routes, the six floor tests, all passing ...
+git commit -m "Floor API: trailheads, segments, Dijkstra-based /route, hikes + stats over SQLite"
+
+git checkout -b feat/frontend
+# ... React page calling /route and /hikes ...
+git commit -m "Add route-finder UI and hike logging against the floor API"
+
+git checkout main
+git merge feat/floor-api && git merge feat/frontend
+git tag v1.0 && git push origin main --tags
+```
+
+Your README follows the same Problem/Solution/Architecture/Demo structure, and the same first-screen-in-30-seconds discipline, that Writing Project Narratives already taught you — reuse that structure directly rather than inventing a new one, and make the Demo section a real terminal transcript or GIF of a route request against your *live* URLs, not `localhost`.
+
+## Definition of done
+
+```text
+[ ] All six floor acceptance tests pass against your own implementation
+[ ] optimize=distance and optimize=elevation return genuinely different paths on the diamond-graph test
+[ ] graph.py has zero HTTP or SQL imports and is unit-testable with a plain dict
+[ ] The end-to-end Playwright test passes against the real frontend + real API together
+[ ] Cache invalidation is handled: a new segment is reflected in the very next /route call, no restart needed
+[ ] Backend is live on Fly.io (or Render/Railway), reusing Cloud Basics for App Backends' own deploy steps
+[ ] Frontend is live on Vercel (or Netlify), pointed at the deployed API via an env var, not a hardcoded localhost string
+[ ] CORS is configured so the deployed frontend's real origin, not just localhost, can call the deployed API
+[ ] README follows the Problem/Solution/Architecture/Demo structure from Writing Project Narratives, with a demo GIF against the live URLs
+[ ] Pushed to a public GitHub repo, tagged v1.0
+```
+
+## Exercise: trail closures and a connectivity check
+
+Add `PATCH /segments/<id>` to mark a segment `closed: true`, and make `/route` ignore closed segments when computing a path. Then add `GET /trailheads/<id>/reachable`, which must answer a different question: starting from this trailhead, with closed segments removed from the graph, which other trailheads can still be reached at all? This is a different algorithm from Dijkstra — you don't need shortest distance here, you need every reachable node, which is a plain graph traversal.
+
+```python
+def test_closed_segment_disconnects_an_island_trailhead():
+    ids = seed_diamond_graph()  # A-B-D and A-C-D as before
+    e_id = requests.post(f"{BASE}/trailheads", json={"name": "E"}).json()["id"]
+    seg = requests.post(f"{BASE}/segments", json={
+        "from_id": ids["D"], "to_id": e_id, "distance_km": 1, "elevation_gain_m": 10}).json()
+    requests.patch(f"{BASE}/segments/{seg['id']}", json={"closed": True})
+
+    reachable = requests.get(f"{BASE}/trailheads/{ids['A']}/reachable").json()["reachable"]
+    assert "E" not in reachable
+    assert "D" in reachable  # A to D still has two open paths
+```
+
+**Hint, not a solution:** CS Foundations' Graph Theory Fundamentals module already covered the two standard traversals — breadth-first and depth-first — that visit every node reachable from a start point. Either one answers "what's reachable" correctly; Dijkstra's priority queue is solving a different question ("what's *shortest*") and is the wrong tool here even though it's sitting right next to this code in your `graph.py`. Filter closed segments out of the adjacency list before you traverse, not after.
+
+## Recap
+
+TrailLink is small to describe and genuinely hard to ship end to end: a weighted graph with a real shortest-path algorithm behind it, a schema that survives a restart, a frontend that actually renders what the API computes, and two live URLs on the open internet that talk to each other correctly across origins. The brief told you what each piece had to do. Wiring Dijkstra to a database-backed adjacency list, catching your own stale-cache bug before a reviewer does, and getting CORS right on the first deploy instead of the third — that part was always going to be on you.

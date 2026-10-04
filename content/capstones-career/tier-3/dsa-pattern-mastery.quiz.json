@@ -1,0 +1,98 @@
+[
+  {
+    "id": "capstones-career/tier-3/dsa-pattern-mastery/q1",
+    "type": "multiple_choice",
+    "prompt": "In the worked graph (A-B, A-C, B-D, B-E, C-F, E-F), what is the BFS visit order starting at A, visiting neighbors in the order listed (e.g., B before C)?",
+    "choices": [
+      "A, B, C, D, E, F",
+      "A, B, D, E, F, C",
+      "A, C, B, F, E, D",
+      "A, B, C, F, E, D"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "capstones-career/tier-3/dsa-pattern-mastery/q2",
+    "type": "multiple_choice",
+    "prompt": "Same graph, same neighbor order: what is the DFS visit order starting at A (recursive, going into the first unvisited neighbor before trying the next one)?",
+    "choices": [
+      "A, B, C, D, E, F",
+      "A, B, D, E, F, C",
+      "A, C, F, E, B, D",
+      "A, B, E, D, F, C"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-3/dsa-pattern-mastery/q3",
+    "type": "multiple_choice",
+    "prompt": "In that trace, why does DFS visit C dead last even though C is directly connected to A?",
+    "choices": [
+      "DFS always visits nodes in reverse alphabetical order",
+      "DFS commits to the first unvisited neighbor's entire branch before backtracking, so it reaches C the long way (through B, E, F) before ever trying A's direct edge to C",
+      "C has no edges, so DFS must discover it indirectly",
+      "The graph is actually disconnected and C is in a separate component"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-3/dsa-pattern-mastery/q4",
+    "type": "multiple_choice",
+    "prompt": "What is the time complexity of a single push or pop on a binary heap holding n elements, and why?",
+    "choices": [
+      "O(1), because heaps use array indexing",
+      "O(n), because the whole array must be rebuilt",
+      "O(log n), because sift-up and sift-down only move along the height of the tree",
+      "O(n log n), because every element is compared against every other element"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "capstones-career/tier-3/dsa-pattern-mastery/q5",
+    "type": "multiple_choice",
+    "prompt": "Why is a min-heap the natural fit for merging k sorted lists, rather than scanning all k list-fronts at every step?",
+    "choices": [
+      "It sorts the entire combined output in advance",
+      "It guarantees the input lists are already sorted",
+      "It finds the minimum of the k current fronts in O(log k) per step instead of O(k)",
+      "It removes the need to track which list each value came from"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "capstones-career/tier-3/dsa-pattern-mastery/q6",
+    "type": "multiple_choice",
+    "prompt": "In the climbing-stairs example, why does the naive recursive version take exponential time while the memoized version takes linear time, given they use the same recurrence?",
+    "choices": [
+      "The naive version actually uses a different, more expensive recurrence",
+      "The naive version recomputes the same subproblems over and over, while memoization caches each subproblem's result the first time it's computed",
+      "Python recursion is inherently slower than loops regardless of the algorithm",
+      "The memoized version uses a heap internally to speed up lookups"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-3/dsa-pattern-mastery/q7",
+    "type": "multiple_choice",
+    "prompt": "The two-pointer technique used for Two Sum on a sorted array depends on which property of the input?",
+    "choices": [
+      "The array must contain only positive numbers",
+      "The array is sorted, so moving the left pointer right only increases the sum and moving the right pointer left only decreases it, letting each comparison discard one whole end of the range",
+      "The array must have an even number of elements",
+      "The target must exceed every element in the array"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-3/dsa-pattern-mastery/q8",
+    "type": "multiple_choice",
+    "prompt": "Binary search on the answer applies to a problem when:",
+    "choices": [
+      "the input array happens to be sorted",
+      "there is a candidate-answer space with a feasibility check that is monotonic \u2014 if one candidate works, every 'better' candidate also works",
+      "the problem has exactly one possible answer",
+      "the problem is phrased in terms of a graph"
+    ],
+    "correctIndex": 1
+  }
+]

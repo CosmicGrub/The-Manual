@@ -1,0 +1,86 @@
+[
+  {
+    "id": "capstones-career/tier-3/build-your-portfolio-site/q1",
+    "type": "multiple_choice",
+    "prompt": "Why isn't a GitHub profile README (the special username/username repo) a substitute for a deployed portfolio site?",
+    "choices": [
+      "It can't contain any Markdown formatting at all",
+      "It only renders inside GitHub's own page chrome, so you don't control layout and it's one extra click away from non-GitHub users like a hiring manager",
+      "GitHub profile READMEs are deprecated and no longer render on profile pages",
+      "It requires a paid GitHub account to display"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-3/build-your-portfolio-site/q2",
+    "type": "multiple_choice",
+    "prompt": "On a portfolio project card, what should the 'Architecture' section of Tier 1's four-part README structure compress down to?",
+    "choices": [
+      "A full prose paragraph explaining data flow between modules, same length as in the README",
+      "Nothing - architecture should be omitted entirely from a card",
+      "A short row of stack tags that signal real tools at a glance, without explaining data flow",
+      "A link to the project's full commit history"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "capstones-career/tier-3/build-your-portfolio-site/q3",
+    "type": "multiple_choice",
+    "prompt": "You push a portfolio site to a GitHub repo named 'my-portfolio' (not 'yourusername.github.io') and want GitHub Pages to serve it from the main branch. What's the correct step?",
+    "choices": [
+      "Nothing - GitHub Pages serves any repo automatically regardless of its name",
+      "Rename the repo to exactly match your GitHub username with no other option",
+      "In that repo's Settings > Pages, set Source to 'Deploy from a branch', pick main and /(root) - it then serves at https://yourusername.github.io/my-portfolio/",
+      "Install a separate GitHub Pages app from the marketplace before any repo can use Pages"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "capstones-career/tier-3/build-your-portfolio-site/q4",
+    "type": "multiple_choice",
+    "prompt": "TrailLink's 'Live demo' link needs to point at a real running Flask API, not a static file. Per this lesson, what's the correct way to get that live URL?",
+    "choices": [
+      "Re-derive container deployment from scratch, since portfolio deployment and API deployment are unrelated problems",
+      "Reuse the Dockerfile + fly launch --no-deploy + fly deploy flow already taught in Platforms Tier 3's Cloud Basics for App Backends module, pointed at the actual TrailLink app",
+      "Upload the Flask app's source files directly to GitHub Pages alongside the static HTML",
+      "Embed the Flask app's Python code directly inside the portfolio's index.html"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-3/build-your-portfolio-site/q5",
+    "type": "multiple_choice",
+    "prompt": "A specialization project like portwatch.py is a lab-only security tool with nothing safe to deploy publicly. What does this lesson say the portfolio card for it should do?",
+    "choices": [
+      "Fake a live demo link anyway so the card looks complete",
+      "Skip the project entirely and only show cards for projects with live demos",
+      "Include only a source link and omit the 'Live demo' link - an honest omission, not a gap, since a fake live link that 404s is worse",
+      "Deploy the tool publicly regardless of the security risk, just to have a live link"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "capstones-career/tier-3/build-your-portfolio-site/q6",
+    "type": "multiple_choice",
+    "prompt": "Why does this lesson say the open-source contributions list (merged PRs) is arguably the highest-signal section on the whole portfolio page?",
+    "choices": [
+      "It's the easiest section to build, requiring no HTML at all",
+      "It proves a stranger with no relationship to the learner decided their code was good enough to merge into something they maintain - a kind of proof no side project carries",
+      "It's required by GitHub Pages for the site to be indexed by search engines",
+      "It replaces the need for any project cards on the page"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-3/build-your-portfolio-site/q7",
+    "type": "multiple_choice",
+    "prompt": "What is the correct way to compress a project's full four-part README Problem+Solution into 2-3 sentences for a portfolio card, per this lesson's hint?",
+    "choices": [
+      "Write the short card version from scratch without reference to the full README",
+      "Write or reuse the full four-part README first, then delete sentences from Problem+Solution one at a time until only what a stranger needs to decide 'worth clicking into' remains",
+      "Copy the README's License section since it's already short",
+      "Use an AI tool to summarize the entire README into one word"
+    ],
+    "correctIndex": 1
+  }
+]

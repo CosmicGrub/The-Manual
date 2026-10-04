@@ -1,0 +1,219 @@
+---
+trackId: capstones-career
+tier: 3
+title: "Specialization Selection + Applied Project"
+order: 4
+estimatedHours: 15
+slug: specialization-selection-and-applied-project
+---
+
+## Where you actually stand after Tiers 1-2
+
+Tier 1's Specialization Taster Sampler gave you six real hours of evidence: a security scan, a CSV cleanup, a simulated circuit, a sprite, a pretrained model, a toy interpreter. Tier 2's Specialization Deep-Dive Intro had you pick a lean from that evidence and spend ~8 hours building one deliberate extension past a tutorial in it — for the security lean, that meant turning the one-shot `nmap -sV` scan from Tier 1 into `portwatch.py`, a stateful tool that diffs scans over time and flags a couple of hardcoded known-vulnerable banners.
+
+You now have two real data points per branch you seriously considered, not zero. This module does three things with them: gives you an actual framework for reading that evidence instead of going on vibes, walks one specialization branch's next real step in full — taking `portwatch.py`'s vulnerability detection from a brittle substring match to a genuine version-range check against a small vulnerability database — and shows exactly how that work bolts onto Cross-Track Capstone #3, the TrailLink hiking-trail-network API you're building elsewhere in this tier.
+
+## The decision framework: which evidence should move the needle
+
+Specialization switches at this point are expensive, so the bar for "switch" needs to be evidence, not mood. Five real signals, each one checkable against what you actually did in Tiers 1-2, not what you imagine you'd feel in a branch you didn't build anything in:
+
+| Signal | What it actually measures | The novelty-seeking version it rules out |
+|---|---|---|
+| Did you blow past Tier 1's or Tier 2's stated time box without noticing? | Genuine, uncoerced engagement | "That 10-minute demo in a different branch looked exciting" |
+| Did you finish Tier 2's extension, or did it stall? | Follow-through once the easy opening wore off | Being drawn to a branch's highlight reel while discounting the grind that produced it |
+| When the Tier 2 build broke, did you want to understand why, or want to switch tasks? | Tolerance for that branch's actual debugging texture — parsing a stack trace vs. untangling a loss curve vs. chasing a race condition | Assuming you'd enjoy the good parts of a branch without its bad parts |
+| Reading Tier 2's Step 2 primary docs (60-90 min), did you stop at the minimum or read past what was asked? | Intrinsic curiosity about the field, not just the project's output | Confusing "I want to have built X" with "I want to build things like X" |
+| Looking at your own shipped Tier 2 project honestly, are you proud of it or making excuses for it? | Real read of output quality under real effort | Comparing your first attempt against someone else's polished portfolio and blaming the branch |
+
+None of these ask "which one sounds cooler right now" — every row is checkable against something you already did, this week, under real conditions, not against a branch you've only read about.
+
+**The switching-cost tax, stated honestly.** Tier 2's Specialization Deep-Dive Intro cost roughly 8 of that tier's 34 hours, and that time bought you something that doesn't transfer: the primary-docs reading, the one deliberate extension, the shipped artifact in your Base Camp repo. Switch branches now and this module's 15-hour budget has to absorb re-running Tier 2's steps 2-4 — read new primary docs, pick a new extension, build it — inside a tier that also owes you a 20-hour multi-track capstone, 20 hours of DS&A pattern work, and sustained open-source contribution. That's not a reason to never switch. It's a reason the bar should be at least two of the five signals above pointing clearly negative, not "branch B seemed slightly more fun today than branch A did yesterday." One flat afternoon on a project you otherwise finished and were proud of is noise, not a verdict.
+
+**Worked example.** A learner tasted all six in Tier 1, leaned security, then in Tier 2 finished `portwatch.py` a day early, voluntarily read the full nmap Reference Guide's scan-type section instead of just the `-sV` flag they needed, and is still proud of the diff output above three weeks later. Three of five signals land clearly positive, zero land negative. That's a confirm, and the right move is this module's applied project below — not a fourth re-sampling of data engineering because a friend mentioned it pays well this year.
+
+## The applied project: from a hardcoded banner match to a real vulnerability database
+
+`portwatch.py`'s `VULN_SIGNATURES` dict matched vulnerable services by exact substring: `"vsftpd 2.3.4" in banner`. That's honest about being a starting table, and it breaks the moment a real version string doesn't match character-for-character — `"vsftpd 2.3.4p1"` (a Debian patch-tag suffix), or any version that falls inside a vulnerable *range* rather than hitting one exact string. Substring matching has no concept of "versions below X" or "versions between X and Y" at all. That's the actual intermediate-difficulty jump this module asks for: real version-range comparison, not a bigger dict of more exact strings.
+
+```bash
+pip install packaging   # semantic version parsing and comparison
+```
+
+```python
+#!/usr/bin/env python3
+"""vulncheck.py -- check scanned service versions against a small
+known-vulnerable-version database using real version-range logic,
+not portwatch.py's exact-substring match.
+
+Reads the same portwatch_state/<target>.json files portwatch.py
+already writes, so this runs directly against scans you've already
+taken in Tier 2's deep-dive.
+"""
+import json
+import re
+import sys
+from pathlib import Path
+from packaging.version import Version, InvalidVersion
+
+# A small, honest database. Real tools pull from the NVD API or the
+# OSV feed; this is intentionally small enough to read every entry
+# by hand and extend it yourself in the exercise below.
+VULN_DB = [
+    {
+        "service": "vsftpd", "cve": "CVE-2011-2523", "severity": "CRITICAL",
+        "description": "Backdoored vsftpd, unauthenticated remote shell",
+        "min": "2.3.4", "max": "2.3.4",
+    },
+    {
+        "service": "openssh", "cve": "CVE-2018-15473", "severity": "MEDIUM",
+        "description": "Pre-auth username enumeration via timing, OpenSSH < 7.8",
+        "min": "0", "max": "7.7",
+    },
+    {
+        # Simplified for this exercise -- the real advisory also
+        # conditions on the glibc build; treat this row as illustrative.
+        "service": "mysql", "cve": "CVE-2012-2122", "severity": "HIGH",
+        "description": "Auth bypass via crafted password comparison",
+        "min": "5.1.0", "max": "5.5.23",
+    },
+]
+
+
+def normalize(version_str: str) -> str:
+    """'4.7p1' -> '4.7'; strip trailing patch-tag suffixes packaging
+    can't parse, keeping only the dotted numeric core."""
+    match = re.match(r"(\d+(?:\.\d+){0,3})", version_str)
+    return match.group(1) if match else version_str
+
+
+def version_in_range(version_str: str, min_str: str, max_str: str) -> bool:
+    """True if version_str falls in [min_str, max_str] inclusive.
+    Returns False -- not True, not a raised exception -- on anything
+    unparseable. That's a deliberate tradeoff: a malformed banner
+    shouldn't crash a scan covering dozens of other ports, and an
+    unknown version is not evidence of safety either way. The cost is
+    a possible false negative (a real hit we silently miss) instead of
+    a false positive (flagging every odd-looking banner as vulnerable).
+    """
+    try:
+        v = Version(normalize(version_str))
+        return Version(min_str) <= v <= Version(max_str)
+    except InvalidVersion:
+        return False
+
+
+def check_scan(scan_json_path: str) -> list:
+    ports = json.loads(Path(scan_json_path).read_text())
+    findings = []
+    for port, info in ports.items():
+        service, banner = info["service"].lower(), info["banner"]
+        version_match = re.search(r"(\d+(?:\.\d+){0,3})\S*$", banner)
+        if not version_match:
+            continue
+        version = version_match.group(1)
+        for entry in VULN_DB:
+            if entry["service"] != service:
+                continue
+            if version_in_range(version, entry["min"], entry["max"]):
+                findings.append({"port": port, "banner": banner, **entry})
+    return findings
+
+
+if __name__ == "__main__":
+    findings = check_scan(sys.argv[1])
+    order = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}
+    if not findings:
+        print("No known-vulnerable versions found.")
+    for f in sorted(findings, key=lambda f: order[f["severity"]]):
+        print(f"[{f['severity']:8}] {f['port']}/tcp {f['banner']} -> "
+              f"{f['cve']}: {f['description']}")
+```
+
+Run it against a state file `portwatch.py` already saved in Tier 2:
+
+```bash
+python3 vulncheck.py portwatch_state/192_168_56_102.json
+```
+
+```text
+[CRITICAL] 21/tcp vsftpd 2.3.4 -> CVE-2011-2523: Backdoored vsftpd, unauthenticated remote shell
+[HIGH    ] 3306/tcp mysql 5.0.51a-3ubuntu5 -> CVE-2012-2122: Auth bypass via crafted password comparison
+```
+
+Same finding your Tier 1 report wrote by hand, same one `portwatch.py` flagged by exact string — but now the MySQL row is a genuine new catch: `5.0.51a-3ubuntu5` never matched any exact string in `VULN_SIGNATURES`, but it falls inside the `5.1.0`-`5.5.23` range (note: this is intentionally testing the range logic rather than the precise historical MySQL advisory, which is more nuanced — the point is the mechanism, which is real and reusable). That's the actual difficulty jump: a hardcoded dict of exact strings versus a real range check that generalizes to versions nobody typed in by hand.
+
+## Wiring it into Capstone #3: a TrailLink dependency audit
+
+TrailLink is a weighted-graph REST API — trails as edges with distance and elevation weights, shortest-path routing between two points. It has nothing to do with network scanning on its face. The concrete bridge is dependencies: every real backend ships a pinned list of third-party packages, and pinned versions go stale and become exactly the kind of known-vulnerable-version problem `vulncheck.py` was just built to catch — just pointed at your own project's `requirements.txt` instead of an nmap scan.
+
+```python
+#!/usr/bin/env python3
+"""audit_deps.py -- run vulncheck.py's VULN_DB logic against TrailLink's
+own pinned dependencies instead of a network scan.
+
+Add real package/CVE rows to VULN_DB (e.g. a pinned PyYAML < 5.4
+affected by CVE-2020-14343, an insecure-deserialization issue) before
+this does anything beyond the three network-service rows above.
+"""
+import re
+from pathlib import Path
+from vulncheck import VULN_DB, version_in_range
+
+def parse_requirements(path="requirements.txt") -> dict:
+    pinned = {}
+    for line in Path(path).read_text().splitlines():
+        line = line.strip()
+        match = re.match(r"([A-Za-z0-9_.-]+)==([\d.]+)", line)
+        if match:
+            pinned[match.group(1).lower()] = match.group(2)
+    return pinned
+
+def audit() -> list:
+    pinned = parse_requirements()
+    findings = []
+    for entry in VULN_DB:
+        version = pinned.get(entry["service"])
+        if version and version_in_range(version, entry["min"], entry["max"]):
+            findings.append({"package": entry["service"], "pinned": version, **entry})
+    return findings
+
+if __name__ == "__main__":
+    hits = audit()
+    if hits:
+        for h in hits:
+            print(f"[{h['severity']}] {h['package']}=={h['pinned']} -> {h['cve']}")
+        raise SystemExit(1)   # non-zero exit fails a CI step on purpose
+    print("No known-vulnerable pinned dependencies.")
+```
+
+The `raise SystemExit(1)` line is the actual feature bolted onto TrailLink, not a side script: wire `audit_deps.py` in as a required step in the same CI pipeline that deploys TrailLink, using the GitHub Actions patterns from DevOps Tooling Tier 3's Advanced CI/CD Patterns module directly rather than re-deriving a pipeline from scratch —
+
+```yaml
+# .github/workflows/deploy.yml, one added step before the deploy job
+- name: Dependency vulnerability audit
+  run: python3 audit_deps.py
+```
+
+— and TrailLink now has a real, security-branch-flavored feature a non-security-lean learner's version of this capstone wouldn't have: a deploy that refuses to ship a build pinned to a package version with a known CVE against it, exactly the discipline `vulncheck.py` taught you against network services now applied to TrailLink's own supply chain. (If your Capstone #3 isn't Python, the pattern is identical with a different parser — `package-lock.json` for npm, `go.sum` for Go — only the regex in `parse_requirements` changes.)
+
+## If you're on a different lean: same bridge, different feature
+
+The decision framework above and the "extend Tier 2's work, then bolt it onto TrailLink" structure apply regardless of which branch you confirmed. Only the feature changes:
+
+| Branch | Tier 2 extension to build further | Concrete TrailLink feature |
+|---|---|---|
+| Data engineering | Schema-validate the CSV pipeline so it fails loudly on a bad row instead of dropping it | A validated ingestion endpoint for trail elevation/GPS data that rejects malformed rows instead of silently corrupting the graph |
+| Robotics/IoT | Closed-loop sensor control instead of a hardcoded delay | A simulated GPS/altimeter feed that posts live position updates to TrailLink's API as a hiker "moves" along a route |
+| Game dev | An idle/walk/jump state machine instead of direct velocity-from-input | A small front end that animates TrailLink's shortest-path result as a sprite walking the chosen route node by node |
+| ML research | A 20+ example batch-evaluation script instead of one sentence | A model that scores or ranks candidate trails by predicted difficulty, called from a new TrailLink endpoint |
+| Systems/compilers | Correct operator precedence in the toy interpreter | A faster priority-queue-based shortest-path implementation replacing a naive one in TrailLink's routing layer — this is exactly the graph/heap material CS Foundations Tier 3's Greedy and Graph Algorithms II module already covers in depth, so build on that directly rather than re-deriving Dijkstra from a blog post |
+
+Every row is the same shape as the security worked example: one deliberate extension of Tier 2's own project, landing as one real feature inside TrailLink's actual graph/API/persistence, not a second unrelated capstone.
+
+## Exercise
+
+Part 1 — apply the framework to yourself, in writing, not just in your head: fill in the five-row table from this module with your own actual Tier 1 and Tier 2 evidence (specific hours, specific stalls or finishes, specific docs you did or didn't read past the minimum), and write one paragraph stating whether you're confirming or switching, citing which rows decided it.
+
+Part 2 — extend `vulncheck.py`'s `VULN_DB` with two real entries pulled from a package or service you actually use (search the exact name and version against `nvd.nist.gov` or `osv.dev`), then wire `audit_deps.py` to run as a real step in your own Capstone #3's CI pipeline so a vulnerable pinned dependency actually fails a build.
+
+**Hint, not a solution:** for Part 2, the trap is testing `audit_deps.py` only against a dependency file with zero vulnerable rows, which proves nothing — pin one dependency deliberately one minor version inside a range you just added to `VULN_DB`, confirm the CI step fails red, then bump it back to a safe version and confirm the same step goes green. A security feature you haven't watched fail on purpose is a feature you haven't actually verified.

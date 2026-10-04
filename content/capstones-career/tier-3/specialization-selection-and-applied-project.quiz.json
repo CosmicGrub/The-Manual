@@ -1,0 +1,98 @@
+[
+  {
+    "id": "capstones-career/tier-3/specialization-selection-and-applied-project/q1",
+    "type": "multiple_choice",
+    "prompt": "According to this module's decision framework, which of these is real evidence that should move your specialization decision, as opposed to novelty-seeking?",
+    "choices": [
+      "You saw a flashy 10-minute demo video in a different branch and found it exciting.",
+      "You blew past Tier 2's stated time box on your own deep-dive extension without noticing, because you wanted to keep going.",
+      "A friend mentioned that a different branch has better job postings right now.",
+      "The Tier 1 taster writeup for a branch you didn't pick looked more polished."
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-3/specialization-selection-and-applied-project/q2",
+    "type": "multiple_choice",
+    "prompt": "Why does this module say switching specializations at Tier 3 carries a real cost?",
+    "choices": [
+      "Switching branches after Tier 2 is against the curriculum's rules.",
+      "The context and partially-built project from Tier 2's deep-dive doesn't transfer, so switching means re-running that same pick/read/extend/ship pattern from scratch inside this module's 15-hour budget.",
+      "Switching branches voids the license on your Base Camp repo.",
+      "Only one of the six specialization branches has any dedicated supporting track in this curriculum."
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-3/specialization-selection-and-applied-project/q3",
+    "type": "multiple_choice",
+    "prompt": "In Tier 2's portwatch.py, the VULN_SIGNATURES dictionary flagged a vulnerable banner by doing what?",
+    "choices": [
+      "Checking an exact substring match against the banner or service string.",
+      "Querying the NVD API live during every scan.",
+      "Comparing semantic version ranges using the packaging library.",
+      "Hashing the banner and comparing it to a precomputed table of vulnerable hashes."
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "capstones-career/tier-3/specialization-selection-and-applied-project/q4",
+    "type": "multiple_choice",
+    "prompt": "What concrete limitation of portwatch.py's substring matching does this module's vulncheck.py extension fix?",
+    "choices": [
+      "portwatch.py couldn't parse nmap's XML output at all.",
+      "portwatch.py couldn't detect any newly opened ports between two scans.",
+      "Substring matching can't recognize a version that falls inside a known-vulnerable range unless it matches one exact string character-for-character.",
+      "portwatch.py required a paid NVD API key before it would run."
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "capstones-career/tier-3/specialization-selection-and-applied-project/q5",
+    "type": "multiple_choice",
+    "prompt": "vulncheck.py's version_in_range() returns False when a version string can't be parsed, instead of raising an exception or defaulting to \"vulnerable.\" What tradeoff does this reflect?",
+    "choices": [
+      "It guarantees the tool can never produce a false negative, at the cost of occasional false positives.",
+      "It favors not crashing the whole scan over one malformed banner, accepting a possible missed hit (false negative) over flagging every odd-looking banner as vulnerable (false positive).",
+      "It requires every entry in VULN_DB to also be unparseable by design.",
+      "It permanently disables checking that service for all future scans."
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-3/specialization-selection-and-applied-project/q6",
+    "type": "multiple_choice",
+    "prompt": "This module connects the security branch's vulnerability-checking work back into Capstone #3 (TrailLink) by doing what, concretely?",
+    "choices": [
+      "Rewriting TrailLink's shortest-path routing to use Dijkstra instead of breadth-first search.",
+      "Running the version-range checker against TrailLink's own pinned dependencies and gating its deploy pipeline on the result.",
+      "Replacing TrailLink's REST API with a GraphQL API.",
+      "Adding a brand-new hiking trail dataset to TrailLink's database."
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-3/specialization-selection-and-applied-project/q7",
+    "type": "multiple_choice",
+    "prompt": "For the CI gate on TrailLink's dependency audit, which existing curriculum module does this lesson point to for the actual pipeline mechanics, rather than re-deriving them from scratch?",
+    "choices": [
+      "DevOps Tooling Tier 3's \"Advanced CI/CD Patterns\"",
+      "Platforms Tier 1's \"HTML and CSS Fundamentals\"",
+      "CS Foundations Tier 0's git basics module",
+      "Cybersecurity & Ethical Hacking Tier 0"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "capstones-career/tier-3/specialization-selection-and-applied-project/q8",
+    "type": "multiple_choice",
+    "prompt": "For a learner on a different specialization lean (for example ML research), what does this module say the Capstone #3 connection should structurally look like?",
+    "choices": [
+      "The identical dependency-audit script from the security branch, just renamed.",
+      "The same pattern \u2014 one deliberate, branch-flavored feature bolted onto TrailLink's real existing graph/routing/API system \u2014 not a repeat of the security-specific audit tool itself.",
+      "There is no valid way to connect non-security branches to a graph-routing REST API, so it should be skipped.",
+      "A fully separate capstone submitted instead of Capstone #3."
+    ],
+    "correctIndex": 1
+  }
+]

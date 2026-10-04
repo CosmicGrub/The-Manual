@@ -1,0 +1,306 @@
+---
+trackId: capstones-career
+tier: 3
+title: "DS&A Pattern Mastery"
+order: 2
+estimatedHours: 20
+slug: dsa-pattern-mastery
+---
+
+## Where this fits
+
+CS Foundations already gave you arrays, linked lists, stacks, queues, basic binary trees, and Big-O analysis — and it made you implement them, not just read about them. This module does not re-teach any of that. It assumes you can write a binary search and reason about O(n log n) versus O(n²) without hand-holding. What it adds is the layer interviews actually test: recognizing which of a handful of *shapes* a new problem fits, and reaching for the matching tool in minutes instead of re-deriving an approach from first principles under time pressure. Later Tier 3 modules — system design fundamentals, mock interviews, the capstone itself — assume you own this vocabulary cold.
+
+## 1. Trees and graphs: BFS vs. DFS on the same graph
+
+Here is one concrete undirected graph, six nodes, six edges, with a cycle (A-B-E-F-C-A):
+
+```python
+graph = {
+    'A': ['B', 'C'],
+    'B': ['A', 'D', 'E'],
+    'C': ['A', 'F'],
+    'D': ['B'],
+    'E': ['B', 'F'],
+    'F': ['C', 'E'],
+}
+```
+
+### Breadth-first search
+
+```python
+from collections import deque
+
+def bfs(graph, start):
+    visited = {start}
+    order = []
+    queue = deque([start])
+    while queue:
+        node = queue.popleft()
+        order.append(node)
+        for neighbor in graph[node]:
+            if neighbor not in visited:
+                visited.add(neighbor)
+                queue.append(neighbor)
+    return order
+
+print(bfs(graph, 'A'))
+```
+
+Trace it by hand, step by step:
+
+1. Queue `[A]`. Pop A, visit it, enqueue its unvisited neighbors B, C. Queue `[B, C]`.
+2. Pop B, visit it, enqueue D, E (A is already visited). Queue `[C, D, E]`.
+3. Pop C, visit it, enqueue F (A already visited). Queue `[D, E, F]`.
+4. Pop D, visit it, no new neighbors (B visited). Queue `[E, F]`.
+5. Pop E, visit it, no new neighbors (B and F visited). Queue `[F]`.
+6. Pop F, visit it, no new neighbors (C and E visited). Queue empty.
+
+**Order: A, B, C, D, E, F.** Notice the shape: it visits in rings around the start — distance 0 (A), then everything at distance 1 (B, C), then everything at distance 2 (D, E, F).
+
+### Depth-first search
+
+```python
+def dfs(graph, start, visited=None, order=None):
+    if visited is None:
+        visited = set()
+        order = []
+    visited.add(start)
+    order.append(start)
+    for neighbor in graph[start]:
+        if neighbor not in visited:
+            dfs(graph, neighbor, visited, order)
+    return order
+
+print(dfs(graph, 'A'))
+```
+
+Trace the call stack:
+
+1. Visit A. Its neighbors are B, C — try B first.
+2. Visit B. Its neighbors are A (visited), D, E — try D first.
+3. Visit D. Its only neighbor, B, is visited. Backtrack to B.
+4. Back in B, try the next neighbor: E. Visit E.
+5. E's neighbors are B (visited), F. Visit F.
+6. F's neighbors are C, E (visited). Visit C.
+7. C's neighbors are A (visited), F (visited). Nothing left — unwind all the way back to A.
+8. Back in A, try the next neighbor: C. Already visited. Done.
+
+**Order: A, B, D, E, F, C.**
+
+### Why they differ
+
+Same graph, same start node, two different orders — and the gap is instructive. C sits one edge away from A, yet DFS visits it dead last. That's because DFS commits fully to the first branch it opens (A→B→D, backtrack, B→E→F→C) and only returns to a shallower choice once that entire branch is exhausted. By the time DFS gets back around to A's second neighbor, it has *already* reached C the long way. BFS never does this — it processes every node at the current distance before moving one hop further out, which is exactly why BFS (not DFS) is the right tool whenever you need the *shortest path* in an unweighted graph: the first time BFS reaches a node is guaranteed to be via a shortest path. DFS is the right tool when you need to explore a whole branch before judging it — cycle detection, topological sort, connected components, backtracking search.
+
+## 2. Heaps and priority queues
+
+A binary min-heap, built from scratch on a plain array — no `heapq`, so you see the mechanics:
+
+```python
+class MinHeap:
+    def __init__(self):
+        self.data = []
+
+    def push(self, value):
+        self.data.append(value)
+        self._sift_up(len(self.data) - 1)
+
+    def pop(self):
+        if not self.data:
+            raise IndexError("pop from empty heap")
+        top = self.data[0]
+        last = self.data.pop()
+        if self.data:
+            self.data[0] = last
+            self._sift_down(0)
+        return top
+
+    def __len__(self):
+        return len(self.data)
+
+    def _sift_up(self, i):
+        while i > 0:
+            parent = (i - 1) // 2
+            if self.data[i] < self.data[parent]:
+                self.data[i], self.data[parent] = self.data[parent], self.data[i]
+                i = parent
+            else:
+                break
+
+    def _sift_down(self, i):
+        n = len(self.data)
+        while True:
+            left, right = 2 * i + 1, 2 * i + 2
+            smallest = i
+            if left < n and self.data[left] < self.data[smallest]:
+                smallest = left
+            if right < n and self.data[right] < self.data[smallest]:
+                smallest = right
+            if smallest == i:
+                break
+            self.data[i], self.data[smallest] = self.data[smallest], self.data[i]
+            i = smallest
+```
+
+`push` and `pop` are both O(log n), because sift-up and sift-down only ever walk along the height of a binary tree, never across a whole level.
+
+**The problem a heap is the natural fit for: merging k sorted lists.** At every step you need the smallest of the k current "fronts" of the lists. Scanning all k fronts each time costs O(k) per step. A heap gives you that minimum in O(log k):
+
+```python
+def merge_k_sorted(lists):
+    heap = MinHeap()
+    for i, lst in enumerate(lists):
+        if lst:
+            heap.push((lst[0], i, 0))
+
+    result = []
+    while len(heap):
+        value, list_idx, elem_idx = heap.pop()
+        result.append(value)
+        next_idx = elem_idx + 1
+        if next_idx < len(lists[list_idx]):
+            heap.push((lists[list_idx][next_idx], list_idx, next_idx))
+    return result
+
+lists = [[1, 4, 5], [1, 3, 4], [2, 6]]
+print(merge_k_sorted(lists))  # [1, 1, 2, 3, 4, 4, 5, 6]
+```
+
+Each tuple is `(value, list_index, element_index)` so ties break deterministically and you always know which list to advance next. With k = 3 the saving is trivial, but this is the same machinery behind merging 10,000 sorted log streams: O(n log k) instead of O(n·k), where n is the total element count.
+
+## 3. Intro to dynamic programming
+
+**Problem (Climbing Stairs):** you can climb 1 or 2 steps at a time. How many distinct ways are there to reach step n?
+
+The naive recursion is immediate: `ways(n) = ways(n-1) + ways(n-2)`, with `ways(0) = ways(1) = 1`.
+
+```python
+calls = 0
+
+def climb_naive(n):
+    global calls
+    calls += 1
+    if n <= 1:
+        return 1
+    return climb_naive(n - 1) + climb_naive(n - 2)
+
+calls = 0
+print(climb_naive(30), calls)
+```
+
+Run it and you get `1346269 2692537`. That second number is the call count, not a typo: **2.69 million function calls to answer a question about 30 stairs.** The recursion tree recomputes `ways(10)` — and every value below it — thousands of times, once for every path that happens to pass through it. The call count satisfies `C(n) = C(n-1) + C(n-2) + 1`, which grows at the same exponential rate (≈1.618ⁿ) as the Fibonacci sequence itself. Push n to 45 and you're past a billion calls for a problem a human solves by noticing a pattern in five seconds.
+
+**Memoized (top-down):** cache each subproblem's answer the first time it's computed.
+
+```python
+def climb_memo(n, cache=None):
+    if cache is None:
+        cache = {}
+    if n in cache:
+        return cache[n]
+    if n <= 1:
+        return 1
+    cache[n] = climb_memo(n - 1, cache) + climb_memo(n - 2, cache)
+    return cache[n]
+
+print(climb_memo(30))  # 1346269
+```
+
+Now there are only 31 distinct subproblems (`n` from 0 to 30), and each is solved exactly once. O(n) time, O(n) space, same answer.
+
+**Tabulated (bottom-up):** build the table forward instead of recursing down into it, and you don't even need the cache dictionary:
+
+```python
+def climb_tab(n):
+    if n <= 1:
+        return 1
+    prev2, prev1 = 1, 1
+    for _ in range(2, n + 1):
+        prev2, prev1 = prev1, prev2 + prev1
+    return prev1
+
+print(climb_tab(30))  # 1346269, O(n) time, O(1) space
+```
+
+Same recurrence, three solutions, three different cost profiles — exponential, O(n)/O(n), O(n)/O(1). This is the whole shape of dynamic programming: find the overlapping subproblems and the recurrence, then decide whether to cache the recursion or unroll it into a loop. The exact same move — spot the recurrence, memoize or tabulate it — is what solves coin change, longest common subsequence, and edit distance later in your interview prep; the staircase is the smallest version of the idea, not a special case of it.
+
+## 4. The interview pattern vocabulary
+
+These three show up constantly enough that you should recognize the *shape* of the problem statement, not just remember one instance.
+
+### Two pointers: Two Sum on a sorted array
+
+Given a sorted array and a target, return the 1-indexed positions of two numbers that sum to the target.
+
+```python
+def two_sum_sorted(nums, target):
+    left, right = 0, len(nums) - 1
+    while left < right:
+        current = nums[left] + nums[right]
+        if current == target:
+            return [left + 1, right + 1]
+        elif current < target:
+            left += 1
+        else:
+            right -= 1
+    return None
+
+nums = [2, 7, 11, 15, 18, 24]
+print(two_sum_sorted(nums, 29))
+```
+
+Trace: `left=0,right=5`: 2+24=26 < 29, so `left += 1`. `left=1,right=5`: 7+24=31 > 29, so `right -= 1`. `left=1,right=4`: 7+18=25 < 29, so `left += 1`. `left=2,right=4`: 11+18=29 — match, return `[3, 5]`. Four comparisons, O(n) total. The pattern only works *because* the array is sorted: moving the left pointer right can only increase the sum, moving the right pointer left can only decrease it, so every comparison safely discards one entire end of the remaining range instead of checking it pair by pair.
+
+### Sliding window: minimum-length subarray with sum ≥ target
+
+```python
+def min_subarray_len(nums, target):
+    left = 0
+    current_sum = 0
+    best = float('inf')
+    for right in range(len(nums)):
+        current_sum += nums[right]
+        while current_sum >= target:
+            best = min(best, right - left + 1)
+            current_sum -= nums[left]
+            left += 1
+    return best if best != float('inf') else 0
+
+nums = [2, 1, 5, 2, 3, 2]
+print(min_subarray_len(nums, 7))  # 2
+```
+
+Trace: `right=0,1` the running sum is 2, then 3 — not enough. `right=2` (value 5): sum=8 ≥ 7, record length 3 (`[0..2]`), then shrink from the left: subtract `nums[0]=2`, sum=6, stop shrinking. `right=3` (value 2): sum=8 ≥ 7, record length 3, shrink: subtract `nums[1]=1`, sum=7, still ≥ 7, record length **2** (window `[2..3]` = values 5, 2), shrink again: subtract `nums[2]=5`, sum=2, stop. `right=4,5` never reach 7 again on their own. Final answer: **2**. That's the sliding-window shape: grow the window from the right until a condition holds, then shrink it from the left *while the condition still holds*, recording the best result at each valid point — never restarting the window from scratch.
+
+### Binary search on answer: minimum eating speed
+
+Koko has piles `[3, 6, 7, 11]` and `h = 8` hours. Eating at integer speed k bananas/hour, each pile takes `ceil(pile / k)` hours. Find the minimum k that finishes everything within 8 hours.
+
+```python
+import math
+
+def min_eating_speed(piles, h):
+    def hours_needed(speed):
+        return sum(math.ceil(pile / speed) for pile in piles)
+
+    lo, hi = 1, max(piles)
+    while lo < hi:
+        mid = (lo + hi) // 2
+        if hours_needed(mid) <= h:
+            hi = mid
+        else:
+            lo = mid + 1
+    return lo
+
+print(min_eating_speed([3, 6, 7, 11], 8))  # 4
+```
+
+Trace: `lo=1,hi=11`, `mid=6` → hours = 1+1+2+2 = 6 ≤ 8, feasible, `hi=6`. `lo=1,hi=6`, `mid=3` → hours = 1+2+3+4 = 10 > 8, infeasible, `lo=4`. `lo=4,hi=6`, `mid=5` → hours = 1+2+2+3 = 8 ≤ 8, feasible, `hi=5`. `lo=4,hi=5`, `mid=4` → hours = 1+2+2+3 = 8 ≤ 8, feasible, `hi=4`. Now `lo == hi == 4`, loop ends. **Answer: 4.** You never touched a sorted array or a graph here — what made binary search applicable was that the *answer space* (possible speeds, 1 through 11) has a monotonic feasibility check: if speed k finishes in time, every faster speed also finishes in time. Whenever a problem asks you to "minimize/maximize X such that some condition holds," and that condition is monotonic in X, that's binary search on the answer, not on an array index.
+
+## Exercise: course prerequisites
+
+`numCourses = 4`, and `prerequisites = [[1, 0], [2, 0], [3, 1], [3, 2]]`, where `[a, b]` means "to take course a, you must first take course b." This is a directed graph. Write `can_finish(numCourses, prerequisites)` returning `True` if it's possible to complete all courses (i.e., the dependency graph has no cycle), and then extend it to `course_order(numCourses, prerequisites)`, returning one valid order to take the courses in (a topological sort). By hand, confirm the answer here is `True`, with a valid order like `[0, 1, 2, 3]`.
+
+**Hint:** reuse the BFS machinery from section 1, with a twist — track the in-degree (number of unmet prerequisites) of every course. Start by enqueueing every course with in-degree 0 (nothing blocking it). Each time you pop a course from the queue, "complete" it and decrement the in-degree of everything that depended on it; any course whose in-degree drops to 0 gets enqueued. If you drain the queue and have completed every course, there's no cycle — you're done. If the queue empties early with courses still uncompleted, there's a cycle and it's impossible. This is called Kahn's algorithm, and it's the exact same queue-and-visit loop as the BFS you traced earlier, just gated by in-degree instead of a plain visited set.
+
+If you want a harder version afterward: solve the same cycle-detection question with DFS instead of BFS, using a three-color scheme (unvisited / in-progress / done) to catch a back-edge — same question, different traversal tool, and a good check that you actually understand *why* each traversal fits the problems it fits.

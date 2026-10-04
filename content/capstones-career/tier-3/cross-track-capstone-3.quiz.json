@@ -1,0 +1,98 @@
+[
+  {
+    "id": "capstones-career/tier-3/cross-track-capstone-3/q1",
+    "type": "multiple_choice",
+    "prompt": "In TrailLink's /route endpoint, why must optimize=distance and optimize=elevation be able to return genuinely different paths over the same graph?",
+    "choices": [
+      "Because they run Dijkstra's algorithm against the same adjacency list but with two different edge-weight functions, so a real implementation can legitimately favor different paths",
+      "Because distance and elevation are stored in separate, unrelated graphs",
+      "Because the frontend caches each mode's result separately and shows whichever loaded first",
+      "Because only optimize=distance actually runs an algorithm; optimize=elevation just returns a hardcoded path"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "capstones-career/tier-3/cross-track-capstone-3/q2",
+    "type": "multiple_choice",
+    "prompt": "On the diamond graph (A-B-D short/steep, A-C-D longer/flat), which path and total does optimize=distance return?",
+    "choices": [
+      "A-C-D, 100m elevation gain",
+      "A-B-D, 4km total distance",
+      "A-B-D, 800m elevation gain",
+      "A-C-D, 10km total distance"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-3/cross-track-capstone-3/q3",
+    "type": "multiple_choice",
+    "prompt": "What does it mean, concretely, that graph.py should have zero HTTP or SQL imports?",
+    "choices": [
+      "The algorithm can't use any third-party libraries at all",
+      "The routes layer is not allowed to call the graph module directly",
+      "graph.shortest_path() can be unit-tested against a plain Python dict with no running server or database involved, because HTTP parsing and persistence live in separate layers",
+      "The frontend must implement Dijkstra's algorithm itself instead of calling the API"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "capstones-career/tier-3/cross-track-capstone-3/q4",
+    "type": "multiple_choice",
+    "prompt": "A new, shorter segment is added via POST /segments, but GET /route keeps returning the old, longer path -- every single time, not occasionally. What does that determinism tell you before you even open a debugger?",
+    "choices": [
+      "It's a race condition between two threads, the same category as Capstone #2's bug",
+      "It's a logic error in a code path that runs identically on every request -- not a timing/concurrency issue, since a race would fail intermittently, not every time",
+      "It means the database itself is corrupted",
+      "It means the frontend is sending the wrong trailhead IDs"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-3/cross-track-capstone-3/q5",
+    "type": "multiple_choice",
+    "prompt": "What is the actual root cause of the stale-route bug described in this module?",
+    "choices": [
+      "The database driver silently rolls back writes",
+      "The in-memory graph cache is built once on first use and has no invalidation tied to writes, so POST /segments and the cached GET /route never communicate",
+      "Dijkstra's algorithm is non-deterministic",
+      "The frontend is polling an old deployment of the API"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-3/cross-track-capstone-3/q6",
+    "type": "multiple_choice",
+    "prompt": "Once the frontend is deployed to Vercel and the backend to Fly.io on two different domains, what is the single most common first failure, and how is it fixed?",
+    "choices": [
+      "A database connection timeout, fixed by increasing the connection pool size",
+      "A missing favicon, fixed by adding one to the frontend's public folder",
+      "A 404 on every route, fixed by renaming the Dockerfile",
+      "CORS errors, because the browser enforces cross-origin rules between the two domains -- fixed by explicitly allowlisting the deployed frontend's origin on the API side"
+    ],
+    "correctIndex": 3
+  },
+  {
+    "id": "capstones-career/tier-3/cross-track-capstone-3/q7",
+    "type": "multiple_choice",
+    "prompt": "For the trail-closures exercise's GET /trailheads/<id>/reachable endpoint, which algorithm is the right tool, and why?",
+    "choices": [
+      "Dijkstra's algorithm, because reachability is just a special case of shortest path",
+      "A breadth-first or depth-first traversal, because the question is 'which nodes are reachable at all' -- not 'what is the shortest distance' -- so a priority queue weighted by distance is the wrong tool",
+      "A sorted list with binary search over all segment weights",
+      "A SQL aggregate query that counts rows in the segments table"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "capstones-career/tier-3/cross-track-capstone-3/q8",
+    "type": "multiple_choice",
+    "prompt": "Which curriculum module does this capstone explicitly tell you to reuse directly for the backend deployment steps, rather than re-deriving them?",
+    "choices": [
+      "DevOps Tooling Tier 2's Deploying a Container to the Cloud",
+      "Platforms Tier 3's Cloud Basics for App Backends",
+      "Capstones & Career Tier 2's Open Source 101",
+      "CS Foundations Tier 3's Multi-File Project Architecture"
+    ],
+    "correctIndex": 1
+  }
+]

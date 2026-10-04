@@ -1,0 +1,149 @@
+---
+trackId: capstones-career
+tier: 3
+title: "Sustained Open-Source Contribution"
+order: 3
+estimatedHours: 15
+slug: sustained-open-source-contribution
+---
+
+## Why "Sustained" Beats "Scattered"
+
+Tier 2's Open Source 101 got you one merged PR, and the bar was deliberately low — a doc fix counted. That module gave you the whole mechanical loop (fork → branch → PR → review → merge), the five-row checklist for judging a `good first issue`, and how to take review feedback without getting defensive. This module assumes all of that is muscle memory now and asks a harder question: what happens when you stop treating every PR as a one-off transaction and start treating one project as a place you're building a track record?
+
+The difference is compounding. A contributor who lands five PRs across five different repos has five isolated wins and zero accumulated context — every PR starts from zero knowledge of the codebase, the maintainers, and the project's conventions. A contributor who lands five PRs on *one* repo has, by PR three, memorized where the tricky code lives, knows which maintainer reviews fast and which one wants extra test coverage, and can scope a new issue in minutes instead of hours. Companies hiring, and maintainers considering you for more responsibility, can tell the difference immediately from your contribution graph on that one repo. This tier's checkpoint is 3+ merged PRs on a single real project — not three merged PRs total.
+
+## Picking the One Project You're Going to Stay With
+
+Don't pick based on "I like this library." Pick based on three checkable signals, because the wrong choice here wastes the whole tier.
+
+**1. Active maintenance — verify it, don't assume it.**
+
+```bash
+git clone --depth 200 https://github.com/psf/black.git
+cd black
+git log --since="3 months ago" --oneline | wc -l
+git log -1 --format="%cd" --date=relative
+```
+
+If the last commit is "14 months ago" and the three-month count is near zero, the project is dormant — your PR will sit unreviewed indefinitely, no matter how good it is. You want a repo that's merging something every week, not one that merged something once last spring. Also check release cadence directly:
+
+```bash
+gh api repos/psf/black/releases --jq '.[0:5][].tag_name'
+```
+
+Black ships a tagged release roughly every few weeks to a couple of months. That cadence tells you two things: the maintainers are actively triaging what's ready to ship, and your merged PR will actually reach real users on a predictable timeline instead of rotting unreleased on `main`.
+
+**2. A welcoming community — read how they treat newcomers, not just whether a CODE_OF_CONDUCT.md exists.**
+
+Pull up five or six *closed* PRs from first-time contributors (GitHub search: `repo:psf/black is:pr is:closed author:app/github-actions is:merged` won't get you this — instead sort closed PRs and look for ones with low PR numbers from the author's contribution history). Read the actual review comments. A welcoming project's maintainers explain *why* a change needs adjusting and point at the exact line; a hostile or exhausted one closes PRs with one-line dismissals or goes silent for months. You're about to spend 15+ hours inside this community's feedback loop — a single bad maintainer interaction early is a fine data point, but a pattern of them across five closed PRs is a project to avoid no matter how interesting the code is.
+
+**3. Work that visibly compounds — the architecture rewards a repeat contributor.**
+
+This is the one beginners miss. Some projects are a flat pile of independent scripts, where PR #5 teaches you nothing that helps with PR #6. Others — Black is a clean example — have a small number of well-factored subsystems (a parser, a line generator, a feature-flag system) that almost every change touches in some combination. Learn one subsystem well and your next five issues get faster to scope, not just familiar. That's the signal to look for: does understanding file A make file B easier, or is every file an island?
+
+Black passes all three checks, which is why it's the running example for the rest of this module: PSF-maintained, releases every few weeks, an explicit CONTRIBUTING.md and a public Discord, and — as you'll see below — an actual architectural feature (the `Preview` flag system) that every serious contribution has to understand.
+
+## Reading a Large Codebase Without Panicking: Entry Point, Then One User Action
+
+Tier 2's Open Source 101 taught you to read a repo's *rules* before touching code — CONTRIBUTING.md, issue templates, the good-first-issue checklist. That's orientation at the project-management layer. Tier 3 needs orientation at the *code* layer, on a repo too large to read file-by-file in order (Black's `src/black/` has over a dozen substantial modules). The strategy that actually works: don't read the codebase, read one trace through it.
+
+**Step 1 — find the real entry point.** Not the file alphabetically first, the one that runs when a user invokes the tool. For a CLI tool, that's the function behind the command:
+
+```python
+# src/black/__init__.py
+def main(
+    ctx: click.Context,
+    code: str | None,
+    line_length: int,
+    target_version: list[TargetVersion],
+    check: bool,
+    diff: bool,
+    preview: bool,
+    unstable: bool,
+    enable_unstable_feature: list[Preview],
+    src: tuple[str, ...],
+    # ... more CLI flags
+) -> None:
+```
+
+Every one of those parameters is a CLI flag. You don't need to understand all thirty of them yet — you need to know this is where `black myfile.py` starts.
+
+**Step 2 — pick one concrete user action and follow it, function call by function call, writing down each hop.** Not "how does Black work" (too big to hold in your head) — specifically "what happens when I run `black myfile.py` on a file with a magic trailing comma." Here's that exact trace, hop by hop:
+
+```text
+main()                         # parses CLI flags, builds a Mode object
+  -> reformat_one(src=myfile.py, mode=mode, ...)     # single-file path
+      -> format_file_in_place(src, mode=mode, ...)
+          -> format_file_contents(src_contents, mode=mode)
+              -> format_str(src_contents, mode=mode)
+                  -> _format_str_once(src_contents, mode=mode)
+                      -> lib2to3_parse(src_contents)        # text -> AST
+                      -> LineGenerator(mode=mode).visit(ast) # AST -> Line objects
+                      -> transform_line(line, mode=mode)    # Line -> final text, per line
+```
+
+Six hops, from "user ran a command" to "where line-splitting decisions actually happen." That chain is the map. You now know: if a bug is about *which lines get split*, it's in `transform_line` or something it calls in `linegen.py`. If a bug is about *CLI flags not doing what they claim*, it's in `main()` or `Mode`. If a bug is about *parsing failing on valid syntax*, it's in `lib2to3_parse`. You didn't read all fourteen files in `src/black/` — you read six function signatures and now have a filing system for every bug report that comes in.
+
+**Step 3 — expand only the branch of that map you actually need, when you need it.** The first time an issue says "magic trailing comma isn't respected inside a nested function call," you go straight to `linegen.py` and `transform_line`, not back to square one. This is the opposite of panic-reading a codebase top to bottom; it's building a sparse mental index one real task at a time, and the index gets more complete — and more useful — with every PR, which is exactly the compounding effect Tier 2's single-PR goal couldn't give you.
+
+## Three PRs on the Same Project: Why #2 and #3 Should Get Easier *and* Bigger
+
+Here's the shape a real sequence should take, using the trace above as the actual mechanism that makes it possible.
+
+| | Scope | Orientation time | Why |
+|---|---|---|---|
+| **PR 1** | Fix a CLI help-text that describes `--skip-string-normalization` inaccurately in `main()`'s `click.option` decorator. | ~2 hours, most of it spent building the trace above. | You've never opened this file before. You read the whole entry point just to find one string. |
+| **PR 2** | Fix a real formatting bug: a magic trailing comma inside a nested call isn't preserved (a `transform_line` / `linegen.py` issue). | ~3 hours, almost none of it re-orientation. | You already know this lives in `linegen.py` and roughly how `transform_line` is invoked — you go straight to the relevant function instead of re-deriving the call chain. |
+| **PR 3** | Implement a new preview-gated formatting behavior end-to-end: add a `Preview` flag, implement the logic, add test fixtures, update the changelog. | ~4 hours, despite being the most ambitious of the three. | You now understand both subsystems (`linegen.py` and the `Preview` feature-flag system below) well enough to scope and build a *feature*, not just patch a bug — in less time than PR 1 took to find one string. |
+
+That's the actual claim behind "sustained beats scattered," made concrete: total time invested goes up by less than the ambition of what you ship. PR 3 is objectively harder than PR 1 and took less orientation time, because the trace you built for PR 1 and the subsystem knowledge from PR 2 are both still paying rent. A contributor who instead did one PR each on three unrelated repos would spend PR-1-equivalent orientation time three separate times and never reach PR-3-equivalent ambition at all.
+
+Mechanically, PRs 2 and 3 use exactly the fork → branch → PR loop from Tier 2 — nothing new there. What's different is which issues you're now qualified to pick. Run PR 2 and 3 candidates through Tier 2's five-row checklist (last activity, assignment state, scope, reproducibility, comment thread) the same way you did for PR 1, but you'll notice you can now correctly judge "scope" and "reproducibility" for issues that would have been unreadable to you a few weeks earlier — that's the compounding, not a different process.
+
+## When a Maintainer Asks for a Different Architecture Mid-PR
+
+PR 3 above — a new formatting behavior — is exactly the kind of change that triggers architectural pushback on Black, because Black has a real, documented rule: changing the *stable* output for existing code is a breaking change for every user who diffs their formatter output in CI. New behaviors have to land behind the `Preview` flag first. If you didn't know that rule and just shipped the new formatting logic directly in `transform_line`, a maintainer reviewing your diff would say something like this:
+
+> "This changes output for code that's already Black-formatted today, which breaks anyone pinning Black in CI and diffing output. This needs to go behind `Preview` like every other new style change — see `mode.py`. Can you gate it behind a new flag instead of changing default behavior directly?"
+
+That's not a rejection — it's a specific, actionable architectural redirect, and your job is to treat it exactly like Tier 2 taught you to treat any blunt review comment: as information, not as a verdict on your competence. The non-defensive, concrete response does the work instead of arguing:
+
+> "Good call, I hadn't accounted for the CI-diffing case. Gated it behind a new `Preview.nested_call_trailing_comma` flag — added the enum member in `mode.py`, wrapped the new logic in `linegen.py` with `if Preview.nested_call_trailing_comma in mode:`, and left the old behavior as the fallback. Added it to `UNSTABLE_FEATURES` too since it's a day-one addition, matching how `string_processing` was introduced. Updated `CHANGES.md` under the Preview section. Let me know if you'd rather it skip the unstable set and go straight to preview-stable."
+
+Notice the shape: it doesn't re-argue the original design, it doesn't apologize three times, and it demonstrates the fix by naming the exact files and the exact pattern it followed — `UNSTABLE_FEATURES`, the same mechanism you'd have found by reading `mode.py`'s real `Preview` enum and its `__contains__` check on `Mode`:
+
+```python
+class Preview(Enum):
+    """Individual preview style features."""
+    string_processing = auto()
+    hug_parens_with_braces_and_square_brackets = auto()
+    # ... your new flag goes here
+    nested_call_trailing_comma = auto()
+
+UNSTABLE_FEATURES: set[Preview] = {
+    Preview.string_processing,
+    Preview.hug_parens_with_braces_and_square_brackets,
+    Preview.nested_call_trailing_comma,  # new, start conservative
+}
+
+# in Mode:
+def __contains__(self, feature: Preview) -> bool:
+    if self.unstable:
+        return True
+    if feature in self.enabled_features:
+        return True
+    return self.preview and feature not in UNSTABLE_FEATURES
+```
+
+The constructive response is only possible *because* you'd already read this file as part of building your mental map of the codebase — the code-reading strategy from earlier in this module and the maintainer-pushback skill aren't separate lessons, they're the same accumulated context showing up twice. If you'd genuinely disagreed instead — say, you had a real reason the flag shouldn't be marked unstable — the same tone still applies: state it once, with a concrete reason ("the output is deterministic and covered by a snapshot test, unlike `string_processing`"), and accept the maintainer's call if they still disagree. You're not on this project to win the argument; you're on it to still be welcome to open PR number four.
+
+## Exercise: Build Your Map, Then Land PR 1
+
+Pick the one project you're committing to for this tier, using the three checks above (commit/release cadence, newcomer treatment in closed PRs, a compounding architecture). It does not have to be Black — pick something in a language or domain you're already building in from an earlier capstone.
+
+1. Clone it and find its real entry point — the function that runs when a user actually invokes the tool or imports the library's main API.
+2. Pick one concrete, specific user action (not "how does this work overall") and trace it hop by hop the way this module traced `black myfile.py`, writing down every function you pass through.
+3. Using that map, find and triage three `good first issue` or `help wanted` candidates with Tier 2's five-row checklist, pick the strongest one, and take it through the fork → branch → PR loop to a submitted PR.
+
+**Hint, not a solution:** if you get stuck finding the "real" entry point, check the project's `pyproject.toml`, `package.json`, or `setup.py` for a `console_scripts` / `bin` entry — that line names the exact function Python or Node calls first when the command runs, which saves you from guessing across a dozen files.

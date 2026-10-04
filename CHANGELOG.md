@@ -689,3 +689,14 @@ All notable changes to The Manual (curriculum + app) are logged here. This file 
 **Result:** `npm run build` passed clean — 290 unique slugs verified repo-wide.
 
 **Status:** Capstones Tier 2 complete (34h, 4 lessons). Capstones is now 3/6 tiers content-complete (Tiers 0-2, 68h); Tiers 3-5 remain.
+
+## [0.56.0] — 2026-10-03 — Capstones & Career Tier 3: complete (real-world scale, first 3 merged PRs)
+
+**Context:** Continuing the tier-by-tier pattern. The generating workflow returned 3 of 5 modules successfully; the other 2 (Specialization Selection + Applied Project, Build Your Portfolio Site) failed with an external session-limit message that named its own reset time. Rather than ship a partial tier, both were regenerated immediately once that window passed and merged with the original 3 before assembly — the full tier landed as one unit, per this session's established all-or-nothing-per-tier pattern.
+
+**Added**
+- `content/capstones-career/tier-3/*.mdx` (5 files) + matching quizzes: Cross-Track Capstone #3 (TrailLink — a weighted-graph hiking-trail REST API computing real Dijkstra shortest paths under two different edge-weight functions, with 4 pytest acceptance tests and zero reference implementation, pulling from CS Foundations + Language Mastery + Software Engineering + Platforms Tier 3 material), DS&A Pattern Mastery (trees/graphs/heaps/DP/interview patterns), Sustained Open-Source Contribution, Specialization Selection + Applied Project (a 5-signal evidence framework for confirming a branch, then `portwatch.py` from Tier 2 upgraded from brittle substring matching to real semantic-version-range CVE checking), Build Your Portfolio Site.
+
+**Result:** `npm run build` passed clean — 295 unique slugs verified repo-wide.
+
+**Status:** Capstones Tier 3 complete (76h, 5 lessons). Capstones is now 4/6 tiers content-complete (Tiers 0-3, 144h); Tiers 4-5 remain.
