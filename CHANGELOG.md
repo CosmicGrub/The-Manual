@@ -754,3 +754,26 @@ All notable changes to The Manual (curriculum + app) are logged here. This file 
 **Result:** `npm run build` passed clean. `npm run typecheck` passed clean.
 
 **Status:** Both UI gaps flagged in MASTERFILE.md §3.5 are built. Remaining Phase 2 items (§3.6: multi-user auth, Postgres migration, AI-graded "explain it back," adaptive sequencing) are deliberately deferred, as documented.
+
+## [0.60.0] — 2026-10-04 — Re-run the reviewer backlog now that all 9 tracks are content-complete
+
+**Context:** MASTERFILE.md §5 is a reviewer pass from 2026-09-28 — before almost any lesson content existed — that explicitly says "treat it as a backlog, not a one-time list; re-run this review as tracks fill out." With all 305 lessons now shipped, it was stale: several flagged gaps are now covered by real content, two policy sections added later (§4.5, §4.6) already resolve items the backlog still listed as open, and one line had an outright wrong fact ("all 8 tracks" — there are 9). Left unexamined, it would mislead anyone reading it as the current state of what's missing.
+
+**Verified before editing, not just asserted:** dispatched a research pass that checked each of the backlog's claims against the actual shipped `.mdx` content (not the pre-content design docs the original review ran against), with file-level evidence for each verdict.
+
+**Resolved, moved out of the open backlog:**
+- Personal Digital Security & Privacy Literacy — shipped in Cybersecurity Tier 0.
+- Open-source contribution reconciliation policy — already stated in §4.5.
+- All 8 originally-flagged cross-track redundancies (terminal/CLI, git, math, SQL, testing/TDD, OOP, CI/CD, networking) — §4.5's Canonical Ownership table assigns each a single owner, and this was spot-checked as actually applied in the real lesson files, not just declared as policy.
+- Multi-agent SWE orchestration, compute-shader GPU programming, and web accessibility — each one piece of a broader flagged gap, now covered by specific modules in AI/ML Tier 4, Platforms Tier 4, and Platforms Tier 1 respectively (the broader gaps they came from are narrowed, not fully closed — see below).
+- Cross-track sequencing ambiguity — substantially addressed by §4.6's phased recommended path, downgraded from a blocking structural fix to a documentation nice-to-have.
+
+**Narrowed, still open:** Agentic AI-assisted development (spec-driven dev for coding agents, reviewing AI-generated diffs at scale, and context engineering as a named discipline are still missing, though multi-agent orchestration itself now ships), accessibility (mobile-native/desktop still uncovered), and GPU programming (CUDA/general-purpose compute still conceptual-only) — each downgraded from HIGH/MEDIUM to MEDIUM/LOW in the Recommended Additions list to reflect the real remaining scope, not the original, now-inflated one.
+
+**Still genuinely open, unchanged:** unified math spine (info theory, convex optimization, numerical stability), UX/UI & product design fundamentals, data literacy for non-ML purposes, technical writing as a standalone thread, career/soft skills beyond interviewing, legal/IP literacy depth, spatial/AR-VR-XR platforms, and functional programming depth. None of this is new scope invented by this re-run — it's what was already on the backlog, confirmed still accurate.
+
+**Caught in passing:** "Standout strengths" still said "all 8 tracks" — fixed to 9.
+
+**Result:** No code changes; `MASTERFILE.md` §5 only. No build re-validation needed.
+
+**Status:** The backlog is now an accurate reflection of what's actually missing, not what was missing before any content existed. Nothing in it is scheduled — it remains a backlog for the user to prioritize, same as before.

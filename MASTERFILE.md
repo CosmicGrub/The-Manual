@@ -304,56 +304,51 @@ _You asked for a concrete recommendation rather than choosing the sequencing you
 
 _Independent reviewer pass across the original 8 tracks (2026-09-28, before Cybersecurity & Ethical Hacking was added as a 9th track — that track got its own dedicated safety-and-consistency review instead, see CHANGELOG). This is the running answer to "what more can we add to improve this" — treat it as a backlog, not a one-time list; re-run this review as tracks fill out._
 
-### Gaps across all 8 tracks
+_**Re-run 2026-10-04, now that all 9 tracks are content-complete (305 lessons):** a verification pass checked every claim below against the actual shipped `.mdx` content, not just the original (pre-content) design docs. Items resolved by real content or by a later MASTERFILE policy section are moved to "Resolved since the initial pass" below, with the evidence that closed them. Everything remaining in Gaps/Redundancies/Recommended Additions/Structural Fixes is still genuinely open — none of it is new scope invented by this re-run, only pruned of what's already done._
+
+### Resolved since the initial pass
+
+- **Personal Digital Security & Privacy Literacy** — shipped as `content/cybersecurity-ethical-hacking/tier-0/personal-digital-security-and-privacy-fundamentals.mdx` (password managers, 2FA, phishing, safe browsing, privacy/ToS literacy), framed explicitly as "the thing every other track assumes but none teaches." Closes the Gaps-list item and the [HIGH] Recommended-Additions item.
+- **Open-source contribution reconciliation policy** — §4.5 states it directly: "a single real, externally-merged OSS PR may satisfy every track's open-source-contribution checkpoint gate simultaneously — once per learner, not once per track." Closes both the [HIGH] Recommended-Additions item and the matching Structural-Fixes item.
+- **The 8 cross-track redundancies** (terminal/CLI, git/GitHub, linear algebra/probability, SQL, testing/TDD, OOP, CI/CD, core networking) — §4.5's Canonical Ownership table assigns each one a single owner, and this was verified as actually applied in the shipped content, not just declared as policy: e.g. `software-engineering/tier-0/git-and-github-absolute-basics.mdx` explicitly defers to CS Foundations' "Git Day Zero"; `ai-ml-prompting`'s math modules explicitly say CS Foundations "already gave you X, this doesn't re-derive it"; `languages/tier-2/calling-sql-from-your-language.mdx` opens by pointing SQL syntax depth at Software Engineering Tier 1; Software Engineering Tier 3's CI/CD module is a deliberately light pointer against DevOps Tier 2's full depth.
+- **Multi-agent SWE orchestration** (one piece of the former "Agentic AI-assisted development" gap) — `ai-ml-prompting/tier-4/advanced-prompt-engineering-and-agentic-systems.mdx` now covers supervisor/pipeline agent topologies, per-agent context minimization, and bounded revision loops as their own discipline.
+- **Compute-shader GPU programming** (one piece of the former GPU/parallel-programming gap) — `platforms/tier-4/advanced-game-development.mdx`'s "Shaders 101" section has real hands-on GLSL vertex/fragment shader code.
+- **Web accessibility** (one piece of the former accessibility gap) — `platforms/tier-1/html-and-css-fundamentals.mdx` has a real, measurable "Accessibility: alt text, landmarks, and contrast you can actually measure" section (WCAG 2.1 AA ratios, screen-reader basics).
+- **Cross-track sequencing ambiguity** — substantially, not formally, addressed: §4.6's Recommended Learning Path gives concrete phased, concurrent tier-by-tier guidance ("run these three concurrently, in lockstep tier-by-tier") rather than leaving pacing totally open. A full Tier-N-hard-requires-Tier-N prerequisite matrix across all 9 tracks was never built — see Structural Fixes below, now downgraded from blocking to a documentation nice-to-have given §4.6 already makes the curriculum executable.
+
+### Gaps across all 9 tracks (still open)
 
 - **Math depth**: linear algebra/probability/calculus are rebuilt from scratch independently in CS Foundations and again in AI/ML, but real depth topics needed for genuine AI literacy are missing entirely — information theory (entropy, KL divergence, cross-entropy loss), convex optimization theory beyond basic gradient descent, numerical stability/floating-point error analysis, multivariable calculus. No single authoritative math spine other tracks build on.
-- **Personal digital security & privacy literacy** (password managers, 2FA, phishing recognition, safe browsing, basic privacy/ToS literacy) is entirely absent — existing security content is all about securing systems for others, never the learner's own digital self-defense.
-- **Accessibility/inclusive design** is reduced to one bullet in one Platforms module. No WCAG, screen-reader testing, keyboard-only navigation, or accessible mobile/desktop design anywhere.
-- **Agentic AI-assisted software development** (the dominant 2026 coding paradigm) is under-covered relative to your explicit ask — no module on spec-driven development for coding agents, reviewing large AI-generated diffs at scale, context engineering, or multi-agent SWE orchestration as its own discipline.
+- **Accessibility/inclusive design beyond the web** — resolved for web (see above); still no WCAG/screen-reader/keyboard-only coverage in any mobile-native or desktop module.
+- **Agentic AI-assisted software development, narrowed** — multi-agent SWE orchestration is now covered (see above), but spec-driven development for coding agents and reviewing large AI-generated diffs at scale still have no dedicated module (only an incidental quiz line), and "context engineering" is practiced throughout but never named and taught as its own discipline.
 - **Eval-driven development** exists narrowly for LLM output (AI/ML Tier 2-4) but is never generalized as a cross-cutting engineering practice the way TDD is generalized in Software Engineering.
-- **Data literacy for non-ML purposes** (spreadsheets, dashboards, descriptive statistics, A/B testing, causal inference, statistical fallacies) is missing entirely.
+- **Data literacy for non-ML purposes** (spreadsheets, dashboards, descriptive statistics, A/B testing, causal inference, statistical fallacies) is missing entirely — verified zero hits outside the ML context; the only "dashboard" content anywhere is DevOps/SRE observability, not BI.
 - **Technical writing & communication** as a standalone, progressively-built skill (not just embedded artifacts like READMEs/ADRs) is never explicitly taught.
 - **Career/soft skills beyond interviewing**: no behavioral interviewing, negotiation, remote-collaboration norms, or freelancing/consulting basics.
-- **GPU/parallel programming** (CUDA/Metal/compute shaders) is never taught hands-on, despite the AI-centric framing.
-- **UX/UI & product design fundamentals** (visual design, typography/color theory, user research) are absent — Platforms teaches how to build UI but never how to design or validate one.
+- **GPU data-parallel compute, narrowed** — compute shaders are now hands-on (see above), but CUDA/general-purpose GPU compute is still conceptual-only: CS Foundations' Tier 5 frontier module explicitly says "not a CUDA kernel," pure-NumPy only.
+- **UX/UI & product design fundamentals** (visual design, typography/color theory, user research) are absent — verified zero hits anywhere in `content/`. Platforms teaches how to build UI but never how to design or validate one.
 - **Legal/IP literacy** beyond "pick an OSS license" is missing (licensing depth, contracts, IP ownership of AI-generated code, compliance obligations).
 - **Spatial/emerging platforms** (AR/VR/XR, wearables) are absent despite your "various other platforms" ask.
-- **Functional programming** gets one Tier-5 survey module total — a major paradigm systematically under-taught vs. imperative/OOP.
-- **No pacing guidance**: hours-per-module exist, but nothing states weekly pace, whether tracks run in parallel or sequentially, or total calendar time — a real usability gap (see §4's rough estimate above, and the sequencing gap below).
+- **Functional programming** gets one Tier-5 survey module total (`languages/tier-5/comparative-type-systems-and-paradigms.mdx`) — verified no other tier teaches it as its own paradigm — a major paradigm systematically under-taught vs. imperative/OOP.
 
-### Redundancies to cross-reference instead of duplicate
+### Recommended additions (prioritized backlog — the direct answer to "what more can we add," now pruned of what's shipped)
 
-- Terminal/CLI literacy is independently re-taught in near-identical form in ≥6 tracks' Tier 0s; only 3 tracks explicitly defer to CS Foundations.
-- Git/GitHub fundamentals are fully retaught in essentially every track's Tier 0, even tracks that already declared Tier 0 "light" on general literacy.
-- Linear algebra & probability/statistics are taught twice at near-identical depth (CS Foundations Tiers 1/3, then AI/ML Tier 1 from zero) instead of AI/ML treating CS Foundations as a prerequisite.
-- SQL fundamentals are full standalone modules in both Language Mastery Tier 2 and Software Engineering Tier 1, with no stated canonical owner.
-- Unit testing/TDD basics are full modules in both Language Mastery Tier 2 and Software Engineering Tier 1-2.
-- OOP fundamentals are introduced three separate times (CS Foundations T2, Language Mastery T2, Software Engineering T2) at overlapping depth.
-- CI/CD and GitHub Actions are taught fully in both Software Engineering T3 and DevOps T2, without cross-referencing.
-- Core networking (IP/DNS/ports/HTTP) is taught independently in Hardware T3, Software Engineering T1, and DevOps T1.
-
-### Recommended additions (prioritized backlog — the direct answer to "what more can we add")
-
-- **[HIGH] Master cross-track sequencing map / prerequisite matrix** — nothing states what order to walk the 8 tracks in, or which track's Tier N hard-requires another's Tier N. Without this, The Manual is 8 excellent but disconnected books, not one curriculum.
 - **[HIGH] Unified math spine** shared between CS Foundations and AI/ML (not duplicated), extended with information theory, convex optimization, numerical stability.
-- **[HIGH] Personal Digital Security & Privacy Literacy module** — early, cross-cutting, learner-facing (not just "how to secure systems for others").
-- **[HIGH] Agentic AI-Assisted Development module/track** (spec-driven dev, reviewing AI-generated diffs at scale, context engineering, multi-agent SWE workflows) — the most direct answer to your "better prompting AI and developing things" goal; current content treats AI mainly as an API/chat partner rather than the dominant agentic coding paradigm.
-- **[HIGH] Open-source contribution reconciliation policy** — a merged OSS PR is used as a hard checkpoint gate 20+ times across tracks with no rule on whether one contribution can satisfy multiple gates.
-- **[MEDIUM] Accessibility & Inclusive Design module** (WCAG, screen readers, assistive tech, accessible testing across web/mobile/desktop).
+- **[MEDIUM] Agentic AI-Assisted Development, completing the picture** — spec-driven dev for coding agents, reviewing AI-generated diffs at scale, and context engineering as its own named discipline (multi-agent orchestration itself is now covered, see above). Downgraded from HIGH since the single biggest piece already shipped.
+- **[MEDIUM] Accessibility & Inclusive Design, completing the picture** — WCAG/screen-reader/assistive-tech coverage for mobile-native and desktop (web is now covered, see above).
 - **[MEDIUM] UX/UI & Product Design Fundamentals module** (visual design, typography/color theory, lightweight user research).
 - **[MEDIUM] Data Literacy & Applied Statistics module** (spreadsheets, dashboards, A/B testing, causal inference, statistical fallacies).
 - **[MEDIUM] Technical Writing & Communication thread** across tiers, not just embedded artifacts.
-- **[MEDIUM] GPU/Parallel Programming module** (CUDA/Metal/compute shaders) — bridges Hardware's CPU-concurrency depth and AI/ML's conceptual-only GPU treatment.
 - **[MEDIUM] Career & Soft Skills expansion** (behavioral interviewing, negotiation, freelancing/consulting, remote collaboration norms).
+- **[LOW] CUDA/general-purpose GPU compute module**, completing the picture — compute shaders are now covered (see above); CUDA/Metal-compute hands-on work is the remaining piece, bridging Hardware's CPU-concurrency depth and AI/ML's still-conceptual-only GPU treatment.
 - **[LOW] Functional Programming deep-dive branch** (Haskell/Elixir/Clojure/F#).
 - **[LOW] Spatial Computing / AR-VR-XR platform module.**
 - **[LOW] Business & Monetization for Shipped Products module** (App Store economics, SaaS pricing, indie monetization).
 
-### Structural fixes needed
+### Structural fixes needed (still open)
 
 - Inconsistent Tier-0 scoping policy across tracks — needs one explicit curriculum-wide rule for what every Tier 0 assumes vs. teaches.
-- No declared cross-track tier synchronization (finish a whole track before the next, vs. advance tier-by-tier across all 8 in parallel) — later tracks' tiers explicitly assume earlier tracks' tiers, so this ambiguity makes the curriculum hard to actually execute.
-- The 20+ "land a real OSS PR" checkpoints across tracks aren't reconciled with each other.
+- Formal cross-track prerequisite matrix — §4.6 makes the curriculum practically executable with one recommended phased path (see "Resolved" above), but no document states, for every pair of tracks, exactly which Tier N of one hard-requires which Tier N of another. Downgraded from blocking to a documentation nice-to-have.
 - CS Foundations' Tier 3 "second statically-typed language" isn't mapped to Language Mastery's own explicit language sequence.
 - Inconsistent Tier-5 assessment philosophy (some tracks explicitly retire quizzes for portfolio/peer review; others don't, without explanation).
 - Wildly uneven per-tier hour totals (e.g., Hardware/Platforms Tier 1 run ~75+ hrs vs. AI/ML Tier 0's ~30 hrs) with no stated weekly pace.
@@ -361,7 +356,7 @@ _Independent reviewer pass across the original 8 tracks (2026-09-28, before Cybe
 
 ### Standout strengths (don't dilute these)
 
-- A single, consistent 6-tier skeleton applied identically across all 8 tracks gives the whole curriculum a coherent, navigable shape.
+- A single, consistent 6-tier skeleton applied identically across all 9 tracks gives the whole curriculum a coherent, navigable shape.
 - Explicit, self-aware scope boundaries in track summaries show unusually high design discipline and honesty about what each track will and won't cover.
 - The `ai_prompting_connection` / `cross_platform_connection` fields on every track directly operationalize your two core meta-goals instead of leaving them as vague aspirations.
 - Creative methods (Feynman teach-backs, build-then-break, CTF-style war-games, spaced repetition, prompting drills graded against ground truth) are structurally embedded in every tier, not a one-off gimmick.
