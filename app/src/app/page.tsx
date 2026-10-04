@@ -32,9 +32,14 @@ export default async function DashboardPage() {
 
       <SkillTree tracks={tracks} />
 
-      <a href="/review" className="inline-block px-4 py-2 rounded-md bg-neutral-900 text-white">
-        Go to today's spaced-repetition review
-      </a>
+      <div className="flex flex-wrap gap-3">
+        <a href="/review" className="inline-block px-4 py-2 rounded-md bg-neutral-900 text-white">
+          Go to today's spaced-repetition review
+        </a>
+        <a href="/resources" className="inline-block px-4 py-2 rounded-md border border-neutral-300 dark:border-neutral-700">
+          Browse the resource library
+        </a>
+      </div>
     </main>
   )
 }

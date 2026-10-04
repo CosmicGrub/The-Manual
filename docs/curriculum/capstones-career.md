@@ -208,7 +208,7 @@ This is the synthesis track — it teaches no language and no single domain, it 
 - *Peer/mentee-graded rubric* — The real learner from your Teach-Others-to-Learn capstone completes a short assessment you wrote for them; their actual results — not just their satisfaction — count as your grade on this module.
 - *Research-competition or war-game entry* — Submit to a real external, outside-validated challenge aligned with your Magnum Opus: a live CTF, a Kaggle competition, or an OSS bug bounty.
 
-**Checkpoint project:** The Magnum Opus shipped, benchmarked, and published/presented publicly; at least one architecturally significant upstream-merged open-source contribution; and a completed Teach-Others-to-Learn cycle with documented, honest learner feedback. This is the final gate of the entire 8-track curriculum.
+**Checkpoint project:** The Magnum Opus shipped, benchmarked, and published/presented publicly; at least one architecturally significant upstream-merged open-source contribution; and a completed Teach-Others-to-Learn cycle with documented, honest learner feedback. This is the final gate of the entire 9-track curriculum.
 
 **Creative teaching methods:**
 

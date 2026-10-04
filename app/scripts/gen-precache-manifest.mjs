@@ -17,11 +17,15 @@ const lessons = JSON.parse(readFileSync(lessonsPath, 'utf-8'))
 
 const trackIds = [...new Set(lessons.map((l) => l.trackId))]
 
-const staticUrls = ['/', '/review', '/manifest.json', '/offline.html', '/icons/icon.svg', '/icons/icon-maskable.svg']
+const staticUrls = ['/', '/review', '/resources', '/manifest.json', '/offline.html', '/icons/icon.svg', '/icons/icon-maskable.svg']
 const trackUrls = trackIds.map((id) => `/tracks/${id}`)
 const lessonUrls = lessons.map((l) => `/tracks/${l.trackId}/${l.tier}/${l.slug}`)
+// Every track has exactly one checkpoint per tier 0-5 (see
+// docs/curriculum/*.md and app/src/lib/curriculumDocs.ts) — mechanical, no
+// need to re-parse the curriculum docs just for their URLs here.
+const checkpointUrls = trackIds.flatMap((id) => [0, 1, 2, 3, 4, 5].map((tier) => `/checkpoints/${id}/tier-${tier}/checkpoint`))
 
-const urls = [...staticUrls, ...trackUrls, ...lessonUrls]
+const urls = [...staticUrls, ...trackUrls, ...lessonUrls, ...checkpointUrls]
 
 // Version is a hash of the actual lesson content, not a timestamp (Velite's
 // build is otherwise deterministic) — the cache name only changes when the

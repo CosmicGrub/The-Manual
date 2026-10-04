@@ -27,9 +27,19 @@ export default function TrackPage({ params }: { params: { trackId: string } }) {
         const lessons = getLessonsByTrackAndTier(trackId, tier)
         return (
           <section key={tier}>
-            <h2 className="text-lg font-medium">
-              Tier {tier}: {TIER_LABELS[tier]}
-            </h2>
+            <div className="flex items-baseline justify-between gap-3 flex-wrap">
+              <h2 className="text-lg font-medium">
+                Tier {tier}: {TIER_LABELS[tier]}
+              </h2>
+              <div className="flex gap-3 text-sm">
+                <Link href={`/checkpoints/${trackId}/tier-${tier}/checkpoint`} className="underline text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100">
+                  Checkpoint
+                </Link>
+                <Link href={`/resources?track=${trackId}&tier=${tier}`} className="underline text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100">
+                  Resources
+                </Link>
+              </div>
+            </div>
             {lessons.length === 0 ? (
               <p className="text-sm text-neutral-500 mt-1">No lessons written yet — see docs/curriculum/{trackId}.md for the syllabus.</p>
             ) : (

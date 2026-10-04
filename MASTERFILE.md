@@ -93,11 +93,16 @@ The-Manual/
         │   ├── page.tsx (dashboard), layout.tsx, api/*
         │   ├── tracks/[trackId]/page.tsx                    ← statically generated tier ladder
         │   ├── tracks/[trackId]/[tier]/[slug]/page.tsx      ← statically generated lesson + embedded quiz
-        │   └── review/page.tsx                              ← spaced-repetition queue
+        │   ├── review/page.tsx                              ← spaced-repetition queue
+        │   ├── resources/page.tsx                           ← statically generated resource library
+        │   └── checkpoints/[...id]/page.tsx                 ← statically generated checkpoint + submission form
         ├── components/          (SkillTree, QuizRunner, LessonProgressButton, ReviewQueueItem,
-        │                         RegisterServiceWorker, OfflineOutboxFlusher, ...)
+        │                         RegisterServiceWorker, OfflineOutboxFlusher, ResourceLibrary,
+        │                         CheckpointSubmissionForm, ...)
         └── lib/                 (db.ts — Prisma client, srs.ts — SM-2, tracks.ts, content.ts — Velite
                                    lesson accessors, quizzes.ts — server-side quiz reads, user.ts,
+                                   curriculumDocs.ts — reads docs/curriculum/*.md for resources +
+                                   checkpoint briefs, checkpoints.ts — Checkpoint DB upsert + rubric,
                                    offlineOutbox.ts — IndexedDB write queue)
 ```
 
@@ -122,7 +127,10 @@ See `app/prisma/schema.prisma` (source of truth for exact fields). Summary:
 | `/api/review-queue` | GET | Items due for spaced-repetition review right now. |
 | `/api/review-queue` | POST | Grade a review item (0-5 recall quality); reschedules via SM-2. |
 
-Not yet implemented: `/api/checkpoints/:id/submit`, `/api/tracks` (a static track/tier listing endpoint — not currently needed since `getAllLessonParams()`/`getLessonsByTrack()` in `app/src/lib/content.ts` serve that purpose directly to server components at build time).
+| `/api/checkpoint-submissions` | GET | This learner's submission history for one checkpoint (`?userId=&checkpointId=`), newest first. |
+| `/api/checkpoint-submissions` | POST | Submit a checkpoint attempt (`{userId, checkpointId, artifactUrl, selfRubric}`); self-graded — `selfRubric` is a boolean array aligned to the fixed rubric in `app/src/lib/checkpoints.ts`, and `status` is derived (`passed` if every item is checked, else `needs_revision`). Upserts the `Checkpoint` row first (`ensureCheckpoint()`) so a submission never fails its foreign-key check regardless of seed timing — same reasoning as `ensureUser()`.
+
+Not yet implemented: `/api/tracks` (a static track/tier listing endpoint — not currently needed since `getAllLessonParams()`/`getLessonsByTrack()` in `app/src/lib/content.ts` serve that purpose directly to server components at build time).
 
 Every mutating endpoint above is called through `app/src/lib/offlineOutbox.ts`'s `postWithOfflineFallback()` from the client, not a raw `fetch` — see §3.8.
 
@@ -132,8 +140,8 @@ Every mutating endpoint above is called through `app/src/lib/offlineOutbox.ts`'s
 - `/tracks/[trackId]` — tier ladder for one track: all 6 tiers, every written lesson linked, with a note pointing to `docs/curriculum/<trackId>.md` where a tier has no lessons yet. **Statically generated** (`generateStaticParams` over every track).
 - `/tracks/[trackId]/[tier]/[slug]` — the lesson itself: rendered Markdown body (`dangerouslySetInnerHTML` from Velite's `s.markdown()` output — safe, this is our own authored content) + a "mark complete" button + an inline `QuizRunner` fed the matching `.quiz.json`, read server-side via `app/src/lib/quizzes.ts`. **Statically generated** (`generateStaticParams` over every lesson) — this is what makes a lesson's content *and* its quiz fully available offline with zero extra network request once cached.
 - `/review` — today's spaced-repetition queue: due `ReviewState` rows resolved back to their source quiz question via `resolveQuizQuestionItem()`, graded 0-5 through `ReviewQueueItem.tsx`. Dynamic (today's due set is per-moment) — offline behavior via SW cache fallback, see §3.8.
-- `/checkpoints/[id]` — checkpoint brief + submission form *(not yet built)*.
-- `/resources` — curated resource library, filterable by track/tier *(not yet built — `docs/curriculum/<track>.md`'s per-tier resource lists are the source for this when it's built)*.
+- `/checkpoints/[...id]` — checkpoint brief (read from `docs/curriculum/<track>.md` via `app/src/lib/curriculumDocs.ts`, not duplicated into MDX) + a self-graded submission form (`CheckpointSubmissionForm.tsx`): artifact-URL link, a fixed 3-item self-rubric (`app/src/lib/checkpoints.ts` — deliberately uniform across all 54 checkpoints rather than regex-extracting inconsistent per-checkpoint criteria from free-form syllabus prose, see that file's comment), and submission history fetched client-side. **Statically generated** (`generateStaticParams` over all 54 track×tier checkpoints) — the catch-all `[...id]` segment is needed because a checkpoint's id contains slashes (`<trackId>/tier-<tier>/checkpoint`, matching `Checkpoint.id` in `schema.prisma`).
+- `/resources` — curated resource library (301 resources across all 9 tracks, parsed from every `docs/curriculum/<track>.md`'s per-tier "Curated resources" list by `app/src/lib/curriculumDocs.ts`), filterable by track/tier plus free-text search (`ResourceLibrary.tsx`, client-side filtering over the full static list). **Statically generated**, linked from the dashboard and from each track page's per-tier header (deep-linked with `?track=&tier=` to open pre-filtered).
 
 ### 3.6 Phase 2 (deliberately deferred, schema-ready)
 
