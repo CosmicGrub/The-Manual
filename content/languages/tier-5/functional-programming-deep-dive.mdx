@@ -1,0 +1,321 @@
+---
+trackId: languages
+tier: 5
+title: "Functional Programming Deep Dive"
+order: 7
+estimatedHours: 14
+slug: functional-programming-deep-dive
+---
+
+## Where this module sits
+
+*Comparative Type Systems and Paradigms* already gave you a first real taste of functional programming through OCaml pattern matching and algebraic data types: immutability-by-default (`let`/`ref`), variant types matched exhaustively, a compiler that flags a forgotten case, and recursion written by hand instead of loops. That module closed by showing you TypeScript's discriminated unions as OCaml's variant types rebuilt on top of a structural type system. None of that gets re-taught here — if you need a refresher on `match`, variant types, or exhaustiveness checking, that's where it lives.
+
+This module picks up exactly where that one left off, with a different ML-family-adjacent language: **Haskell**. Haskell shares OCaml's commitment to pattern matching and immutability, but it adds four ideas OCaml's module never touched, and that most imperative-first programmers never encounter at all: functions that are curried by default, a generalized fold that subsumes "recursion instead of loops," evaluation that's lazy rather than eager, and a disciplined way of handling failure (`Maybe`/`Either`) without exceptions. Those four ideas are the actual payload of this module.
+
+You'll also lean on two bugs you've already met. Both `data-structures-in-practice` (Tier 1, Languages) and `core-data-structures-i` (Tier 1, CS Foundations) walked you through real Python/JS bugs caused by shared, mutable state — the mutable-default-argument trap and the aliasing bug where two names end up pointing at the same list. Neither gets re-taught here either. They're the motivating problem; Haskell's answer to that problem — making those bugs structurally impossible rather than relying on your discipline — is the new ground.
+
+## Pure functions, immutability, and referential transparency
+
+In Haskell, there is no assignment statement at all. A `let` binding, a function argument, a `where` clause — every single one of them binds a name to a value once, permanently. There's no `ref`-style escape hatch for plain values the way OCaml has one; mutable state in Haskell exists, but it's confined to explicit, clearly-marked constructs (`IORef`, `MVar`, the `ST` monad) that you reach for only when you actually need shared mutable state, and which make that need visible in the function's type. For everyday code, you simply don't mutate anything.
+
+Here's an ordinary Haskell function:
+
+```haskell
+addTax :: Double -> Double -> Double
+addTax rate amount = amount + (amount * rate)
+```
+
+```text
+ghci> addTax 0.08 100
+108.0
+ghci> addTax 0.08 100
+108.0
+ghci> addTax 0.08 100
+108.0
+```
+
+Call `addTax 0.08 100` once, call it a thousand times, call it from a different module, call it after the program has been running for six hours — it is *guaranteed* to return `108.0` every single time. This property has a name: **referential transparency**. An expression is referentially transparent if you can replace it with its value anywhere in the program without changing what the program does. `addTax 0.08 100` and the literal `108.0` are completely interchangeable in Haskell, forever, because `addTax` cannot see or depend on anything except the arguments you hand it, and it cannot change anything except the value it returns.
+
+That guarantee does not hold, in general, for Python or JavaScript functions — not because those languages are bad, but because nothing stops a function from reading or writing state that lives outside its argument list:
+
+```python
+tax_rate = 0.08
+
+def add_tax(amount):
+    return amount + (amount * tax_rate)
+
+print(add_tax(100))  # 108.0
+tax_rate = 0.095
+print(add_tax(100))  # 109.5 -- same function, same argument, different answer
+```
+
+`add_tax(100)` is not referentially transparent: you cannot replace that call with a fixed value, because its result depends on a global variable the function closes over, and that variable can change between calls. This is the exact same category of problem as the mutable-default-argument trap and the shared-list aliasing bug you already debugged in Tier 1 — a function's behavior depends on mutable state that lives somewhere other than its own arguments, so "call it with X, get Y" stops being a reliable fact about your program. Haskell's answer isn't a style guideline you have to remember to follow; the language gives ordinary `let`-bound and function-argument values no mutation operator to reach for in the first place, so the bug class Tier 1 taught you to watch for in Python and JS is, for most Haskell code, simply not expressible.
+
+## Higher-order functions and currying
+
+Every Haskell function of "two arguments" is secretly a function of one argument that *returns* a function of one argument. This isn't a special case you opt into — it's just what a multi-argument function *is* in Haskell, and it falls directly out of two facts: function application is just juxtaposition (`f x` means "apply `f` to `x`"), and `->` in a type signature is right-associative.
+
+Look again at the type signature from the last section:
+
+```haskell
+addTax :: Double -> Double -> Double
+```
+
+Read with explicit parentheses, that's `Double -> (Double -> Double)`: a function that takes one `Double` (the rate) and returns a function from `Double` to `Double` (apply the amount, get the taxed total). `addTax rate amount` is really `(addTax rate) amount` — call `addTax` with just the rate, and you get back a brand-new, fully-formed function you can reuse:
+
+```haskell
+withEightPercentTax :: Double -> Double
+withEightPercentTax = addTax 0.08
+```
+
+```text
+ghci> withEightPercentTax 100
+108.0
+ghci> withEightPercentTax 250
+270.0
+ghci> withEightPercentTax 19.99
+21.589199999999998
+```
+
+`addTax 0.08` is **partial application**: supplying fewer arguments than the function "has" and getting back a specialized function that remembers the ones you already gave it. There's no special syntax for this, no decorator, no library call — it's just what happens when you apply a curried function to one argument instead of two.
+
+Python can do the same thing, but only because you ask for it explicitly, with `functools.partial`:
+
+```python
+from functools import partial
+
+def add_tax(rate, amount):
+    return amount + (amount * rate)
+
+with_eight_percent_tax = partial(add_tax, 0.08)
+print(with_eight_percent_tax(100))     # 108.0
+print(with_eight_percent_tax(250))     # 270.0
+```
+
+`add_tax(0.08)` on its own, without `partial`, is a `TypeError: add_tax() missing 1 required positional argument: 'amount'` — Python functions take all their declared arguments at once or not at all; currying is a feature you have to reach for and name. In Haskell, `addTax 0.08` is not a special case of anything; it's the ordinary meaning of applying a function to one of its two arguments. "Curried by default" is the precise difference: the exact same capability exists in both languages, but one language made it the only way functions work, and the other made it an opt-in library function you have to remember exists.
+
+## Pattern matching and algebraic data types — the same idea, new syntax
+
+You already have this concept from OCaml: define a type as a closed, named set of shapes, then branch on which shape a value actually is, with the compiler checking that you covered them all. Haskell's version of the same idea uses `data` instead of `type ... = | ...`, and `|` works the same way:
+
+```haskell
+data Shape
+  = Circle Double
+  | Rectangle Double Double
+  | Triangle Double Double
+
+area :: Shape -> Double
+area (Circle r)        = pi * r * r
+area (Rectangle w h)   = w * h
+area (Triangle b h)    = 0.5 * b * h
+```
+
+```text
+ghci> area (Rectangle 3.0 4.0)
+12.0
+```
+
+Delete the `Triangle` equation and GHC emits the same category of warning OCaml's compiler gave you — a non-exhaustive pattern match warning naming `Triangle` as the uncovered case. The mechanism, the guarantee, and the reason it matters are identical to what you already learned; only the keywords changed (`data` instead of a bare type alias with `|`, equations per constructor instead of a single `match` expression). That's the whole point of this section — recognize the idea under new syntax and move on. The genuinely new material starts now.
+
+## Generalizing recursion: `foldr` and `foldl`
+
+In the OCaml module, `sum` and `map` were each written by hand as their own little recursive function, pattern-matching `[]` and `head :: tail` every time. That's a pattern repeating itself, and Haskell's Prelude names the pattern directly instead of making you rewrite it: **`foldr`** and **`foldl`**.
+
+```haskell
+foldr :: (a -> b -> b) -> b -> [a] -> b
+foldl :: (b -> a -> b) -> b -> [a] -> b
+```
+
+`foldr f z [x1, x2, x3]` computes `f x1 (f x2 (f x3 z))` — it combines from the right, ending at `z`. `foldl f z [x1, x2, x3]` computes `f (f (f z x1) x2) x3` — it combines from the left, starting at `z`. Both walk the entire list and both reduce it to a single value using some combining function `f` and a starting value `z`; the only difference on paper is which end they associate from.
+
+Watch `sum`, `length`, and `map` itself all fall out of `foldr`:
+
+```haskell
+sum' :: [Int] -> Int
+sum' = foldr (+) 0
+
+length' :: [a] -> Int
+length' = foldr (\_ acc -> 1 + acc) 0
+
+map' :: (a -> b) -> [a] -> [b]
+map' f = foldr (\x acc -> f x : acc) []
+```
+
+```text
+ghci> sum' [1,2,3,4,5]
+15
+ghci> length' [1,2,3,4,5]
+5
+ghci> map' (* 2) [1,2,3,4]
+[2,4,6,8]
+```
+
+`map'` is the interesting one: `foldr (\x acc -> f x : acc) []` walks the list and conses `f x` onto the front of whatever the rest of the fold already built — because `foldr` associates from the right, the first element you see ends up at the front of the result, preserving order for free. (You *can* write `map` with `foldl` too, but the cheap way to accumulate, `f x : acc`, comes out backwards and needs a final `reverse` to fix the order; accumulating instead with `acc ++ [f x]` preserves the order directly, but costs an O(n) append on every single step, which makes the whole fold O(n²) — `foldr`'s right-associativity is what makes the cons-based version come out right-side-up for free, without either of those costs.)
+
+For `sum'`, both folds give the same answer — `foldl (+) 0 [1,2,3,4,5]` is also `15` — because addition doesn't care which side you associate from. That equality is exactly why people get the wrong impression that `foldr` and `foldl` are interchangeable. They aren't, and the difference shows up once you leave "small, finite, order-doesn't-matter" territory.
+
+**Where they actually diverge — laziness and infinite lists.** `foldr` can produce part of its answer without finishing the whole recursion, *if* the combining function doesn't need its second argument to decide the first part of the result. `(:)` is exactly that kind of function — it doesn't inspect its second argument (the rest of the list) to decide what the first element of the result is. So:
+
+```text
+ghci> take 10 (foldr (:) [] [1..])
+[1,2,3,4,5,6,7,8,9,10]
+```
+
+`foldr (:) [] [1..]` is really just rebuilding `[1..]` one cons at a time, but because `take 10` only ever demands the first ten cons cells, only ten levels of the (infinite) recursion ever actually run. `foldr` never reaches the "end" of an infinite list — and because `(:)` lets it hand back results incrementally, it doesn't have to. `foldl` can never do this: by definition it has to reach the end of the list (`foldl f z (x:xs) = foldl f (f z x) xs`, all the way down to `[]`) before it can produce anything at all — and an infinite list has no end, so `foldl` on an infinite list simply never returns.
+
+**Where `foldl` risks a stack overflow.** The plain Prelude `foldl` is lazy in its accumulator: at each step it builds `f z x1`, `f (f z x1) x2`, and so on as a chain of unevaluated thunks, rather than actually computing each addition as it goes. Nothing forces that chain until the very end, when the whole pending expression finally has to be evaluated at once — and evaluating a deeply nested unevaluated expression consumes stack space proportional to how deep it is. Fold a list of several million elements this way and forcing that final thunk chain can exhaust the stack and crash, even though the recursive *calls* to `foldl` itself were perfectly tail-recursive. This is precisely why `Data.List` (part of `base`, no special extension needed) provides `foldl'`, which forces the accumulator at every step instead of deferring it, and which idiomatic Haskell reaches for whenever it folds a large list strictly:
+
+```haskell
+import Data.List (foldl')
+
+sumStrict :: [Int] -> Int
+sumStrict = foldl' (+) 0
+```
+
+`foldr`, for its part, is not automatically safe either: for a strict combining function like `(+)`, it still has to recurse all the way to the end of the list before any addition actually happens, so it also needs stack depth proportional to the list's length and can overflow on a very long finite list. The honest summary: `foldr` is the one that can work on infinite lists (because of laziness and a combining function that doesn't force its second argument), and `foldl` is the one that risks a stack-overflow-by-thunk-buildup on very large *finite* lists unless you use the strict `foldl'`. Neither one is simply "the safe one" — which you want depends on whether you're folding something infinite (reach for `foldr`) or something large and strict (reach for `foldl'`).
+
+## Lazy evaluation
+
+OCaml, like Python and most mainstream languages, is **strict**: an expression gets evaluated as soon as it's bound, full stop. Haskell is **lazy**: an expression is not evaluated until its value is actually demanded by something else. This isn't a performance trick bolted on top — it's a basic fact about how Haskell programs run, and it's what makes something like this legal:
+
+```haskell
+naturals :: [Integer]
+naturals = [1..]
+```
+
+```text
+ghci> take 10 naturals
+[1,2,3,4,5,6,7,8,9,10]
+ghci> take 5 (filter even naturals)
+[2,4,6,8,10]
+```
+
+`[1..]` describes an infinite list — every natural number, with no upper bound. Binding it to `naturals` does not try to construct that list; it just records *how* to produce more of the list, one element at a time, whenever something asks. `take 10 naturals` asks for exactly ten elements, so exactly ten get produced, and the program returns normally. `filter even naturals` never gets evaluated beyond the fifth even number it finds, because `take 5` never asks for a sixth.
+
+In a strict language without special support, the equivalent code doesn't pause to produce elements on demand — it tries to build the entire list before returning it, and because the list has no end, that attempt never finishes. This is exactly why OCaml and Python both need a dedicated, separate mechanism — `Seq`/generators in OCaml, `yield`/generators in Python — to get lazy, on-demand sequences at all; it's opt-in machinery layered on top of a strict core. In Haskell there's no separate mechanism to opt into, because *nothing* is evaluated eagerly by default; `[1..]` is just an ordinary value like any other, and it only looks special because most languages can't express "this value is infinite but that's fine" without a dedicated feature.
+
+## Handling failure without exceptions: `Maybe` and `Either`
+
+Haskell doesn't have a null pointer, and conventional exceptions are not the idiomatic way to signal "this computation might not produce a value." Instead, a function that can fail says so in its *type*, by returning a `Maybe`:
+
+```haskell
+data Maybe a = Nothing | Just a   -- this is how Maybe is actually defined in base
+
+safeDivide :: Int -> Int -> Maybe Int
+safeDivide _ 0 = Nothing
+safeDivide x y = Just (x `div` y)
+
+safeHead :: [a] -> Maybe a
+safeHead []    = Nothing
+safeHead (x:_) = Just x
+```
+
+```text
+ghci> safeDivide 10 2
+Just 5
+ghci> safeDivide 10 0
+Nothing
+ghci> safeHead [3,1,4]
+Just 3
+ghci> safeHead ([] :: [Int])
+Nothing
+```
+
+No exception is thrown anywhere. `safeDivide 10 0` doesn't crash and doesn't silently return a garbage value — its return *type* is `Maybe Int`, so every caller is forced, by the type checker, to account for the possibility of `Nothing` before they can get at the `Int` inside a `Just`. The failure case isn't a side channel you can forget to check; it's baked into the function's signature.
+
+Now chain two fallible functions together. Written the direct way — matching on each result by hand — this gets ugly fast:
+
+```haskell
+calcNested :: Int -> Int -> Int -> Maybe Int
+calcNested a b c =
+  case safeDivide a b of
+    Nothing -> Nothing
+    Just x  -> case safeDivide x c of
+      Nothing -> Nothing
+      Just y  -> Just y
+```
+
+Every new step in the chain adds another level of nested `case`. This is the exact "pyramid of doom" shape you'd expect, and Haskell has a clean answer to it: **`do`-notation**, which lets you write the chain as a flat sequence and have the `Nothing`-short-circuiting happen automatically:
+
+```haskell
+calc :: Int -> Int -> Int -> Maybe Int
+calc a b c = do
+  x <- safeDivide a b
+  y <- safeDivide x c
+  return y
+```
+
+```text
+ghci> calc 100 5 2
+Just 10
+ghci> calc 100 0 2
+Nothing
+ghci> calc 100 5 0
+Nothing
+```
+
+`x <- safeDivide a b` means "run `safeDivide a b`; if it's `Nothing`, stop here and make the whole `do` block `Nothing`; if it's `Just v`, bind `x` to `v` and keep going." You never write the `Nothing` check yourself — it's handled uniformly, every time, by the `do`-block's rules for `Maybe`. `return y` at the end is just `Just y` (for `Maybe`, `return`/`pure` means "succeed with this value"); under the hood, `calc` desugars to `safeDivide a b >>= \x -> safeDivide x c >>= \y -> return y`, where `>>=` ("bind") is the operator that actually implements "run this, and if it failed, skip the rest."
+
+**`Either` is `Maybe`'s cousin for when you want to know *why* it failed.** Where `Nothing` carries no information at all, `Left` carries an error value:
+
+```haskell
+safeDivideE :: Int -> Int -> Either String Int
+safeDivideE _ 0 = Left "division by zero"
+safeDivideE x y = Right (x `div` y)
+
+calcE :: Int -> Int -> Int -> Either String Int
+calcE a b c = do
+  x <- safeDivideE a b
+  y <- safeDivideE x c
+  return y
+```
+
+```text
+ghci> calcE 100 5 2
+Right 10
+ghci> calcE 100 0 2
+Left "division by zero"
+```
+
+Same chaining, same `do`-notation, same short-circuiting — but now the failure case (`Left`) comes with a message instead of a bare "nothing happened."
+
+This chaining pattern — wrap a value in a context (`Just x`, `Right x`), sequence computations with `do`-notation or `>>=`, and let the context's own rules decide whether to keep going or short-circuit — is an instance of what Haskell calls the **monad** pattern; `Maybe` and `Either e` are both monads, and so (in their own very different ways) are lists and `IO` actions. You don't need a category-theory definition to use any of this productively, and nothing above required one — what you actually need is the practical shape: a type that represents "a value, plus some context" (might be absent, might have failed with a reason), and a uniform way to chain functions that produce that type together without manually re-checking the context at every step. That's genuinely useful on its own, independent of how deep the theory underneath it goes.
+
+## Synthesis: idioms you already had, now with names
+
+*Comparative Type Systems and Paradigms* ended by showing you that TypeScript's discriminated unions were OCaml's variant types, rebuilt on structural typing. This module ends the same way, pointed at different idioms you've already been using without the Haskell vocabulary for them:
+
+**`functools.reduce` is `foldl` with the arguments reordered.** You've had a generalized fold in Python the whole time — it's just not the first tool anyone reaches for, the way `foldr`/`foldl` are in Haskell:
+
+```python
+from functools import reduce
+
+total = reduce(lambda acc, x: acc + x, [1, 2, 3, 4, 5], 0)
+print(total)  # 15
+```
+
+Notice the shape: accumulator first, then element — that's the left-to-right associativity of `foldl`, not `foldr`. `reduce` *is* a left fold; Python just doesn't ask you to think about which direction you're folding from, because without laziness, the infinite-list case that makes the direction matter never comes up.
+
+**`functools.partial` is currying you have to ask for.** You already saw this directly in the currying section: Haskell gives you `addTax 0.08` as a specialized function for free, because every function is curried by default; Python gives you the same capability only once you import `partial` and say so explicitly. Same idea, opposite defaults.
+
+**Optional chaining and nullish coalescing are `Maybe`'s lightweight, non-monadic cousin.** `user?.address?.city ?? "Unknown"` in JavaScript short-circuits to `undefined` the moment any link in the chain is missing, and `??` supplies a fallback at the end — which is exactly the shape of chaining `Maybe`-returning functions and falling back on `Nothing`. The difference is that `?.`/`??` is a special piece of syntax built into the language for exactly this one case, where `Maybe` is an ordinary value of an ordinary type that you can pass around, store, and chain with the *same* general-purpose tool (`do`-notation/`>>=`) you'd use for any other monad — the pattern generalizes in Haskell in a way the JS syntax doesn't.
+
+**Python list comprehensions are a taste of the same declarative style Haskell lives in.** `[x * x for x in range(1, 6)]` describes *what* the result is — the squares of these numbers — rather than a loop that builds it up with mutation step by step. That's the same expression-oriented habit of mind this whole module has been building in Haskell, where `area shape`, `safeDivide x y`, and `foldr (+) 0 xs` are all just expressions that evaluate to a value, never statements that mutate something and leave no value behind.
+
+None of this means Python or JavaScript are "becoming Haskell." It means the ideas Haskell makes you confront head-on — fold instead of hand-rolled recursion, currying instead of fixed-arity calls, a disciplined absence-of-value instead of `None` checks sprinkled everywhere — are ideas your other languages already borrowed pieces of, usually as an opt-in feature bolted onto a different set of defaults. Seeing the Haskell version first is what lets you recognize the borrowed piece for what it is, the next time you run into it.
+
+## Exercise
+
+1. Write `safeSqrt :: Double -> Maybe Double` that returns `Nothing` for a negative input and `Just (sqrt x)` otherwise (use `sqrt :: Double -> Double` from the Prelude). Then write a function `safeDivideThenSqrt :: Double -> Double -> Maybe Double` that uses `do`-notation to divide its first two arguments with a `safeDivide`-style helper and then take the square root of the result, failing cleanly (as `Nothing`) if either step would fail. Test it against at least three inputs: one that succeeds, one that fails at the division step, and one that fails at the square-root step.
+2. Pick a small Python utility you've written earlier in this curriculum that sums, counts, or combines a list by hand with a loop. Rewrite it using `functools.reduce`, and rewrite a function that currently takes all its arguments at once to instead be used with `functools.partial` to produce a specialized version of itself. Run both versions side by side and confirm they agree.
+3. In GHCi, confirm that `foldr (+) 0 [1..5]` and `foldl (+) 0 [1..5]` both evaluate to `15`. Then, in your own words, write one paragraph explaining why that agreement tells you nothing about which fold is safer to use on a list of 50 million integers — and name the specific function from `Data.List` you'd reach for instead of plain `foldl` in that situation.
+4. Write a one-line Haskell expression that uses an infinite list and `take` to produce the first five positive multiples of 7 (for example, using a list comprehension with `mod` over `[1..]`), and verify the result in GHCi.
+
+## Check on learning
+
+- Explain, without referring back to this lesson, why `addTax 0.08` type-checks and produces a usable function on its own in Haskell, but `add_tax(0.08)` in Python (defined with two positional parameters and no `partial`) raises a `TypeError`. Name the specific property of Haskell's type signatures (`->` associativity) that makes this fall out automatically.
+- A teammate tells you "`foldr` is always safer than `foldl` because it doesn't build up a chain of thunks." Explain what's wrong with that claim, using the infinite-list case and the large-finite-list case to show that each fold has a different failure mode, not that one is simply safer.
+- Explain why `take 10 [1..]` returns normally in Haskell, but a literal translation of the same idea into Python (building the full list of all natural numbers, then taking the first ten) would never return. Use the word "lazy" correctly in your explanation — what specifically is being deferred, and until when?
+- Walk through what happens, step by step, when `calc 100 0 2` is evaluated for the `do`-notation `Maybe`-chaining example in this lesson. At which line does the computation actually stop, and what does it return — and how would the answer change if you used `Either String Int` instead of `Maybe Int` for the same scenario?
+

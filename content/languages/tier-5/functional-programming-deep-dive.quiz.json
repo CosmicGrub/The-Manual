@@ -1,0 +1,88 @@
+[
+  {
+    "id": "languages/tier-5/functional-programming-deep-dive/q1",
+    "type": "multiple_choice",
+    "prompt": "Given addTax :: Double -> Double -> Double, what is the actual, fully-parenthesized meaning of this type signature in Haskell?",
+    "choices": [
+      "Double -> (Double -> Double) -- a function taking one Double that returns a function from Double to Double",
+      "(Double -> Double) -> Double -- a function taking a function and returning a Double",
+      "Double -> Double -> Double is a single, non-decomposable three-part function type unique to multi-argument functions",
+      "It is equivalent to a Python function defined with *args, taking any number of Double arguments"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "languages/tier-5/functional-programming-deep-dive/q2",
+    "type": "multiple_choice",
+    "prompt": "In Python, functools.partial(add_tax, 0.08) and in Haskell, addTax 0.08, both produce a specialized one-argument function. What is the key difference between them that this module emphasizes?",
+    "choices": [
+      "There is no real difference -- both languages curry functions by default.",
+      "Haskell's version only works for numeric types, while Python's partial works for any type.",
+      "Haskell functions are curried by default, so addTax 0.08 is just ordinary function application; Python functions are not curried by default, so the same effect requires explicitly importing and calling functools.partial.",
+      "Python's partial mutates the original add_tax function, while Haskell's version does not."
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "languages/tier-5/functional-programming-deep-dive/q3",
+    "type": "short_answer",
+    "prompt": "What is the term for the property that a Haskell function called with the same arguments is guaranteed to always return the same result, with no dependence on mutable external state?",
+    "acceptedAnswers": [
+      "referential transparency",
+      "referentially transparent",
+      "referential transparency / purity",
+      "purity"
+    ]
+  },
+  {
+    "id": "languages/tier-5/functional-programming-deep-dive/q4",
+    "type": "multiple_choice",
+    "prompt": "Why does `take 10 (foldr (:) [] [1..])` return a 10-element list instead of hanging forever, even though [1..] is an infinite list?",
+    "choices": [
+      "GHC detects infinite lists at compile time and automatically truncates them.",
+      "foldr never actually processes infinite lists; [1..] is secretly finite in GHCi.",
+      "(:) does not need its second argument to produce the first part of its result, so foldr can hand back cons cells incrementally, and take 10 only ever demands the first ten.",
+      "foldr converts the list to a strict array before processing, which bounds it automatically."
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "languages/tier-5/functional-programming-deep-dive/q5",
+    "type": "multiple_choice",
+    "prompt": "Which statement about foldl and stack overflows on a very large finite list is accurate?",
+    "choices": [
+      "foldl never risks a stack overflow under any circumstances because it is tail-recursive at the level of function calls.",
+      "The plain (lazy-accumulator) Prelude foldl can build a long chain of unevaluated thunks that overflows the stack only when that chain is finally forced; Data.List's strict foldl' avoids this by forcing the accumulator at every step.",
+      "foldl always overflows the stack on any list longer than 1000 elements, regardless of which version is used.",
+      "foldl cannot be used on numeric lists at all; it only works on lists of lists."
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "languages/tier-5/functional-programming-deep-dive/q6",
+    "type": "short_answer",
+    "prompt": "In the Maybe do-notation example (calc a b c using safeDivide), what single value does calc 100 0 2 evaluate to, and why does it stop at that point rather than continuing to the second safeDivide call?",
+    "acceptedAnswers": [
+      "Nothing, because safeDivide 100 0 returns Nothing and the do-block short-circuits",
+      "Nothing",
+      "It returns Nothing because dividing by zero in the first step produces Nothing, which short-circuits the rest of the do block"
+    ]
+  },
+  {
+    "id": "languages/tier-5/functional-programming-deep-dive/q7",
+    "type": "multiple_choice",
+    "prompt": "What is the key difference between Maybe and Either as used for error handling in Haskell?",
+    "choices": [
+      "Maybe can be chained with do-notation but Either cannot.",
+      "Either is strictly faster than Maybe at runtime.",
+      "Nothing (Maybe's failure case) carries no information about why something failed, while Left (Either's failure case) carries an explicit error value.",
+      "Maybe is only usable with Int values, while Either works with any type."
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "languages/tier-5/functional-programming-deep-dive/q8",
+    "type": "explain_back",
+    "prompt": "In your own words, explain why Haskell's lazy evaluation makes `take 10 [1..]` work, and explain why the literal equivalent of 'build the whole infinite list first, then take 10 elements' would never finish in a strict language like Python without generators. Then explain how this connects to the fact that foldr can process infinite lists but foldl cannot."
+  }
+]
