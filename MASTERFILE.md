@@ -200,11 +200,11 @@ A deliberate polyglot path from absolute-beginner terminal literacy to research-
 
 ### Software Engineering & Architecture
 
-_Full tier-by-tier syllabus: [`docs/curriculum/software-engineering.md`](./docs/curriculum/software-engineering.md) (~269 estimated hours across all 6 tiers)_
+_Full tier-by-tier syllabus: [`docs/curriculum/software-engineering.md`](./docs/curriculum/software-engineering.md) (~279 estimated hours across all 6 tiers)_
 
-This track is where "I can write code" turns into "I can build and maintain systems other people (or future-you) can trust." It covers version control as a real collaboration discipline, testing (unit/integration/e2e/TDD) as a design tool, SOLID and clean/hexagonal architecture, relational and NoSQL data modeling, API design, code review as a practiced craft, and system design fundamentals up through distributed-systems thinking. Tier 0 is intentionally light — general terminal/file/variable literacy is owned by CS Foundations. Tier 5's assessment shifts deliberately from quizzes to portfolio/peer/upstream-maintainer review. Throughout, this track is the connective tissue for the other seven: it turns raw language syntax and algorithms into maintainable systems, and makes the AI/ML track's "have the AI write the code" workflows safe rather than reckless.
+This track is where "I can write code" turns into "I can build and maintain systems other people (or future-you) can trust." It covers version control as a real collaboration discipline, testing (unit/integration/e2e/TDD) as a design tool, SOLID and clean/hexagonal architecture, relational and NoSQL data modeling, API design, code review as a practiced craft, and system design fundamentals up through distributed-systems thinking. Tier 0 is intentionally light — general terminal/file/variable literacy is owned by CS Foundations. Tier 1 closes with a Technical Writing & Communication module that names the transferable skill (audience analysis, leading with the answer, concrete/falsifiable language) already quietly at work in Tier 0's bug-report example and this tier's own PR-description example, then applies it to a real README for the tier's checkpoint — closing the curriculum-wide "writing only exists as scattered artifact requirements" gap with one canonical home other tracks' artifact requirements can point back to. Tier 5's assessment shifts deliberately from quizzes to portfolio/peer/upstream-maintainer review. Throughout, this track is the connective tissue for the other seven: it turns raw language syntax and algorithms into maintainable systems, and makes the AI/ML track's "have the AI write the code" workflows safe rather than reckless.
 
-*Modules per tier — T0: 4 modules · T1: 6 modules · T2: 6 modules · T3: 7 modules · T4: 6 modules · T5: 5 modules*
+*Modules per tier — T0: 4 modules · T1: 7 modules · T2: 6 modules · T3: 7 modules · T4: 6 modules · T5: 5 modules*
 
 ### Hardware & Computer Systems
 
@@ -254,7 +254,7 @@ Closes two things at once: it teaches the learner to defend their own accounts a
 
 *Modules per tier — T0: 4 modules · T1: 6 modules · T2: 5 modules · T3: 6 modules · T4: 6 modules · T5: 4 modules*
 
-**Total estimated content:** ~3,747 hours across all 9 tracks (~3,202h across the original 8 after the de-duplication pass in §4.5, plus ~516h for the added Cybersecurity & Ethical Hacking track, plus +3h for the 2026-10-04 math-spine extension to CS Foundations Tiers 1 & 3, plus +12h for the 2026-10-17 UX/UI & Product Design Fundamentals module added to Platforms Tier 1, plus +14h for the 2026-10-17 Data Literacy & Applied Statistics module added to CS Foundations Tier 1 — see CHANGELOG). At a sustainable 10-15 hrs/week self-study pace, that's roughly 5-7 years to run every track to Tier 5 uniformly; §4.6's recommended path gets real AI + cross-platform competence in Year 1-2 instead, with full depth (including security specialization) added by choice afterward.
+**Total estimated content:** ~3,757 hours across all 9 tracks (~3,202h across the original 8 after the de-duplication pass in §4.5, plus ~516h for the added Cybersecurity & Ethical Hacking track, plus +3h for the 2026-10-04 math-spine extension to CS Foundations Tiers 1 & 3, plus +12h for the 2026-10-17 UX/UI & Product Design Fundamentals module added to Platforms Tier 1, plus +14h for the 2026-10-17 Data Literacy & Applied Statistics module added to CS Foundations Tier 1, plus +10h for the 2026-10-17 Technical Writing & Communication module added to Software Engineering Tier 1 — see CHANGELOG). At a sustainable 10-15 hrs/week self-study pace, that's roughly 5-7 years to run every track to Tier 5 uniformly; §4.6's recommended path gets real AI + cross-platform competence in Year 1-2 instead, with full depth (including security specialization) added by choice afterward.
 
 ---
 
@@ -296,7 +296,7 @@ _You asked for a concrete recommendation rather than choosing the sequencing you
 
 **Cybersecurity & Ethical Hacking's place in this path:** its Tier 0 (personal digital security & privacy literacy) is worth doing early, alongside Phase 1 — like AI/ML's Tier 0, it's light and doesn't assume anything from this phase. Tiers 1-5 (the actual white-hat progression) are a genuine third specialization option alongside the AI/ML + Platforms pair recommended above; pick it up in Phase 3 if security is a real interest, not as a default.
 
-**Deferred / opportunistic:** Hardware Systems and DevOps Tiers 3-5, Cybersecurity Tiers 1-5 (unless chosen as a specialization), and any track's Tier 5, are worth pursuing only where they match genuine interest or a chosen specialization — not as a uniform finish line. At ~3,747 total hours across 9 tracks, running all of them to Tier 5 is a multi-year undertaking; this path is designed to get real AI + cross-platform building competence in Year 1-2, with depth (security included) added by choice afterward.
+**Deferred / opportunistic:** Hardware Systems and DevOps Tiers 3-5, Cybersecurity Tiers 1-5 (unless chosen as a specialization), and any track's Tier 5, are worth pursuing only where they match genuine interest or a chosen specialization — not as a uniform finish line. At ~3,757 total hours across 9 tracks, running all of them to Tier 5 is a multi-year undertaking; this path is designed to get real AI + cross-platform building competence in Year 1-2, with depth (security included) added by choice afterward.
 
 ---
 

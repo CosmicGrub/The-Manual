@@ -45,9 +45,9 @@ This track is where "I can write code" turns into "I can build and maintain syst
 
 ## Tier 1: Foundations
 
-**Goal:** Build the core, tightly-scaffolded vocabulary and mechanics of software engineering: real git collaboration workflows, the basics of automated testing, clean small-scale code, relational databases and SQL, and building/consuming a REST API. Every module here has heavy guardrails — the point is repetition of correct mechanics, not independent judgment yet.
+**Goal:** Build the core, tightly-scaffolded vocabulary and mechanics of software engineering: real git collaboration workflows, the basics of automated testing, clean small-scale code, relational databases and SQL, building/consuming a REST API, and — closing the tier — the transferable technical-writing judgment that turns "I wrote a README" into "I wrote a README someone can actually act on." Every module here has heavy guardrails — the point is repetition of correct mechanics, not independent judgment yet.
 
-**Modules** (~37h):
+**Modules** (~47h):
 
 - **Git Deep Dive: Branching, Merging & Collaboration** — ~6h: Feature branches; merge vs. rebase, Resolving merge conflicts by hand, Pull requests and review etiquette, Issues, labels, and linking commits to issues
 - **Intro to Automated Testing** — ~6h: (canonical testing/TDD-philosophy module for The Manual — Language Mastery's testing content is runner-syntax only and points here for philosophy) What a unit test is and why manual testing doesn't scale, Arrange-Act-Assert pattern, Using a real test runner (pytest, Jest, or JUnit), First look at test doubles: stub vs. mock
@@ -55,19 +55,21 @@ This track is where "I can write code" turns into "I can build and maintain syst
 - **Relational Databases & SQL Fundamentals** — ~8h: (canonical SQL module for The Manual — see MASTERFILE.md §4.5; Language Mastery's Tier 2 only covers calling SQL from a driver/ORM and points here for query/schema depth) Tables, rows, primary/foreign keys, SELECT / WHERE / JOIN / GROUP BY / ORDER BY, Normalization basics (1NF-3NF), Using a real client (psql/DBeaver) against a local Postgres or SQLite DB
 - **Building & Consuming a Basic REST API** — ~8h: (this module's HTTP coverage is for API-building purposes only; for the TCP/IP/DNS protocol theory underneath, see Hardware & Computer Systems Tier 3, the canonical deep networking module) HTTP verbs, status codes, headers, JSON, Calling a public API from code, Building a minimal CRUD API (Flask or Express), Basic request validation and error responses
 - **Intro to NoSQL** — ~4h: Document stores vs. relational tables, When to reach for NoSQL vs. SQL, Basic CRUD in MongoDB, Schema-on-read vs. schema-on-write
+- **Technical Writing & Communication** — ~10h: (canonical technical-writing module for The Manual — names the transferable skill underneath artifacts already seen in this track's own Tier 0 bug-report example and this tier's PR-description example, rather than re-teaching either) audience analysis across three real readers for the same fact, structure via leading with the answer (a full before/after), line-by-line clarity editing (passive voice, weasel words, nominalizations), and applying all of it to write a real good-vs-bad README for the tier's own checkpoint API
 
 **Quizzes / assessment:**
 
-- *Micro-quizzes (5-10 Q, auto-gradable, spaced-repetition eligible)* — Per module: SQL clause ordering and JOIN semantics, HTTP status code meanings, git command recall.
+- *Micro-quizzes (5-10 Q, auto-gradable, spaced-repetition eligible)* — Per module: SQL clause ordering and JOIN semantics, HTTP status code meanings, git command recall, and (for the technical-writing module) spotting passive voice/weasel words and picking the lead-with-the-answer version of a paragraph.
 - *Bug hunt / code-review kata* — Given a small snippet with a planted bug (off-by-one loop, unescaped SQL string concatenation, wrong HTTP status code), find and fix it, then explain in one sentence why it was wrong.
 - *Spaced-repetition flashcard deck* — SQL syntax patterns, HTTP status code families (2xx/3xx/4xx/5xx), and core git commands.
 
-**Checkpoint project:** Build a small full-CRUD "Task Tracker" API backed by a relational database: git history shows at least one feature-branch workflow with a self-reviewed pull request (using a written self-review checklist even solo); a test suite covers the core business logic with meaningful assertions (not just "it doesn't crash"); a README documents every endpoint, its inputs, and its status codes.
+**Checkpoint project:** Build a small full-CRUD "Task Tracker" API backed by a relational database: git history shows at least one feature-branch workflow with a self-reviewed pull request (using a written self-review checklist even solo); a test suite covers the core business logic with meaningful assertions (not just "it doesn't crash"); a README documents every endpoint, its inputs, and its status codes — written using the technical-writing module's own audience/structure/clarity checks, not just "some text that technically describes the API."
 
 **Creative teaching methods:**
 
 - Bug hunt / code-review kata using an intentionally broken snippet (e.g., a SQL-injection-shaped string concatenation) planted by the instructor/self.
 - Prompting drill: ask an AI to generate unit tests for a function you wrote, then manually try to break the function in a way the AI's tests fail to catch — this ties testing literacy directly to critical evaluation of AI output.
+- Rewrite-it-concrete drill: take three sentences from your own past PR descriptions or commit messages, apply the technical-writing module's clarity checklist to each, and compare the before/after side by side — the same self-audit habit as the bug-hunt kata, aimed at your own prose instead of someone else's code.
 
 **Curated resources:**
 
@@ -77,6 +79,8 @@ This track is where "I can write code" turns into "I can build and maintain syst
 - [freeCodeCamp — Relational Database Certification](https://www.freecodecamp.org/learn/relational-database/) — Free, hands-on PostgreSQL certification track with real terminal exercises.
 - [Pro Git — Ch. 3 (Branching) & Ch. 6 (GitHub Basics)](https://git-scm.com/book/en/v2) — Deeper branching/merging mechanics beyond Tier 0.
 - [MongoDB University — M001: MongoDB Basics](https://learn.mongodb.com/courses/m001-mongob-basics) — Free official MongoDB course; ~8.5 hours, covers documents, CRUD, and Atlas.
+- [Google Developer Documentation Style Guide — Highlights](https://developers.google.com/style/highlights) — Free, official; the real style guide professional technical writers use, condensed to its most load-bearing rules.
+- [Write the Docs — Documentation Guide](https://www.writethedocs.org/guide/) — Free, community-maintained guide covering READMEs, audience analysis, and writing for different reader types.
 
 ---
 
