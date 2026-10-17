@@ -1,0 +1,33 @@
+[
+  {
+    "id": "cs-foundations/tier-4/concurrency-and-parallelism-fundamentals/s1",
+    "title": "Dijkstra and the First Mutual-Exclusion Primitives (mid-1960s)",
+    "domain": "history",
+    "explainer": "In a one-page 1965 paper, Edsger Dijkstra posed the 'mutual exclusion problem' for cooperating processes and gave one of the first published solutions, introducing ideas like the critical section that this lesson builds on. Around the same time he and colleagues introduced the semaphore, built into an operating system they wrote for the Electrologica X8 computer, whose P and V operations (from the Dutch for 'test' and 'increment') are still the textbook primitive for safely sharing a resource among concurrent processes.",
+    "resources": [
+      {
+        "title": "Semaphore (programming)",
+        "url": "https://en.wikipedia.org/wiki/Semaphore_(programming)",
+        "source": "Wikipedia"
+      },
+      {
+        "title": "Edsger W. Dijkstra",
+        "url": "https://en.wikipedia.org/wiki/Edsger_W._Dijkstra",
+        "source": "Wikipedia"
+      }
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-4/concurrency-and-parallelism-fundamentals/s2",
+    "title": "The Dining Philosophers Problem (1965)",
+    "domain": "history",
+    "explainer": "Dijkstra devised this problem in 1965 as a teaching exercise, originally framed around computers competing for tape drives; Tony Hoare later recast it as philosophers sharing forks and gave it its familiar name. It remains the standard toy example for deadlock, since a naive solution where each philosopher grabs forks greedily can leave every philosopher holding one fork and waiting forever for the other.",
+    "resources": [
+      {
+        "title": "Dining philosophers problem",
+        "url": "https://en.wikipedia.org/wiki/Dining_philosophers_problem",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

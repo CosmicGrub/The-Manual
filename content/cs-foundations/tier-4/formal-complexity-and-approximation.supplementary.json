@@ -1,0 +1,33 @@
+[
+  {
+    "id": "cs-foundations/tier-4/formal-complexity-and-approximation/s1",
+    "title": "Cook, Levin, and Karp: The Birth of NP-Completeness (1971-72)",
+    "domain": "math",
+    "explainer": "In 1971 Stephen Cook proved that Boolean satisfiability (SAT) is NP-complete, showing every problem in NP can be reduced to it in polynomial time; Leonid Levin independently proved the same result in the Soviet Union around the same time, which is why it is called the Cook-Levin theorem. Richard Karp's 1972 paper then showed that 21 other practical problems were also NP-complete, turning the idea from an isolated curiosity into the organizing framework behind the hardness results this lesson covers.",
+    "resources": [
+      {
+        "title": "Cook–Levin theorem",
+        "url": "https://en.wikipedia.org/wiki/Cook%E2%80%93Levin_theorem",
+        "source": "Wikipedia"
+      },
+      {
+        "title": "Lecture 15: NP-Completeness (18.404J Theory of Computation, Fall 2020)",
+        "url": "https://ocw.mit.edu/courses/18-404j-theory-of-computation-fall-2020/resources/mit18_404f20_lec15-1",
+        "source": "MIT OpenCourseWare"
+      }
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-4/formal-complexity-and-approximation/s2",
+    "title": "Christofides and the Approximation-Algorithms Tradition (1976)",
+    "domain": "math",
+    "explainer": "When a problem is NP-hard, one practical response is to accept a provably good approximate answer instead of an exact one. Nicos Christofides' 1976 algorithm for the metric traveling salesman problem guarantees a tour no more than 1.5 times the optimal length, and for the general problem that worst-case guarantee went essentially unbeaten for decades - a concrete historical illustration of the approximation-ratio thinking this lesson introduces.",
+    "resources": [
+      {
+        "title": "Christofides algorithm",
+        "url": "https://en.wikipedia.org/wiki/Christofides_algorithm",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

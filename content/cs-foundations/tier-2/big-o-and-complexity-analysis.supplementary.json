@@ -1,0 +1,33 @@
+[
+  {
+    "id": "cs-foundations/tier-2/big-o-and-complexity-analysis/s1",
+    "title": "Bachmann, Landau, and the Origin of Big-O Notation",
+    "domain": "history",
+    "explainer": "Big-O notation didn't start in computer science: the German mathematician Paul Bachmann introduced the 'O' notation in 1894 to describe growth rates in number theory, and Edmund Landau popularized and put it on a formal footing in 1909 (which is why it's sometimes called a 'Landau symbol'). Computer scientists borrowed this decades-old mathematical notation wholesale in the 1960s-70s to describe algorithm running time rather than inventing a new one. It's a useful reminder that the 'shape' of growth rates was a mathematical concern long before computers existed to run the algorithms.",
+    "resources": [
+      {
+        "title": "Big O notation",
+        "url": "https://en.wikipedia.org/wiki/Big_O_notation",
+        "source": "Wikipedia"
+      },
+      {
+        "title": "Math Origins: Orders of Growth",
+        "url": "https://old.maa.org/press/periodicals/convergence/math-origins-orders-of-growth",
+        "source": "Mathematical Association of America (MAA Convergence)"
+      }
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-2/big-o-and-complexity-analysis/s2",
+    "title": "Cobham's Thesis: Defining 'Efficient' Before It Could Be Tested",
+    "domain": "math",
+    "explainer": "In the mid-1960s, Alan Cobham and (independently) Jack Edmonds proposed what's now called the Cobham-Edmonds thesis: that a problem should count as 'efficiently' or 'feasibly' solvable only if some algorithm solves it in polynomial time. That was a deliberate definitional choice, not a discovered law, and it's exactly the line a complexity-analysis class draws when it treats O(n^2) as 'fine' and O(2^n) as 'intractable.' It's also the historical seed that later grew into the P vs NP question.",
+    "resources": [
+      {
+        "title": "Cobham's thesis",
+        "url": "https://en.wikipedia.org/wiki/Cobham's_thesis",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

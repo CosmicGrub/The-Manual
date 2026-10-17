@@ -1,0 +1,28 @@
+[
+  {
+    "id": "cs-foundations/tier-0/git-day-zero/s1",
+    "title": "Linus Torvalds, BitKeeper, and the Creation of Git (2005)",
+    "domain": "history",
+    "explainer": "Git exists because of a licensing dispute: the Linux kernel team had been using a proprietary tool called BitKeeper, and when its free-of-charge terms for the project broke down in 2005, Linus Torvalds wrote a replacement version control system from scratch in about ten days. That origin explains some of Git's otherwise unusual design choices, especially its insistence on being fully distributed rather than depending on one central company's server.",
+    "resources": [
+      {
+        "title": "Git",
+        "url": "https://en.wikipedia.org/wiki/Git",
+        "source": "Wikipedia"
+      }
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-0/git-day-zero/s2",
+    "title": "Why Git Identifies Everything by a Hash, Not a Number",
+    "domain": "math",
+    "explainer": "Every object Git stores, whether a file, a commit, or an entire project snapshot, is named by a cryptographic hash of its own content (historically SHA-1) rather than by a sequential ID. This 'content-addressable' design means identical content always gets the same name and any change, even one flipped bit, produces a completely different hash, which is what lets Git detect corruption and lets two people's independent histories be compared and merged safely.",
+    "resources": [
+      {
+        "title": "SHA-1",
+        "url": "https://en.wikipedia.org/wiki/SHA-1",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

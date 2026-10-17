@@ -1,0 +1,20 @@
+[
+  {
+    "id": "cs-foundations/tier-1/working-with-text-and-files/s1",
+    "title": "ASCII, Unicode, and Why `encoding=` Exists",
+    "domain": "history",
+    "explainer": "Every text file on a computer is really just a sequence of bytes — it only becomes readable text because of a character encoding, a lookup table mapping those bytes to letters and symbols. The first widely used one, ASCII, was standardized in the early 1960s and covered only 128 characters, basically the English alphabet, digits, and punctuation, so it couldn't represent most of the world's languages. That's why the Unicode Consortium developed Unicode, releasing its first version in 1991 as a far larger standard built to stay backward-compatible with ASCII while covering virtually every script in use — and it's why `open()` sometimes needs an explicit `encoding=` argument today.",
+    "resources": [
+      {
+        "title": "ASCII",
+        "url": "https://en.wikipedia.org/wiki/ASCII",
+        "source": "Wikipedia"
+      },
+      {
+        "title": "Unicode",
+        "url": "https://en.wikipedia.org/wiki/Unicode",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]
