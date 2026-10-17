@@ -164,9 +164,9 @@ This track takes a learner from "what is a bit, physically" to designing their o
 
 ## Tier 4: Advanced / Specialist
 
-**Goal:** By the end of Tier 4 the learner does genuine specialization: reasoning at the microarchitecture level (pipelining, branch prediction, out-of-order execution), understanding cache coherence and memory consistency well enough to find and fix real performance bugs, profiling and optimizing code with production tools, programming bare-metal embedded systems with no vendor SDK, and — critically — has submitted a real patch to an open-source kernel, RTOS, or toolchain project. This is the tier where 'contributing to a larger system' stops being aspirational and becomes a checkpoint requirement.
+**Goal:** By the end of Tier 4 the learner does genuine specialization: reasoning at the microarchitecture level (pipelining, branch prediction, out-of-order execution), understanding cache coherence and memory consistency well enough to find and fix real performance bugs, profiling and optimizing code with production tools, programming bare-metal embedded systems with no vendor SDK, writing a real GPU kernel to feel data-parallel hardware directly rather than conceptually, and — critically — has submitted a real patch to an open-source kernel, RTOS, or toolchain project. This is the tier where 'contributing to a larger system' stops being aspirational and becomes a checkpoint requirement.
 
-**Modules** (~118h):
+**Modules** (~136h):
 
 - **CPU Microarchitecture: Pipelining to Out-of-Order Execution** — ~20h: pipeline hazards, branch prediction, superscalar and out-of-order execution, speculative execution and why Spectre/Meltdown exist
 - **Cache Coherence & Memory Consistency** — ~15h: the MESI protocol, false sharing, memory ordering and fences, sequential vs. relaxed consistency models
@@ -174,6 +174,7 @@ This track takes a learner from "what is a bit, physically" to designing their o
 - **Bare-Metal Embedded Systems** — ~25h: Cortex-M programming with no vendor HAL, linker scripts, assembly startup code, memory-mapped I/O straight from the datasheet, hand-built interrupt vector tables
 - **Contributing to a Real Open-Source Systems Project** — ~25h: finding a 'good first issue' in Linux, U-Boot, Zephyr, or a RISC-V toolchain, the project's contribution workflow (mailing list or PR), getting real review feedback
 - **Advanced Networking: Beyond the Basics** — ~15h: TCP congestion control internals (Reno/CUBIC/BBR), the TLS handshake, NAT and load balancing, a tiny userspace TCP stack or raw-socket mini-router
+- **General-Purpose GPU Compute with CUDA** — ~18h: SIMT vs. the SIMD model already built in Performance Engineering (warps, warp divergence), the thread/block/grid launch hierarchy via Numba's `@cuda.jit` on Google Colab's free GPU tier (no local GPU or paid SDK required), porting the exact same SAXPY kernel already benchmarked on AVX2 (2.33x speedup, ~0.17 FLOPs/byte, memory-bound) to a real GPU kernel, global-vs-shared memory and memory coalescing, an honest CPU-vs-GPU benchmark that doesn't dodge the real result that launch/transfer overhead can make a small GPU kernel slower than AVX2, and a synthesis connecting back to CS Foundations' multi-GPU all-reduce communication ceiling and the frontier module's own stated FlashAttention-kernel limitation
 
 **Quizzes / assessment:**
 
@@ -181,6 +182,7 @@ This track takes a learner from "what is a bit, physically" to designing their o
 - *Bug hunt* — Given C code that produces correct output but terrible performance due to false sharing, find and fix it using profiling data, not guesswork.
 - *Explain it back* — Teach back why Spectre and Meltdown work, at a level a security-conscious non-specialist engineer could follow.
 - *Prompting drill* — Use an AI to help interpret a perf flame graph and hot-loop disassembly and to propose a SIMD rewrite, then benchmark to confirm the suggestion actually helped (or diagnose why it didn't).
+- *Real GPU benchmark, both directions* — Run the same SAXPY kernel on a real Colab GPU across at least three array sizes and report where the GPU version crosses over from slower than AVX2 to faster — a single "GPU wins" claim at one size doesn't count.
 
 **Checkpoint project:** Two parts. (1) Take CPU-bound code from earlier in this curriculum, profile it with perf, identify a real cache/branch/SIMD bottleneck, fix it, and document a measured speedup with before/after flame graphs or perf stat numbers — no unverified claims. (2) Submit one real patch to an open-source systems project (a Linux 'good first issue' via kernelnewbies.org, Zephyr RTOS, U-Boot, or a RISC-V toolchain), and show the submission, the review feedback received, and your response to it — merged or not.
 
@@ -189,6 +191,7 @@ This track takes a learner from "what is a bit, physically" to designing their o
 - Bug hunt / code-review kata on real performance bugs (false sharing, cache-unfriendly layouts)
 - Portfolio artifact requirement: the real open-source patch (merged, or submitted with review feedback) as the tier's centerpiece
 - Build-then-break: write a lock-free-looking data structure, then have a later/adversarial pass try to construct a breaking interleaving using ThreadSanitizer
+- Build-then-break on a GPU kernel: deliberately write a warp-divergent branch into a toy kernel, predict the performance cost before measuring, then confirm or correct the prediction with a real benchmark
 
 **Curated resources:**
 
@@ -198,6 +201,8 @@ This track takes a learner from "what is a bit, physically" to designing their o
 - [kernelnewbies.org](https://kernelnewbies.org/) — The standard free on-ramp for real Linux kernel contribution, including a curated 'good first bug' list.
 - [Zephyr Project documentation](https://docs.zephyrproject.org/) — Official docs and contribution guide for a real, industry-used embedded RTOS.
 - [RFC 5681 — TCP Congestion Control](https://www.rfc-editor.org/rfc/rfc5681) — Primary-source reading for the advanced networking module, paired with Stanford CS144's later units.
+- [NVIDIA — CUDA C++ Programming Guide](https://docs.nvidia.com/cuda/cuda-c-programming-guide/) — Official, free reference for the thread/block/grid model and memory hierarchy underneath Numba's `@cuda.jit`.
+- [Numba — CUDA Python Documentation](https://numba.readthedocs.io/en/stable/cuda/index.html) — Official, free docs for the actual Python-native CUDA API this module teaches.
 
 ---
 
