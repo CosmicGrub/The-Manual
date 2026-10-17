@@ -1,0 +1,86 @@
+[
+  {
+    "id": "hardware-systems/tier-4/general-purpose-gpu-compute-with-cuda/q1",
+    "type": "multiple_choice",
+    "prompt": "What is the key structural difference between the CPU's AVX2 SIMD model (used for SAXPY's 2.33x speedup in the Performance Engineering module) and a GPU's SIMT model?",
+    "choices": [
+      "AVX2 applies one instruction to a fixed number of lanes in a single wide register in perfect lockstep, while SIMT schedules thousands of independent threads grouped into 32-thread warps, with many warps per streaming multiprocessor swapped in and out to hide memory latency",
+      "SIMD and SIMT are simply two names for the identical hardware mechanism, differing only in register width",
+      "SIMD uses threads that can diverge, while SIMT uses fixed-width registers that cannot",
+      "SIMT executes one thread at a time with no parallelism, while SIMD executes many threads concurrently"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-4/general-purpose-gpu-compute-with-cuda/q2",
+    "type": "multiple_choice",
+    "prompt": "A warp's 32 threads hit an if/else where 16 threads take the if branch and 16 take the else branch. What actually happens on the hardware?",
+    "choices": [
+      "The warp executes both branches serially, one after the other, masking off the inactive threads on each pass, so the warp pays for the sum of both branches' cost",
+      "The warp splits into two independent 16-thread warps that execute the two branches fully in parallel",
+      "Only the threads that reached the branch first actually execute; the other half are permanently skipped",
+      "There is no performance cost at all, since every thread has its own program counter and executes fully independently of the others"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-4/general-purpose-gpu-compute-with-cuda/q3",
+    "type": "short_answer",
+    "prompt": "In a Numba @cuda.jit kernel, what single line of code computes a thread's global 1D index for a 1D problem — the equivalent of blockIdx.x * blockDim.x + threadIdx.x in raw CUDA C?",
+    "acceptedAnswers": [
+      "idx = cuda.grid(1)",
+      "cuda.grid(1)",
+      "idx=cuda.grid(1)"
+    ]
+  },
+  {
+    "id": "hardware-systems/tier-4/general-purpose-gpu-compute-with-cuda/q4",
+    "type": "short_answer",
+    "prompt": "With n = 1,000,000 elements and threads_per_block = 256, what is blocks_per_grid using the standard ceiling-division launch pattern (n + threads_per_block - 1) // threads_per_block?",
+    "acceptedAnswers": [
+      "3907",
+      "3,907"
+    ]
+  },
+  {
+    "id": "hardware-systems/tier-4/general-purpose-gpu-compute-with-cuda/q5",
+    "type": "multiple_choice",
+    "prompt": "Why is SAXPY's access pattern (thread i reads x[i] and y[i], writes y[i]) naturally memory-coalesced on a GPU?",
+    "choices": [
+      "Consecutive threads in a warp access consecutive memory addresses, so the hardware can service the whole warp's request in one or a few wide memory transactions instead of many separate narrow ones",
+      "Coalescing only applies to shared memory, and SAXPY's kernel never touches shared memory at all",
+      "Every thread in the warp reads the exact same array element, so there is nothing to coalesce",
+      "Coalescing is guaranteed for 32-bit float arrays specifically and would not occur if the arrays used 64-bit doubles"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-4/general-purpose-gpu-compute-with-cuda/q6",
+    "type": "explain_back",
+    "prompt": "Explain in your own words why a GPU version of SAXPY can actually be slower than the 2.33x AVX2 CPU version at a modest array size, but faster at a much larger array size. Name the two fixed costs that dominate at small sizes, and explain concretely why they get amortized away as the array size grows."
+  },
+  {
+    "id": "hardware-systems/tier-4/general-purpose-gpu-compute-with-cuda/q7",
+    "type": "multiple_choice",
+    "prompt": "A team scales a training job from 1 GPU to 8 GPUs and sees throughput improve by roughly 3x, not 8x. Per the gradient-synchronization mechanism covered in CS Foundations' Concurrency & Parallelism module, what is the most likely real-world explanation?",
+    "choices": [
+      "Gradient synchronization across GPUs (an all-reduce, implemented by NVIDIA's NCCL under PyTorch's DistributedDataParallel) is communication-bound, not compute-bound, so adding more GPUs adds proportionally more synchronization overhead without proportionally more useful compute throughput",
+      "Every additional GPU necessarily runs at a slower clock speed than the first one in the system",
+      "CUDA kernels are hard-capped at 4-way parallelism across devices regardless of warp configuration",
+      "The Numba CUDA simulator throttles simulated throughput once more than one GPU is detected"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "hardware-systems/tier-4/general-purpose-gpu-compute-with-cuda/q8",
+    "type": "multiple_choice",
+    "prompt": "Having written one real @cuda.jit SAXPY kernel in this module, which statement most honestly describes its relationship to a real, fused FlashAttention CUDA kernel?",
+    "choices": [
+      "It's a genuine prerequisite step: the thread/block/grid hierarchy and the global-vs-shared-memory distinction are foundational skills a FlashAttention kernel also relies on, but SAXPY's simple elementwise access pattern never required the cooperative shared-memory tiling across blocks that FlashAttention's kernel actually uses",
+      "This module's SAXPY kernel already implements the core of FlashAttention's tiling and online-softmax algorithm, just on smaller arrays",
+      "FlashAttention's real-world speed has nothing to do with CUDA kernels, memory hierarchy, or shared memory",
+      "There is no meaningful connection between SAXPY and FlashAttention; they share no underlying GPU programming skill"
+    ],
+    "correctIndex": 0
+  }
+]

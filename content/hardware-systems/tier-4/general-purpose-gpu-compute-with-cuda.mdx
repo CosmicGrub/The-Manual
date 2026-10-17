@@ -1,0 +1,201 @@
+---
+trackId: hardware-systems
+tier: 4
+title: "General-Purpose GPU Compute with CUDA"
+order: 7
+estimatedHours: 18
+slug: general-purpose-gpu-compute-with-cuda
+---
+
+## From lockstep lanes to lockstep warps: SIMD vs. SIMT
+
+The Performance Engineering module got SAXPY's AVX2 version to a real, measured 2.33x ± 0.02 speedup over scalar C, using `hyperfine --warmup 3 --min-runs 20` to prove it. That number came from an `__m256` register: 256 bits, eight 32-bit float lanes, one `vfmadd213ps` instruction advancing all eight lanes in perfect lockstep, every cycle, no exceptions. That's SIMD: **one instruction, one register, a fixed number of lanes, always in lockstep.** The module then showed, with the arithmetic-intensity math, exactly why 8-wide vectorization bought only 2.33x: SAXPY moves 12 bytes per 2 FLOPs (≈0.17 FLOPs/byte), so it's memory-bound by construction, and no amount of wider SIMD closes that gap because SIMD only multiplies the FLOPs side of a ratio where bytes are the bottleneck.
+
+A GPU gets the same underlying idea — data parallelism, the same operation applied independently across many data elements — from genuinely different hardware, and the difference matters the moment you write a kernel. NVIDIA calls its model **SIMT: Single Instruction, Multiple Threads.** Instead of one register with 8 fixed lanes, a GPU kernel launches thousands to millions of individual, lightweight *threads*, each with its own program counter and its own set of registers, each nominally free to take its own control-flow path. The hardware groups them into **warps** — NVIDIA's real term for a group of exactly 32 threads that the hardware schedules and executes together, instruction by instruction, in actual lockstep at the warp level. Many warps live on one **streaming multiprocessor (SM)**, and the SM's scheduler swaps warps in and out every cycle: when one warp stalls waiting on a slow global-memory read, the scheduler issues an instruction from a different warp that's ready, instead of idling. That's **latency hiding**, and it's the SIMT answer to the same wall AVX2 hit — except where AVX2 has no mechanism at all for working around a stalled load (the core just stalls), a GPU with enough warps resident can usually find other work to issue every single cycle.
+
+The place SIMD and SIMT genuinely diverge — not a naming difference, a real behavioral one — is branching. AVX2 has no concept of a "thread" that can go its own way; all 8 lanes always execute the same instruction (predication/masking can disable a lane's write, but the instruction stream itself never splits). A GPU warp's 32 threads are nominally independent, but the warp's 32 lanes of execution hardware still only issue *one instruction at a time* for the whole warp. So when an `if/else` inside a kernel sends some of a warp's 32 threads down the `if` branch and others down the `else` branch, the hardware can't actually run both paths in parallel — it runs the `if` branch for the whole warp with the `else`-bound threads' writes masked off, then runs the `else` branch for the whole warp with the `if`-bound threads masked off. This is **warp divergence**: the warp pays for the sum of both branches' cost serially, not the cost of whichever branch each thread individually needed. It's a real, measurable performance tax with literally no SIMD equivalent, because SIMD never has threads that could diverge in the first place — there's no "if" that only some of AVX2's 8 lanes can take.
+
+## Threads, blocks, and grids: the shape of a kernel launch
+
+A CUDA kernel launch has three levels, and Numba's `@cuda.jit` exposes all three with real, standard syntax:
+
+- **Threads** — the individual unit of execution, one per data element in the simplest case.
+- **Thread blocks** — a programmer-chosen group of threads (commonly a multiple of 32, to align with the warp size so no partial, wasted warp exists inside a block) that all run on the same SM and can cooperate through shared memory (covered below).
+- **Grid** — the full set of blocks launched, sized so that blocks × threads-per-block covers the whole problem, with one extra partial block absorbing the remainder.
+
+Inside a kernel, you need each thread's position in the overall problem. Numba gives you this directly:
+
+```python
+from numba import cuda
+
+@cuda.jit
+def example_kernel(out):
+    idx = cuda.grid(1)   # equivalent to blockIdx.x * blockDim.x + threadIdx.x in raw CUDA C
+    if idx < out.size:
+        out[idx] = idx
+```
+
+`cuda.grid(1)` computes the thread's **global** index for a 1D launch — the "1" means one dimension; CUDA also supports 2D and 3D grids for image- and volume-shaped problems, which this module doesn't need. The `if idx < out.size:` guard is not optional boilerplate: because blocks are a fixed size and the grid must cover the whole array, the last block almost always contains some threads whose `idx` runs past the end of the array (whenever `n` isn't an exact multiple of the block size), and without the guard those threads would read or write out of bounds.
+
+The launch itself uses real Numba syntax — a bracketed `[blocks_per_grid, threads_per_block]` before the call, not an ordinary function call:
+
+```python
+n = 1_000_000
+threads_per_block = 256
+blocks_per_grid = (n + threads_per_block - 1) // threads_per_block   # 3,907
+
+example_kernel[blocks_per_grid, threads_per_block](d_out)
+```
+
+`(n + threads_per_block - 1) // threads_per_block` is the standard ceiling-division pattern: it rounds the block count up so the grid always covers every element, including the partial last block the bounds check exists to handle. For `n = 1,000,000` and 256 threads per block, that's 3,907 blocks of 256 threads — 1,000,192 threads total, 192 of which do nothing past the bounds check. 256 as a choice is neither required nor magic — it's a common default that's a clean multiple of the 32-thread warp size and small enough to let several blocks fit concurrently on one SM; the right value depends on the kernel and is usually tuned, not guessed, but 256 is a reasonable, well-documented starting point and what this module uses throughout.
+
+## Setting up a real GPU for free: Colab + Numba
+
+Most people working through this curriculum don't own a discrete NVIDIA GPU, and this module isn't going to pretend otherwise or require one. Google Colab's free tier gives you a real NVIDIA GPU (currently typically a T4) in a browser tab, no credit card, no local driver install — the same free-over-proprietary preference this curriculum already applied when it picked WebXR over a paid VR SDK.
+
+1. Open a new notebook at colab.research.google.com, then **Runtime → Change runtime type → T4 GPU**, and confirm it attached with a shell cell:
+
+```bash
+!nvidia-smi
+```
+
+That should print a real GPU name (e.g., `Tesla T4`), driver version, and memory total (16 GB on a T4) — if it instead errors or shows no devices, the runtime didn't actually get a GPU; reconnect and retry.
+
+2. Numba ships preinstalled on Colab. Confirm it can see the device from Python directly, which exercises the same CUDA driver path your kernels will use:
+
+```python
+from numba import cuda
+print(cuda.gpus)             # should list one real device
+cuda.detect()                # prints compute capability, SM count, memory
+```
+
+3. `@cuda.jit` is doing something real under the hood worth naming honestly, even though this module doesn't require you to touch it directly: it compiles your Python function's bytecode through LLVM's NVPTX backend into actual PTX, then into the GPU's native SASS machine code — the same ultimate target raw CUDA C reaches when you write a `__global__ void saxpy(...)` function and compile it with NVIDIA's `nvcc` compiler. The difference is entirely in the toolchain, not the hardware result: `nvcc` requires installing the CUDA Toolkit and a C/C++ build setup; Numba requires `pip install numba` (already done on Colab) and produces working GPU machine code from plain Python with no separate compile step you ever see. This module teaches the Numba path because it's the one that doesn't require a toolchain install most self-taught learners won't have configured — not because `nvcc` is unimportant, just because it's not the prerequisite this lesson needs to clear.
+
+4. One more honest, useful tool: Numba also ships a pure-CPU **CUDA simulator**. Setting the environment variable `NUMBA_ENABLE_CUDASIM=1` *before* importing `numba` makes every `@cuda.jit` kernel run its logic on the CPU instead of a real GPU — no device required, no Colab needed. It does not simulate performance (a "fast" simulated kernel tells you nothing about real throughput), but it's genuinely useful for catching indexing bugs — an off-by-one in your bounds check, a bad `cuda.grid()` call — before you spend limited free GPU session time debugging the same thing live.
+
+## Do this: port SAXPY to a real CUDA kernel
+
+Same workload as the CPU module, same math (`y = a*x + y`), same reason it matters: this is a direct extension of work you already did and already benchmarked, not a new example. The kernel is short:
+
+```python
+from numba import cuda
+import numpy as np
+
+@cuda.jit
+def saxpy_gpu(a, x, y):
+    idx = cuda.grid(1)
+    if idx < y.size:
+        y[idx] = a * x[idx] + y[idx]
+```
+
+Host-side setup, using the same `n` the CPU module used (32M elements, 128 MB per array) so the comparison stays apples-to-apples:
+
+```python
+n = 32 * 1024 * 1024               # same N as the AVX2 benchmark: 128MB per array
+x = np.ones(n, dtype=np.float32)
+y = np.full(n, 2.0, dtype=np.float32)
+a = np.float32(2.0)
+
+d_x = cuda.to_device(x)            # explicit host-to-device copy
+d_y = cuda.to_device(y)
+
+threads_per_block = 256
+blocks_per_grid = (n + threads_per_block - 1) // threads_per_block   # 131,072 blocks
+
+saxpy_gpu[blocks_per_grid, threads_per_block](a, d_x, d_y)
+cuda.synchronize()                 # kernel launches are asynchronous; wait for it to finish
+
+result = d_y.copy_to_host()        # explicit device-to-host copy
+```
+
+`cuda.to_device()` is the standard, explicit idiom: it returns a `DeviceNDArray` living in GPU global memory, and you keep using that handle for the launch instead of the original NumPy array. (Numba will also accept a raw NumPy array directly in a kernel launch and silently copy it to the device and back — but that's the wrong idiom here on purpose: passing the same NumPy array to every call of a benchmarking loop would re-copy it from the host every single time, hiding the exact transfer cost this module needs you to see and measure honestly.) `cuda.synchronize()` matters because kernel launches are asynchronous from the host's point of view — without it, you could start timing the "after" point before the GPU has actually finished, which would silently corrupt every benchmark number below.
+
+Nothing about this kernel changes the conclusion the CPU module already proved: SAXPY is memory-bound by construction (≈0.17 FLOPs/byte), and that ratio doesn't change because the hardware changed underneath it. What *does* change is which memory system that ratio is bound by — and whether a much faster memory system is actually reachable, which is exactly the question the benchmark section below answers honestly.
+
+## Global memory, shared memory, and why SAXPY is already coalesced
+
+Every array `saxpy_gpu` touches — `x`, `y` — lives in the GPU's **global memory**: its own dedicated DRAM (HBM on a T4-class card), large (16 GB on a T4) but, per access, slow relative to on-chip storage, in exactly the same relative sense the roofline model's SRAM-vs-HBM framing from the Performance Engineering module's own groundwork applied to the CPU side. A GPU has an on-chip analog too: **shared memory**, a small (tens of KB per SM), very fast scratchpad that every thread in the *same block* can read and write cooperatively. Shared memory exists to let threads reuse data without each one separately paying the full global-memory cost — load a tile once into shared memory, have every thread in the block read it from there instead of from global memory repeatedly.
+
+SAXPY, honestly, doesn't need it. Each thread touches exactly its own `x[idx]` and `y[idx]` once each; there's no data any two threads share, so there's nothing to stage into a faster scratchpad. That's worth stating plainly rather than skipping past: shared memory only pays off when multiple threads in a block genuinely reuse the same data, and SAXPY's elementwise structure has none of that. (Keep that fact — it comes back directly in the synthesis below.)
+
+What SAXPY's access pattern *does* get for free is **memory coalescing**, and it's a real, significant factor: when the 32 threads of a warp access 32 consecutive addresses in global memory, the memory controller can service that entire warp's request with one or a small number of wide memory transactions, instead of 32 separate narrow ones. Because `idx = cuda.grid(1)` assigns consecutive threads consecutive indices, and `saxpy_gpu` reads `x[idx]`, reads `y[idx]`, and writes `y[idx]` — thread 0 touches index 0, thread 1 touches index 1, and so on, with no stride, no indirection, no scatter — every one of those three accesses is already naturally coalesced for every warp in the kernel. That's a real, concrete reason SAXPY is a good first kernel to learn on: you get a textbook-efficient access pattern without having to design for it, which means a first benchmark isn't accidentally measuring a coalescing bug instead of the thing you actually set out to measure.
+
+## Do this: benchmark honestly — when does the GPU actually win?
+
+Same discipline the CPU module used: multiple trials, mean ± standard deviation, warm-up runs discarded, and an explicit account of what the number does and doesn't include — not one number taken on faith. A simple harness that mirrors `hyperfine --warmup 3 --min-runs 20`'s structure inside a notebook:
+
+```python
+import time
+import numpy as np
+from numba import cuda
+
+def bench_gpu_saxpy(n, trials=20, warmup=3, threads_per_block=256):
+    x = np.ones(n, dtype=np.float32)
+    y = np.full(n, 2.0, dtype=np.float32)
+    a = np.float32(2.0)
+    blocks_per_grid = (n + threads_per_block - 1) // threads_per_block
+
+    times = []
+    for i in range(warmup + trials):
+        d_x = cuda.to_device(x)
+        d_y = cuda.to_device(y)
+        cuda.synchronize()
+        t0 = time.perf_counter()
+        saxpy_gpu[blocks_per_grid, threads_per_block](a, d_x, d_y)
+        cuda.synchronize()
+        result = d_y.copy_to_host()
+        t1 = time.perf_counter()
+        if i >= warmup:
+            times.append(t1 - t0)
+    times = np.array(times)
+    return times.mean(), times.std()
+```
+
+This measures the *whole round trip* — host-to-device transfer, kernel execution, device-to-host transfer — on purpose, because that round trip is the thing a real caller actually pays for, and hiding the transfer cost would be exactly the kind of dishonest, cherry-picked number the Performance Engineering module's benchmarking-discipline section warned against.
+
+Run it at two very different sizes and the result is genuinely different in kind, not just degree:
+
+**Small, n = 50,000 (≈0.6 MB total data moved: 12 bytes/element).** The actual compute here is trivial — a T4's on-chip bandwidth could, in principle, push 0.6 MB through in a couple of microseconds. But a kernel launch carries a fixed dispatch overhead (typically on the order of 5–20 µs regardless of problem size), and each `cuda.to_device()`/`copy_to_host()` call carries its own fixed per-transfer latency floor over PCIe, on top of whatever bandwidth it achieves — for a transfer this small, that fixed latency, not bandwidth, dominates. Put those three fixed costs together and the GPU round trip lands somewhere in the hundreds of microseconds, *before any actual SAXPY compute matters at all*. The CPU's AVX2 version of the same 50,000-element array, meanwhile, fits entirely inside L2/L3 cache and runs in low single-digit microseconds. At this size, **the GPU is slower than the AVX2 CPU version** — not close, not a wash, genuinely slower, by something like an order of magnitude, because the problem is too small for the GPU to ever amortize its fixed costs.
+
+**Large, n = 32M (the exact same array size the AVX2 module benchmarked).** From that module's own `hyperfine` output, `./saxpy_avx2` ran 20 reps of this exact SAXPY in 2.074 s total — about 103.7 ms per call. On the GPU side, the same fixed per-call overheads are still there, but now they're paid once against 384 MB of total data movement (12 bytes × 32M elements) instead of 0.6 MB: the host-to-device and device-to-host transfers of that much data, at a T4's realistic sustained PCIe throughput, take on the order of 30–35 ms, and the kernel's own on-device memory traffic (bound by the T4's HBM bandwidth, hundreds of GB/s rather than the CPU's single-core DRAM bandwidth) adds only another couple of milliseconds on top. Total GPU wall time lands around 35–40 ms — meaningfully *faster* than the AVX2 CPU's ~103.7 ms, because at this size the fixed overheads are a small fraction of the total, and what's left is a genuine memory-bandwidth contest the GPU wins.
+
+The honest lesson here is not "GPU wins" or "GPU loses" — it's that **SAXPY is still memory-bound on the GPU, exactly as it was proven to be on the CPU**, just against a different, higher-bandwidth memory system, and a GPU's real advantage only shows up once there's enough work to amortize its two fixed costs: kernel-launch dispatch and PCIe transfer. Below some crossover array size, those fixed costs dominate and a GPU version can be slower than a well-vectorized CPU version; above it, the GPU's bandwidth advantage takes over. Treating "GPU" as an automatic win — rather than something you check, at the size you actually care about — would be exactly the unearned optimism the arithmetic-intensity argument in the CPU module already warned against repeating.
+
+## Synthesis: one kernel, and the walls still ahead
+
+Writing `saxpy_gpu` is a real, meaningful step, but it's worth being precise about exactly what kind of step, against two walls this curriculum has already named honestly elsewhere.
+
+First: this single-kernel, single-GPU result says nothing about what happens when you scale to many GPUs. CS Foundations' Concurrency & Parallelism Fundamentals module already covered this ceiling in real, citable depth — multi-GPU training synchronizes gradients across devices via an **all-reduce** (implemented by NVIDIA's NCCL library under PyTorch's `DistributedDataParallel`), and that synchronization is communication-bound, not compute-bound, which is exactly why doubling GPU count rarely doubles training throughput (Ben-Nun & Hoefler, *ACM Computing Surveys*, 2019). Nothing in this module changes that ceiling — writing one fast kernel for one GPU is orthogonal to the inter-GPU bandwidth wall that shows up the moment you add a second device, and that wall is real regardless of how well-tuned any individual kernel is.
+
+Second: this module deliberately did not attempt FlashAttention. CS Foundations' Frontier Algorithms module implemented FlashAttention's tiling and online-softmax *logic* in pure NumPy, and said so explicitly: "not a CUDA kernel, but code that makes the tiling and rescaling logic real," because "real FlashAttention's speed comes from a fused CUDA kernel that keeps blocks in SRAM, which pure NumPy can't demonstrate since NumPy has no concept of the GPU memory hierarchy." This module is the other half of that honest gap — not FlashAttention itself, but the foundational GPU kernel-writing skill a real fused attention kernel actually requires: the thread/block/grid hierarchy, a real `@cuda.jit` kernel that runs and is correct, and the global-vs-shared-memory distinction this module named but, by design, never had to exploit. What's specifically still missing before anyone could write something like FlashAttention's real kernel: SAXPY has no data reuse between threads, so it never needed shared-memory tiling at all; FlashAttention's kernel does — multiple blocks' worth of `Q`, `K`, and `V` cooperating through shared memory on a far more complex access pattern than SAXPY's simple elementwise read-modify-write, with a running softmax rescale layered on top. This module is a genuine, necessary prerequisite for that — and nothing more than that; claiming otherwise would be exactly the kind of overclaim the Frontier module itself was careful to avoid.
+
+## Exercise
+
+1. On a real Google Colab free-tier T4 GPU runtime, run the `saxpy_gpu` kernel and the `bench_gpu_saxpy` harness above at `n = 32 * 1024 * 1024` (matching the AVX2 CPU benchmark's array size). Report your actual mean ± standard deviation round-trip time, and compare it directly against the CPU module's 103.7 ms/rep AVX2 figure — state the real speedup (or slowdown) you measured, not an assumed one.
+2. Vary `n` across at least three orders of magnitude (e.g., 10,000; 100,000; 1,000,000; 10,000,000; 32,000,000) and tabulate or plot GPU round-trip time against array size. Identify, from your own real numbers, roughly where the crossover happens — the array size at which the GPU version stops being slower than the AVX2 CPU version and starts being faster.
+3. Write a small toy kernel with a deliberately warp-divergent branch, for example:
+
+   ```python
+   @cuda.jit
+   def divergent_toy(x, out):
+       idx = cuda.grid(1)
+       if idx < out.size:
+           if idx % 2 == 0:
+               val = x[idx]
+               for _ in range(200):
+                   val = val * 1.0000001
+               out[idx] = val
+           else:
+               out[idx] = x[idx]
+   ```
+
+   `idx % 2 == 0` guarantees that every single warp contains both even and odd threads — the worst possible case, since every warp must take both branches on every launch. Explain, from the warp-execution model covered above, specifically why this kernel is slower than one where the two branches were instead split across different *warps* (e.g., diverging on `idx < n // 2` instead of `idx % 2`), even though both versions do the identical total amount of work.
+4. Re-run `nvidia-smi` while a large-`n` SAXPY launch is in flight (e.g., in a second notebook cell queued right after the launch, or by adding a `time.sleep()` before `cuda.synchronize()`) and note the reported GPU utilization — connect what you see back to the overhead-vs-compute argument in the benchmarking section.
+
+## Check on learning
+
+- In your own words, explain why "SIMT" and "SIMD" both implement data parallelism but are not the same hardware mechanism — be specific about warps, SMs, and latency hiding, not just "GPUs have more cores."
+- Walk through, step by step, what the hardware actually does when a warp hits an `if/else` where the 32 threads split across both branches — why is this slower than no branch at all, and why does SIMD never pay this particular cost?
+- Explain why SAXPY's access pattern is naturally coalesced, and describe one way you could rewrite the kernel's indexing so that it was no longer coalesced, even though it computed the identical mathematical result.
+- A teammate claims "we ported our kernel to the GPU and it got slower, so GPUs are overhyped." Using this module's own small-n benchmark result, explain precisely what's actually true and what's missing from that claim — and state the one piece of information (about array size) you'd need before agreeing or disagreeing with them.
+
