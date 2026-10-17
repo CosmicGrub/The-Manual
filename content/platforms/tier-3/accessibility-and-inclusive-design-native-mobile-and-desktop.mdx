@@ -1,0 +1,247 @@
+---
+trackId: platforms
+tier: 3
+title: "Accessibility & Inclusive Design: Native Mobile and Desktop"
+order: 7
+estimatedHours: 16
+slug: accessibility-and-inclusive-design-native-mobile-and-desktop
+---
+
+## Where this module sits
+
+Tier 1's HTML & CSS Fundamentals module already gave you a real accessibility foundation for the web: writing alt text that actually describes an image instead of restating "image," picking semantic landmark elements (`<nav>`, `<main>`, `<header>`) so a screen reader's landmark menu means something, and doing the actual WCAG 2.1 AA contrast-ratio math (4.5:1 for normal text, 3:1 for large text) on real hex colors. None of that gets re-taught here. If you've forgotten the contrast math, that's the module to revisit — this one assumes it.
+
+What you haven't touched yet is everything past the browser: VoiceOver reading a SwiftUI view, TalkBack reading a Compose screen, Narrator reading an Electron window's DOM through a completely different code path than the browser accessibility checks you already know. Those are three more APIs, three more testing tools, and — this is the part that surprises people — three different ways the exact same "did I build this correctly" question gets asked and answered.
+
+Rather than inventing new example apps, this module retrofits three real ones you already built elsewhere in this tier:
+
+- The **Favorites app** from Native iOS with Swift & SwiftUI — a `FavoritesModel: ObservableObject`, a `NavigationStack` + `List` of items with star icons, and a detail view pushed via `navigationDestination(for:)`.
+- The **Workout Log app** from Native Android with Kotlin & Jetpack Compose — a `data class Exercise(val name: String, val targetSets: Int)` list in a `LazyColumn`, plus a third screen requesting `CAMERA` permission for a progress-photo button.
+- The **notes-taking Electron app** from Tier 2's First Desktop App with Electron — a real `main.js` with `BrowserWindow`/`Menu`/`ipcMain`, a `preload.js` exposing `window.notesAPI`, and a plain HTML/CSS/JS renderer.
+
+That last one deserves a word of explanation, because this tier's own desktop module — Desktop Beyond Electron: .NET MAUI or Qt — deliberately moved you *away* from Electron toward more native toolkits. This module deliberately moves back. The reason is specific: Electron's renderer is ordinary HTML rendered by Chromium, nothing more exotic than that, which means the exact accessibility-tree concepts, ARIA roles, and keyboard-focus-order techniques you're about to learn apply to it directly and are testable with a real OS screen reader today. MAUI and Qt have their own native accessibility APIs (`AutomationProperties` in MAUI, `QAccessible` in Qt) that are genuinely different surface areas worth a module of their own some day — but they are not what makes "accessibility tree" click for the first time. The Electron app, being plain HTML under the hood, is.
+
+## 1. The accessibility tree: why "looks right" tells you nothing
+
+Every UI framework maintains two descriptions of what's on screen at once. One is the **visual rendering** — pixels, colors, positions, the thing a sighted user looks at. The other is the **accessibility tree** — a parallel structural description, built from the same view hierarchy, where every element carries a **role** ("this is a button," "this is a heading," "this is a slider"), a **label** (what to call it out loud), a **value** (its current state or contents), and sometimes other traits. A screen reader never looks at pixels. It walks the accessibility tree and speaks what it finds there.
+
+The uncomfortable fact this module exists to teach: those two descriptions can silently diverge, and the compiler will never warn you. A button built from an image and some tap-gesture code can look exactly like a button — rounded corners, a shadow, a press animation — and still be, to the accessibility tree, nothing at all: no role, no label, a blank node a screen reader skips over in silence. Every sighted person testing the app sees a perfectly good button. Every screen reader user hits an invisible hole in the screen. Nothing in the visual QA pass catches this, because the visual QA pass is, definitionally, looking at the wrong tree.
+
+This module tests against three real, built-in, no-cost screen readers — the same three you can turn on right now on hardware you already own:
+
+- **VoiceOver** — built into iOS and macOS, free, no install.
+- **TalkBack** — built into Android, free, no install.
+- **Narrator** — built into Windows, free, no install.
+
+That "no install" matters more than it sounds like it should. There is no excuse of "I don't have the tool" available anywhere in this module — you have all three already, on whatever devices you're reading this on.
+
+## 2. iOS: retrofitting the Favorites app for VoiceOver
+
+Recall the Favorites app's list row: a star icon, filled or outline, showing whether a product is favorited, and a button somewhere that toggles it. Here's that button with no accessibility work done:
+
+```swift
+Button {
+    favoritesModel.toggle(product.id)
+} label: {
+    Image(systemName: isFavorite ? "star.fill" : "star")
+}
+```
+
+This compiles, runs, and looks correct in the simulator. Turn on VoiceOver and tap it, and you'll hear something like "star fill, button" or, depending on the SF Symbol's underlying asset name, something worse and less intelligible. That's the accessibility tree divergence from section 1, concretely: the button has a role (SwiftUI's `Button` sets that for free) but no meaningful label, because an image has no inherent spoken meaning — "star.fill" is a symbol name, not a sentence a sighted user would ever read, and VoiceOver has nothing better to fall back on.
+
+### `.accessibilityLabel(_:)`: give the icon a spoken name
+
+```swift
+Button {
+    favoritesModel.toggle(product.id)
+} label: {
+    Image(systemName: isFavorite ? "star.fill" : "star")
+}
+.accessibilityLabel(isFavorite ? "Remove from Favorites" : "Add to Favorites")
+```
+
+`.accessibilityLabel(_:)` overrides whatever VoiceOver would have guessed with the exact string you choose. Notice the label itself changes with `isFavorite` — VoiceOver now announces the *action* the button is about to perform, which is the right call for a button whose job is "do a thing," not "report a fact."
+
+### `.accessibilityValue(_:)`: state, kept separate from the label
+
+A label describing an action and a value describing current state are two different pieces of information, and SwiftUI gives you a separate modifier for the second one on purpose. Suppose the list row itself (not just the detail-view button) needs to announce favorite status without changing what the control is called:
+
+```swift
+Button {
+    favoritesModel.toggle(product.id)
+} label: {
+    Image(systemName: isFavorite ? "star.fill" : "star")
+}
+.accessibilityLabel("Favorite")
+.accessibilityValue(isFavorite ? "On" : "Off")
+```
+
+VoiceOver now reads this as "Favorite, button, On" (or "Off"). The label stays a stable name for what the control *is*; the value reports what it currently *holds* — the same split Apple's own system controls use (a Wi-Fi toggle's label is "Wi-Fi," its value is "On"). Use whichever shape fits the control: a changing label for an action button, a stable label plus a changing value for something closer to a status indicator.
+
+### Dynamic Type: text that actually grows when the user asks it to
+
+Dynamic Type is the system-wide text-size preference a user sets once (Settings → Accessibility → Display & Text Size → Larger Text, or the slider in Control Center) and expects every well-built app to respect. SwiftUI gives you this for free — but only if you ask for it the right way:
+
+```swift
+Text(product.name)
+    .font(.body)          // a semantic style — scales with the user's text-size setting
+
+Text(product.name)
+    .font(.system(size: 14))   // a fixed point size — does NOT scale
+```
+
+`.body`, `.title`, `.headline`, `.caption`, and the rest of SwiftUI's semantic font styles are the ones that scale. A hardcoded point size is frozen regardless of what the user asked for, and it's an easy, invisible-in-the-simulator mistake to make — the simulator's default text size matches your assumption, so nothing looks wrong until a real user with larger text turned on opens the app and a `Text(product.name).font(.system(size: 14))` row simply doesn't grow while everything around it does.
+
+### Auditing it without a physical device: Accessibility Inspector
+
+Xcode ships a real tool for exactly this, no device required: **Window → Accessibility Inspector** in Xcode, pointed at the Simulator. It shows you, element by element, the actual accessibility tree your app produces — role, label, value, traits — and its Audit tab flags missing labels automatically. This is where you'd catch the bare `Image(systemName: "star")` button from the top of this section before ever turning on VoiceOver: the Inspector will show that element with no label at all, which is the accessibility-tree-level version of the bug section 1 described.
+
+## 3. Android: retrofitting the Workout Log app for TalkBack
+
+The Workout Log app's `LazyColumn` renders `Exercise` rows, and its third screen has an icon-only "add a progress photo" button behind the `CAMERA` permission request. Both are real candidates for the exact same silent-divergence bug as the iOS star button.
+
+### `contentDescription`: built directly into Compose's own components
+
+`Icon` and `Image` — Compose's own standard components — accept a `contentDescription` parameter directly, no extra modifier needed:
+
+```kotlin
+IconButton(onClick = { requestCameraPermission() }) {
+    Icon(
+        imageVector = Icons.Default.AddAPhoto, // from the material-icons-extended artifact
+        contentDescription = "Add progress photo"
+    )
+}
+```
+
+Pass `contentDescription = null` and TalkBack treats the icon as purely decorative and skips it — correct for a decorative icon sitting next to text that already says the same thing, wrong (and exactly this module's recurring bug) for an icon that is the *entire* control, with no text anywhere nearby to fall back on. The camera button here has no label text at all, so `contentDescription` is the only thing standing between "Add progress photo" and silence.
+
+### `Modifier.semantics { }`: for everything that doesn't take `contentDescription` directly
+
+Plenty of composables — a plain `Row`, a `Box`, anything you've built up yourself out of layout primitives — have no `contentDescription` parameter to pass at all. For those, `Modifier.semantics { }` sets accessibility properties directly on the node:
+
+```kotlin
+@Composable
+fun ExerciseRow(exercise: Exercise, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(16.dp)
+            .semantics {
+                contentDescription = "${exercise.name}, target ${exercise.targetSets} sets"
+            }
+    ) {
+        Text(exercise.name)
+        Spacer(Modifier.weight(1f))
+        Text("${exercise.targetSets} sets")
+    }
+}
+```
+
+Without that `.semantics { }` block, TalkBack would announce the row's two `Text` children as two separate, disconnected pieces as it moves focus across the row — the exercise name, then later, as a separate stop, the set count. With it, the whole row announces as one coherent sentence: "Push-ups, target 3 sets" — much closer to what a sighted user reads in one glance at the row.
+
+`contentDescription` is the Compose analog of SwiftUI's label — it answers "what do I call this." Compose also has a direct analog of `accessibilityValue` for conveying state separate from name: the `stateDescription` semantics property, set the same way (`.semantics { stateDescription = "Completed" }`), used when a composable's current state is more than its name alone communicates.
+
+### Auditing it: the real Accessibility Scanner app
+
+**Accessibility Scanner** is a real, free, Google-published app on the Play Store. Install it on a device or emulator running your app, run a scan while your app is on screen, and it overlays concrete, specific suggestions directly on the screen it just scanned — commonly flagging exactly the kind of bare icon button this section just fixed, along with things like touch targets that are too small or text contrast that's too low. Run it against the Workout Log app's camera-permission screen before and after adding `contentDescription` to the icon button, and you'll watch a real, named suggestion disappear.
+
+## 4. Desktop: retrofitting the Electron notes app for keyboard and screen-reader users
+
+Electron's renderer is Chromium rendering ordinary HTML. That means the techniques here are plain web accessibility — but specifically the parts Tier 1's web module didn't cover, because that module was about alt text, landmarks, and contrast, not focus order or ARIA.
+
+### Keyboard focus order: no mouse, at all
+
+A sighted mouse user never notices whether an app is keyboard-operable. A screen reader user — and a lot of motor-disability users who can't use a mouse precisely — lives entirely inside Tab, Shift+Tab, Enter, and Space. The test is literal: unplug your mouse (or just don't touch it) and try to use the notes app with only the keyboard. In the app as built in Tier 2, the `<textarea id="editor">` and the native `<button id="saveBtn">` are both plain, native HTML elements, so Tab reaches both of them in DOM order and Enter/Space on the button already works — for free, which is the whole point of the next section.
+
+### Native elements get this for free; custom-styled ones don't
+
+This is the single most common real-world accessibility bug on the desktop web, and it's worth being blunt about it: a real `<button>` element gets a correct role (`button`), correct keyboard behavior (Enter and Space both activate it), and correct focus handling (it's in the tab order automatically) with zero extra code, because the browser's own accessibility tree already knows what a `<button>` is. The trouble starts the moment a design calls for something a native element can't visually do, and a developer reaches for a styled `<div>` instead:
+
+```html
+<!-- looks like a button, isn't one -->
+<div class="pin-toggle" onclick="togglePin()">📌</div>
+```
+
+To a sighted mouse user, this is indistinguishable from a real button. To the accessibility tree, it's a plain, roleless, unfocusable chunk of text — not in the tab order, no role to announce, and a screen reader user has no way to even discover it exists, let alone activate it. This is exactly section 1's divergence again, on the desktop this time.
+
+### The fix: `role`, `tabindex`, and a real `keydown` handler
+
+```html
+<div
+  class="pin-toggle"
+  role="button"
+  tabindex="0"
+  aria-label="Pin note"
+  aria-pressed="false"
+  id="pinToggle"
+>📌</div>
+```
+
+```js
+// renderer.js
+const pinToggle = document.getElementById('pinToggle')
+
+function setPinned(pinned) {
+  pinToggle.setAttribute('aria-pressed', String(pinned))
+}
+
+pinToggle.addEventListener('click', () => {
+  setPinned(pinToggle.getAttribute('aria-pressed') !== 'true')
+})
+
+pinToggle.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault()   // stop Space from scrolling the window
+    pinToggle.click()        // reuse the exact same click logic
+  }
+})
+```
+
+Four separate things had to be added by hand, each one something a real `<button>` would have given for free: `role="button"` tells the accessibility tree what this element is; `tabindex="0"` puts it in the natural tab order (use `0`, never a positive number — positive `tabindex` values reorder focus away from visual/DOM order and are a well-known way to make a page's tab order actively confusing); `aria-label="Pin note"` gives it a spoken name, since the 📌 emoji alone is no more meaningful to a screen reader than the star icon was in the iOS section; and the `keydown` handler is what makes Enter/Space actually *do* something, since a `<div>` has no built-in notion of "activation" the way `<button>` does. `aria-pressed` is this platform's version of `accessibilityValue`/`stateDescription` — a piece of state reported separately from the element's name, toggled between `"true"` and `"false"` as the user interacts with it.
+
+The honest takeaway: if you only ever use real `<button>`, `<input>`, `<a>`, and `<select>` elements, almost none of this section applies to you. It exists specifically for the moment a design needs something those elements can't express visually, and a styled `<div>` or `<span>` stands in for them.
+
+### The native `Menu` is a different story entirely
+
+Tier 2's app already built a native `Menu`/`MenuItem` structure with `Menu.buildFromTemplate(...)` and `Menu.setApplicationMenu(menu)`. That menu is not HTML — it's a real, OS-native menu, rendered by macOS, Windows, or GNOME's own menu system, not by Chromium. VoiceOver and Narrator already know how to read a native macOS or Windows menu, because they're built by Apple and Microsoft respectively to understand their own OS's native UI — it follows the OS's own native accessibility behavior by default, the same way any other native menu on that OS would, for the same underlying reason a native `<button>` does: something other than your own renderer code already understands what the thing is. Everything in this section — focus order, `role`, `tabindex`, `keydown` — is specifically about the renderer's HTML, the part you're actually on the hook for.
+
+## 5. Testing discipline: you have to actually listen
+
+None of the modifiers, parameters, or ARIA attributes above prove anything by themselves. A SwiftUI build that compiles with `.accessibilityLabel("Add to Favorites")` attached tells you the syntax is legal — it does not tell you whether that string, heard out loud with no visual context, in the middle of navigating the rest of the screen, actually makes sense. Code review and a green build are necessary and completely insufficient. The only way to know if the experience is good is to have the experience.
+
+Concretely, for each retrofitted app:
+
+- **iOS — VoiceOver.** On a Mac: `Cmd+F5` (or Settings → Accessibility → VoiceOver on an iPhone, or the triple-click side-button shortcut if you've set one up). With it on, stop looking at the screen and navigate the Favorites app by swiping right/left to move between elements and double-tapping to activate, the way a blind user actually would. Listen for whether "Favorite, button, On" (or whatever your label/value pair says) makes sense completely out of context — no screen, no visual star to glance at, just that one sentence.
+- **Android — TalkBack.** Settings → Accessibility → TalkBack (or the volume-key shortcut, once enabled). Navigate the Workout Log app by swiping between elements the TalkBack way and double-tapping to activate. Listen specifically to the camera button: does "Add progress photo" come through clearly, or did the `contentDescription` get left off somewhere you missed?
+- **Desktop — Narrator** (Windows: `Ctrl+Win+Enter`) or VoiceOver on the Mac build of the Electron app. With it reading, try operating the whole notes app — type in the editor, save, toggle the pin control — using only the keyboard, eyes off the screen if you can manage it. This is also where a forgotten `keydown` handler on the custom pin toggle becomes immediately, viscerally obvious: Tab reaches it, Narrator announces "Pin note, button," and pressing Enter does nothing at all.
+
+That gap between "compiles" and "actually works for someone navigating by sound alone" is the real content of this section, and it's the reason the exercise below insists on turning a real screen reader on rather than just re-reading the code you wrote.
+
+## 6. Same idea, three different vocabularies
+
+Strip away the syntax and the same handful of concepts show up on every platform this module touched — just spelled differently each time, the same "same idea, different syntax" framing this curriculum has used across programming languages, now applied across three platform accessibility APIs instead:
+
+| Concept | iOS (SwiftUI) | Android (Compose) | Desktop (HTML/ARIA) |
+|---|---|---|---|
+| A spoken name standing in for visual content | `.accessibilityLabel(_:)` | `contentDescription` / `Modifier.semantics { contentDescription = … }` | `aria-label` |
+| State conveyed separately from name | `.accessibilityValue(_:)` | `stateDescription` | `aria-pressed` / `aria-checked` |
+| What kind of control this is | Automatic from `Button`, `Text`, etc. (accessibility traits) | Automatic from `clickable`/`Button`, or `Modifier.semantics { role = … }` | `role="button"`, or free from a native `<button>` |
+| Order of focus for sequential navigation | View-hierarchy order (VoiceOver swipe order) | Layout order (TalkBack swipe order) | DOM order (keyboard Tab order) |
+
+The underlying question is identical everywhere: *does an element have a name, a role, and a way to report its state, independent of what it looks like?* `accessibilityLabel`, `contentDescription`, and `aria-label` are three method/attribute names for exactly one idea. What's genuinely platform-specific is the surface syntax and the audit tooling — Accessibility Inspector, Accessibility Scanner, and browser/Narrator dev tools each answer "did I get this right" for their own platform, and none of them transfers to the others. Learning the concept once and the three spellings separately is the actual shape of this skill.
+
+## Exercise
+
+1. Turn on VoiceOver (if you have an iPhone or Mac) or TalkBack (if you have an Android device or emulator) and navigate the real Favorites or Workout Log app you built earlier in this tier, eyes off the screen, using only the screen reader's own gestures. Write down, in plain language, the first moment something announced made no sense out of context.
+2. Pick one icon-only control across the three apps that currently has no accessible label — the star button in the Favorites app, the camera-photo button in the Workout Log app, or the custom pin toggle in the notes app — and add the missing `accessibilityLabel`/`contentDescription`/`aria-label`. Turn the matching screen reader on and confirm you can now hear a correct, specific announcement for it.
+3. Install Accessibility Scanner from the Play Store, run it against the Workout Log app's camera-permission screen, and record at least one real, specific suggestion it makes (not a paraphrase — the actual flagged element and the actual suggested fix).
+4. In the Electron notes app, unplug your mouse (or just set it aside) and try to use the entire app — type a note, save it, toggle the pin control if you built it in step 2 — using only Tab, Shift+Tab, Enter, and Space. Note the first control that doesn't work, and fix it.
+
+## Check on learning
+
+- In your own words, what is the accessibility tree, and why can a UI be visually correct while being accessibility-tree-incorrect at the same time?
+- Why does a star-icon-only favorite button need an explicit `accessibilityLabel`/`contentDescription`/`aria-label`, when a button with visible text like "Save" generally doesn't?
+- A native `<button>` and a `<div onclick="...">` styled to look identical to it behave completely differently to a screen reader. Explain exactly what the native element gives you for free, and what you have to add by hand to the `<div>` to close the gap.
+- Why does confirming your accessibility-modifier code compiles and runs prove almost nothing about whether the experience is actually good? What does turning on a real screen reader and navigating by sound catch that code review can't?
+

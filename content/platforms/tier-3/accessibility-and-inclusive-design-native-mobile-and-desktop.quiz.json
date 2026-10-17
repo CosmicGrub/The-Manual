@@ -1,0 +1,85 @@
+[
+  {
+    "id": "platforms/tier-3/accessibility-and-inclusive-design-native-mobile-and-desktop/q1",
+    "type": "multiple_choice",
+    "prompt": "What is the \"accessibility tree\"?",
+    "choices": [
+      "A parallel structural description of the UI — role, label, value, and state for each element — that a screen reader reads instead of the visual rendering",
+      "A literal tree view shown in a settings menu for configuring accessibility options",
+      "The hierarchy of accessibility-related classes in a framework's source code",
+      "A list of WCAG contrast ratios a design must satisfy"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-3/accessibility-and-inclusive-design-native-mobile-and-desktop/q2",
+    "type": "multiple_choice",
+    "prompt": "A SwiftUI button is built from only an SF Symbol image (e.g. a star icon) with no visible text, and no accessibility modifiers have been added. What does VoiceOver do when focus reaches it?",
+    "choices": [
+      "It announces something unhelpful (like the symbol's asset name) or nothing meaningful, because an icon has no inherent spoken meaning on its own",
+      "It automatically reads the variable name used in the SwiftUI code",
+      "It refuses to let the button receive focus at all",
+      "It automatically describes the icon's visual shape in detail"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-3/accessibility-and-inclusive-design-native-mobile-and-desktop/q3",
+    "type": "short_answer",
+    "prompt": "What is the name of the iOS/system-wide user preference that lets a well-built SwiftUI app's text grow larger automatically, as long as the app uses semantic font styles (like Font.body) instead of fixed point sizes?",
+    "acceptedAnswers": [
+      "Dynamic Type",
+      "dynamic type"
+    ]
+  },
+  {
+    "id": "platforms/tier-3/accessibility-and-inclusive-design-native-mobile-and-desktop/q4",
+    "type": "multiple_choice",
+    "prompt": "In Jetpack Compose, a plain Row or Box composable has no direct contentDescription parameter. What's the correct way to give it a spoken accessibility description anyway?",
+    "choices": [
+      "Modifier.semantics { contentDescription = \"...\" }",
+      "Pass contentDescription directly to Row the same way you would to Icon",
+      "Wrap it in a Text composable with the description as hidden text",
+      "There is no way — only Icon and Image support accessibility descriptions in Compose"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-3/accessibility-and-inclusive-design-native-mobile-and-desktop/q5",
+    "type": "short_answer",
+    "prompt": "What is the name of the real, free, Google-published Android app (available on the Play Store) that scans a running app's screen and suggests concrete accessibility improvements?",
+    "acceptedAnswers": [
+      "Accessibility Scanner",
+      "Accessibility Scanner app"
+    ]
+  },
+  {
+    "id": "platforms/tier-3/accessibility-and-inclusive-design-native-mobile-and-desktop/q6",
+    "type": "multiple_choice",
+    "prompt": "A native HTML <button> element and a <div onclick=\"...\"> styled to look identical both appear as a button on screen. What does the native <button> give you automatically that the styled <div> does NOT, unless you add it by hand?",
+    "choices": [
+      "A correct accessibility role, keyboard operability (Enter/Space activation), and inclusion in the tab focus order",
+      "A visual hover effect when the mouse passes over it",
+      "Automatic CSS styling that matches the OS theme",
+      "Automatic internationalization of its visible text"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-3/accessibility-and-inclusive-design-native-mobile-and-desktop/q7",
+    "type": "multiple_choice",
+    "prompt": "In SwiftUI, what is the difference in purpose between .accessibilityLabel(_:) and .accessibilityValue(_:) on the same control?",
+    "choices": [
+      "The label names what the control is or does, while the value reports its current state separately (e.g. \"Favorite\" as the label, \"On\"/\"Off\" as the value)",
+      "They do the same thing; accessibilityValue is just the newer, preferred name",
+      "accessibilityLabel is for buttons and accessibilityValue is for text fields only",
+      "accessibilityValue sets the visual text shown on screen, while accessibilityLabel is read by VoiceOver"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-3/accessibility-and-inclusive-design-native-mobile-and-desktop/q8",
+    "type": "explain_back",
+    "prompt": "Explain, in your own words, why confirming that your accessibility modifier code (accessibilityLabel, contentDescription, aria-label, etc.) compiles and runs without errors proves almost nothing about whether the actual experience is good for a screen reader user. What specifically does turning on a real screen reader (VoiceOver, TalkBack, or Narrator) and navigating the app by sound alone catch that reading or compiling the code cannot?"
+  }
+]
