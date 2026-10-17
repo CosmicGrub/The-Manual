@@ -50,9 +50,9 @@ This is the bedrock track of The Manual: computational thinking, discrete math, 
 
 ## Tier 1: Foundations
 
-**Goal:** Build real, tightly-scaffolded fluency in one teaching language (Python) — variables, control flow, functions, core data structures, basic I/O and error handling — while starting the parallel math track (algebra refresher, intro probability/statistics) and discrete math (logic, sets) that Big-O and later proofs will depend on.
+**Goal:** Build real, tightly-scaffolded fluency in one teaching language (Python) — variables, control flow, functions, core data structures, basic I/O and error handling — while starting the parallel math track (algebra refresher, intro probability/statistics) and discrete math (logic, sets) that Big-O and later proofs will depend on, and closing with the applied data literacy (spreadsheets, dashboards, A/B tests, causal inference, statistical fallacies) that turns that math into real-world decision-making rather than just exam-style computation.
 
-**Modules** (~69h):
+**Modules** (~83h):
 
 - **Python Core Syntax** — ~10h: variables and types, arithmetic and string operations, input/output, conditionals (if/elif/else), operators and truthiness
 - **Loops & Iteration** — ~8h: for vs while loops, iterating over sequences, break/continue, common off-by-one bugs
@@ -62,19 +62,21 @@ This is the bedrock track of The Manual: computational thinking, discrete math, 
 - **Math Primer: Algebra & Functions Refresher** — ~8h: linear equations, exponents and logarithms, function notation, graphing intuition (foundation for later Big-O graphs)
 - **Discrete Math I: Logic & Sets** — ~10h: propositional logic and truth tables, direct proof and contrapositive intuition, set operations, functions and relations basics
 - **Intro to Probability & Statistics** — ~11h: mean, median, variance, basic probability rules, why this matters for algorithm analysis and later ML, plus an information-theory primer (bits as a measure of uncertainty, entropy, cross-entropy, and KL divergence — the same "bits" from Tier 0's number systems now measuring information instead of storage, and the direct prerequisite for AI/ML's loss-function and distribution-matching material)
+- **Data Literacy & Applied Statistics** — ~14h: applying this tier's own probability/stats foundations to real non-ML decisions rather than re-deriving them — spreadsheets as a real analysis tool, reading and building a focused business/product dashboard (explicitly distinct from DevOps's own SRE/observability dashboards), choosing the right descriptive statistic for a skewed real dataset, A/B testing worked end to end (a real significance check, plus the peeking and multiple-comparisons pitfalls), correlation vs. causation with a real confound, and named statistical fallacies (Simpson's Paradox, the base-rate fallacy via Bayesian reasoning, survivorship bias) each with a real, checked numeric example
 
 **Quizzes / assessment:**
 
-- *Micro-quiz per module (5-10 Q, spaced-repetition eligible)* — Short auto-graded checks on syntax, truth tables, and set-operation notation, re-surfaced on a spaced schedule.
+- *Micro-quiz per module (5-10 Q, spaced-repetition eligible)* — Short auto-graded checks on syntax, truth tables, set-operation notation, and (for the data-literacy module) A/B-test significance and named-fallacy recognition, re-surfaced on a spaced schedule.
 - *Bug-hunt / code-review kata* — Five short, intentionally broken Python snippets to diagnose and fix: an off-by-one loop, the mutable-default-argument trap, a silent type-coercion bug, an indentation/scope bug, and an infinite loop.
 
-**Checkpoint project:** Build a command-line 'personal toolkit' app (e.g., an expense tracker or grade calculator) that reads/writes a text or CSV file, validates user input, uses functions plus list/dict structures, and includes basic error handling — accompanied by a short written proof (using the logic module) of one simple invariant about the program, e.g. 'total always equals the sum of entries.' Rubric-graded on correctness, code organization, and rigor of the accompanying proof.
+**Checkpoint project:** Build a command-line 'personal toolkit' app (e.g., an expense tracker or grade calculator) that reads/writes a text or CSV file, validates user input, uses functions plus list/dict structures, and includes basic error handling — accompanied by a short written proof (using the logic module) of one simple invariant about the program, e.g. 'total always equals the sum of entries.' Report at least one summary statistic on your own data using the data-literacy module's judgment, not just whichever one is easiest to compute (e.g. median instead of mean if your own entries are skewed, and say why). Rubric-graded on correctness, code organization, and rigor of the accompanying proof.
 
 **Creative teaching methods:**
 
 - Feynman teach-back: explain recursion and the call stack out loud (recorded) using the factorial example, as if to someone who has never coded.
 - Prompting drill: hand an AI a deliberately vague bug report, practice turning it into a precise, reproducible description before asking for help, then independently verify the AI's explanation against the program's actual behavior.
 - Spaced-repetition flashcards for terminology and gotchas: mutable vs immutable, pass-by-reference vs pass-by-value, list vs tuple, set operation symbols (union/intersection/difference).
+- Build-then-break for data: take a real small dataset, compute the "obvious" summary statistic first, then deliberately check whether a skew, an outlier, or a confound would make that number misleading before trusting it — the same discipline as the module's own worked examples, now run on data you picked yourself.
 
 **Curated resources:**
 
@@ -84,6 +86,9 @@ This is the bedrock track of The Manual: computational thinking, discrete math, 
 - [Discrete Mathematics: An Open Introduction (Oscar Levin, free textbook)](https://discrete.openmathbooks.org/) — Chapters 1-3: logic, sets, and proof techniques; pairs well with MIT 6.042J lecture notes.
 - [CS50x (Harvard)](https://cs50.harvard.edu/x/) — Weeks 1-3 for reinforcement of control flow and functions from a second angle.
 - [Exercism — Python Track](https://exercism.org/tracks/python) — Mentored deliberate-practice exercises for everything in this tier.
+- [Seeing Theory (Brown University)](https://seeing-theory.brown.edu/) — Free, interactive visualizations of probability and statistics concepts, including the Bayesian reasoning behind the base-rate fallacy.
+- [Statistics Done Wrong (Alex Reinhart, free online book)](https://www.statisticsdonewrong.com/) — Free; a working engineer's guide to exactly the pitfalls (peeking, multiple comparisons, misleading summary statistics) the data-literacy module covers.
+- [Calling Bullshit (Carl Bergstrom & Jevin West, University of Washington)](https://www.callingbullshit.org/) — Free course materials on spotting misleading data, dashboards, and statistical claims in the wild.
 
 ---
 
