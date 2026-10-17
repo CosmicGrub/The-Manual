@@ -5,7 +5,7 @@
 // when the curriculum has actually changed and it's time to refetch — see
 // public/sw.js and MASTERFILE.md §3.8.
 import { createHash } from 'node:crypto'
-import { readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 
@@ -20,12 +20,21 @@ const trackIds = [...new Set(lessons.map((l) => l.trackId))]
 const staticUrls = ['/', '/review', '/resources', '/manifest.json', '/offline.html', '/icons/icon.svg', '/icons/icon-maskable.svg']
 const trackUrls = trackIds.map((id) => `/tracks/${id}`)
 const lessonUrls = lessons.map((l) => `/tracks/${l.trackId}/${l.tier}/${l.slug}`)
+// Supplementary Foundations sidecars (content/**/*.supplementary.json)
+// aren't part of the Velite lesson index — read straight off disk, same
+// as app/src/lib/supplementary.ts, to find which tracks actually have a
+// /foundations route built (pilot-scoped, see MASTERFILE.md §3.9).
+const CONTENT_ROOT = path.join(APP_ROOT, '..', 'content')
+const foundationsTrackIds = trackIds.filter((id) =>
+  lessons.some((l) => l.trackId === id && existsSync(path.join(CONTENT_ROOT, id, `tier-${l.tier}`, `${l.slug}.supplementary.json`)))
+)
+const foundationsUrls = foundationsTrackIds.map((id) => `/tracks/${id}/foundations`)
 // Every track has exactly one checkpoint per tier 0-5 (see
 // docs/curriculum/*.md and app/src/lib/curriculumDocs.ts) — mechanical, no
 // need to re-parse the curriculum docs just for their URLs here.
 const checkpointUrls = trackIds.flatMap((id) => [0, 1, 2, 3, 4, 5].map((tier) => `/checkpoints/${id}/tier-${tier}/checkpoint`))
 
-const urls = [...staticUrls, ...trackUrls, ...lessonUrls, ...checkpointUrls]
+const urls = [...staticUrls, ...trackUrls, ...lessonUrls, ...checkpointUrls, ...foundationsUrls]
 
 // Version is a hash of the actual lesson content, not a timestamp (Velite's
 // build is otherwise deterministic) — the cache name only changes when the

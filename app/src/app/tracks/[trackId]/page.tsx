@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getAllTrackIds, getLessonsByTrackAndTier } from '@/lib/content'
+import { getAllSupplementaryForTrack } from '@/lib/supplementary'
 import { TRACKS, TIER_LABELS, getTrackName } from '@/lib/tracks'
 
 // Statically generated at build time for every track — this page has zero
@@ -14,6 +15,12 @@ export default function TrackPage({ params }: { params: { trackId: string } }) {
   const { trackId } = params
   if (!getAllTrackIds().includes(trackId)) notFound()
 
+  // Pilot-scoped: only tracks that actually have supplementary content get
+  // a Foundations link (currently CS Foundations only — see
+  // MASTERFILE.md §3.9). Keeps the other 8 tracks free of a dead link
+  // promising a page that doesn't exist yet.
+  const hasFoundations = getAllSupplementaryForTrack(trackId).length > 0
+
   return (
     <main className="space-y-8">
       <header>
@@ -21,6 +28,11 @@ export default function TrackPage({ params }: { params: { trackId: string } }) {
           ← Dashboard
         </Link>
         <h1 className="text-2xl font-semibold mt-1">{getTrackName(trackId)}</h1>
+        {hasFoundations && (
+          <Link href={`/tracks/${trackId}/foundations`} className="inline-block mt-1 text-sm underline text-sky-700 dark:text-sky-400">
+            Supplementary Foundations — optional math/science/history background for this track
+          </Link>
+        )}
       </header>
 
       {[0, 1, 2, 3, 4, 5].map((tier) => {

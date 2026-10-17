@@ -95,15 +95,19 @@ The-Manual/
         │   ├── tracks/[trackId]/[tier]/[slug]/page.tsx      ← statically generated lesson + embedded quiz
         │   ├── review/page.tsx                              ← spaced-repetition queue
         │   ├── resources/page.tsx                           ← statically generated resource library
+        │   ├── tracks/[trackId]/foundations/page.tsx        ← standalone Supplementary Foundations page (pilot-scoped, §3.9)
         │   └── checkpoints/[...id]/page.tsx                 ← statically generated checkpoint + submission form
         ├── components/          (SkillTree, QuizRunner, LessonProgressButton, ReviewQueueItem,
         │                         RegisterServiceWorker, OfflineOutboxFlusher, ResourceLibrary,
-        │                         CheckpointSubmissionForm, ...)
+        │                         CheckpointSubmissionForm, SupplementaryToggle, SupplementaryPanel,
+        │                         SupplementaryGate, ...)
         └── lib/                 (db.ts — Prisma client, srs.ts — SM-2, tracks.ts, content.ts — Velite
                                    lesson accessors, quizzes.ts — server-side quiz reads, user.ts,
                                    curriculumDocs.ts — reads docs/curriculum/*.md for resources +
                                    checkpoint briefs, checkpoints.ts — Checkpoint DB upsert + rubric,
-                                   offlineOutbox.ts — IndexedDB write queue)
+                                   offlineOutbox.ts — IndexedDB write queue, supplementary.ts — server-side
+                                   reads of .supplementary.json sidecars, supplementaryMode.ts — client
+                                   localStorage toggle/viewed-state, see §3.9)
 ```
 
 ### 3.3 Database schema
@@ -175,6 +179,22 @@ Full setup, per-OS commands, and troubleshooting: **[`docs/running-on-your-devic
 - **Dynamic, per-user pages (`/`, `/review`) can't be statically generated** (they read live DB state), so their offline behavior is one tier down from lesson pages: the service worker serves the last cached snapshot when the network is unreachable, refreshed on every successful online visit — honest "last-known-state" behavior, not a crash or blank page.
 
 **What this deliberately does not attempt:** a full bidirectional multi-device sync engine (if progress is recorded offline on the phone and separately offline on the PC before either syncs, last-write-wins per the existing `Progress`/`ReviewState` upsert semantics — there's no conflict-merge logic). That's a reasonable phase-2 addition (§3.6) once multi-user/multi-device usage is a real pattern, not a single learner's local-first app.
+
+### 3.9 Supplementary Foundations — opt-in math/science/history context (added 2026-10, per explicit request)
+
+An opt-in layer that connects lessons to real beginner/intermediate/advanced math, science, and history — the "why does this exist, where did it come from" context behind a topic — to deepen (not replace) the lesson's own material. Built per four explicit decisions: **(a)** placement is both woven into the existing quiz section AND a separate standalone resource page; **(b)** the toggle is a **soft gate** — nudge only, never a hard block, matching this app's existing `Checkpoint` philosophy (see `schema.prisma`'s comment: "the app nudges, it doesn't hard-lock, since this is a self-study tool"); **(c)** rollout is **pilot-first**, one track validated end-to-end before expanding; **(d)** content depth is short, accurate explainer prose (2-4 sentences) plus 1-2 curated free resources per concept, not full mini-lessons.
+
+**Pilot scope:** CS Foundations only. The mechanism below is track-agnostic and ready to extend to the remaining 8 tracks in follow-up passes — see §5.
+
+**Content schema:** a new optional sidecar file, `content/<trackId>/tier-<N>/<slug>.supplementary.json` (array of `{id, title, domain: 'math'|'science'|'history', explainer, resources: [{title, url, source}]}`), colocated next to each lesson's `.mdx` and `.quiz.json` — same read-off-disk pattern as `app/src/lib/quizzes.ts`, not ingested by Velite. Most lessons have no sidecar at all; a lesson only gets one when a genuine, non-forced connection exists (padding every lesson with a weak connection was explicitly rejected during content generation).
+
+**Toggle persistence:** a plain `localStorage` flag (`app/src/lib/supplementaryMode.ts`), not a `User` Prisma field. This is deliberately the lower-risk pilot choice: the app is single-local-learner (`LOCAL_USER_ID`, see §3.1/§3.8) and the toggle never needs to be read server-side, queried, or synced across devices, so a schema migration would be pure overhead for what is really a per-browser UI preference — the same reasoning that already keeps the offline outbox IndexedDB-only. `SupplementaryToggle.tsx` is mounted independently on the dashboard, the standalone Foundations page, and implicitly governs every lesson page's nudge — there's no persistent nav chrome (§3.5) to host one single shared instance, so same-tab sync across mounts goes through a custom `window` event rather than the cross-tab-only native `storage` event.
+
+**Woven into the quiz section:** `SupplementaryPanel.tsx` renders a lesson's concepts as collapsible disclosures directly inside the existing "Check your understanding" section (`app/src/app/tracks/[trackId]/[tier]/[slug]/page.tsx`), above the `QuizRunner`. Always visible regardless of the toggle — the toggle controls the nudge, not whether the content exists, so a curious learner with the mode off can still open it. Expanding a concept marks it viewed (`localStorage`), which is what satisfies that lesson's nudge.
+
+**The soft gate:** `SupplementaryGate.tsx` wraps the existing `LessonProgressButton` (unmodified). When the toggle is on and the lesson has concepts the learner hasn't opened, it shows a dismissible amber banner above the button — never intercepts the button itself, which always works exactly as before. Dismissing the banner, or opening every concept, clears it for that page view. This is the app's first use of that soft-gate pattern outside `Checkpoint`, and deliberately mirrors it rather than introducing a hard lock anywhere in the app.
+
+**Standalone module:** `app/src/app/tracks/[trackId]/foundations/page.tsx` lists every concept for a track, grouped by lesson, independent of the quiz flow — "study outside the main lessons." `generateStaticParams` builds this route only for tracks that actually have at least one `.supplementary.json` sidecar (`getAllSupplementaryForTrack()` in `app/src/lib/supplementary.ts`), so the 8 non-pilot tracks get no dead route and no empty page; `/tracks/[trackId]` only shows the "Supplementary Foundations" link when that track has content. `scripts/gen-precache-manifest.mjs` adds `/tracks/<id>/foundations` to the offline precache list for exactly the same tracks, keeping §3.8's "totally offline" guarantee intact for the new route.
 
 ---
 
@@ -334,6 +354,7 @@ _**Re-run 2026-10-04, now that all 9 tracks are content-complete (305 lessons):*
 ### Recommended additions (prioritized backlog — the direct answer to "what more can we add," now pruned of what's shipped)
 
 - **[LOW] Business & Monetization for Shipped Products module** (App Store economics, SaaS pricing, indie monetization).
+- **[MEDIUM] Expand Supplementary Foundations (§3.9) to the remaining 8 tracks.** Piloted on CS Foundations per explicit request (both quiz-woven + standalone placement, soft-gate-only, pilot-first rollout, short-explainer-plus-resources depth); the mechanism (sidecar schema, toggle, gate, standalone page) is track-agnostic and ready to extend once the pilot has been used and validated.
 
 ### Structural fixes needed (still open)
 

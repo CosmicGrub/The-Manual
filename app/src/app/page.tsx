@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { TRACKS } from '@/lib/tracks'
 import { SkillTree, type TrackSummary } from '@/components/SkillTree'
 import { getOrCreateDefaultUser } from '@/lib/user'
+import { SupplementaryToggle } from '@/components/SupplementaryToggle'
 
 // Dynamic by nature (per-user progress, read live) — must not be statically
 // prerendered. Without this, `next build` tries to prerender it at build
@@ -39,6 +40,10 @@ export default async function DashboardPage() {
         <a href="/resources" className="inline-block px-4 py-2 rounded-md border border-neutral-300 dark:border-neutral-700">
           Browse the resource library
         </a>
+      </div>
+
+      <div className="border-t border-neutral-200 dark:border-neutral-800 pt-4">
+        <SupplementaryToggle />
       </div>
     </main>
   )
