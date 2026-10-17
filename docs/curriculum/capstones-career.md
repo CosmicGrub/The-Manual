@@ -192,21 +192,23 @@ This is the synthesis track — it teaches no language and no single domain, it 
 
 ## Tier 5: Expert / Innovator
 
-**Goal:** Converge everything into a self-designed, novel 'magnum opus' capstone at the intersection of two specializations; take on real upstream responsibility in open source; publish and defend the work publicly; and complete the track's signature move — a teach-others-to-learn capstone that turns the learner into a teacher, closing the loop on the entire curriculum.
+**Goal:** Converge everything into a self-designed, novel 'magnum opus' capstone at the intersection of two specializations; take on real upstream responsibility in open source; publish and defend the work publicly; complete the track's signature move — a teach-others-to-learn capstone that turns the learner into a teacher, closing the loop on the entire curriculum — and close with the professional soft skills (behavioral interviewing, negotiation, running a freelance engagement, remote-collaboration norms) that operate once Career Launch Sprint's job search actually produces an interview, an offer, or a client.
 
-**Modules** (~95h):
+**Modules** (~107h):
 
 - **The Magnum Opus Capstone** — ~40h: an original project of your own design, not a tutorial clone, deliberately positioned at the intersection of 2+ specializations (e.g., ML + security = adversarial ML, or robotics + systems = real-time embedded control), genuine novelty in angle or approach, even at small scale, rigorous benchmarking/evaluation of your own claims
 - **Upstream Maintainership** — ~20h: become a maintainer or trusted core contributor on a real open-source project, triaging issues and reviewing others' PRs, participating in real architectural decisions, not just implementation
 - **Publish & Present** — ~10h: write a technical blog post or paper-style writeup of the Magnum Opus, optionally position it as an arXiv preprint if research-flavored, or a dev-audience post otherwise, give a talk or recorded presentation and take real questions
 - **Teach-Others-to-Learn Capstone** — ~15h: design a mini-curriculum (3-5 lessons) teaching one specific skill to a real learner, borrow this curriculum's own tier/pedagogy-toolkit structure deliberately, run it with a real person (friend, junior dev, or online cohort), collect feedback and iterate on the lessons based on what actually worked
 - **Career Launch Sprint** — ~10h: refine resume, LinkedIn, and portfolio site v2 around the Magnum Opus and case studies, a mock onsite loop with a real practitioner if at all possible, apply for and land at least one real interview loop, freelance client, or open-source fellowship/grant
+- **Career & Professional Soft Skills** — ~12h: the direct sequel to Career Launch Sprint, for once it produces a real interview, offer, or client — behavioral interviewing via the STAR method (the "Behavioral" round Career Launch Sprint's own mock-loop table already names but never teaches), salary/offer negotiation with real numbers and real language, running a freelance engagement once a prospect says yes (statement of work, contract essentials, invoicing — not how to find the client, which Career Launch Sprint already covers), and remote-collaboration norms (written-by-default communication, timezone-fair scheduling, async status updates) explicitly distinct from DevOps's own team-process-focused Agile and Collaboration Norms module
 
 **Quizzes / assessment:**
 
 - *Explain it back, two registers* — Teach your Magnum Opus's hardest concept once to a total beginner and once to an expert reviewer; collect written feedback from both on clarity and accuracy, and reconcile the differences.
 - *Peer/mentee-graded rubric* — The real learner from your Teach-Others-to-Learn capstone completes a short assessment you wrote for them; their actual results — not just their satisfaction — count as your grade on this module.
 - *Research-competition or war-game entry* — Submit to a real external, outside-validated challenge aligned with your Magnum Opus: a live CTF, a Kaggle competition, or an OSS bug bounty.
+- *Mock behavioral round + negotiation role-play* — Have a real person (peer, mentor, or practitioner) run one behavioral question cold and grade your answer against the STAR structure; separately, role-play one negotiation counter-offer out loud before you'd ever send it for real.
 
 **Checkpoint project:** The Magnum Opus shipped, benchmarked, and published/presented publicly; at least one architecturally significant upstream-merged open-source contribution; and a completed Teach-Others-to-Learn cycle with documented, honest learner feedback. This is the final gate of the entire 9-track curriculum.
 
@@ -215,6 +217,7 @@ This is the synthesis track — it teaches no language and no single domain, it 
 - The Teach-Others-to-Learn capstone itself as the ultimate Feynman/explain-it-back exercise — you don't just claim mastery, you have to produce it in someone else.
 - Build-then-break at research level — peers or an AI red-team your Magnum Opus's specific claims and benchmark numbers before you publish.
 - Prompting drill as co-author/co-reviewer — an AI may help phrase or tighten your publication, but you must be able to defend every claim it touched to a human reviewer, unaided.
+- Build-then-break on your own negotiation draft — write your counter-offer, then have a peer or mentor argue the employer's/client's side against it out loud, so you've already heard the pushback before it happens for real.
 
 **Curated resources:**
 
@@ -224,5 +227,7 @@ This is the synthesis track — it teaches no language and no single domain, it 
 - [MIT OCW 6.172 — Performance Engineering of Software Systems (Fall 2018)](https://ocw.mit.edu/courses/6-172-performance-engineering-of-software-systems-fall-2018/) — Graduate-level rigor for benchmarking and justifying performance claims in your writeup.
 - [freeCodeCamp News — technical writing articles](https://www.freecodecamp.org/news/tag/technical-writing/) — Free, practical guidance for the Publish & Present module.
 - [Class Central — free graduate-level course search](https://www.classcentral.com) — Find one advanced free course matching your Magnum Opus's specific field for deeper grounding.
+- [Tech Interview Handbook — Behavioral Interview Questions](https://www.techinterviewhandbook.org/behavioral-interview/) — Free; real STAR-method guidance and a practice question bank for the behavioral-interviewing section.
+- [Salary Negotiation: Make More Money, Be More Valued (Patrick McKenzie)](https://www.kalzumeus.com/2012/01/23/salary-negotiation/) — Free; the canonical, widely-cited tech-industry negotiation guide this module's negotiation section draws on.
 
 ---
