@@ -51,6 +51,8 @@ This is the synthesis track — it teaches no language and no single domain, it 
 
 **Goal:** Ship the first real cross-track capstone — small, but genuinely built rather than tutorial-copied — while laying two foundations that every later tier depends on: basic DS&A intuition (needed for both real code and future interviews) and a hands-on taste of all six specialization branches, so the Tier 2 'pick a lean' decision is based on doing, not guessing.
 
+**Draws on:** CS Foundations Tier 1 and Language Mastery Tier 0-1 — the only tracks with real tier-1-reachable content this early in the recommended path (see MASTERFILE.md §4.6, Phase 1).
+
 **Modules** (~23h):
 
 - **Cross-Track Capstone #1** — ~6h: scoping a project small enough to finish in a week, combining CS-Foundations-Tier-1 concepts with a first language's Tier-1 syntax, basic testing of your own code, shipping something that runs end to end, however small
@@ -86,6 +88,8 @@ This is the synthesis track — it teaches no language and no single domain, it 
 
 **Goal:** Move from guided exercises to independent building: ship a second capstone that leans toward a tentative specialization, start structured DS&A practice with real problem sets, and cross the single most important threshold in this whole track — landing your first real, merged open-source pull request.
 
+**Draws on:** CS Foundations Tier 2, Language Mastery Tier 1, and Software Engineering Tier 1 — per §4.6 Phase 1, the first tier where a learner has real testing/API/SQL fundamentals to build a second, independently-built capstone on.
+
 **Modules** (~34h):
 
 - **Cross-Track Capstone #2** — ~10h: combining 2-3 tracks' Tier-2 material — typically **CS Foundations + Language Mastery + Software Engineering** Tier 2 (the "bedrock trio"), since those are the tracks most learners have reached by now — into one independent project, picking a project that visibly connects to a specialization interest, no hand-holding: you scope, build, and debug it yourself
@@ -120,6 +124,8 @@ This is the synthesis track — it teaches no language and no single domain, it 
 ## Tier 3: Practitioner
 
 **Goal:** Graduate to real-world scale: a multi-component capstone that pulls from three or more tracks, sustained (not one-off) open-source contribution to a single real project, the DS&A pattern vocabulary and system-design fundamentals that interviews actually test, and a live portfolio site that makes all of this visible to someone else.
+
+**Draws on:** CS Foundations Tier 3, Software Engineering Tier 2-3, AI/ML Tier 1-2, and Language Mastery Tier 2 — per §4.6 Phase 2, now that the math-spine prerequisite for real AI/ML work is genuinely met.
 
 **Modules** (~76h):
 
@@ -157,6 +163,8 @@ This is the synthesis track — it teaches no language and no single domain, it 
 ## Tier 4: Advanced / Specialist
 
 **Goal:** Go deep on one specialization branch with a portfolio-centerpiece capstone, take on real ownership inside an open-source project rather than drive-by PRs, and complete a genuine interview-prep intensive — heavy DS&A plus system-design fundamentals plus mock interviews — because this is the tier where 'can build things' has to become 'can prove it to a stranger under time pressure.'
+
+**Draws on:** per §4.6 Phase 3, whichever specialization pair or path was chosen — the recommended default is AI/ML Tier 3-5 alongside Platforms Tier 1-3, with Hardware Systems/DevOps Tooling Tier 1-2 as supporting depth, or Cybersecurity & Ethical Hacking Tier 1-4 as a third specialization option — plus Software Engineering Tier 4 for the system-design fundamentals this tier's interview prep draws on.
 
 **Modules** (~113h):
 

@@ -300,6 +300,26 @@ One track owns each topic's full depth; every other track that touches it teache
 
 **Tier-5 assessment policy (uniform across all 9 tracks):** from Tier 4 onward, assessment shifts from auto-graded quizzes toward portfolio, peer, and maintainer/community review — because expertise at that level is demonstrated by what's shipped and who's taught, not by what can be answered on a test. This was already explicit in CS Foundations, Software Engineering, Platforms, and DevOps; it now applies explicitly to Hardware Systems, AI/ML, Capstones, and (built in from the start) Cybersecurity & Ethical Hacking too.
 
+**Tier-0 scoping (verified consistent across all 9 tracks, 2026-10-18):** every track besides CS Foundations states this explicitly in its own Tier 0 Goal line, not just as an abstract policy — `languages.md`: "intentionally LIGHT on general computer/digital literacy... assumed to live in a separate... Foundations track"; `software-engineering.md`: "deliberately LIGHT for this track... assumed complete before starting here"; `hardware-systems.md`: "assumed complete from CS Foundations Tier 0 and is not re-taught here"; `platforms.md`: "LIGHT TIER for this track, deliberately... owned by the Foundations/CS-Systems track"; `devops-tooling.md`: "general terminal/filesystem/git literacy is CS Foundations Tier 0's job and is assumed complete... this is NOT a from-scratch re-teach"; `ai-ml-prompting.md` and `capstones-career.md` are similarly explicit. The table row above is the policy; this is the confirmation it's actually followed, not just stated.
+
+**Cross-track hard prerequisites (table, added 2026-10-18 — see §4.6 for the full recommended path):**
+
+| Track | Hard prerequisite before starting |
+|---|---|
+| CS Foundations | None — the universal starting point; every other track's Tier 0 assumes its Tier 0 is done. |
+| Language Mastery | CS Foundations Tier 0. |
+| Software Engineering | CS Foundations Tier 0. |
+| Hardware & Computer Systems | CS Foundations Tier 0. |
+| Platforms | CS Foundations Tier 0. |
+| DevOps & Tooling | CS Foundations Tier 0. |
+| Cybersecurity & Ethical Hacking | CS Foundations Tier 0 (its own Tier 0 — personal digital security — needs nothing beyond that). |
+| AI/ML & Prompt Engineering | CS Foundations Tier 0 for its own Tier 0; CS Foundations Tiers 1 & 3 (the math spine) hard-required before AI/ML Tier 1, per §4.5's canonical-ownership table. |
+| Capstones & Career Launch | No single fixed tier — each capstone tier draws on whichever other tracks/tiers are realistically complete by then; see the explicit per-tier mapping added to `docs/curriculum/capstones-career.md`. |
+
+**CS Foundations' second-language choice, mapped (added 2026-10-18):** Tier 3's "Second Language for Contrast" module teaches Go as its primary second language, with direct feature-by-feature comparison to Java and Rust (types, compilation, error handling, concurrency) — not an arbitrary choice. This maps directly onto Language Mastery's own sequence: Tier 3's "Go Fundamentals" and "Java or C# for OOP at Scale" modules, and Tier 4's "Rust Ownership, Borrowing & Systems Safety" module, all go deeper into exactly the same three languages CS Foundations' learner already got a first, structurally-honest taste of — so a learner following both tracks meets each language twice, briefly then deeply, by design rather than by coincidence.
+
+**Why per-tier hour totals are uneven, by design:** §4.6's recommended pace (10-15 hrs/week) is a curriculum-wide average, not a per-tier constant — tiers that carry a track's core syntax/fundamentals load (e.g. Hardware/Platforms Tier 1) are naturally heavier than orientation tiers (e.g. AI/ML Tier 0, deliberately light since Tier 1 is where its real math starts) or capstone-only tiers. Uneven hours reflect uneven content density, not an oversight; §4.6's phase-based pacing already absorbs this by running multiple tracks concurrently rather than tier-by-tier in lockstep across all 9.
+
 ## 4.6 Recommended Learning Path
 
 _You asked for a concrete recommendation rather than choosing the sequencing yourself — here it is, built around your stated priorities (AI literacy + prompting, cross-platform building) and the prerequisite structure above. Treat phase boundaries as soft, not gates._
@@ -357,14 +377,14 @@ _**Re-run 2026-10-04, now that all 9 tracks are content-complete (305 lessons):*
 
 - **[LOW] Business & Monetization for Shipped Products module** (App Store economics, SaaS pricing, indie monetization).
 
-### Structural fixes needed (still open)
+### Structural fixes (resolved 2026-10-18 — all 6 were documentation-only per the earlier downgrade, so this pass closed them directly rather than queuing more content)
 
-- Inconsistent Tier-0 scoping policy across tracks — needs one explicit curriculum-wide rule for what every Tier 0 assumes vs. teaches.
-- Formal cross-track prerequisite matrix — §4.6 makes the curriculum practically executable with one recommended phased path (see "Resolved" above), but no document states, for every pair of tracks, exactly which Tier N of one hard-requires which Tier N of another. Downgraded from blocking to a documentation nice-to-have.
-- CS Foundations' Tier 3 "second statically-typed language" isn't mapped to Language Mastery's own explicit language sequence.
-- Inconsistent Tier-5 assessment philosophy (some tracks explicitly retire quizzes for portfolio/peer review; others don't, without explanation).
-- Wildly uneven per-tier hour totals (e.g., Hardware/Platforms Tier 1 run ~75+ hrs vs. AI/ML Tier 0's ~30 hrs) with no stated weekly pace.
-- Capstones' per-tier goals say each capstone "combines tracks' Tier-N material" but never specify which 2-3 tracks feed which capstone tier.
+- **Inconsistent Tier-0 scoping policy** — verified, not just asserted: all 8 non-CS-Foundations tracks' own Tier 0 Goal lines already explicitly state the CS-Foundations-owns-general-literacy rule in their own words (quoted per-track in §4.5). No drift found; this was already consistent in practice, just not previously confirmed against the actual shipped docs.
+- **Formal cross-track prerequisite matrix** — added as a real table in §4.5 (9 rows, one per track, naming the specific hard-required track+tier).
+- **CS Foundations' Tier 3 second language, mapped** — added to §4.5: the module's real content (Go primary, with direct Java/Rust comparison) maps onto Language Mastery's own Tier 3 (Go Fundamentals, Java-or-C# for OOP at Scale) and Tier 4 (Rust Ownership) modules.
+- **Tier-5 assessment philosophy** — turned out to already be resolved: §4.5's existing "Tier-5 assessment policy (uniform across all 9 tracks)" paragraph already states this explicitly and applies it to all 9 tracks by name. No new text needed; the backlog item was stale.
+- **Uneven per-tier hour totals** — a weekly pace was already stated in §4.6 ("10-15 hrs/week"); added one clarifying note to §4.5 on why hour totals are uneven by design (uneven content density per tier, not an oversight).
+- **Capstones' per-tier track mapping** — §4.6 already claimed this mapping existed ("see the per-tier track mapping now added to `docs/curriculum/capstones-career.md`") before it actually did; added a real "Draws on" line to each of Tiers 1-4 in `docs/curriculum/capstones-career.md`, naming the specific tracks/tiers each capstone tier pulls from, grounded in §4.6's own phased path.
 
 ### Standout strengths (don't dilute these)
 
