@@ -1,0 +1,230 @@
+---
+trackId: platforms
+tier: 4
+title: "Spatial Computing: AR/VR/XR with WebXR"
+order: 7
+estimatedHours: 16
+slug: spatial-computing-ar-vr-xr-with-webxr
+---
+
+## Why WebXR, and the Vocabulary You Need First
+
+"Spatial computing" is the umbrella name for software that shares a 3D coordinate system with the real world instead of living inside a rectangle. Before touching any code, you need four terms used precisely, because the industry (and job postings, and vendor docs) use them loosely and inconsistently:
+
+- **Virtual Reality (VR)** — fully replaces the user's visual field with a synthetic environment. You put on a headset and the real room disappears; everything you see is rendered.
+- **Augmented Reality (AR)** — the real world stays visible (through a phone's camera passthrough, or directly through glasses), and digital content is overlaid on top of it. The classic example is a phone app that shows a virtual couch sitting in your actual living room, viewed through the camera feed.
+- **Mixed Reality (MR)** — a stronger version of AR: digital content doesn't just sit on top of the camera feed, it *interacts with and is occluded by* real-world geometry. A virtual ball that rolls off your real desk and disappears behind the real desk's edge — because the system has built a 3D understanding of your room and the render respects it — is MR, not plain AR. Plain AR typically just paints content over the video feed without that spatial understanding.
+- **XR (Extended Reality)** — the umbrella term for all of the above. When you see "XR developer" in a job title, or "WebXR" as an API name, it means "AR and/or VR and/or MR," not one specific mode.
+
+The other axis you need before writing any tracking code is **degrees of freedom**:
+
+- **3DoF (three degrees of freedom)** — the device tracks *rotation only*: pitch, yaw, roll. Early mobile VR headsets (phone-in-a-shell designs) are the textbook example. You can look left, look up, look behind you — but if you physically lean forward or take a step, the virtual camera doesn't move with you. The headset has no way to know you moved; it only knows which way you're facing.
+- **6DoF (six degrees of freedom)** — the device tracks rotation *and* position: it knows where you are in physical space, not just which way you're facing. A modern standalone headset like Meta Quest does this with inside-out cameras that build a map of the room and track the headset's position inside it.
+
+6DoF is the concrete reason modern VR feels like "being there" instead of "looking at a dome around a fixed point." If you lean toward a virtual table to look at something on it, duck under a virtual beam, or take two real steps and have the scene's perspective shift accordingly — that's 6DoF doing its job. On a 3DoF device none of that works: leaning in does nothing, because the device never measured the lean. This single difference is why 6DoF headsets are described as giving "presence" and 3DoF ones generally aren't — and it's also why a 6DoF app that only tracks rotation correctly will still feel subtly wrong to anyone who moves their head off-axis, which is exactly the kind of bug the reference-space section below exists to prevent.
+
+Everything in this module is built on the **WebXR Device API** — a real W3C browser API, not a vendor SDK — paired with **Three.js**'s built-in WebXR integration for the rendering layer. That combination is deliberate: it needs no proprietary SDK, no app-store submission, and you can test it for free, either in a real headset's browser (Meta Quest Browser, or any other WebXR-capable mobile/desktop browser) or in a desktop browser using the free **WebXR API Emulator** extension (available for Chrome and Firefox), which simulates headset poses and controller input without owning any hardware at all. WebXR browser support and exact feature-gating (which optional features a given browser/device combination actually implements) genuinely varies and changes over time — treat anything below as a solid, current foundation, but verify support for a specific feature against the browser/device you're actually targeting before shipping.
+
+## 1. The WebXR Session Lifecycle: Checking Support, Requesting a Session, and the XRFrame Loop
+
+Every WebXR app starts the same way: check whether the browser supports it at all, then check whether it supports the *specific mode* you want.
+
+```javascript
+async function checkXRSupport() {
+  if (!navigator.xr) {
+    console.log('WebXR is not available in this browser at all.');
+    return { vr: false, ar: false };
+  }
+
+  const vrSupported = await navigator.xr.isSessionSupported('immersive-vr');
+  const arSupported = await navigator.xr.isSessionSupported('immersive-ar');
+  return { vr: vrSupported, ar: arSupported };
+}
+```
+
+`navigator.xr` is an `XRSystem` object — its presence alone tells you the browser *implements* WebXR, but not that the connected device supports a given mode, which is what `isSessionSupported` answers. `'immersive-vr'` and `'immersive-ar'` are the real, W3C-specified session mode strings — spelled exactly like that, lowercase, hyphenated. (A third mode, `'inline'`, renders XR content into a normal 2D page element without taking over the display at all; it's out of scope here since this module is about the immersive case.)
+
+Requesting a session has to happen from a real user gesture — a click handler, not a page-load script — because browsers block headsets from being activated without the user asking for it:
+
+```javascript
+let xrSession = null;
+
+async function enterVR() {
+  xrSession = await navigator.xr.requestSession('immersive-vr', {
+    requiredFeatures: ['local-floor'],
+  });
+  xrSession.addEventListener('end', () => {
+    xrSession = null;
+  });
+  // ... hand the session off to your renderer, covered in step 4
+}
+
+document.getElementById('enter-vr-button').addEventListener('click', enterVR);
+```
+
+`requiredFeatures` is how you tell the browser which reference spaces or capabilities your app can't function without — if the device can't satisfy them, `requestSession` rejects instead of silently giving you a degraded session.
+
+The part that trips people up coming from normal web development is the render loop. A regular web app drives animation with `window.requestAnimationFrame(callback)`, which fires in sync with the *browser window's* repaint. An XR session has to run in sync with the *headset's own display refresh* instead — which may be a completely different rate and timing than the browser window (a Quest renders at 72/90/120Hz depending on device and setting; the desktop browser window behind it isn't running at that rate at all). So once you have a session, you drive your render loop from the session itself:
+
+```javascript
+let referenceSpace;
+
+function onXRFrame(time, frame) {
+  const session = frame.session;
+  session.requestAnimationFrame(onXRFrame); // queue the NEXT frame via the session, not window
+
+  const pose = frame.getViewerPose(referenceSpace);
+  if (pose) {
+    // pose.views gives you one XRView per eye, each with its own
+    // projection matrix and transform — this is the real head/eye
+    // position for THIS exact frame, not an estimate.
+  }
+}
+
+xrSession.requestReferenceSpace('local-floor').then((space) => {
+  referenceSpace = space;
+  xrSession.requestAnimationFrame(onXRFrame);
+});
+```
+
+Two things matter here: you call `requestAnimationFrame` on the **`XRSession` object**, not on `window`, and the callback receives an `XRFrame` as its second argument — not just a timestamp. The `XRFrame` is what gives you `getViewerPose()`, the only way to ask "where was the headset, for this specific rendered instant." Calling `frame.getViewerPose()` outside the callback that produced that frame, or caching a frame across callbacks, doesn't work — a given `XRFrame` is only valid for the duration of the callback it's handed to. You'll rarely write this raw loop by hand once Three.js is involved (step 4 shows why), but understanding that the loop is session-driven, not window-driven, is what makes the rest of the API make sense.
+
+## 2. Reference Spaces: Where Is (0, 0, 0), and Where Is the Floor
+
+Every pose WebXR hands you — the viewer's pose, a controller's pose — is reported *relative to a coordinate system you chose*. That coordinate system is an `XRReferenceSpace`, and picking the wrong one is the single most common reason a WebXR scene renders objects at the wrong height or in the wrong place on first load.
+
+You already requested one above: `xrSession.requestReferenceSpace('local-floor')`. The two reference space types you'll use almost everywhere are:
+
+- **`'local'`** — the origin is placed near the viewer's head position at the moment the session started, and the space is expected to stay roughly stable from there (no drift, no room-scale boundary assumptions). Critically, `y = 0` in a `'local'` space is *not* guaranteed to mean the floor — it's wherever the viewer's head happened to be when tracking began.
+- **`'local-floor'`** — behaves the same way, except the origin's height is pinned to floor level, so `y = 0` really does mean "the real physical floor," regardless of whether the user is standing, sitting, or has the headset at an unusual height.
+
+The practical consequence: if you want to place a virtual table so its top sits at a believable 75cm, and you requested `'local'`, you'd have to somehow measure or guess the user's eye height and subtract it — the origin is wherever their head was, which varies per person and per session. Request `'local-floor'` instead, and you can simply write `table.position.y = 0.75` and know it means 75cm above the actual ground the user is standing on, for any user, without measuring anything. That's why `'local-floor'` was listed as a `requiredFeature` above — the scene in the next step depends on it.
+
+(Two other reference space types exist — `'bounded-floor'`, for devices that expose a tracked room boundary, and `'unbounded'`, for large-scale world-locked tracking — but `'local'` and `'local-floor'` cover the overwhelming majority of what you'll build, and are the most consistently supported across devices.)
+
+## 3. A Minimal WebXR Scene With Three.js
+
+Three.js is a 3D rendering library, not a game engine — think of it as roughly Phaser's role for 3D, except it also happens to have first-class WebXR support built directly into its renderer. You could write the session/reference-space/render-loop plumbing above by hand against raw WebGL, but almost nobody actually does that for real projects: Three.js's WebXR integration handles the handoff between your normal render loop and the XR session loop transparently, which is the actual, practical reason to reach for it instead of hand-rolling raw WebGL/WebXR.
+
+Here's a complete, minimal scene — a box floating a couple of meters in front of where the user starts, visible the moment the VR session begins:
+
+```javascript
+import * as THREE from 'three';
+import { VRButton } from 'three/addons/webxr/VRButton.js';
+// Note: on some Three.js versions/CDN setups this path is still
+// 'three/examples/jsm/webxr/VRButton.js' — check the version you're
+// actually importing if this path 404s.
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(
+  70,
+  window.innerWidth / window.innerHeight,
+  0.01,
+  50
+);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(window.devicePixelRatio);
+
+renderer.xr.enabled = true;
+renderer.xr.setReferenceSpaceType('local-floor');
+
+document.body.appendChild(renderer.domElement);
+document.body.appendChild(VRButton.createButton(renderer));
+
+const light = new THREE.HemisphereLight(0xffffff, 0x444444, 1.5);
+scene.add(light);
+
+const box = new THREE.Mesh(
+  new THREE.BoxGeometry(0.5, 0.5, 0.5),
+  new THREE.MeshStandardMaterial({ color: 0x4488ff })
+);
+box.position.set(0, 1.4, -2); // 2 meters in front, at a believable eye-ish height off the local-floor origin
+scene.add(box);
+
+renderer.setAnimationLoop(() => {
+  renderer.render(scene, camera);
+});
+```
+
+Walking through the WebXR-specific pieces: `renderer.xr.enabled = true` turns on Three.js's internal WebXR handling at all. `renderer.xr.setReferenceSpaceType('local-floor')` tells Three.js which reference space from step 2 to request once a session starts — it's doing the `requestReferenceSpace` call from step 1 for you. `VRButton.createButton(renderer)` generates the "Enter VR" button, and wires its click handler to call `navigator.xr.requestSession('immersive-vr', ...)` and hand the resulting session to `renderer.xr.setSession(session)` — this is the real user-gesture-triggered session request from step 1, done for you by a Three.js helper instead of by hand. (An equivalent `ARButton` exists for `'immersive-ar'` sessions.)
+
+The one call that matters most is `renderer.setAnimationLoop(callback)`. Before any XR session starts, this behaves like a normal `requestAnimationFrame` loop — your callback fires once per browser frame, and `renderer.render(scene, camera)` draws to the page as usual. The moment a user clicks "Enter VR" and a session begins, Three.js transparently switches the *same* callback to be driven by the `XRSession`'s own frame loop from step 1 instead — pulling the real per-eye poses out of the `XRFrame` for you and updating `camera` (now actually a stereo rig internally) to match, with zero changes to your code. That single method is the entire reason to use Three.js's XR integration rather than hand-writing the `onXRFrame` loop from step 1 yourself: you write one render callback, and it works identically whether you're looking at a flat canvas or wearing a headset.
+
+Placing the box at `(0, 1.4, -2)` only means what you think it means because the reference space is `'local-floor'`: `y = 1.4` is 1.4 meters above the real floor for anyone wearing the headset, short or tall, not 1.4 meters above wherever their head started.
+
+## 4. Controllers and Hands: Input Sources and Select Events
+
+Every connected controller — and, on supported devices, every tracked hand — shows up in the WebXR Device API as an `XRInputSource`. You can read them directly off the session (`xrSession.inputSources`, a live list), but in a Three.js app you'll almost always go through its higher-level controller helpers instead, which is the realistic way most WebXR/Three.js apps actually handle this:
+
+```javascript
+import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFactory.js';
+
+const controllerModelFactory = new XRControllerModelFactory();
+
+// renderer.xr.getController(index) returns a THREE.Group tracking
+// that input source's aiming ray; index 0 and 1 map to the two
+// controllers (or two tracked hands) in a typical two-handed setup.
+const controller0 = renderer.xr.getController(0);
+scene.add(controller0);
+
+const grip0 = renderer.xr.getControllerGrip(0);
+grip0.add(controllerModelFactory.createControllerModel(grip0));
+scene.add(grip0);
+```
+
+`getController(index)` gives you a `THREE.Group` whose transform is kept in sync with that input source's aiming ray — useful for pointer-style interaction. `getControllerGrip(index)` gives you a second group tracking the controller's physical grip pose instead, which is what you attach a visual controller model to via `XRControllerModelFactory`, so the user sees a rendered controller in their hand that matches the real one's position and orientation.
+
+Interaction itself runs on real WebXR input events — `'selectstart'` and `'selectend'` are the correct, spec-defined event names fired when the primary action (the trigger, or an equivalent "select" gesture for hand tracking) is pressed and released. Three.js's controller objects re-dispatch these same events for the specific input source they represent, so you can listen directly on the group returned by `getController`:
+
+```javascript
+controller0.addEventListener('selectstart', () => {
+  box.material.color.set(0xff0000); // turn red while the trigger is held
+});
+
+controller0.addEventListener('selectend', () => {
+  box.material.color.set(0x4488ff); // back to the original color on release
+});
+```
+
+If you need the raw input source data instead of Three.js's wrapper — handedness, tracking mode, or hand-joint data — the same events are available directly on the session, carrying the `XRInputSource` that triggered them:
+
+```javascript
+xrSession.addEventListener('selectstart', (event) => {
+  const inputSource = event.inputSource;
+  console.log(inputSource.handedness, inputSource.targetRayMode);
+});
+```
+
+`inputSource.targetRayMode` tells you *how* this input source points — `'tracked-pointer'` for a controller with a real aiming ray, `'gaze'` for head-direction-based pointing on devices with no controller, or `'screen'` for a touch-based AR session on a phone.
+
+One honest caveat: hand-tracking — detecting and tracking actual fingers with no physical controller in hand at all — is real and shipping (exposed through `inputSource.hand`, a map of tracked joints), but it is a genuinely newer capability than controller support, and how well it works, and whether it's available at all, varies significantly by device and browser. Don't assume a WebXR app can rely on hand tracking being present the way you can reasonably rely on a controller's `selectstart`/`selectend` firing — treat it as a progressive enhancement you detect and fall back from, not a baseline you can build straight on top of.
+
+## 5. Comfort: Locomotion-Induced Motion Sickness, and Why the Frame Budget Is Stricter Here
+
+This tier's Performance Engineering module already established the baseline frame budget for a web UI or a 2D game: **16.6ms per frame at 60fps, no exceptions**. VR imposes a genuinely stricter version of that rule, for a different reason than dropped-frame jank on a flat screen. Comfortable VR generally needs around **90fps — roughly 11ms per frame** — and falling below that doesn't just look stuttery the way a missed frame does on a monitor; it's one of the real, well-documented causes of motion sickness inside a headset. The mechanism is specific: your inner ear reports "I am standing still," while a dropped or inconsistent frame makes your eyes briefly report a different, jerky visual motion. That sensory mismatch — not simple ugliness — is what produces nausea in VR in a way a stuttering 2D scroll never does to the same degree, because a 2D scroll never claimed to be your actual physical surroundings in the first place.
+
+That sensory-mismatch problem compounds with how you move the user through a scene at all. **Smooth locomotion** — continuously sliding the camera forward as the user holds a thumbstick, the default "just move like a normal game" approach — generates sustained visual motion with no matching physical motion, which is a well-documented, real cause of simulator sickness for a meaningful fraction of users, independent of frame rate. The widely-adopted comfort-first alternative is **teleportation**: the user points at a destination (often with an arc or ray from the controller, using exactly the `selectstart`/`selectend` pattern from step 4) and is instantly moved there, with no continuous visual motion in between. There's no sustained mismatch for the inner ear to object to, because there's effectively no perceived "travel" at all — one view, then a cut to another view. This is why most production VR applications either default to teleportation or ship both and let the user choose; smooth locomotion is rarely removed outright (some users prefer it, and it suits certain genres), but it's treated as the option that needs an explicit opt-in, not the safe default.
+
+And the two problems compound directly: a low frame rate makes *either* locomotion method worse, because every dropped frame during movement is itself a fresh moment of visual-motion-without-matching-physical-motion, stacked on top of whatever discomfort the locomotion style already causes. A smooth-locomotion scene running at a solid, sustained 90fps is noticeably more tolerable for more users than the same smooth-locomotion scene stuttering under load — and teleportation at a poor frame rate still inherits general jank discomfort even though it avoids the sustained-motion problem specifically. Frame budget and locomotion design aren't two separate comfort concerns to balance independently; a comfort problem in one makes the other strictly worse.
+
+## 6. Synthesis: WebXR vs. Native XR Is the Same Tradeoff on a New Surface
+
+Zoom out from the API details for a moment. A standalone headset like Meta Quest is, under the hood, running a mobile operating system — Quest's OS is Android-based — complete with its own native app store, its own native SDKs, and its own app-review process. Building "a native XR app" for it is architecturally the same kind of decision this track has already covered for native mobile development: you get deeper access to the platform's capabilities and typically better peak performance, in exchange for a store submission process, a platform-specific toolchain, and a build that only runs on that one platform's devices.
+
+WebXR is this surface's version of the tradeoff this track's web-based modules have already made repeatedly for phones and desktops: write once against a browser API, and it runs — with the capability and performance caveats this module has been honest about throughout — on a Quest, on a different headset's browser, on a phone with AR support, or on a desktop browser with the WebXR API Emulator, all without a store submission or a platform-specific SDK. It is, concretely, less capable at the edges than a fully native XR app built against the headset's own native SDK — no app-store discoverability, and whatever native-only sensors or performance headroom the platform reserves for native code. But it is dramatically cheaper to ship, test, and iterate on, for exactly the reason this whole module leaned on it: no SDK to install, no app-store review to wait on, and a free, real way to test — a browser, or a browser plus a free emulator extension — before you've committed to anything platform-specific at all. Nothing about the underlying tension is new; XR is simply the newest surface this track has applied it to.
+
+## Exercise
+
+1. Build the minimal scene from step 3 (the single `BoxGeometry` mesh placed in front of a `'local-floor'`-referenced camera) and get it running. Test it two ways: first with the free **WebXR API Emulator** browser extension (no headset required — it simulates a VR device and lets you move a virtual headset pose around in DevTools), and then, if you have access to one, on a real device's browser (Meta Quest Browser or another WebXR-capable browser).
+2. Add the `selectstart`/`selectend` listener pattern from step 4 so pulling the trigger turns the box a different color and releasing it returns the color to normal. Confirm this works in the emulator (which can simulate a controller's select button) before trying it on real hardware.
+3. Pick a specific, plausible app idea (a furniture-shopping AR viewer, a VR museum walkthrough, a VR fitness app) and write a short comparison — a few sentences is enough — of whether smooth locomotion or teleportation is the better default for *that specific app*, using step 5's reasoning about sensory mismatch and audience tolerance rather than a generic "teleportation is always safer" answer.
+4. Change the reference space in your step-3 scene from `'local-floor'` to `'local'` and observe what happens to the box's apparent height relative to the real floor when you put the headset on (or move the emulated pose). Write one or two sentences explaining, in your own words, why the change in apparent height happens even though you didn't touch the box's `position.y` value at all.
+
+## Check on learning
+
+- In your own words, what's the difference between something being AR and something being MR, and what's the one concrete capability (interaction with and occlusion by real geometry) that separates them?
+- Explain why a 6DoF headset lets you lean toward a virtual object and see it correctly from the new angle, while a 3DoF headset cannot — what, specifically, is the 3DoF device failing to measure?
+- Walk through, in order, what happens from the moment a user clicks an "Enter VR" button to the first rendered XR frame: what gets requested, what gets checked, and which object's `requestAnimationFrame` actually drives the resulting loop.
+- Explain why VR's comfortable frame budget (about 90fps / 11ms) is stricter than the 60fps / 16.6ms baseline for a 2D app, and why a dropped frame during smooth locomotion is worse for comfort than the same dropped frame during teleportation or while the user is standing still.

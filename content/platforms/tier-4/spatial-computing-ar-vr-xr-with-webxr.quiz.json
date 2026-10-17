@@ -1,0 +1,87 @@
+[
+  {
+    "id": "platforms/tier-4/spatial-computing-ar-vr-xr-with-webxr/q1",
+    "type": "multiple_choice",
+    "prompt": "A phone app shows a virtual sofa through the camera feed, sitting on top of the real floor. Walking around the real coffee table, the sofa never gets hidden behind the table even when the table is physically between the phone and the sofa's position. Based on this behavior alone, is this app AR or MR?",
+    "choices": [
+      "MR, because any camera-passthrough app with 3D content is MR by definition",
+      "AR, because the content is simply overlaid on the camera feed without being occluded by or interacting with real-world geometry like the table",
+      "VR, because the sofa is fully synthetic content",
+      "It cannot be determined without knowing the device's degrees of freedom"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-4/spatial-computing-ar-vr-xr-with-webxr/q2",
+    "type": "multiple_choice",
+    "prompt": "A user wearing a 6DoF headset leans forward and takes one real step toward a virtual table. What does the headset do differently from a 3DoF headset in this situation?",
+    "choices": [
+      "Nothing differs; both 3DoF and 6DoF headsets only ever track head rotation",
+      "The 6DoF headset updates the virtual camera's position to match the real lean and step, because it tracks translation through space in addition to rotation; a 3DoF headset only tracks rotation and would not move the camera at all",
+      "The 6DoF headset teleports the user to a preset location instead of tracking the lean",
+      "6DoF only affects controller tracking, never the headset's own camera position"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-4/spatial-computing-ar-vr-xr-with-webxr/q3",
+    "type": "short_answer",
+    "prompt": "What are the two real, W3C-specified string values you pass to navigator.xr.requestSession() to start an immersive VR session and an immersive AR session, respectively?",
+    "acceptedAnswers": [
+      "immersive-vr and immersive-ar",
+      "'immersive-vr', 'immersive-ar'",
+      "immersive-vr, immersive-ar"
+    ]
+  },
+  {
+    "id": "platforms/tier-4/spatial-computing-ar-vr-xr-with-webxr/q4",
+    "type": "multiple_choice",
+    "prompt": "Why does the WebXR render loop call session.requestAnimationFrame(callback) instead of the usual window.requestAnimationFrame(callback)?",
+    "choices": [
+      "window.requestAnimationFrame is deprecated in all modern browsers",
+      "Calling it on the session is required to pass an XRFrame to the callback and to stay synchronized with the headset's own display refresh rate, which can differ from the browser window's refresh rate",
+      "window.requestAnimationFrame only works for 2D canvas content, never WebGL",
+      "There is no real difference; both produce identical behavior in an XR session"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-4/spatial-computing-ar-vr-xr-with-webxr/q5",
+    "type": "multiple_choice",
+    "prompt": "You request a 'local-floor' reference space and place an object at position.y = 0.9 so it sits at a believable tabletop height. If you had instead requested a plain 'local' reference space and used the same y = 0.9, what would most likely go wrong?",
+    "choices": [
+      "Nothing — 'local' and 'local-floor' always place y = 0 at the same physical floor height",
+      "The object would appear at 0.9 meters above wherever the viewer's head happened to be when the session started, not 0.9 meters above the real floor, since 'local' makes no floor-level guarantee",
+      "The session would fail to start, since 'local' does not support placing any objects",
+      "The object's x and z position would also shift unpredictably"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "platforms/tier-4/spatial-computing-ar-vr-xr-with-webxr/q6",
+    "type": "short_answer",
+    "prompt": "What is the real Three.js WebGLRenderer method that transparently switches a single render callback between a normal requestAnimationFrame loop and the XRSession's own frame loop once an XR session becomes active?",
+    "acceptedAnswers": [
+      "setAnimationLoop",
+      "renderer.setAnimationLoop",
+      "renderer.setAnimationLoop()"
+    ]
+  },
+  {
+    "id": "platforms/tier-4/spatial-computing-ar-vr-xr-with-webxr/q7",
+    "type": "multiple_choice",
+    "prompt": "Which pair of real WebXR event names, fired when a controller's primary trigger is pressed and released, would you listen for to implement a basic grab or point-and-click interaction?",
+    "choices": [
+      "'triggerdown' and 'triggerup'",
+      "'pointerdown' and 'pointerup'",
+      "'selectstart' and 'selectend'",
+      "'gripstart' and 'gripend'"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "platforms/tier-4/spatial-computing-ar-vr-xr-with-webxr/q8",
+    "type": "explain_back",
+    "prompt": "Explain why a comfortable VR frame rate (roughly 90fps, about 11ms per frame) is a stricter requirement than the 60fps/16.6ms baseline used for a 2D web UI, and then explain why a dropped frame during smooth (continuous) locomotion is worse for user comfort than the same dropped frame during teleportation-style movement."
+  }
+]
