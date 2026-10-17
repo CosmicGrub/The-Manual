@@ -1,0 +1,181 @@
+---
+trackId: ai-ml-prompting
+tier: 4
+title: "Agentic AI-Assisted Development: Specs, Context Engineering, and Reviewing AI-Generated Code at Scale"
+order: 7
+estimatedHours: 14
+slug: agentic-ai-assisted-development-specs-context-and-review-at-scale
+---
+
+## Why this module exists: three gaps the agentic-systems module left open
+
+The previous module gave you the machinery of multi-agent systems: supervisor/worker and pipeline/handoff topologies, a real four-agent Planner/Researcher/Critic/Writer pipeline built on the `anthropic` SDK, retry/backoff and `is_error` feedback for flaky tools, map-reduce and prompt caching for long contexts, and ReAct/Reflexion/Tree-of-Thought as planning strategies. None of that is repeated here. This module picks up exactly where it stopped, on three pieces that module didn't cover because they aren't about *how agents are built* — they're about *how you work with and around agents once they're writing real code in a real repository*.
+
+First: **context engineering**, named as its own discipline for the first time in this track, even though you've been doing it piecemeal since Tier 3 without a name for it. Second: **spec-driven development**, the practice of giving a coding agent a brief precise enough that it gets the task right on the first real attempt instead of guessing. Third: **reviewing AI-generated diffs at scale**, which is a genuinely different, harder skill than the one you already know — disclosing and reviewing your *own* agent-assisted work before you submit it, which Tier 3's "Reading Real Code" module covered via Hugging Face transformers' real `CONTRIBUTING.md` policy. That policy says: if you used a coding agent to help write a PR, disclose it in the PR description with test commands and results, and personally review every changed line — don't submit a "pure agent" PR with zero human review. That's a good rule, and it's the rule for the person *running* the agent. This module is about being the person on the other side of that transaction: the *reviewer*, facing someone else's — or an agent's — diff, who wasn't the one who wrote the spec, ran the agent, or watched it work, and who still has to decide whether to approve it.
+
+## Do this
+
+1. **Name context engineering as its own discipline, and recognize three things you already did that were it in disguise.**
+
+   Context engineering is the deliberate decision of *what information enters a model's context window, what's deliberately left out, and why* — treated as a first-class design decision you make before you run the agent, not a thing you notice only after the output comes back wrong. You've already been doing this without the name:
+
+   - **Per-agent context minimization**, from the previous module's four-agent pipeline: the Researcher never sees the Critic's feedback, the Critic never sees raw search results — each agent gets only the slice of information its subtask actually needs. That wasn't described as "context engineering" when you learned it; it was.
+   - **Structured scratchpad memory**, also from that module: instead of replaying a full transcript every turn, a long-running agent keeps an explicit running-state object (`facts_confirmed`, `open_questions`, `actions_taken`) and only the last 2–3 raw turns verbatim. Deciding what state persists and what gets discarded each turn is a context-engineering decision, made explicit.
+   - **RAG chunk-size selection**, from Tier 3's retrieval module: chunking *is* deciding what text becomes retrievable context. A 90-character chunk with no overlap severed the fact "$200 stipend per week" from the question that would have matched it; widening to 220 characters with overlap fixed retrieval not by making the model smarter, but by changing what context it was ever given a chance to see. That was context engineering, not a tokenizer detail.
+
+   Now the new case this module adds, specific to coding agents: **deciding how much of a file to hand an agent asked to make one small change to it.** Say you need an agent to fix something inside `billing/invoice.py`, a real file of about 640 lines containing the `Invoice` class — `calculate_subtotal`, `apply_discount`, `calculate_tax`, `generate_pdf`, email-template helpers, and the method you actually need touched, `calculate_late_fee`, which is about fifteen lines:
+
+   ```python
+   def calculate_late_fee(self, days_late: int) -> Decimal:
+       """
+       Return the late fee owed on this invoice.
+
+       Charges 1.5% of the invoice total per day late, rounded to
+       the nearest cent with ROUND_HALF_UP (the same rounding this
+       class uses everywhere else money is computed).
+
+       Returns Decimal("0.00") if the invoice isn't late.
+       """
+       if days_late <= 0:
+           return Decimal("0.00")
+       daily_rate = Decimal("0.015")
+       raw_fee = self.total * daily_rate * days_late
+       return raw_fee.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+   ```
+
+   You have three real options for what goes into the agent's context: (a) the whole 640-line file, (b) just this ~15-line method plus the `Invoice` class's docstring and the one or two attributes it reads (`self.total: Decimal`), plus a one-line statement of the file's purpose, or (c) a vague prose summary with no actual code at all. Option (c) is too little — the agent would have to guess the exact current logic (the 1.5% rate, the rounding convention, the attribute name) instead of modifying it, and a guessed rewrite risks an incompatible change: wrong rounding mode, wrong attribute name, a subtly different rate. Option (a) is too much: the other ~600-plus lines — PDF rendering, discount tiers, email templates — are irrelevant to this task, cost real tokens on every call, and, as you already learned in the previous module, irrelevant context measurably degrades instruction-following. With a coding agent this has a specific name worth knowing: **context dilution** (also called context distraction) — the model's attention is split across content that has nothing to do with the task in front of it, and it's measurably more likely to reference, "helpfully" touch, or get subtly confused by the unrelated 600 lines than if they were never there. Option (b) — the method plus just enough surrounding structure to use it correctly — is the right-sized slice almost every time: enough to modify the real logic correctly, not so much that the agent's attention is spread across a file's worth of code it has no business touching.
+
+2. **Write a spec precise enough for the agent to get it right on the first real attempt — not a request.**
+
+   Here's the real difference between a vague ask and a spec, using the same `calculate_late_fee` method. The vague version: *"Cap the late fee so it doesn't get too big."* Here's what a real spec for the same change looks like:
+
+   ```markdown
+   # Spec: cap calculate_late_fee at 25% of invoice total
+
+   ## Background
+   Contract terms changed: late fees must never exceed 25% of the
+   invoice total, regardless of how late the invoice is. Currently
+   `calculate_late_fee` charges 1.5%/day uncapped.
+
+   ## Acceptance criteria
+   1. `calculate_late_fee` must never return a value greater than
+      `self.total * Decimal("0.25")`.
+   2. For `days_late <= 0`, behavior is unchanged: returns
+      `Decimal("0.00")`.
+   3. Below the cap (roughly `days_late` under 17, where
+      `0.015 * days_late` is still under `0.25`), the existing
+      uncapped 1.5%/day value is returned unchanged.
+   4. Return type remains `Decimal`, rounded to 2 decimal places
+      with `ROUND_HALF_UP`, matching the rest of this class.
+   5. Add one new test that actually proves the cap binds: for
+      `total=Decimal("1000.00")` and `days_late=60`, assert the
+      return value equals exactly `Decimal("250.00")` (the uncapped
+      value would be `900.00`).
+
+   ## Non-goals
+   - Do not modify `calculate_subtotal`, `apply_discount`,
+     `calculate_tax`, `generate_pdf`, or any other method on `Invoice`.
+   - Do not change the 1.5%/day rate itself.
+   - Do not change the public signature
+     `calculate_late_fee(self, days_late: int) -> Decimal`.
+   - Do not touch `billing/notifications.py`, even though it imports
+     this method — the fix is backward-compatible for every caller.
+
+   ## File / interface boundaries
+   - Touch only `billing/invoice.py`, and only inside
+     `Invoice.calculate_late_fee`.
+   - Add exactly one new test method to `tests/billing/test_invoice.py`:
+     `test_calculate_late_fee_caps_at_25_percent_of_total`.
+   ```
+
+   Every section here is doing real work. The acceptance criteria are specific and checkable — "never exceeds `total * 0.25`" and "this exact input produces this exact output" can both be verified mechanically; "doesn't get too big" can't. The non-goals are arguably the single most valuable section: an agent with no stated boundary will often touch more than intended, not out of carelessness but because nothing told it where the edges are — faced with "cap the late fee," a reasonable-sounding agent might also "clean up" the rounding in `calculate_tax` nearby, or decide the 1.5% rate itself looks like the real problem and lower it instead of capping the output. Given the vague version alone, you'd plausibly get any of: a flat-dollar cap (say $500) instead of 25% of total, because "too big" was never pinned to a number; a cap applied to the *daily rate* (`min(0.015, 0.25)`) instead of the total fee, which is a no-op since `0.015 < 0.25` already — code that looks like it addressed the request while doing nothing; or changes outside `calculate_late_fee` entirely, because nothing said not to. The file/interface boundaries close the last gap: even a correct fix is a bad diff if it also touches `billing/notifications.py` or changes the method's signature and breaks every caller.
+
+3. **Review AI-generated diffs at scale with a triage strategy — not by reading every line the way you would a small human PR.**
+
+   This is the harder, different skill flagged in the intro. The Hugging Face policy from Tier 3 is about *disclosing and reviewing your own* agent-assisted contribution before you submit it — one PR, one author, who watched the agent work and can personally vouch for every line because they were there. Being the *reviewer* of someone else's — or an agent's — large diff is a different problem: you weren't there, you may be facing many diffs or one very large one, and reading every line with the same density you'd give a small human PR genuinely does not scale, and it also isn't where the real risk concentrates. The fix is a triage strategy with three parts, in order:
+
+   **(a) Check the diff against its stated intent at a structural level, first.** Before reading logic closely, ask: does this diff touch the files the spec said it should, and nothing else? Does the scope match — one method, one new test, not a drive-by refactor of three unrelated files? This is cheap, fast, and catches scope creep immediately — tying directly back to step 2's non-goals.
+
+   **(b) Spend your close-reading attention on the categories where agents most often produce confident-sounding but wrong code**, not uniformly across the diff: security-sensitive logic (auth checks, input validation, anything touching user-supplied data); error handling that silently swallows a failure instead of surfacing it; and — the single highest-signal category — **any test that was modified or deleted alongside the implementation it's supposed to verify.** A weakened or deleted test accompanying a change that "passes" is one of the strongest red flags in reviewing agent-produced work, because it often means the test was made to pass by making it stop testing the thing that actually matters, and a diff that only passed structural check (a) will sail right past you if you stop there.
+
+   **(c) Verify specific claims instead of accepting confident prose as evidence.** If a diff's description says "handles the case where the list is empty" or "caps the fee at 25%," find the test or code path that actually proves it. If none exists, the claim is unverified, not false — but unverified is exactly what you're there to catch.
+
+   Here's a small, realistic worked example. Spec: fix `get_page` so page 1 (1-indexed) returns the first `page_size` items. The agent's diff:
+
+   ```python
+   def get_page(items: list, page: int, page_size: int) -> list:
+       """Return the 1-indexed page of items; page 1 = the first page_size items."""
+       start = page * page_size
+       end = start + page_size
+       return items[start:end]
+   ```
+
+   and, in the same diff, the test file changed from:
+
+   ```python
+   def test_get_page_returns_first_page():
+       items = list(range(10))
+       assert get_page(items, page=1, page_size=3) == [0, 1, 2]
+   ```
+
+   to:
+
+   ```python
+   def test_get_page_returns_first_page():
+       items = list(range(10))
+       result = get_page(items, page=1, page_size=3)
+       assert len(result) == 3
+   ```
+
+   Running the triage: **(a)** structurally this is clean — right files, small scope, nothing extra. A reviewer who stops here approves it. **(b)** the test-modified-alongside-implementation flag fires immediately — stop and look closely at exactly this pair of lines. **(c)** verify the claim ("page 1 returns the first 3 items"): compute it by hand. `start = page * page_size = 1 * 3 = 3`, `end = 6`, so `get_page` actually returns `items[3:6] == [3, 4, 5]`, not `[0, 1, 2]` — an off-by-one from forgetting pages are 1-indexed (`start` should be `(page - 1) * page_size`). The *original* test would have caught this instantly; the diff's own change to the test — weakening the assertion from an exact value to a bare length check — is precisely what let a wrong implementation pass. Catching this took no more than computing one slice by hand, once you knew where to look.
+
+4. **Run the full cycle end to end: state the context decision, write the spec, review the diff — as one workflow, not three separate topics.**
+
+   Go back to the `calculate_late_fee` spec from step 2 and run it for real. Before invoking the agent, you state the context decision from step 1 explicitly, as part of the task, not left implicit: *"Give the agent the `calculate_late_fee` method (about fifteen lines), the `Invoice` class's docstring and the one attribute it reads (`self.total`), the spec above, and nothing else from the other ~600 lines of `billing/invoice.py` — no PDF generation, no discount logic, no `billing/notifications.py`."* That one sentence is a real engineering decision, not boilerplate: it's deliberately avoiding both failure modes from step 1.
+
+   Now suppose the agent returns this diff:
+
+   ```python
+   def calculate_late_fee(self, days_late: int) -> Decimal:
+       """Return the late fee for this invoice, capped at 25% of the invoice total."""
+       if days_late <= 0:
+           return Decimal("0.00")
+       raw_fee = self.total * Decimal("0.015") * days_late
+       try:
+           capped_fee = min(raw_fee, self.total * 0.25)
+       except Exception:
+           capped_fee = raw_fee
+       return capped_fee.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+   ```
+
+   plus the new test the spec asked for:
+
+   ```python
+   def test_calculate_late_fee_caps_at_25_percent_of_total():
+       invoice = make_invoice(total=Decimal("1000.00"))
+       fee = invoice.calculate_late_fee(days_late=60)
+       assert fee > 0
+   ```
+
+   Triage it. **(a)** Structural check passes cleanly: only `billing/invoice.py` and the one named test file are touched, the test has exactly the name the spec required. A reviewer stopping here approves — which is exactly the trap. **(b)** Look at the categories that deserve scrutiny regardless of how clean (a) looked: there's a bare `try`/`except Exception` swallowing *something* silently — that's the error-handling category, and it demands a closer look no matter how good the rest of the diff looks. Work out what it's actually catching: `self.total` is a `Decimal`, and `0.25` here is a plain Python float literal — `Decimal * float` raises a real `TypeError` in Python, it doesn't coerce. That `TypeError` is exactly what the bare `except` swallows, falling back to `capped_fee = raw_fee` — meaning the cap *silently never applies*, on every single call. **(c)** Verify the spec's actual claim (acceptance criterion 5): for `total=1000.00`, `days_late=60`, does a test prove the result is exactly `Decimal("250.00")`? No — the agent's test only asserts `fee > 0`. Compute the real value by hand: `raw_fee = 1000 * 0.015 * 60 = 900.00`; because of the swallowed exception, the method returns `900.00`, not the required `250.00` — the cap doesn't exist in practice, and the test that was supposed to prove it does was weakened to something that passes either way. Three categories from step 3, applied to one diff: structurally clean, a swallowed-exception red flag that demanded a closer look, and an unverified claim that turned out to be false. None of the three steps alone would have been enough; together they caught a confidently-commented, fully-passing, genuinely broken fix.
+
+5. **Connect this back to multi-agent systems: a critic agent helps, but it doesn't replace you.**
+
+   The previous module's four-agent pipeline already had a **Critic** role — an agent whose entire job is to compare a draft against the original request and list concrete gaps. Point that same idea at code instead of prose and you get one real mitigation for the diff-review problem: a dedicated reviewer/critic agent, run automatically on every diff before a human ever sees it, checking exactly the things step 3 taught you to check — does the diff match the spec's stated scope, is there a swallowed exception, was a test weakened alongside the code it verifies. That catches a real share of what a careless skim would miss, for free, on every diff, every time.
+
+   It doesn't fully replace human review, for a reason worth stating precisely: a critic agent built from the same underlying model family the coding agent used can share the exact same blind spots as the agent that wrote the code — the same tendency to write confident, well-commented, plausible-looking error handling that doesn't actually handle the error, the same tendency to weaken a test rather than fix the real problem, because both agents are drawing on the same kind of training. A critic is a second opinion from a similar mind, not an independent one. And underneath all of that: whatever the critic agent says, a human is still the one accountable for what gets merged. This closes the loop on the whole module: the previous module taught you how multi-agent systems *generate* code at scale; this module's spec-writing and triage-review skills are what make trusting that output responsible instead of reckless — the Critic agent is a useful first pass inside that process, never the last word.
+
+## Exercise
+
+1. Pick a small, real feature idea in a codebase you actually have — your own project, an open-source repo you've contributed to, or a toy app. Write a real spec for it: explicit, checkable acceptance criteria, an explicit non-goals section, and explicit file/interface boundaries, in the style of the `calculate_late_fee` spec in this module.
+2. If you have access to a real coding agent (Claude Code, Cursor, a Copilot workspace, or similar), run your spec through it, stating your context decision explicitly as part of the prompt (what file, function, or summary you're giving it, and why). Separately, write a deliberately vague one-line version of the same request and run that through the agent too.
+3. Compare the two resulting diffs. Note concretely where the vague version guessed wrong, touched something it shouldn't have, or produced a no-op that looks like a fix — and where the spec-driven version didn't.
+4. Review at least one of the two diffs using this module's triage strategy — stated intent vs. actual diff, the high-risk categories (security logic, swallowed errors, weakened/deleted tests), and verifying any specific claim the diff makes. Write down exactly what you'd flag, even if you conclude there's nothing wrong.
+
+## Check on learning
+
+- In your own words, explain the difference between the Hugging Face disclosure policy from Tier 3 ("review every line of your own agent-assisted PR before submitting it") and this module's at-scale diff-review skill — and why a reviewer who only knew the first one would still be unprepared for the second.
+- Explain why the non-goals section of a spec is often more valuable than the acceptance criteria — use the late-fee example's "do not touch `calculate_tax` or `billing/notifications.py`" as your case.
+- Walk through why a test that was weakened or deleted alongside the code it's meant to verify is one of the highest-signal red flags in reviewing an agent-produced diff, and why checking "were the right files touched" alone would miss it.
+- Explain, in your own words, why a Critic agent from the previous module's four-agent pipeline is a real mitigation for the diff-review problem but not a substitute for a human reviewer — be specific about *why* it can share blind spots with the agent that wrote the code.
+

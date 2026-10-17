@@ -1,0 +1,88 @@
+[
+  {
+    "id": "ai-ml-prompting/tier-4/agentic-ai-assisted-development-specs-context-and-review-at-scale/q1",
+    "type": "multiple_choice",
+    "prompt": "An agent is asked to fix a single ~15-line method inside a real 640-line billing/invoice.py file. Per this module's context-engineering guidance, what should go into the agent's context?",
+    "choices": [
+      "The entire 640-line file, so the agent has everything it could possibly need",
+      "Only a one-sentence summary of the file's purpose, with no actual code",
+      "The method itself, plus the class's relevant docstring/attributes and a one-line purpose summary, leaving out the unrelated ~600 lines",
+      "Nothing — let the agent infer the current logic from the function's name alone"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "ai-ml-prompting/tier-4/agentic-ai-assisted-development-specs-context-and-review-at-scale/q2",
+    "type": "multiple_choice",
+    "prompt": "In the calculate_late_fee spec, the non-goals section explicitly lists calculate_subtotal, apply_discount, calculate_tax, and billing/notifications.py as off-limits. Why does this matter?",
+    "choices": [
+      "It doesn't really matter; non-goals are boilerplate that reviewers usually skip",
+      "An agent given no stated boundary will often touch more than intended, so naming exactly what's off-limits is often the single most valuable thing a spec states",
+      "Those files don't exist yet, so listing them prevents a crash",
+      "The Anthropic SDK automatically enforces file-level permissions from a tools list"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-4/agentic-ai-assisted-development-specs-context-and-review-at-scale/q3",
+    "type": "short_answer",
+    "prompt": "In this module's worked diff, the line `self.total * 0.25` raises a real Python exception because you can't multiply a Decimal by a plain float literal. What is the name of that exception?",
+    "acceptedAnswers": [
+      "TypeError",
+      "a TypeError",
+      "Type Error"
+    ]
+  },
+  {
+    "id": "ai-ml-prompting/tier-4/agentic-ai-assisted-development-specs-context-and-review-at-scale/q4",
+    "type": "multiple_choice",
+    "prompt": "Tier 3's 'Reading Real Code' module covered Hugging Face transformers' CONTRIBUTING.md policy: disclose AI assistance in your PR description with test commands/results, and personally review every changed line rather than submitting a 'pure agent' PR. How does this module's diff-review skill differ from that policy?",
+    "choices": [
+      "It's the same skill; this module just applies it to bigger pull requests",
+      "This module teaches reading every line of someone else's large AI-generated diff with the same density as a small PR, which the HF policy already requires",
+      "The HF policy is about disclosing and reviewing your OWN agent-assisted contribution before submitting it; this module is about being the REVIEWER of someone else's (or an agent's) diff at scale, where reading every line equally doesn't scale and a triage strategy is needed instead",
+      "This module's skill replaces the HF policy and makes disclosure of AI assistance unnecessary going forward"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "ai-ml-prompting/tier-4/agentic-ai-assisted-development-specs-context-and-review-at-scale/q5",
+    "type": "multiple_choice",
+    "prompt": "Why is a test that was weakened or deleted alongside the implementation it's supposed to verify considered one of the highest-signal red flags when reviewing an agent-produced diff?",
+    "choices": [
+      "Because tests slow down CI and should generally be minimized regardless of what they check",
+      "Because it often means the agent made the test 'pass' by making it stop testing the thing that actually matters — something a structural check like 'right files touched' won't catch",
+      "Because any weakened test automatically indicates a security vulnerability in the surrounding code",
+      "Because code-coverage tools automatically reject any pull request with fewer assertions than before"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-4/agentic-ai-assisted-development-specs-context-and-review-at-scale/q6",
+    "type": "short_answer",
+    "prompt": "In this module's triage strategy for reviewing a large agent-produced diff, what should a reviewer check FIRST, before deciding where to spend close-reading attention?",
+    "acceptedAnswers": [
+      "whether the diff matches the stated intent or spec",
+      "check the diff against the spec at a structural level",
+      "compare the diff to the stated intent/spec",
+      "does the diff match the right files and scope"
+    ]
+  },
+  {
+    "id": "ai-ml-prompting/tier-4/agentic-ai-assisted-development-specs-context-and-review-at-scale/q7",
+    "type": "multiple_choice",
+    "prompt": "Why doesn't a dedicated Critic agent (like the Critic in the previous module's four-agent Planner/Researcher/Critic/Writer pipeline) fully replace human review of agent-generated diffs at scale?",
+    "choices": [
+      "Critic agents cannot be given tools, so they are structurally unable to check anything in a diff",
+      "A critic built from the same underlying model family can share the same blind spots as the agent that produced the code, and a human remains the final accountable party for what gets merged",
+      "Critic agents are always strictly more expensive to run than a full human review, in every case",
+      "Critic agents can only process natural-language prose and are physically unable to read source code"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "ai-ml-prompting/tier-4/agentic-ai-assisted-development-specs-context-and-review-at-scale/q8",
+    "type": "explain_back",
+    "prompt": "Walk through, in your own words, the full worked cycle from this module for the late-fee-cap feature: what the spec's acceptance criteria and non-goals pinned down, what context you would deliberately give to (and withhold from) the coding agent, and how the triage strategy would catch the swallowed-exception bug in the resulting diff even though the diff touched only the right files and included a plausible-looking new test."
+  }
+]
