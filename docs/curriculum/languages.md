@@ -189,9 +189,9 @@ Track: Programming Language Mastery. A deliberate polyglot path from absolute-be
 
 ## Tier 5: Expert / Innovator
 
-**Goal:** Move from applying languages to understanding and inventing them: formalize the meta-skill of picking up any new language fast, implement a real (if small) interpreter to demystify how source code becomes execution, survey comparative type systems and paradigms, teach/mentor others, and land an upstream contribution to a language or runtime.
+**Goal:** Move from applying languages to understanding and inventing them: formalize the meta-skill of picking up any new language fast, implement a real (if small) interpreter to demystify how source code becomes execution, survey comparative type systems and paradigms, go deep on functional programming as its own paradigm rather than a survey footnote, teach/mentor others, and land an upstream contribution to a language or runtime.
 
-**Modules** (~71h):
+**Modules** (~85h):
 
 - **Meta-Skill: How to Learn Any New Language Fast** — ~8h: a transfer checklist: paradigm, memory model, concurrency model, type system, tooling/package manager, idioms, mapping a brand-new language against languages you already know, producing your own reusable 'language onboarding' template
 - **Programming Language Design & Implementation** — ~20h: lexing & tokenizing, parsing into an AST, tree-walking interpretation, then a simple bytecode VM, building 'Lox' (or your own small language)
@@ -199,11 +199,13 @@ Track: Programming Language Mastery. A deliberate polyglot path from absolute-be
 - **Teaching & Mentoring as Mastery** — ~8h: the Feynman technique applied to a language concept, writing a tutorial or giving a short talk, live-reviewing a beginner's code constructively
 - **Upstream Contribution to a Language/Runtime** — ~15h: reading a compiler/runtime's contribution guide (CPython, a Rust crate, Go's stdlib proposal process), navigating a large unfamiliar codebase's CI and review norms, landing a real, reviewed change
 - **Research Literacy for PL & AI-Adjacent Topics** — ~8h: reading a programming-languages research paper, how formal language/type theory relates to how LLM code models tokenize and represent programs, tracking arXiv cs.PL
+- **Functional Programming Deep Dive** — ~14h: the depth sequel to Comparative Type Systems & Paradigms' OCaml survey — pure functions and referential transparency, currying and partial application in Haskell (functions curried by default, unlike Python), pattern matching and algebraic data types in Haskell syntax (the same idea already learned in OCaml, cross-referenced not retaught), `foldr`/`foldl` as the generalized recursion the OCaml module's manual `sum`/`map` never named, lazy evaluation and infinite lists (the real contrast to OCaml's strict evaluation), and `Maybe`/`Either` for error handling without exceptions — closing by mapping all of it back onto idioms already known from Python (`functools.reduce`/`partial`, list comprehensions) and JavaScript (optional chaining as a lightweight cousin of `Maybe`)
 
 **Quizzes / assessment:**
 
 - *'Explain it back' teach-back (recorded)* — Record a short teaching video explaining a language's type system (e.g., Rust's ownership or Haskell's type classes) to a Tier-2-level learner, then answer their follow-up questions live.
 - *Research-paper micro-quiz* — After reading one arXiv cs.PL paper, summarize its core contribution in 3 sentences and name one thing you'd challenge or test further.
+- *Real Haskell, actually run* — Write and run a real small Haskell function (not pseudocode) solving a problem you pick, using at least one of `foldr`, lazy infinite lists, or `Maybe`/`Either` composition, and show the actual GHC output.
 
 **Checkpoint project:** Build a Small Language: design and implement a toy interpreted language (following Crafting Interpreters' Lox, or your own design) with a lexer, parser, and tree-walking or bytecode interpreter, including at least one novel feature not in the book, a test suite, and a README explaining your design trade-offs. Pair it with a companion 'how to learn any new language' guide, and submit one real upstream contribution (an issue, doc fix, or PR) to an open-source language or tooling project.
 
@@ -212,6 +214,7 @@ Track: Programming Language Mastery. A deliberate polyglot path from absolute-be
 - Portfolio artifact requirement: publish your toy interpreter/language on GitHub with a blog-style write-up of its design decisions and trade-offs.
 - Mentoring exercise: do a recorded, constructive live code review of a Tier-1 or Tier-2 learner's real project, treated as a graded checkpoint, not a side activity.
 - Prompting drill (design-level): use an AI to help propose a new feature or DSL, then critically evaluate and document every place the AI's design was wrong, unsafe, or non-idiomatic before accepting any of it.
+- Build-then-break on your own Haskell: write a function you believe is total and pure, then have a peer (or your own second pass) try to find an input or a hidden strictness/laziness assumption that breaks it.
 
 **Curated resources:**
 
@@ -220,5 +223,7 @@ Track: Programming Language Mastery. A deliberate polyglot path from absolute-be
 - [Programming Languages, Part A (Dan Grossman, University of Washington, Coursera)](https://www.coursera.org/learn/programming-languages) — Free-to-audit course built specifically to teach the meta-skill of comparative language paradigms.
 - [CPython Developer's Guide (official)](https://devguide.python.org/) — Official guide for making a real upstream contribution to a widely-used interpreter.
 - [arXiv cs.PL (Programming Languages) listing](https://arxiv.org/list/cs.PL/recent) — Free, current programming-languages research for the research-literacy module.
+- [Learn You a Haskell for Great Good! (free official online book)](http://learnyouahaskell.com/) — The canonical free, approachable introduction to Haskell this module's depth builds on.
+- [Haskell Language official documentation](https://www.haskell.org/documentation/) — Official Prelude/base library reference for checking real function signatures.
 
 ---
