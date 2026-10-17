@@ -1,0 +1,209 @@
+---
+trackId: software-engineering
+tier: 1
+title: "Technical Writing & Communication"
+order: 7
+estimatedHours: 10
+slug: technical-writing-and-communication
+---
+
+Every tier so far has quietly asked you to write things — commit messages, a bug report in Tier 0's "Reading Docs & Getting Unstuck", a pull request description in this tier's own "Git Deep Dive" — without ever naming writing as a skill in its own right. That stops here, for a specific reason: the checkpoint right after this module requires "a README documents every endpoint, its inputs, and its status codes," and a vague sense that documentation is good to have will not produce that README. You need actual judgment about what to say, to whom, and in what order, before you're staring at a blank `README.md` with a deadline.
+
+This module is not a new topic bolted onto the curriculum. It's the skill that was already running underneath the two artifacts you've already written well, made explicit so you can point it at a new one. The bug report you wrote in Tier 0 and the PR description you wrote earlier in this tier were both already doing audience analysis, leading with the answer, and using concrete, falsifiable language — you just didn't have names for those moves yet, or know they were the *same* three moves both times. Once you can see that, you stop treating "write a good README" as a brand-new mystery and start treating it as those same three tools pointed at a third artifact.
+
+## What you'll leave this lesson knowing
+
+- How to take one underlying technical fact and write it correctly for three different readers — a reviewer, a future maintainer with no context, and a non-technical stakeholder — without dumbing anything down or changing what's actually true
+- How to restructure a document so the conclusion comes first (inverted pyramid) instead of being buried after chronological throat-clearing, and why that's not just a stylistic preference
+- How to spot and fix five concrete sentence-level problems — passive voice that hides who did what, vague weasel words, nominalizations, unnecessary hedging, and vague catch-alls — by rewriting the exact sentence, not just critiquing it
+- Why vague writing is usually a symptom of not yet knowing the specific fact, not a style problem — and the discipline (first named in Capstones' Portfolio Case Studies module) of never writing a number or claim you couldn't defend if asked how you got it
+- That the bug-report structure from Tier 0 and the PR-description structure from Git Deep Dive are not two separate things to memorize — they're the same three tools (audience analysis, lead-with-the-answer, concrete language) applied to two different artifact types
+- How to write a complete, real README for a small REST API — endpoints, inputs, example request/response JSON, and every status code — the exact shape the upcoming Task Tracker checkpoint requires
+
+## Do this
+
+1. **Write the same fact for three different readers.** Here's the underlying fact: a function called `dedupe_rows`, which removes duplicate rows from an uploaded CSV by comparing every row to every row already kept, is O(n²) — doubling the input roughly quadruples the work. Below are three versions of that one fact, written for three different readers. Read all three and notice that none of them is "dumbed down" — each one keeps exactly the information that reader needs to act, and drops exactly the information they can't use.
+
+   **For a teammate reviewing your PR today** (shares your context, needs to decide right now):
+   > "Heads up, `dedupe_rows` is O(n²) — it rescans the whole kept-list per row. Fine at today's scale (median upload is ~500 rows, so ~125k comparisons), but there's no row cap on the upload endpoint, so a 50k-row file would be 2.5B comparisons. I'd rather swap the inner list for a set now (O(n), same behavior as long as rows stay hashable) than ship a row-count cap as a band-aid. Any objection before I push the diff?"
+
+   **For a new hire reading this code in six months with zero context** (needs the "why" spelled out, since nobody's in the room to ask):
+   > "If you're touching `dedupe_rows`: it compares every row to every row it's already kept, so its runtime grows with the square of the input size — doubling the rows roughly quadruples the work (formally, O(n²)). This was an acceptable tradeoff when written because CSV uploads were small (median under 500 rows, confirmed at the time). It was never fixed because nothing forced the issue. If you're adding a feature that processes larger files, don't build on top of this function as-is — switch the inner list to a set first. See the history on this file for the reasoning."
+
+   **For a non-technical stakeholder** (needs to know if a page will feel slow, not how the code works):
+   > "The page that processes uploaded files will stay fast for the file sizes we see today. If someone uploads a much bigger file than usual, it will get noticeably slower — not broken, just slower — and it gets slower faster than you'd expect as the file grows, not at a steady rate. We already have a fix queued; I'd prioritize it ahead of new feature work if we're expecting bigger files soon."
+
+   Same fact, three times. The teammate gets exact numbers and a decision to make. The new hire gets the reasoning and a warning, because they have no one to ask. The stakeholder gets zero jargon and exactly the one thing they came for: will this feel slow, and should they worry about it now.
+
+2. **Rewrite a buried incident summary to lead with the answer.** Technical documents default to chronological order — what happened first, second, third — because that's how you experienced it. Readers don't want your experience; they want the conclusion, fast, with detail available if they need it. Here's a real-shaped incident summary that buries its point:
+
+   **Before (point buried after three paragraphs of chronology):**
+   > On Tuesday morning, the on-call engineer noticed that the checkout service had started returning errors. The team began investigating around 9:14 AM. After checking several dashboards, it was determined that a recent deploy to the payments service had changed how idempotency keys were generated. At first the cause was unclear, so the database connection pool and the CDN were checked first, since those had been sources of problems before. Eventually, after about 40 minutes of investigation, the team determined that the new idempotency key format was colliding with keys generated before the deploy, which caused the payments service to reject a portion of checkout requests as duplicates between 9:02 AM and 9:51 AM. The deploy was rolled back at 9:54 AM and checkout returned to normal within a few minutes after that.
+
+   A reader has to get through four sentences of "what we checked first" before reaching the one fact they opened this document for: how bad was it, and is it over.
+
+   **After (conclusion first, detail after):**
+   > **Summary: a payments deploy caused 8% of checkout requests to fail for 49 minutes (9:02-9:51 AM) on Tuesday. Rollback fixed it; checkout has been healthy since 9:58 AM.**
+   >
+   > **Root cause:** the deploy changed how idempotency keys are generated. The new key format collided with keys issued before the deploy, so the payments service incorrectly rejected ~8% of checkout requests as duplicates.
+   >
+   > **Timeline:** on-call noticed elevated errors at 9:14 AM. Root cause identified at 9:51 AM, after first ruling out the database connection pool and CDN (both previous incident sources, checked and cleared). Rollback completed 9:54 AM; checkout fully recovered by 9:58 AM.
+   >
+   > **Impact:** ~8% of checkout attempts failed during the 49-minute window; no data was lost; no customer was double-charged.
+
+   Nothing in the "after" version is new information — it's the exact same facts, reordered so the first sentence alone answers "how bad, and is it over," and everything after that is detail for a reader who wants more. This is the inverted pyramid: answer first, support after, never the reverse.
+
+3. **Fix a sentence that hides who did what (passive voice).**
+   - **Before:** "The database migration was run, and some records were affected."
+   - **After:** "I ran the migration against production at 2:14 PM; it updated 1,204 `users` rows that had a null `email_verified` field."
+   - **What changed and why:** "was run" and "were affected" are passive constructions that delete the actor and the object entirely — a reader can't tell who ran it, when, or how many rows changed. The rewrite names the actor (I), the time, and the exact count. If you can't fill those in, you don't actually know what happened yet — which is itself useful information to surface before you write the sentence, not after.
+
+4. **Fix a sentence full of vague weasel words.**
+   - **Before:** "There were some issues with the login flow after the update."
+   - **After:** "After the update, the login flow rejects any password containing a `+` character, because the new validation regex treats `+` as invalid."
+   - **What changed and why:** "some issues" could mean anything from a typo to a full outage — it tells the reader nothing they can act on. The rewrite names the exact symptom (`+` rejected), the exact mechanism (the new regex), so a reader can reproduce it or fix it without asking a single follow-up question.
+
+5. **Fix a sentence hiding its verb inside a noun (nominalization).**
+   - **Before:** "The implementation of the caching logic resulted in an improvement in load time."
+   - **After:** "Caching cut the dashboard's load time from 1.8s to 240ms."
+   - **What changed and why:** "the implementation of" and "resulted in an improvement in" bury the real verbs (*implement*, *improve*) inside noun phrases, which is longer and vaguer for no benefit. "Caching cut load time" names the actual action and forces you to supply the number — you can't write "caching cut load time" without knowing from-what to what-time, which is exactly the fact a reader needs.
+
+6. **Fix a sentence drowning in unnecessary hedges.**
+   - **Before:** "This might possibly cause a problem in some cases, although it's not entirely clear."
+   - **After:** "This raises a `KeyError` when `config.yaml` is missing the `timeout` key, which happens on any fresh install that skips the setup wizard."
+   - **What changed and why:** "might," "possibly," "in some cases," and "not entirely clear" are four separate hedges stacked on one claim — the sentence is doing more work avoiding commitment than conveying information. The fix isn't a more careful hedge; it's going and finding out exactly what breaks and when, then stating that.
+
+7. **Fix a vague catch-all that stands in for specifics you haven't pinned down.**
+   - **Before:** "There are a number of various edge cases that could potentially cause the function to behave somewhat unexpectedly depending on the input."
+   - **After:** "Empty input and input over 10,000 rows both crash the function with an `IndexError`."
+   - **What changed and why:** "a number of various edge cases" and "behave somewhat unexpectedly" sound thorough but say nothing a reader could test against. Across all five of these rewrites, notice the same pattern: Capstones' Portfolio Case Studies module states the rule "never write a number, or a number-shaped adjective, that you couldn't defend if someone asked how you got it." Vague writing almost always means you haven't actually run the function on empty input yet, haven't actually checked how many rows changed, haven't actually confirmed what breaks. Fix the knowledge gap and the vague sentence fixes itself — there's rarely a way to make a sentence concrete without first knowing the concrete fact it's reporting.
+
+8. **Name the skill you've already been using twice.** Go back (don't re-read in full — just recall) to Tier 0's "Reading Docs & Getting Unstuck" bug-report example and this tier's own "Git Deep Dive" PR-description example. Both were already applying the exact three tools from steps 1-7, on two different artifacts:
+
+   - The **bug report's** four parts (minimal repro, exact error text, expected vs. actual, what you already tried) are *audience analysis* (the reader is someone with zero context on your specific bug, so you can't assume they've seen what you've seen), *leading with the answer* (the exact error text comes before the narrative of how you found it), and *concrete language* (a copy-pasted traceback, not "it says something about a type error").
+   - The **PR description's** three questions (what, why, how to verify) are the same three tools pointed at a reviewer instead of a bug-report reader: audience analysis (a reviewer has ten minutes, not an hour, and wasn't in your head while you wrote the diff), leading with the answer (the "## What" section states the change in the first line, not after a paragraph of backstory), and concrete language ("Closes #142" and three numbered verification steps, not "various fixes").
+
+   This is the actual payoff of this module: you are not learning a fourth skill to go with "bug reports" and "PR descriptions." You already own the skill — audience analysis, lead with the answer, concrete language — and every new artifact type (a README, an incident summary, a design doc, a commit message) is just that same skill aimed at a new target.
+
+9. **Read this bad README for the checkpoint's shape of project — a two-endpoint Task Tracker API (`GET /tasks`, `POST /tasks`) — and find what it violates.** This is realistic, not a strawman:
+
+   ```markdown
+   # task-tracker
+
+   This project started as a way for me to learn about building APIs
+   and has been through a few iterations. Originally I was going to
+   use MongoDB but switched to Postgres. It's built with Flask because
+   that's what I already knew. There were a few issues getting the
+   database connection working on my machine but I eventually got it
+   sorted out.
+
+   ## Setup
+
+   You'll need Python and a database. Install the requirements and run
+   the app.
+
+   ## Endpoints
+
+   There's an endpoint for getting tasks and one for making new ones.
+   Should be pretty self-explanatory if you look at the code. Let me
+   know if something doesn't work.
+   ```
+
+   Name the violations using this lesson's own vocabulary before moving on: it has the wrong audience in mind (a reader evaluating or using this API doesn't care about your MongoDB-to-Postgres journey — that's a diary entry, not documentation); it buries any point it has under autobiography instead of leading with what the project *does*; and "should be pretty self-explanatory if you look at the code" is a weasel-worded refusal to document the two actual endpoints at all — no inputs, no example requests, no status codes, exactly the three things the checkpoint rubric will grade.
+
+10. **Rewrite it as the good README — the real artifact you're about to ship.** Same two endpoints, same project, applying audience analysis (the reader is someone deciding whether and how to call this API, not a diary audience), leading with the answer (what this is, in the first line), and concrete language (real JSON, real status codes):
+
+    ````markdown
+    # Task Tracker API
+
+    A minimal REST API for creating and listing tasks, backed by
+    PostgreSQL. Two endpoints: `GET /tasks` and `POST /tasks`.
+
+    ## Run it
+
+    ```bash
+    createdb task_tracker
+    pip install -r requirements.txt
+    flask run
+    ```
+
+    The API listens on `http://localhost:5000`.
+
+    ## Endpoints
+
+    ### `GET /tasks`
+
+    Returns every task, newest first.
+
+    **Request:** no body, no parameters.
+
+    **Response — `200 OK`**
+
+    ```json
+    [
+      {
+        "id": 2,
+        "title": "Deploy to prod",
+        "done": true,
+        "created_at": "2026-10-13T16:42:00Z"
+      },
+      {
+        "id": 1,
+        "title": "Write README",
+        "done": false,
+        "created_at": "2026-10-12T09:00:00Z"
+      }
+    ]
+    ```
+
+    If no tasks exist yet, this returns `[]` with a `200` — an empty list is not an error.
+
+    ### `POST /tasks`
+
+    Creates a new task.
+
+    **Request body:**
+
+    ```json
+    { "title": "Write README" }
+    ```
+
+    | Field   | Type   | Required | Notes                |
+    |---------|--------|----------|------------------------|
+    | `title` | string | yes      | 1-200 characters.      |
+
+    **Response — `201 Created`**
+
+    ```json
+    {
+      "id": 3,
+      "title": "Write README",
+      "done": false,
+      "created_at": "2026-10-17T10:15:00Z"
+    }
+    ```
+
+    **Response — `400 Bad Request`** (missing, empty, or over-length `title`)
+
+    ```json
+    { "error": "title is required and must be 1-200 characters" }
+    ```
+    ````
+
+    Compare this to step 9's version with the three tools named out loud: the opening line now states what this *is* in one sentence instead of how it was built (audience analysis — a reader deciding whether to use this API doesn't care about the MongoDB detour); the project's purpose and the two endpoint names appear before any setup instructions (leading with the answer); and "should be pretty self-explanatory" has been replaced by exact JSON for every request and response, plus every status code the checkpoint rubric asks for, named explicitly rather than implied (concrete, falsifiable language — a reader can copy that JSON into a terminal and verify it against the running API, which is the whole point of documentation that "should be self-explanatory" never gives them).
+
+## Exercise
+
+Take a README, PR description, or bug report you've already written for a real project — or, if you don't have one handy, use the rough draft you'd currently write for this tier's upcoming Task Tracker checkpoint. Run it through three checks, in order:
+
+1. **Audience check:** who is actually going to read this, and what do they need from it that they don't already have? If you wrote it assuming the reader shares your context, note every place that assumption shows.
+2. **Structure check:** find the sentence that states your actual point or conclusion. Is it the first sentence? If it's buried after setup, backstory, or chronology, mark where it currently sits.
+3. **Clarity check:** find one paragraph with at least one of the five problems from steps 3-7 (passive voice, weasel words, nominalization, hedging, or a vague catch-all). Rewrite that paragraph using the exact before/after technique from this lesson — write out the literal before sentence and the literal after sentence, not just a description of what you'd change.
+
+**Hint:** the fastest way to find a weasel word or a hedge in your own writing is to search your draft for "some," "a few," "issues," "might," "should," and "basically" — they cluster around exactly the sentences where you didn't actually know the specific fact yet, which is also exactly where rewriting will teach you the most.
+
+## Check on learning
+
+- Pick any one fact from a project you've built, and write it twice from memory — once for a teammate reviewing it today, once for a non-technical stakeholder — without looking back at step 1. What did you drop for the second version, and what did you deliberately keep?
+- Without rereading step 2's example, explain in your own words what "lead with the answer" means and why a chronological account of what you investigated first is usually the wrong structure for a reader who wasn't there.
+- Explain, without rereading step 8, why the bug-report skill from Tier 0 and the PR-description skill from Git Deep Dive are the same underlying skill rather than two things you had to learn separately — and name the three tools that make up that skill.

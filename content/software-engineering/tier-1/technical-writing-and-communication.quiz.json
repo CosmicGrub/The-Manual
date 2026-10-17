@@ -1,0 +1,77 @@
+[
+  {
+    "id": "software-engineering/tier-1/technical-writing-and-communication/q1",
+    "type": "multiple_choice",
+    "prompt": "A function is O(n\u00b2). Which of these three versions of that fact is written correctly for a non-technical stakeholder who just wants to know if a page will feel slow?",
+    "choices": [
+      "\"The page will stay fast at today's file sizes. If someone uploads a much bigger file than usual, it will get noticeably slower, and it slows down faster than you'd expect as the file grows \u2014 we already have a fix queued.\"",
+      "\"dedupe_rows is O(n^2) because it rescans the whole kept-list per row; swapping the inner list for a set brings it to O(n).\"",
+      "\"There were some performance issues that might possibly affect page load in certain situations.\"",
+      "\"The algorithm's time complexity is quadratic with respect to input cardinality, which is suboptimal relative to a linearithmic or linear bound.\""
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "software-engineering/tier-1/technical-writing-and-communication/q2",
+    "type": "multiple_choice",
+    "prompt": "An incident summary spends its first three paragraphs describing what was checked and ruled out before finally stating, in the fourth paragraph, how long the outage lasted and what caused it. What should change to apply \"lead with the answer\"?",
+    "choices": [
+      "Move a one- or two-sentence summary of impact and root cause to the very top, keeping the chronological investigation detail afterward for readers who want it",
+      "Delete the chronological investigation detail entirely, since a good incident summary never includes it",
+      "Nothing \u2014 incident summaries should always be told in the order the investigation actually happened, since that's the most honest account",
+      "Add more hedging language to the opening paragraph so readers aren't misled before the full timeline is explained"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "software-engineering/tier-1/technical-writing-and-communication/q3",
+    "type": "multiple_choice",
+    "prompt": "Which rewrite correctly removes the nominalization from \"The implementation of the caching logic resulted in an improvement in load time\"?",
+    "choices": [
+      "\"Caching cut the dashboard's load time from 1.8s to 240ms.\"",
+      "\"There was an improvement to load time due to caching being implemented.\"",
+      "\"The caching logic's implementation was associated with a load time improvement.\"",
+      "\"Load time improvement occurred as a result of the caching implementation process.\""
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "software-engineering/tier-1/technical-writing-and-communication/q4",
+    "type": "short_answer",
+    "prompt": "Capstones' Portfolio Case Studies module states a discipline about numbers that this module ties to vague technical writing. In one short phrase, what does that discipline say you should never write?",
+    "acceptedAnswers": [
+      "a number you couldn't defend if asked how you got it",
+      "a number or claim you can't defend",
+      "a number you can't justify",
+      "a number-shaped adjective you couldn't defend",
+      "any number or claim you couldn't back up if asked"
+    ]
+  },
+  {
+    "id": "software-engineering/tier-1/technical-writing-and-communication/q5",
+    "type": "multiple_choice",
+    "prompt": "This module argues that the bug-report structure from Tier 0's \"Reading Docs & Getting Unstuck\" and the PR-description structure from \"Git Deep Dive\" are best understood as:",
+    "choices": [
+      "The same underlying skill \u2014 audience analysis, leading with the answer, and concrete language \u2014 applied to two different artifact types, not two separate skills",
+      "Two unrelated conventions that happen to both involve writing, with no shared underlying skill",
+      "Formatting rules specific to GitHub's interface that don't generalize beyond it",
+      "Version-control mechanics rather than writing skills, since both involve commits and issues"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "software-engineering/tier-1/technical-writing-and-communication/q6",
+    "type": "short_answer",
+    "prompt": "In the good Task Tracker README from this lesson, what HTTP status code does POST /tasks return when the title field is missing or empty?",
+    "acceptedAnswers": [
+      "400",
+      "400 Bad Request",
+      "a 400"
+    ]
+  },
+  {
+    "id": "software-engineering/tier-1/technical-writing-and-communication/q7",
+    "type": "explain_back",
+    "prompt": "Rewrite this sentence to remove the passive voice and the vague hedging, then explain what you changed and why the rewrite is more useful to a reader: \"There might possibly have been some kind of issue affecting a few users after the deploy, though it's not entirely clear what happened.\""
+  }
+]
