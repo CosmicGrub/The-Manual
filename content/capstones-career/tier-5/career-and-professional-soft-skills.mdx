@@ -1,0 +1,198 @@
+---
+trackId: capstones-career
+tier: 5
+title: "Career & Professional Soft Skills"
+order: 6
+estimatedHours: 12
+slug: career-and-professional-soft-skills
+---
+
+Career Launch Sprint left you with three concrete things: a resume and LinkedIn profile that survive a thirty-second skim, a portfolio site promoting the Magnum Opus, and a decision to pursue one of three paths — a traditional interview loop, a freelance client, or an OSS fellowship/grant. What it didn't give you is what happens the moment any of those three actually works: you're sitting across from a hiring manager being asked a behavioral question with no rubric to answer it against; you're staring at an offer letter with a real number on it; a prospect you pitched just said yes and now expects a contract, not a pitch; or you've joined a team that's spread across four timezones and nobody told you how status updates are supposed to work there. Those are different skills from the ones that got you to this point, and none of this curriculum has taught them yet.
+
+This module fills the pieces of that gap still open after everything else. Tier 4's Interview Prep Intensive already introduced the STAR structure itself, through one worked example — the `portwatch.py`-to-`vulncheck.py` technical-decision story. This module doesn't re-teach that structure; it builds on it with two of the hardest, most common behavioral questions a real loop asks (a teammate disagreement, a real failure), each answered in full rather than outlined once — the depth Career Launch Sprint's own debrief table assumes exists when it calls the Behavioral round "weighted heavily on team fit," but never actually walks through. Career Launch Sprint's three-paths table has a "Freelance client" row describing how to land one prospect, and stops there, before the contract exists — this module starts exactly where that row stops. And nothing anywhere has taught negotiation, or how to operate well on a team you never see in person. This module is the sequel to all three: two fully-worked hard behavioral answers that build on Tier 4's STAR foundation, negotiating a real offer, running a freelance engagement after the "yes," and the personal habits — distinct from DevOps Tooling's team-process norms — that make you a good remote teammate.
+
+## What you'll leave this lesson knowing
+
+- How to structure a behavioral interview answer with Situation, Task, Action, Result, and why a weak answer almost always fails on "I" versus "we," not on the story itself
+- A full worked STAR answer to "Tell me about a time you disagreed with a teammate," plus a STAR-structured outline for "Tell me about a time you failed," both built from this curriculum's own continuity
+- How to run a real salary/offer negotiation end to end — the actual sentences to say or write, backed by a real competing offer or market data, not just "ask for more"
+- Two concrete negotiation mistakes that quietly cost people real money, and what to say instead of each one
+- How to scope a real statement of work (SOW) for a freelance engagement that starts from "the prospect already said yes," not from how to find one
+- The four non-negotiable clauses a freelance contract needs — payment terms, IP ownership, scope creep, and a kill clause — and what an invoice needs to actually get paid on time
+- Why remote-collaboration habits (written-by-default communication, timezone-fair scheduling, async status updates) are a different skill from DevOps Tooling's Agile and Collaboration Norms module, which teaches team process, not individual remote-work habits
+- How to propose a meeting time across a large timezone gap in a way that names who it's inconveniencing and rotates that cost fairly, instead of defaulting to whoever scheduled the invite
+
+## Do this
+
+1. **Recall the STAR structure from Tier 4, and see exactly what this module adds to it.** Four parts: **Situation** (the specific context — where, when, with whom, in one or two sentences), **Task** (what you specifically needed to accomplish or resolve — not what the team needed, what *you* needed to figure out), **Action** (the concrete steps *you* personally took — this is the part weak answers skip, because it requires naming decisions, not just outcomes), **Result** (what happened, ideally with a number or a verifiable fact, plus what you'd do differently if relevant). Interview Prep Intensive already walked through this once, with the `portwatch.py`-to-`vulncheck.py` story. What that module didn't do — and what Career Launch Sprint's debrief table leaves as an unscored-but-heavily-weighted cell — is show you a *hard* STAR answer: a question about conflict with another person, not just a solo technical decision, where the Action section has to name what you did when someone else disagreed with you. That's what the next two steps fill in.
+
+2. **Read the bad answer to "Tell me about a time you disagreed with a teammate" first, and name what's wrong with it.** This is a realistic bad answer, not a strawman — it's close to what most people say the first time, unprepared:
+
+   > "So this was during one of the open-source projects I worked on, pip-audit. There was a disagreement about how to fix a bug in the version-checking code. Basically, we had different ideas about the right way to do it, and there was some back and forth about it for a while. We went back and forth in the PR comments for a bit, and eventually we talked it through and found a way to move forward that worked for everyone. I think it's important to listen to other people's perspectives, and we learned that communication is key when working on a team, especially open source where people have different experience levels. In the end we got the PR merged and it was a good experience for the team."
+
+   Name the problems before moving on: there's no Situation specific enough to picture (what bug, what two approaches); there's no Task (what did *the speaker* need, specifically, beyond "resolve a disagreement"); the Action is entirely missing — "we talked it through" describes an outcome, not a single thing the speaker did; and the Result is a platitude ("good experience for the team") with no verifiable fact in it. Count the pronouns: "we" appears seven times, "I" appears twice, and neither instance of "I" names an action. An interviewer listening to this cannot tell what the speaker actually contributed versus what simply happened around them.
+
+3. **Read a good STAR answer to the same question, built from this curriculum's own continuity (a caching PR on the pip-audit-style scanner from Upstream Maintainership), and compare it line by line against the bad version.**
+
+   > **Situation:** "On the pip-audit-style scanner I've been a recognized regular on since Tier 4, I noticed the CLI was re-resolving the same package metadata from PyPI on every scan, even when scanning the same lockfile twice in a row, and I opened a PR adding a local on-disk cache keyed by package name and version."
+   >
+   > **Task:** "A fellow regular contributor, Priya, reviewed the PR and pushed back — she was worried a stale cache could silently report a package as unaffected after a new CVE was published against it, if the cache entry predated the advisory. I believed the performance win was worth it as long as staleness was actually handled, so I needed to either show her concern was already covered or change the design so it was."
+   >
+   > **Action:** "I checked the design against her specific worry and found she was right — my first draft cached resolved metadata indefinitely with no invalidation path at all. Instead of defending the original PR, I added a 24-hour TTL to every cache entry and a `--no-cache` flag for anyone who needed a guaranteed-fresh scan, then wrote a test proving a cache entry older than the TTL is never used for an affected-version decision. I also asked her directly, in the PR thread, whether a 24-hour window addressed the staleness risk or whether this specific project needed something shorter."
+   >
+   > **Result:** "She agreed 24 hours was reasonable given how often the advisory feed itself updates, and the PR merged with her approval within two days instead of stalling. The cache cut average scan time on large lockfiles by roughly 60%, and six months later nobody has reported a stale-cache false negative. Priya and I have reviewed each other's PRs on that subsystem regularly since."
+
+   Notice what changed structurally, not just in detail: every sentence in Action starts with something the speaker did (*I checked*, *I added*, *I wrote*, *I asked*), there's a specific concrete fix (a 24-hour TTL, a `--no-cache` flag, a test), and the Result closes with a fact a follow-up question could verify ("six months later nobody has reported a stale-cache false negative") instead of a feeling about the experience.
+
+4. **Build a STAR-structured outline (not a full answer) for a second common question: "Tell me about a time you failed."** An outline is the four labels with one or two sentences each — enough that you could expand it live, not memorized word-for-word:
+
+   - **Situation:** During the Magnum Opus, after training the baseline image classifier (`model.py`, a small CNN on MNIST) to 99.1% clean test accuracy, I drafted my capstone write-up around that one number, before running the FGSM attack sweep the capstone itself required next.
+   - **Task:** The capstone's entire premise is that a clean-accuracy number proves nothing about robustness, and I'd drafted my write-up as if it did, without having generated a single adversarial example yet.
+   - **Action:** I deleted the draft and ran the actual `benchmark.py` epsilon sweep before writing anything else: at epsilon=0.1, accuracy fell from 99.1% to 61.2% under attack — a pixel perturbation invisible to a human eye. I didn't stop there either; I built the adversarial-training defense in `adv_train.py`, reran the identical sweep, and wired the same before/after measurement into a CI gate using the exact pattern from my own Tier 4 CVE-scanning gate, so the project would never again let a clean-accuracy number stand in for a robustness claim.
+   - **Result:** The hardened model recovered to 94.8% accuracy at epsilon=0.1 — a 33.6-point recovery — at a cost of just 0.6 points of clean accuracy, and the CI gate now enforces a minimum accuracy under attack on every commit. The real result wasn't the number, it was the rule I set afterward: no accuracy claim ships without a robustness sweep behind it, which is exactly the discipline the previous question's good STAR answer already assumes.
+
+   A full outline like this is enough for most "tell me about a failure" or "tell me about something you learned fast" questions — you expand the Action live, in the room, which is also what keeps it from sounding memorized.
+
+5. **Read a real worked offer negotiation, start to finish, with real numbers.** Initial offer, as actually received:
+
+   > "Hi Jordan, we're excited to offer you the Security + ML Engineer role. Base salary $148,000/year, signing bonus $8,000, annual target bonus 10%, and an equity grant of 40,000 RSUs vesting over 4 years. Please let us know if you'd like to accept by Friday."
+
+   Jordan has a competing offer ($165,000 base, $15,000 signing bonus, $60,000 in RSUs over four years) and checked market data for the role and level, which puts total comp in the $170k–$190k range. Here is the actual counter, written as an email, with the justification stated plainly rather than implied:
+
+   > "Hi [Recruiter name], thank you for the offer — I'm genuinely excited about the team and the work on [project]. Before I accept, I want to be transparent: I have a competing offer at $165,000 base with a $15,000 signing bonus and $60,000 in RSUs over four years, and market data for this role and level (levels.fyi, comparable security+ML roles) puts total comp in the $170k–$190k range. Given that, I'd like to ask if there's room to bring the base to $168,000 and revisit the signing bonus or equity to help close the gap. I want to find a number that reflects the value I think I can add here, starting with [specific project] — could we talk this week?"
+
+   The company comes back at $160,000 base, a $12,000 signing bonus, and the equity grant bumped to 50,000 RSUs. Jordan accepts. Notice what made this negotiation work: every number in the counter is backed by something the other side can't dismiss as invented (a real competing offer, real market data), and the ask is specific (an exact base number) rather than vague ("more money, if possible").
+
+6. **Name two concrete negotiation mistakes, with the exact wrong words and the exact right words for each.**
+
+   **Mistake 1 — negotiating against yourself by naming a lowball range first.** A recruiter asks, "What are your salary expectations?" A weak answer: *"I'm flexible, somewhere between $120,000 and $140,000 would work for me."* This anchors the entire negotiation at a number the candidate invented, usually below what the role would have paid anyway — most employers rarely offer above the top of a range the candidate names themselves, and plenty offer near the bottom of it. The fix: *"I'd rather hear the range you have budgeted for this role first,"* and if pressed further, cite external data instead of a number pulled from nowhere: *"Based on market data for this role and level, I'd expect total comp in the $170k–$190k range."*
+
+   **Mistake 2 — accepting on the spot, before ever seeing the number in writing or comparing it to anything else.** Recruiter: *"Great, so can I tell the team you're in?"* Weak answer, said immediately on the call: *"Yes, sounds great, I accept!"* — committed verbally before the full written offer exists, before comparing it to a competing offer still pending, and before any time to think clearly instead of in the moment of a phone call. The fix is one sentence, and it works almost every time: *"This sounds great, and I'm very interested — can I have 48 hours to review the full written offer before I confirm?"* A reasonable employer grants this without hesitation; one that pressures you to answer immediately is itself a signal worth noticing.
+
+7. **Scope a real statement of work (SOW), starting exactly where Career Launch Sprint's "Freelance client" row stopped: the prospect already said yes.** This assumes the pitch is done — the SOW is the first real deliverable of the engagement itself. Here it is, filled in completely, for a believable small project:
+
+   ````text
+   STATEMENT OF WORK
+
+   Prepared for: Fernwood Analytics
+   Prepared by: Jordan Casey, Casey Security Consulting
+   Date: October 17, 2026
+
+   Project: Adversarial Robustness Audit — Fraud-Detection Model
+
+   1. Background
+   Fernwood Analytics' production fraud-detection model (a gradient-
+   boosted classifier) has not been tested against adversarial
+   manipulation. This follows our call on October 10, where Fernwood
+   described a rise in false negatives on transactions that appear
+   deliberately structured to avoid detection.
+
+   2. Deliverables
+   - A written adversarial-robustness audit identifying how the
+     current model can be evaded, including a reproducible attack
+     script and measured success rates against a held-out sample
+   - A hardened retrain of the model (same feature set, with
+     monotonic constraints and adversarial-example augmentation)
+     plus a before/after evasion-rate comparison
+   - A 5-page report summarizing findings, the fix, and residual
+     risk, written for a non-technical stakeholder audience
+   - One 60-minute handoff call walking the Fernwood engineering
+     team through the findings and the retrained model
+
+   3. Timeline
+   - Week 1 (Oct 20-24): audit and attack script, delivered as a
+     findings memo
+   - Week 2 (Oct 27-31): hardening and retrain
+   - Week 3 (Nov 3-5): final report, handoff call, delivery of all
+     code and artifacts
+   Total: 3 weeks from kickoff (Oct 20) to delivery (Nov 5).
+
+   4. Price
+   Flat fee: $6,500, covering all deliverables above.
+   Payment schedule: 50% ($3,250) due at signing, 50% ($3,250) due
+   on delivery of the final report.
+
+   5. Out of scope
+   Ongoing monitoring, recurring retraining, or auditing any model
+   other than the one named above are not included and would
+   require a separate SOW.
+
+   6. Acceptance
+   Signed: ______________________   Date: ______________
+   ````
+
+   Every deliverable is a concrete noun (an audit, a retrain, a report, a call), the timeline is dated rather than "a few weeks," and the price is a flat number with an explicit payment split — a stranger receiving this document knows exactly what they're buying, when, and for how much, without a single follow-up question.
+
+8. **Learn the four contract-essentials clauses a freelance engagement needs before any work starts, with real clause language for each.** An SOW describes the work; a contract protects you if the work goes sideways.
+
+   - **Payment terms & schedule:** "50% ($3,250) due upon signing; 50% ($3,250) due net-15 from delivery of the final report. Invoices unpaid after 30 days accrue a 1.5% monthly late fee."
+   - **IP ownership:** "Client owns full rights to all deliverables (code, report, retrained model) upon receipt of final payment. Consultant retains the right to reuse general methods, techniques, and non-client-specific code in future work."
+   - **Scope-creep clause:** "Any work beyond the deliverables listed in Section 2 of the Statement of Work will be billed at $125/hour or requires a signed SOW amendment before work begins."
+   - **Kill clause (termination):** "Either party may terminate this agreement with 7 days' written notice. Client pays for all work completed up to the termination date; Consultant delivers all work-in-progress completed to that point."
+
+   The scope-creep clause is the one most first-time freelancers skip, and it's the one that costs them the most — without it, "can you also just quickly check X" requests accumulate for free, one reasonable-sounding ask at a time, until the flat fee from step 7 is covering triple the work it was priced for.
+
+9. **Write a real invoice.** An invoice is not a reminder that you did work — it's a document a client's accounts-payable process can actually act on, which means it needs your details, an itemized line or milestone, payment terms, and a due date, all explicit:
+
+   ```text
+   INVOICE
+   Casey Security Consulting
+   Jordan Casey · jordan@caseysecurityconsulting.com · 555-0142
+
+   Invoice #: CSC-2026-014
+   Date: November 5, 2026
+   Bill to: Fernwood Analytics, Attn: Accounts Payable
+
+   Description                                              Amount
+   Milestone 2 of 2 — Adversarial Robustness Audit
+   (final report, handoff call, delivery of artifacts)    $3,250.00
+
+   Payment terms: Net 15
+   Due date: November 20, 2026
+   Pay to: [account/payment-link details]
+
+   Thank you for your business.
+   ```
+
+   Compare this to "hey, just a reminder the second half is due" in a chat message — the invoice has a number a bookkeeper can file, a due date that starts a real clock, and language ("Milestone 2 of 2") that ties the payment back to the SOW's own schedule, so nobody has to ask what it's for.
+
+10. **Draw the line explicitly between this section and DevOps Tooling's Agile and Collaboration Norms module, then fix a Slack message that should have been a doc.** That module already covers Scrum vs. Kanban, PR-size discipline, review etiquette, and RFC docs — real team *process*, genuinely agnostic to whether the team sits in one room or six timezones. None of that is repeated here. This is about something that module structurally can't cover, because it isn't a process at all: your own personal habits as an individual on a distributed team — what channel you default to, and why. Here's a real before/after:
+
+    **Before**, posted at 11:47pm UTC in `#eng-backend`, the kind of message that's easy to write and easy to lose:
+
+    > "hey all so I've been thinking about the Vault migration thing and I think we should actually reconsider the whole approach — the k8s auth method we picked has a renewal-lease issue under load that I only found testing it against the billing service, and I think we should look at the AppRole method instead even though it needs an extra secret-zero step, because... [continues for eight more paragraphs of reasoning, alternatives, and rollout risk] ...anyway let me know what you all think!"
+
+    This is a real, reviewable engineering decision with no title, no link anything else can point to, invisible to any teammate not online in that exact window, and gone from everyone's attention the moment the next message arrives in the channel.
+
+    **After:** the content becomes a short RFC using DevOps Tooling's own template (same artifact, reused for a different reason — not "we need a record," but "my teammates are nine time zones away and can't read this live"), and the Slack message shrinks to a pointer:
+
+    > "Proposing we switch the Vault auth method for the migration — wrote it up as RFC-017 since it changes rollout risk for every service. Please read and comment by Thursday, whenever your timezone has you online: [link]."
+
+11. **Schedule a meeting fairly across a real timezone gap, and run an async status update instead of a verbal standup.** Jordan is in San Francisco (Pacific Time, UTC-8); a teammate, Lukas, is in Berlin (CET, UTC+1) — a 9-hour gap. A bad, common default: *"Hey Lukas, can we do our architecture review at 4pm Pacific on Thursday? That works well for me after my other meetings."* 4pm Pacific is 1am in Berlin — unfair, and the kind of ask that's easy to make without doing the arithmetic, because it's convenient for whoever's proposing it. A fair recurring slot exists (8am Pacific / 5pm Berlin, workable for both), but when that slot has a conflict, the fair move is to name the tradeoff and rotate it, not just default back to whatever's easiest for the scheduler: *"Our usual 8am Pacific / 5pm Berlin slot doesn't work for me this week. Rather than just moving it to whatever's convenient for me and pushing you later into your evening, can we flip it this one time — 8am Berlin / 11pm Pacific? I know that's a late night for me, but you took the early-morning hit the last two times we had to reschedule, so it's my turn."*
+
+    Then replace a verbal standup with a real async update. Vague version, the written equivalent of mumbling through a standup: *"Hey team, still working on the Vault migration stuff, hit a few snags but making progress, should have more to share soon."* A real one, structured so a teammate eight hours away can act on it without a live conversation:
+
+    > **Vault migration — async update, Thu Oct 22**
+    > - Done since Tuesday: migrated `billing` to Vault dynamic secrets in staging; lease renewal held under a 500 req/s load test with zero connection drops over 2 hours.
+    > - Blocked: `inventory`'s Vault role needs a policy change only @security-lead can approve — asked in #infra-requests at 9:40am UTC, no response yet (16 hours).
+    > - Next: migrate `inventory` in staging once unblocked; if no response by end of my Friday, I'll escalate in tomorrow's async channel instead of waiting silently.
+    > - Decision needed from the team, no rush: should `billing`'s staging rollout sit a full week before touching prod, or move to prod after 48 hours clean? Answer whenever your timezone has you online.
+
+    Every line in the real update is something a teammate could act on without ever talking to Jordan live — a stated blocker with a timestamp, a named escalation plan, and a decision framed so it doesn't require anyone to be awake at the same time to answer it.
+
+## Exercise
+
+Using a real or plausible project of your own:
+
+1. Write your own full STAR answer (all four parts, written out, first person, "I" not "we") to "Tell me about a time you disagreed with a teammate" — or another common behavioral question — grounded in something real, either from your own work or from a project elsewhere in this curriculum.
+2. Draft a one-paragraph negotiation counter-offer using a real or plausible number for an offer you have or might realistically get. Name the number and name your justification — a competing offer, market data, or the scope of the role — the way step 5's email did.
+3. Draft one real async status update, in the done/blocked/next/decision-needed format from step 11, for a project you're currently working on, written as if your team were spread across at least two timezones.
+
+**Hint, not a solution:** if your STAR answer's Action section is hard to write, that's usually a sign the story itself is too vague to use — go find a story where you can name at least two specific things you personally did, not just the outcome that resulted. The same test applies to your negotiation paragraph: if you can't point to a specific number or fact behind your ask, you're negotiating against yourself before anyone else even responds.
+
+## Check on learning
+
+- Without rereading step 3's pip-audit example, list the four parts of STAR, and for each one, name the specific sentence from your own Exercise answer that belongs to it.
+- Name the two negotiation mistakes from step 6, and for each one, state what to say instead — from memory, not by rereading.
+- Explain, in your own words, why this module's remote-collaboration section isn't duplicate content with DevOps Tooling's Agile and Collaboration Norms module. What does each one actually teach, and why can't one substitute for the other?
+
