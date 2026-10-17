@@ -1,0 +1,89 @@
+[
+  {
+    "id": "capstones-career/tier-5/legal-and-ip-literacy/q1",
+    "type": "multiple_choice",
+    "prompt": "You maintain an MIT-licensed tool and want to add a GPL-3.0-licensed library to it. What is the correct outcome, and why?",
+    "choices": [
+      "You generally cannot ship the combination under MIT — GPL-3.0's copyleft obligation applies to the combined/derivative work, so the whole distributed work would have to become GPL-3.0",
+      "This is always fine, because MIT is a more permissive license and permissive licenses override any license they're combined with",
+      "This is illegal in all cases and the GPL-licensed code can never be used by anyone outside its own project",
+      "It depends only on how many lines of GPL code you use — under a certain threshold, the GPL obligation doesn't apply"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "capstones-career/tier-5/legal-and-ip-literacy/q2",
+    "type": "multiple_choice",
+    "prompt": "What does signing a typical Contributor License Agreement (CLA) actually commit a contributor to, in the most common form?",
+    "choices": [
+      "Granting the project or maintaining organization a broad license to use, modify, and relicense the contribution, while the contributor keeps their own copyright",
+      "Permanently transferring copyright ownership of the contribution to the project, identical to a full copyright-assignment agreement",
+      "Nothing legally binding — CLAs are purely symbolic and have no real legal effect",
+      "Granting the project exclusive rights so that the contributor can no longer use their own contributed code anywhere else"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "capstones-career/tier-5/legal-and-ip-literacy/q3",
+    "type": "multiple_choice",
+    "prompt": "Under U.S. copyright's work-made-for-hire doctrine, what is the key difference in default ownership between an employee's work and an independent contractor's work?",
+    "choices": [
+      "An employee's work within the scope of employment is automatically owned by the employer; a contractor's work is not automatically work-for-hire unless a written agreement says so (and even then, only for a narrow set of legally defined categories)",
+      "Both employees' and contractors' work are automatically owned by whoever pays for it, with no agreement required in either case",
+      "A contractor automatically owns everything they create, and no contract can ever change that",
+      "An employee owns their own work by default, and the employer must get a signed assignment to claim it"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "capstones-career/tier-5/legal-and-ip-literacy/q4",
+    "type": "multiple_choice",
+    "prompt": "Which statement about software patents is accurate and consistent with this lesson?",
+    "choices": [
+      "Most ordinary application code isn't patentable, and software/business-method patents face real extra scrutiny since Alice Corp. v. CLS Bank (2014), though exactly where the line falls is genuinely fact-specific and unsettled",
+      "Any code you write is automatically eligible for a patent as soon as you write it, with no further requirements",
+      "Alice Corp. v. CLS Bank made all software patents in the U.S. completely invalid going forward",
+      "Patents and copyright protect exactly the same thing, so getting a copyright on your code also gives you patent protection"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "capstones-career/tier-5/legal-and-ip-literacy/q5",
+    "type": "multiple_choice",
+    "prompt": "Why does a non-compete clause not have a single universal enforceability answer across the United States?",
+    "choices": [
+      "California's Business and Professions Code §16600 statutorily voids most employee non-competes, while many other states instead apply a case-by-case “reasonableness” test on scope, duration, and geography",
+      "Non-compete clauses are enforced identically in every U.S. state, so the jurisdiction never actually matters",
+      "Non-competes are enforceable only in California and nowhere else in the United States",
+      "Enforceability depends solely on the length of the non-compete, with no state-law variation at all"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "capstones-career/tier-5/legal-and-ip-literacy/q6",
+    "type": "short_answer",
+    "prompt": "What real, well-documented California statute protects an employee's own side project from an overly broad employer IP-assignment clause, when that project was built on the employee's own time and equipment, unrelated to the employer's business?",
+    "acceptedAnswers": [
+      "California Labor Code §2870",
+      "Labor Code section 2870",
+      "California Labor Code section 2870",
+      "§2870"
+    ]
+  },
+  {
+    "id": "capstones-career/tier-5/legal-and-ip-literacy/q7",
+    "type": "short_answer",
+    "prompt": "Name the real class-action lawsuit discussed in this lesson that alleges GitHub Copilot's training on public code violated open-source license terms, and in one phrase, describe its current legal status.",
+    "acceptedAnswers": [
+      "Doe v. GitHub, ongoing/unsettled",
+      "Doe v. GitHub, still unresolved",
+      "Doe versus GitHub, an ongoing and unsettled case",
+      "Doe v. GitHub — not yet finally resolved"
+    ]
+  },
+  {
+    "id": "capstones-career/tier-5/legal-and-ip-literacy/q8",
+    "type": "explain_back",
+    "prompt": "Explain, in your own words and without rereading step 9, the difference between what GDPR requires, what CCPA requires, and when HIPAA actually applies to a product. Then explain why this is a different kind of question than the one DevOps Tooling's infrastructure-compliance scanning tools answer."
+  }
+]
