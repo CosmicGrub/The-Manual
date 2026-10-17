@@ -44,27 +44,29 @@ This track takes a learner from "what is a terminal" to shipping and architectin
 
 ## Tier 1: Foundations
 
-**Goal:** Build genuine, tightly-scaffolded fluency in HTML/CSS/JavaScript plus a second general-purpose language (Python), because the web stack is the lowest-friction on-ramp that transfers directly into every later surface in this track (Electron wraps it, React Native/Flutter's component model rhymes with it, and reading it prepares the learner to later read Swift/Kotlin).
+**Goal:** Build genuine, tightly-scaffolded fluency in HTML/CSS/JavaScript plus a second general-purpose language (Python), because the web stack is the lowest-friction on-ramp that transfers directly into every later surface in this track (Electron wraps it, React Native/Flutter's component model rhymes with it, and reading it prepares the learner to later read Swift/Kotlin) — and pick up the design judgment (visual design, typography, color, lightweight usability validation) to make deliberate decisions with that fluency, not just technically-correct ones, before the tier's portfolio-site checkpoint.
 
-**Modules** (~76h):
+**Modules** (~88h):
 
 - **HTML & CSS Fundamentals** — ~20h: semantic HTML, the box model, Flexbox and Grid layout, responsive design (media queries, mobile-first), basic accessibility (alt text, semantic landmarks, contrast)
 - **JavaScript Fundamentals** — ~30h: variables, types, operators, functions and scope, control flow, arrays and objects, DOM selection and manipulation, event handling, intro to async (callbacks, promises)
 - **Programming Fundamentals in a Second Language (Python)** — ~20h: syntax and data types, lists/dicts/tuples, functions and modules, comparing Python's and JavaScript's approaches to the same problem side by side to build a transferable mental model of 'what a language is'
 - **How Native, Mobile, and Desktop Differ From Web (Conceptual + Code Reading)** — ~6h: compiled native apps (Swift/Kotlin) vs interpreted web vs cross-platform bridges (React Native/Flutter) vs Electron (web tech, native shell), reading (not yet writing) a minimal starter file from each stack side by side
+- **UX/UI & Product Design Fundamentals** — ~12h: visual hierarchy, contrast, and whitespace as design tools; typography (type scales, font pairing, line-height/measure for readability); color theory (building a cohesive small palette, cross-referencing this tier's own WCAG contrast-ratio math rather than re-deriving it); lightweight user research and validation (the 5-second test, a real usability-test script, a condensed heuristic-evaluation checklist) — the "how to decide what to build and how it should look" layer this tier's other three modules deliberately don't cover, positioned right before the checkpoint below
 
 **Quizzes / assessment:**
 
-- *Micro-quiz sets (per module)* — 8-10 auto-graded, spaced-repetition-eligible questions each on CSS selectors/specificity, JS control flow, and Python-vs-JS syntax differences.
+- *Micro-quiz sets (per module)* — 8-10 auto-graded, spaced-repetition-eligible questions each on CSS selectors/specificity, JS control flow, Python-vs-JS syntax differences, and (for the design module) type-scale/contrast/heuristic-evaluation comprehension.
 - *Bug hunt / code-review kata* — Given 10 lines of intentionally broken HTML/CSS (unclosed tags, wrong flex properties) and 10 lines of broken JS (off-by-one, undefined variable, wrong equality operator), find and fix every bug.
 
-**Checkpoint project:** Build and deploy a multi-page personal portfolio site (3+ pages, responsive via Flexbox/Grid, at least one real interactive JS feature such as a dynamic project filter or validated contact form) deployed live via GitHub Pages or Netlify.
+**Checkpoint project:** Build and deploy a multi-page personal portfolio site (3+ pages, responsive via Flexbox/Grid, at least one real interactive JS feature such as a dynamic project filter or validated contact form) deployed live via GitHub Pages or Netlify — with a real type scale and font pairing chosen deliberately, a small accessible color palette, and the design module's heuristic-evaluation checklist run against it (plus one real person's 5-task usability script, if you can get it) before calling it done.
 
 **Creative teaching methods:**
 
 - Feynman teach-back: explain the CSS box model and Flexbox to a rubber duck / on video as if teaching a 10-year-old
 - Prompting drill: ask an AI to generate a CSS layout, then find and manually fix what's wrong with its Flexbox output — trains both CSS and critical evaluation of AI code
 - Spaced-repetition flashcards for JS array/object methods (map, filter, reduce, find, etc.)
+- Build-then-break for design, not code: run the heuristic-evaluation checklist and a real 5-task usability script on an actual person (not yourself) against your in-progress portfolio site, and log every point of confusion as a bug to fix before the checkpoint ships
 
 **Curated resources:**
 
@@ -73,6 +75,10 @@ This track takes a learner from "what is a terminal" to shipping and architectin
 - [MDN Web Docs — JavaScript Guide](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide) — Official, canonical reference.
 - [CS50x (Harvard) — Python and web-adjacent weeks](https://cs50.harvard.edu/x/) — Free; strong second-language grounding.
 - [Exercism — Python Track](https://exercism.org/tracks/python) — Free, mentored practice exercises with real feedback.
+- [Laws of UX](https://lawsofux.com/) — Free; the canonical, bite-sized reference for visual hierarchy, contrast, and the other design-psychology principles the new design module applies.
+- [Nielsen Norman Group — "10 Usability Heuristics for User Interface Design"](https://www.nngroup.com/articles/ten-usability-heuristics-for-user-interface-design/) — Free; the original source for the heuristic-evaluation checklist adapted in this tier's design module.
+- [Practical Typography (Matthew Butterick)](https://practicaltypography.com/) — Free, full book online; the canonical reference for type scales, line-height, and measure.
+- [Material Design 3 — Foundations](https://m3.material.io/foundations) — Free, official; a real, worked color and type-scale system to compare against the one you build by hand in this tier's design module.
 
 ---
 
