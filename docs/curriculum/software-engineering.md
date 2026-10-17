@@ -164,9 +164,9 @@ This track is where "I can write code" turns into "I can build and maintain syst
 
 ## Tier 4: Advanced / Specialist
 
-**Goal:** Think at the architecture level: distributed systems fundamentals, database internals and performance, security-aware engineering, and writing the kind of decision documents (ADRs) that real engineering orgs run on. This tier also introduces mentoring and leading review as a skill, not just receiving it.
+**Goal:** Think at the architecture level: distributed systems fundamentals, database internals and performance, security-aware engineering, and writing the kind of decision documents (ADRs) that real engineering orgs run on. This tier also introduces mentoring and leading review as a skill, not just receiving it — and closes by generalizing TDD past the cases where a single correct answer exists at all.
 
-**Modules** (~54h):
+**Modules** (~62h):
 
 - **System Design Fundamentals at Scale** — ~12h: Load balancing and horizontal scaling, Caching layers and cache invalidation strategies, CAP theorem and consistency models, Message queues and async processing
 - **Distributed Systems Foundations** — ~12h: Consensus intuition (Paxos/Raft), Replication and partitioning/sharding, Failure modes: network partitions, split-brain, retries and idempotency
@@ -174,12 +174,14 @@ This track is where "I can write code" turns into "I can build and maintain syst
 - **Security-Aware Software Engineering** — ~8h: (this is a developer's working knowledge, not deep offensive/defensive security — for real penetration-testing, exploit development, and red/blue team depth, see the canonical Cybersecurity & Ethical Hacking track, MASTERFILE.md §4.5) OWASP Top 10 in depth (injection, broken auth, broken access control, etc.), Basic threat modeling, OAuth2/OIDC for auth, Secrets management and dependency vulnerability scanning
 - **Architecture Decision Records & Trade-off Analysis** — ~6h: Writing an ADR, Monolith vs. microservices vs. modular monolith trade-offs, Documenting non-functional requirements (latency, availability targets)
 - **Leading Code Review & Mentoring Practice** — ~6h: Reviewing a junior engineer's PR constructively, Pairing effectively, Writing an RFC-style proposal for a team decision
+- **Eval-Driven Development: Measuring What Tests Can't** — ~8h: Generalizing Tier 2's TDD discipline to decisions with no single correct answer (ranking, pricing, matching); offline evaluation via a golden set and a domain scoring function (NDCG@k for a ranking change, regression-tracked against a stored baseline); pre-registered online A/B testing (primary metric, guardrail metric, minimum detectable effect, sample-size/power calculation, a real two-proportion z-test); the Goodhart's-law failure mode where a change wins offline and loses online; connecting both gates to the canary rollout (DevOps Tier 3) and SLO monitoring (this tier's own ADR module, DevOps Tier 4) that already exist downstream
 
 **Quizzes / assessment:**
 
 - *CTF-style war-game challenge* — A deliberately vulnerable mini API (self-built or a known vulnerable app) to exploit — SQL injection, broken auth, IDOR — then patch and write a one-paragraph root-cause note.
 - *Checkpoint-gated design review (rubric-graded)* — A timed "whiteboard" system-design exercise (e.g., design a rate limiter) graded against a rubric covering requirements clarification, capacity estimation, and trade-off articulation.
 - *Micro-quizzes (scenario-based)* — CAP theorem and consistency-model scenarios: given a use case, choose and justify strong vs. eventual consistency.
+- *Two-gate decision pipeline exercise* — Design and run an offline golden-set evaluation plus a pre-registered, properly powered online A/B test for a change with no single correct answer; explain a plausible Goodhart's-law divergence between the two results.
 
 **Checkpoint project:** Design and partially implement a realistically scaled system (e.g., a URL shortener, rate limiter, or notification service): produce a full design doc (requirements, capacity estimate, architecture diagram, data model, trade-offs, at least one ADR); implement a working core slice with production-grade concerns (indexing, caching, auth, rate limiting, basic monitoring hooks); then lead a mock design review defending your choices against a skeptical reviewer (peer or AI).
 
@@ -188,6 +190,7 @@ This track is where "I can write code" turns into "I can build and maintain syst
 - CTF-style war-game: exploit and then remediate a deliberately vulnerable mini API covering at least 3 OWASP Top 10 categories.
 - Explain it back as a mentoring exercise: write the onboarding doc you wish you'd had, teaching a Tier 2 learner one advanced concept (e.g., transaction isolation levels) from scratch.
 - Prompting drill: use an AI as a Socratic, adversarial system-design interviewer instructed explicitly to poke holes in your architecture rather than validate it — the drill is in prompting it to actually push back.
+- Pre-registration discipline drill: before looking at any results, write down the primary metric, guardrail metric, and minimum detectable effect for a real or hypothetical experiment, then compute the required sample size — the drill is committing to the bar before you know the answer, not after.
 
 **Curated resources:**
 
@@ -197,6 +200,8 @@ This track is where "I can write code" turns into "I can build and maintain syst
 - [OWASP Top 10](https://owasp.org/www-project-top-ten/) — Official, free, canonical web application security risk reference (2025 edition current).
 - ["In Search of an Understandable Consensus Algorithm" (Raft paper), Ongaro & Ousterhout](https://raft.github.io/raft.pdf) — Author-hosted PDF of the Raft consensus paper; foundational and unusually readable for a systems paper.
 - ["Dynamo: Amazon's Highly Available Key-value Store" (DeCandia et al., SOSP 2007)](https://www.allthingsdistributed.com/files/amazon-dynamo-sosp2007.pdf) — Official author-hosted PDF (Werner Vogels); foundational paper on eventual consistency and partitioning.
+- ["How Not To Run an A/B Test", Evan Miller](https://www.evanmiller.org/how-not-to-run-an-ab-test.html) — Free, widely-cited explanation of why checking a running experiment repeatedly and stopping early invalidates its significance result — the exact failure pre-registration exists to prevent.
+- [*Introduction to Information Retrieval*, Manning, Raghavan & Schütze — Ch. 8, Evaluation in Information Retrieval](https://nlp.stanford.edu/IR-book/information-retrieval-book.html) — Free, author-hosted full text of the canonical IR textbook; Chapter 8 covers NDCG and ranking evaluation in full rigor.
 
 ---
 

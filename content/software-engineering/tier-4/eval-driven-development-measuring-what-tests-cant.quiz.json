@@ -1,0 +1,86 @@
+[
+  {
+    "id": "software-engineering/tier-4/eval-driven-development-measuring-what-tests-cant/q1",
+    "type": "multiple_choice",
+    "prompt": "What kind of engineering decision does this module's harness shape (golden set + scoring function + regression tracking) apply to, that Tier 2's Red-Green-Refactor cycle doesn't cover?",
+    "choices": [
+      "Any decision at all — TDD and eval-driven development are interchangeable names for the same practice",
+      "Decisions with no single correct answer to assert against, where \"better\" is itself a judgment call needing evidence",
+      "Only decisions involving a large language model's output",
+      "Only decisions about production incident response"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-4/eval-driven-development-measuring-what-tests-cant/q2",
+    "type": "multiple_choice",
+    "prompt": "In the NDCG@5 worked example, the candidate ranker scored 0.9817 offline (vs. a 0.3725 baseline) but then lost the A/B test on ticket_deflection_rate. What does the NDCG@5 score actually measure that explains the gap?",
+    "choices": [
+      "Server latency of the ranking function",
+      "Topical similarity between the query and the top-ranked documents, which is different from whether a document gives the user actionable steps to resolve their problem",
+      "The exact same thing as ticket_deflection_rate, just computed differently — the two numbers should always agree",
+      "Nothing measurable; NDCG@5 is a purely cosmetic score with no real-world meaning"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-4/eval-driven-development-measuring-what-tests-cant/q3",
+    "type": "multiple_choice",
+    "prompt": "Why does the module compute a required sample size (power analysis) BEFORE running the A/B test, rather than just running it and checking significance afterward?",
+    "choices": [
+      "It's a legal requirement for all production experiments",
+      "It pre-commits to a minimum detectable effect and sample size before any results exist, the same way pre-registering a metric prevents sliding the bar to match whatever results come in",
+      "Power analysis isn't actually necessary; it's included only as an optional sanity check",
+      "To guarantee the experiment will show a statistically significant result"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-4/eval-driven-development-measuring-what-tests-cant/q4",
+    "type": "multiple_choice",
+    "prompt": "In the worked A/B test, the primary metric (ticket_deflection_rate) showed a non-significant drop (p = 0.15) and the guardrail metric (search_abandonment_rate) showed no significant change (p = 0.63). What's the correct shipping decision?",
+    "choices": [
+      "Ship it — the guardrail held, so nothing is actively broken",
+      "Ship it — the offline NDCG@5 win of +0.6092 is decisive evidence on its own",
+      "Do not ship on this evidence — the primary metric failed to clear its pre-registered threshold, regardless of the offline result or the guardrail holding",
+      "Re-run the offline golden-set evaluation with a larger k value until the online result matches it"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "software-engineering/tier-4/eval-driven-development-measuring-what-tests-cant/q5",
+    "type": "multiple_choice",
+    "prompt": "A teammate says the A/B test's p = 0.15 result is just noise, like a flaky test, and should be re-run until it passes. What's wrong with that framing, per this module's distinction between E2E/contract testing and eval-driven development?",
+    "choices": [
+      "Nothing is wrong — flaky tests and noisy experiments are the same failure mode and should be handled identically",
+      "A flaky test is a correctness bug to reproduce deterministically and fix; variance in a properly powered experiment's result is expected statistical noise, not a bug — re-running until you get the answer you want is exactly the practice pre-registration exists to prevent",
+      "The experiment should have used a chi-squared test instead of a two-proportion z-test",
+      "p = 0.15 is actually statistically significant, so there's no issue to discuss"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "software-engineering/tier-4/eval-driven-development-measuring-what-tests-cant/q6",
+    "type": "multiple_choice",
+    "prompt": "Per this module's decision pipeline, where does DevOps Tier 3's canary-deployment mechanics (setWeight traffic ramping) fit relative to offline and online evaluation?",
+    "choices": [
+      "It replaces the need for offline or online evaluation entirely",
+      "It comes first, before any evaluation, to generate the data the golden set is built from",
+      "It comes after a candidate has already passed offline eval and a pre-registered online A/B test — the canary ramp is how an already-validated change gets rolled out, using the experiment's own metrics as the health signal to watch",
+      "It's unrelated to evaluation and only concerns error rates during deploys"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "software-engineering/tier-4/eval-driven-development-measuring-what-tests-cant/q7",
+    "type": "multiple_choice",
+    "prompt": "Why does this module explicitly NOT re-derive the SLO/error-budget math already covered in this tier's ADR module and DevOps Tier 4's SRE Practice module?",
+    "choices": [
+      "SLOs and error budgets answer a different question — when to page someone about a service that's already live — while this module answers whether a candidate change is likely worth shipping before it ever gets that traffic",
+      "SLOs are considered obsolete and no longer relevant to this curriculum",
+      "There was no room left in the module's estimated hours",
+      "Error budgets and A/B testing use mathematically identical formulas, so repeating them would be redundant"
+    ],
+    "correctIndex": 0
+  }
+]

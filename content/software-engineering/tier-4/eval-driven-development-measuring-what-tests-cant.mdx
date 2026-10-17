@@ -1,0 +1,144 @@
+---
+trackId: software-engineering
+tier: 4
+title: "Eval-Driven Development: Measuring What Tests Can't"
+order: 7
+estimatedHours: 8
+slug: eval-driven-development-measuring-what-tests-cant
+---
+
+## The decision ADR-023 never answered
+
+The ADR module above gave you a complete, real decision document: ADR-023 extracted payment capture into its own service, with a Context section explaining the forcing function, a Decision, and a Consequences section listing what was given up — written and defended at decision time, on the best evidence available then. Nothing in that document, or in the process that produced it, ever goes back and checks whether the decision was actually right once it shipped. That's not a flaw in ADRs specifically — it's a flaw in how most engineering decisions get made. You write a test, it passes, you ship. Tier 2's Red-Green-Refactor cycle is exactly this: *"write a test that fails for the right reason, write the least code that makes it pass, then clean up with the test as your safety net."* That discipline works perfectly when there's a single correct answer to assert against — an empty cart totals zero, or it doesn't.
+
+Most of the decisions that actually matter at this level of the curriculum don't have that shape. Is this new ranking function better? Is this pricing page copy change better? Is this new matching algorithm better? There's no `assert x == y` for "better" — "better" is itself a judgment call, and the judgment call needs evidence, not confidence. AI/ML's Model Evaluation module already solved exactly this problem for one narrow case — scoring LLM output, where there's no single correct sentence — with a golden set, a scoring function, and regression tracking against a stored baseline. This module takes that same shape and generalizes it past LLMs entirely: to a ranking function, a matching algorithm, a pricing heuristic, anything where you need to know, with real evidence, whether a change you can't unit-test actually made things better.
+
+## Offline Evaluation: A Golden Set for Anything, Not Just LLMs
+
+The AI/ML eval module's harness pattern is: a labeled test set in, a scoring function, an aggregate number out, and that number diffed against a stored baseline so a regression gets caught before it ships. Nothing about that shape is specific to language models — the LLM-judge call in that module is just one possible scoring function. Swap it for a scoring function built for a different domain, and the same harness works on a problem with nothing to do with text generation.
+
+Take a help-center search ranker. The golden set here isn't a correct string — it's a set of queries, each paired with a human-graded relevance label (0 = irrelevant, 3 = exact match) for every document that could plausibly show up in its results, fixed once and reused every time a new ranking function needs testing:
+
+```python
+import math
+
+relevance_judgments = {
+    "q1_reset_password":  {"d12": 3, "d47": 2, "d88": 0, "d5": 1, "d9": 0, "d31": 3, "d60": 1},
+    "q2_api_rate_limits": {"d3": 3, "d19": 1, "d22": 3, "d41": 0, "d7": 2, "d55": 0, "d14": 1},
+    "q3_refund_policy":   {"d2": 2, "d44": 3, "d8": 0, "d17": 1, "d29": 0, "d33": 2, "d50": 1},
+    # ... 6 more hand-graded queries, 9 total
+}
+
+def dcg_at_k(ranked_doc_ids, judgments, k):
+    dcg = 0.0
+    for i, doc_id in enumerate(ranked_doc_ids[:k]):
+        rel = judgments.get(doc_id, 0)
+        dcg += (2 ** rel - 1) / math.log2(i + 2)
+    return dcg
+
+def ndcg_at_k(ranked_doc_ids, judgments, k=5):
+    dcg = dcg_at_k(ranked_doc_ids, judgments, k)
+    ideal_order = sorted(judgments.values(), reverse=True)[:k]
+    idcg = sum((2 ** rel - 1) / math.log2(i + 2) for i, rel in enumerate(ideal_order))
+    return dcg / idcg if idcg > 0 else 0.0
+```
+
+NDCG@5 turns a ranked list into one number by rewarding relevant documents for showing up *early* — a grade-3 document at rank 1 counts far more than the same document buried at rank 5 — and normalizing against the best possible ordering of that same candidate set, so the score caps at 1.0 no matter how generous the grades are. That normalization is what makes it comparable across queries of wildly different difficulty, the same way a per-class accuracy breakdown from Tier 2's harness is comparable across classes with different base rates.
+
+Run it the same way the AI/ML module ran its faithfulness score — store a baseline, diff every later run against it, and gate on the delta:
+
+```python
+def run_suite(rankings, baseline_path, k=5, label="run"):
+    results = {qid: round(ndcg_at_k(r, relevance_judgments[qid], k), 4) for qid, r in rankings.items()}
+    mean_ndcg = sum(results.values()) / len(results)
+    print(f"[{label}] Mean NDCG@5: {mean_ndcg:.4f}")
+    return mean_ndcg, results
+```
+
+Run against the production ranking function, then against a candidate built on a new embedding model, on the same 9 queries:
+
+```
+[baseline]  Mean NDCG@5: 0.3725
+[candidate] Mean NDCG@5: 0.9817   (+0.6092 vs. baseline)
+```
+
+Every one of the 9 queries improved, some by more than half a point. That is a clean, unambiguous offline win — and it is exactly the kind of result that makes a team want to ship immediately. It is also, on its own, not nearly enough evidence to do that.
+
+## Pre-Registering the Decision: Online A/B Testing
+
+A golden set is graded once, by a human, against documents that were relevant *then*. Nothing about a static offline score tells you whether real users, searching real queries nobody ever graded, actually get helped. The only way to find out is to randomize real traffic between the old and new version and measure the thing that actually matters.
+
+Before collecting a single data point, write down three things: the one primary metric the change has to move, a guardrail metric that must not get worse, and the smallest improvement worth the cost of shipping it — in that order, before looking at any results. This is Tier 2's write-the-test-before-the-code discipline, aimed at a threshold instead of an assertion: pre-registering the bar is what stops you from sliding it after the results come in to match whatever you happened to get.
+
+```python
+from statsmodels.stats.power import NormalIndPower
+from statsmodels.stats.proportion import proportion_effectsize, proportions_ztest
+
+# pre-registered BEFORE any data is collected
+baseline_rate, target_rate, alpha, power = 0.62, 0.64, 0.05, 0.80
+effect_size = proportion_effectsize(target_rate, baseline_rate)
+required_n_per_arm = NormalIndPower().solve_power(
+    effect_size=effect_size, alpha=alpha, power=power, ratio=1.0, alternative="two-sided")
+```
+
+```
+Baseline ticket-deflection rate: 62%
+Minimum detectable effect (pre-registered threshold): 64% (+2.0pp)
+Effect size (Cohen's h): 0.0414
+Required sample size per arm (alpha=0.05, power=0.80): 9,147
+```
+
+That power calculation is the pre-commitment: it says, mathematically, how much data is required to reliably detect a true 2-point lift before anyone has seen a single session's outcome. The team ran the experiment past that minimum — 20,000 sessions per arm — on the new search ranker from the section above:
+
+```python
+control_n, control_conversions = 20000, 12400
+treatment_n, treatment_conversions = 20000, 12260
+z_stat, p_value = proportions_ztest(
+    count=[treatment_conversions, control_conversions], nobs=[treatment_n, control_n])
+```
+
+```
+PRIMARY METRIC: ticket_deflection_rate
+Control:   12,400/20,000 = 62.00%
+Treatment: 12,260/20,000 = 61.30%
+z = -1.4396   p = 0.1500
+RESULT: not statistically significant -- fails to clear the pre-registered
+        +2.0pp bar. Do not ship on this metric, regardless of the offline win.
+
+GUARDRAIL METRIC: search_abandonment_rate (must not increase)
+Control:   1,840/20,000 = 9.20%
+Treatment: 1,812/20,000 = 9.06%
+z = -0.4861   p = 0.6269
+RESULT: no significant change -- the guardrail holds, but the primary
+        metric still doesn't clear its bar.
+```
+
+The new ranker converted *worse* on the metric it was built to move — a drop, though not a statistically significant one (p = 0.15) — despite looking unambiguously better offline. It isn't actively hurting anyone (the guardrail held), but it also isn't doing the one thing that would justify shipping it.
+
+## Goodhart's Law: When the Proxy Lies
+
+Same candidate ranker, two contradictory verdicts, and the gap is mechanical, not mysterious. The golden set's relevance grades measure *topical similarity* — is this document about what the query is about. `ticket_deflection_rate` measures something narrower and harder: did the specific document the user landed on give them the exact, actionable steps to resolve their problem without filing a ticket. An embedding-based ranker is very good at the first thing — it's built to pull semantically close documents to the top, and a human rater will score a topically-close document highly when the golden set gets built. But semantic closeness doesn't guarantee a document is the *procedural* one: a feature-overview page that mentions "reset password" in passing can sit closer in embedding space to the query "reset password" than the numbered-steps troubleshooting article a click-signal-weighted ranker favors — precisely because the old ranker was tuned on what users actually clicked and resolved their problem with, not on topical similarity. Optimizing hard against the topical-relevance proxy pushed the new ranker toward documents that look more relevant to a grader without being more actionable to a user mid-task. That's Goodhart's Law doing exactly what it always does: a measure that correlated with the real target at modest pressure stops tracking it once something gets optimized directly against it.
+
+The second, compounding problem is distributional. The golden set is 9 fixed queries, hand-picked and graded once. Live traffic is thousands of queries a day with a long tail no 9-query set was ever built to represent. A ranker can be excellent on the curated 9 and merely neutral — or actively worse — on the real query distribution, and a static offline set has no mechanism to surface that gap on its own. This is exactly why the pipeline needs two gates, not one: offline eval decides whether a candidate is even good enough to risk real traffic on; the online test, run only after that gate passes, is the one that actually decides whether to ship. Here, correctly, it said no — and no amount of re-running the offline suite would have caught that, because the offline suite was never wrong about what it measures. It was just measuring the wrong thing to answer "should we ship this."
+
+## The Decision Pipeline: Where This Connects to What You Already Know
+
+Nothing above replaces three things this curriculum already teaches in full depth — it sits upstream of all three, as the step that decides whether they even get exercised:
+
+DevOps Tier 3 already taught you how to physically ramp traffic to a new version and watch its error rate — `setWeight: 10`, a pause, a check, `setWeight: 50`, and so on, aborting back to 100% stable if the error rate spikes. What that module doesn't cover is what metric should gate each step of that ramp when the question isn't "did it break" but "is it actually better." That gate is exactly the primary-metric-plus-guardrail pair from the A/B test above: a candidate that passes offline eval and online A/B testing is the one that gets handed to that canary mechanism in the first place, and the canary's own health metrics (error rate, latency) are the guardrails that mechanism already knows how to watch.
+
+This tier's own ADR module, and DevOps Tier 4's SRE Practice module in full depth, both already cover SLOs and error budgets — the `error_budget = (1 - SLO) × volume` math, and multi-window burn-rate alerting that pages a human on a fast, severe budget burn but only files a ticket for a slow one. Those tell you when to page someone about a service that's already live and already serving production traffic. They don't tell you, before a candidate change ever gets that traffic, whether it's likely to be worth shipping at all — that's upstream, and that's what offline and online evaluation are for.
+
+And Tier 3's End-to-End & Contract Testing module covers a different kind of failure entirely: a flaky test is a correctness bug — the same input sometimes passes, sometimes fails, and the fix is to make it deterministic before deciding what "fixed" even means. Variance in an A/B test's result is not that. A metric that moves ±0.3 percentage points between two otherwise-identical runs isn't a bug to reproduce and fix — it's sampling noise, and the pre-registered power calculation above exists specifically to make sure your sample size is large enough that real effects don't get lost in it. Don't treat a noisy experiment like a flaky test; the tools for distinguishing signal from noise here are statistical, not a `pytest --lf` rerun.
+
+Put together, the full pipeline for a change with no single correct answer looks like this: build or extend a golden set and score a candidate offline, gated against a stored baseline the same way a faithfulness score is gated in AI/ML's module; if it clears that bar, pre-register a primary metric, a guardrail, and a minimum detectable effect, then run a properly powered online experiment; if *that* clears its bar, hand the change to the canary/blue-green mechanics DevOps Tier 3 already taught you, with the experiment's own metrics as the health signal to watch during the ramp; and once it's fully live, the SLOs and error budgets from this tier's ADR module and DevOps Tier 4 take over as the long-run health check. Four gates in total — the last two (the canary ramp and the SLO/error-budget watch) were already fully taught elsewhere in this curriculum; the first two (offline eval and the pre-registered online experiment) are what this module adds. This module was the missing piece: deciding, with real evidence instead of confidence, whether a change that can't be unit-tested actually made things better.
+
+## Exercise
+
+A team wants to ship a new pricing-page layout. Build the two-gate decision pipeline from this module for it:
+
+1. Design a small offline golden set (5-8 hand-labeled cases) for *something about the new layout that's checkable without live traffic* — state clearly what you're scoring and why a single correct-string assertion doesn't work for it. Write and run the scoring function; report the aggregate score and compare it against a stated baseline.
+2. Pre-register an A/B test for the actual launch decision: name one primary metric (not the offline proxy from step 1), one guardrail metric, and a minimum detectable effect, before computing anything. Then compute the required sample size for that effect at 95% confidence / 80% power.
+3. Write 3-4 sentences on a plausible way this specific pricing-page change could win on your step-1 offline proxy but lose on your step-2 primary metric — name the actual mechanism, not just "it might not generalize."
+
+**Hint:** step 3 is the hardest part on purpose. A generic "offline metrics don't always match online ones" answer doesn't demonstrate understanding — go back to what your specific offline score actually measures (visual appeal? copy clarity? something else?) versus what your specific online metric actually measures (conversion? time-on-page? something else?), and find the concrete place those two things can diverge for a pricing page specifically, the same way this module traced the ranking example's divergence to topical similarity versus procedural actionability.
