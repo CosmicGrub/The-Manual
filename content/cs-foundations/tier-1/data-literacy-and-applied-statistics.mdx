@@ -1,0 +1,163 @@
+---
+trackId: cs-foundations
+tier: 1
+title: "Data Literacy & Applied Statistics"
+order: 9
+estimatedHours: 14
+slug: data-literacy-and-applied-statistics
+---
+
+This module builds directly on **Intro to Probability & Statistics** — it assumes you can already compute a mean, median, mode, variance, and standard deviation by hand, and that you already know the addition rule and the conditional/multiplication rule for probability. None of that gets re-taught here. What that lesson gave you was a toolbox; this lesson is about *using* it on real, messy, non-ML decisions: reading a spreadsheet that's supposed to tell you whether something is working, building a dashboard that's supposed to tell a team what to do next, running an A/B test that's supposed to tell you whether a change actually helped, and reading a claim like "our test shows a 25% lift" or "90% of our power users do X" skeptically enough to catch when the statistics are being misused rather than correctly applied.
+
+This is the layer a lot of self-taught programmers skip entirely, and it's not a small gap — it's the difference between writing code that works and knowing, from the data your own product or project produces, what the right thing to build next even is. Nothing in this module is machine learning. There's no model, no training, no gradient. It's the unglamorous, everyday statistics that product managers, growth analysts, and any engineer who actually looks at their own metrics use — worked all the way through with real numbers you can check yourself, by hand or with a calculator.
+
+## What you'll leave this lesson knowing
+
+- How to turn a raw table of numbers into an answer, using week-over-week percent change, a simple moving average, and a volume-weighted average — and why a naive, unweighted average of two percentages can quietly lie to you
+- The difference between a vanity-metrics dashboard (numbers that only go up and never change a decision) and a focused, one-KPI business dashboard built to actually prompt action — and why that's a different animal from the SRE/observability dashboards DevOps teaches
+- When to report the median and the shape of a distribution instead of the mean, on a dataset where a few extreme values would otherwise mislead a real decision
+- How to run a two-group A/B test end to end: compute the conversion-rate difference and run a two-proportion z-test by hand, reading the result the way it's actually meant to be read
+- Two specific, named ways A/B tests get misread in practice — peeking and uncorrected multiple comparisons — with real arithmetic showing how much each one inflates your false-positive rate
+- Why correlation is not causation, using a classic real confounding variable, and why a properly randomized A/B test is the one tool that actually lets you infer causation instead of merely observing correlation
+- How to spot and compute three specific statistical fallacies: Simpson's Paradox, the base-rate fallacy (via Bayesian reasoning built on the conditional-probability rule you already have), and survivorship bias
+
+## Do this
+
+1. **Stare at a raw spreadsheet and notice it doesn't actually answer the question.** Here's eight weeks of signups for a toy product, split by acquisition channel — Organic (SEO/content) and Paid Ads:
+
+   | Week | Organic | Paid | Total |
+   |---|---|---|---|
+   | 1 | 30 | 150 | 180 |
+   | 2 | 35 | 145 | 180 |
+   | 3 | 28 | 160 | 188 |
+   | 4 | 38 | 140 | 178 |
+   | 5 | 34 | 135 | 169 |
+   | 6 | 42 | 120 | 162 |
+   | 7 | 39 | 130 | 169 |
+   | 8 | 48 | 110 | 158 |
+
+   The question a real stakeholder would ask is "which channel is actually growing?" Just eyeballing the raw table, you can see Organic ends higher than it started (30 → 48) and Paid ends lower (150 → 110) — but Total bounces around non-monotonically (180, 180, 188, 178, 169, 162, 169, 158) in a way that makes it tempting to conclude "signups are just declining" without knowing *why*, or which channel is responsible. A table of raw numbers is data. It isn't yet an answer.
+
+2. **Compute the week-over-week (WoW) percent change for each channel.** The formula is nothing new — you're applying arithmetic you already know: `% change = (this week − last week) / last week × 100`.
+
+   | Week | Organic (WoW%) | Paid (WoW%) |
+   |---|---|---|
+   | 2 | +16.67% | −3.33% |
+   | 3 | −20.00% | +10.34% |
+   | 4 | +35.71% | −12.50% |
+   | 5 | −10.53% | −3.57% |
+   | 6 | +23.53% | −11.11% |
+   | 7 | −7.14% | +8.33% |
+   | 8 | +23.08% | −15.38% |
+
+   Check one by hand: week 3 Organic is `(28 − 35) / 35 × 100 = −7/35 × 100 = −20.00%`. Notice this is real, correct arithmetic — and it's still not useful by itself. Week 3's −20% could panic someone into thinking Organic is collapsing, when a week-to-week swing like that is mostly noise in a dataset this small. Week-over-week percent change answers "what happened between exactly these two points," not "what's the trend" — those are different questions, and conflating them is a common beginner mistake once you have a formula that *feels* rigorous.
+
+3. **Smooth the noise with a 3-week simple moving average, then isolate the real signal with a volume-weighted average.** A simple moving average (SMA) replaces each noisy week with the average of itself and the two weeks before it, which cancels out short-term zigzag and leaves the underlying trend:
+
+   | Week | Organic SMA(3) | Paid SMA(3) |
+   |---|---|---|
+   | 3 | (30+35+28)/3 = 31.00 | (150+145+160)/3 = 151.67 |
+   | 4 | (35+28+38)/3 = 33.67 | (145+160+140)/3 = 148.33 |
+   | 5 | (28+38+34)/3 = 33.33 | (160+140+135)/3 = 145.00 |
+   | 6 | (38+34+42)/3 = 38.00 | (140+135+120)/3 = 131.67 |
+   | 7 | (34+42+39)/3 = 38.33 | (135+120+130)/3 = 128.33 |
+   | 8 | (42+39+48)/3 = 43.00 | (120+130+110)/3 = 120.00 |
+
+   Now the trend is unambiguous: Organic's smoothed value rises from 31.00 to 43.00, a gain of `(43.00 − 31.00) / 31.00 × 100 ≈ +38.71%`. Paid's smoothed value falls from 151.67 to 120.00, a loss of `(120.00 − 151.67) / 151.67 × 100 ≈ −20.88%`. The noisy week-to-week numbers from step 2 were technically correct the whole time; they just weren't the right lens for "which channel is growing." The SMA is.
+
+   But there's a second, equally real question hiding here: is the *business* growing, even if Organic is? Organic's total change from week 1 to week 8 is `(48 − 30)/30 × 100 = +60.0%`. Paid's is `(110 − 150)/150 × 100 = −26.67%`. If you naively average those two percentages, unweighted, you get `(60.0 + (−26.67)) / 2 = +16.67%` — which reads as healthy overall growth. But that's wrong, and here's the real arithmetic that proves it: in week 1, Organic was only `30/180 ≈ 16.67%` of total signups, and Paid was `150/180 ≈ 83.33%`. Weighting each channel's percent change by its actual share of the business: `0.1667 × 60.0 + 0.8333 × (−26.67) ≈ 10.0 + (−22.22) = −12.22%`. Compare that to the real combined change computed directly from the totals: `(158 − 180)/180 × 100 ≈ −12.22%` — an exact match. The unweighted average lied because it treated a 30-signup channel's percentage swing as equally important as a 150-signup channel's. The honest conclusion: **Organic really is the channel that's growing**, but the business's total signups are genuinely shrinking, because Paid is both much bigger and shrinking faster than Organic is growing. That's a real, non-obvious, decision-relevant fact, and you only get it by computing the right summary — not by reading the table, and not by averaging carelessly.
+
+4. **Read and build a focused business dashboard — and know why it's not the same thing DevOps teaches.** A cluttered startup dashboard might show: total signups since launch, total page views since launch, total social-media followers. All three are cumulative counters. All three only go up. None of them can ever fall, so none of them can ever trigger "something's wrong, go investigate" — they're vanity metrics, impressive-looking numbers that don't change what anyone does next.
+
+   Replace it with one focused, decision-relevant KPI: week-over-week **activation rate** (the share of new signups who complete a key first action, say, within 7 days). Week 7: 500 signups, 150 activated → `150/500 = 30.0%`. Week 8: 650 signups, 136 activated → `136/650 ≈ 20.92%`. Signups grew `(650−500)/500 × 100 = +30.0%` — on the vanity dashboard, that's a win. But activation rate fell from 30.0% to 20.92%, a drop of about `30.0 − 20.92 = 9.08` percentage points, or a relative decline of `(20.92 − 30.0)/30.0 × 100 ≈ −30.3%`. That's a real warning sign a vanity dashboard can never surface: more people are signing up, but a meaningfully smaller share of them are actually engaging — which changes what a team does next (go look at onboarding) in a way "total signups: 43,500 and climbing" never would.
+
+   Be explicit about scope here: this is a **business/product** dashboard, built around a decision a product team makes. It is not the same thing as the SRE/observability dashboards covered in DevOps (uptime, request latency, Prometheus/Grafana panels) — those answer "is the system healthy," built for engineers on call; this one answers "is the product succeeding with users," built for the people deciding what to build or fix next. Same word, "dashboard," two genuinely different tools for two different audiences and two different kinds of decisions.
+
+5. **Choose the right descriptive statistic for a skewed dataset, instead of defaulting to the mean.** Here are session durations, in minutes, for 10 users on the same page: `2, 3, 3, 4, 4, 5, 5, 6, 8, 60`. (That last user left the tab open.) Using the mean and median you already know how to compute: mean = `(2+3+3+4+4+5+5+6+8+60)/10 = 100/10 = 10.0` minutes. Median (average of the 5th and 6th sorted values, `4` and `5`) = `4.5` minutes.
+
+   Those two numbers disagree by more than a factor of two, and the gap matters for a real decision. Count how many of the 10 sessions actually fall below the "average" of 10.0 minutes: `2, 3, 3, 4, 4, 5, 5, 6, 8` — nine of them, `9/10 = 90%`. Only one session (the 60-minute one) pulls the mean up at all. Now suppose a team is deciding whether to add a long, multi-step onboarding tutorial, reasoning "average session is 10 minutes, so people have time for it." That reasoning is built on a number that doesn't describe 90% of actual sessions. Reporting the median (4.5 minutes) — or better, reporting the shape of the distribution ("most sessions are 2–8 minutes; one outlier ran 60") — gives the team the number that actually describes a typical visit, instead of one dragged around by a single extreme case.
+
+6. **Run an A/B test end to end: set it up, compute the real difference, and run the significance check by hand.** Two button colors are tested against each other. Blue (control): 2,000 visitors, 160 conversions → `p₁ = 160/2000 = 0.08` (8.0%). Green (treatment): 2,000 visitors, 200 conversions → `p₂ = 200/2000 = 0.10` (10.0%). The raw difference is 2 percentage points — but with any finite sample, some of that gap could just be chance. A two-proportion z-test checks how surprising a 2-point gap would be if there were really no difference at all.
+
+   First, the pooled conversion rate across both groups: `p_pool = (160+200)/(2000+2000) = 360/4000 = 0.09`. Then the standard error:
+   ```
+   SE = sqrt( p_pool × (1 − p_pool) × (1/n1 + 1/n2) )
+   SE = sqrt( 0.09 × 0.91 × (1/2000 + 1/2000) )
+   SE = sqrt( 0.0819 × 0.001 )
+   SE = sqrt( 0.0000819 ) ≈ 0.00905
+   ```
+   Then the z-score:
+   ```
+   z = (p2 − p1) / SE = (0.10 − 0.08) / 0.00905 ≈ 2.21
+   ```
+   A z of 2.21 clears the conventional two-tailed 95%-confidence threshold of 1.96, and corresponds to a two-tailed p-value of roughly 2.7% (well under the usual 5% cutoff). The honest conclusion: it's unlikely this particular 2-point gap is pure sampling noise, so Green probably does convert better — not "Green definitely converts better forever," just a real, checkable signal crossing a stated confidence threshold, nothing more mystical than that.
+
+7. **Pitfall #1 — peeking: stopping the moment it looks significant inflates your false-positive rate.** Suppose instead of waiting for the planned sample size, a team checks the test's p-value every day and stops the instant it first dips below 0.05. This feels efficient. It's actually a trap: every daily check is another independent chance for ordinary sampling noise to cross the 5% line, even when there is truly zero underlying difference between the two groups.
+
+   Here's the real arithmetic, with an honest simplification stated up front: treat 5 look-points as if each were an independent 5%-chance event (in reality consecutive peeks share data and are correlated, which only makes repeated peeking *more* persistently risky, not less — so this estimate is a conservative floor, not an exaggeration). The chance that *at least one* of 5 independent looks shows a false "significant" result, even with no real effect, is:
+   ```
+   1 − (0.95)^5 = 1 − 0.7738 ≈ 0.2262
+   ```
+   That's roughly 22.6% — more than four times the nominal 5% you thought you were working with — just from checking five times along the way instead of once at the end. This is exactly why a real A/B test needs a sample size decided *before* the test starts, with the significance check run once it's reached, not re-run on demand until the answer you want appears.
+
+8. **Pitfall #2 — multiple comparisons: testing many things at once without correcting the threshold.** A team tests 20 different email subject lines simultaneously against a baseline, each one checked for significance at the standard 5% threshold, and none of the 20 actually has a real effect (the null hypothesis is true for all of them). Treating the 20 comparisons as independent, the chance that *at least one* shows a false "significant" result by pure chance is:
+   ```
+   1 − (0.95)^20 = 1 − 0.3585 ≈ 0.6415
+   ```
+   About 64.2% — meaning it's more likely than not that *something* in a batch of 20 unrelated tests will look "significant" purely by chance, even when nothing is actually working. The fix is a correction like Bonferroni's: divide the significance threshold by the number of comparisons, so the per-test bar becomes `0.05 / 20 = 0.0025` instead of `0.05`, keeping the overall (family-wise) false-positive rate near the 5% you actually intended.
+
+9. **See a real confound: correlation without causation.** Across six representative months, here's ice cream sales (in $ thousands) and drowning incidents for a region:
+
+   | Month | Ice cream sales ($K) | Drownings |
+   |---|---|---|
+   | Jan | 2 | 1 |
+   | Mar | 4 | 2 |
+   | May | 9 | 5 |
+   | Jul | 15 | 9 |
+   | Sep | 10 | 6 |
+   | Nov | 5 | 3 |
+
+   Computing the Pearson correlation coefficient on these six points (mean ice cream = 7.5, mean drownings ≈ 4.33, summing the cross-products of deviations and dividing by the square root of the product of their squared-deviation sums) gives `r ≈ 0.998` — nearly a perfect straight-line relationship. It would be absurd to conclude eating ice cream causes drowning. Both variables are driven by a third, shared variable neither of them controls: **temperature**. Hot months independently push people toward buying more ice cream *and* toward swimming more (which raises drowning risk) — that's a **confounding variable**: something correlated with both the supposed "cause" and the "effect," creating a strong statistical association where no direct causal link exists at all.
+
+10. **Understand why a randomized A/B test is the one tool that lets you infer causation.** The ice cream/drowning data is *observational* — nobody assigned months to be hot or cold, so temperature was always free to drive both variables together. Step 6's A/B test was different in exactly the way that matters: visitors were **randomly assigned** to see Blue or Green. Random assignment means that, on average, every other variable that might affect conversion — time of day, device, how much a visitor already liked the product, the weather, anything — ends up roughly balanced between the two groups, because chance doesn't play favorites. The *only* systematic difference left between the groups is the one thing you deliberately controlled: the button color. That's why, once you've seen a result clear a real significance threshold in a randomized test, you can say "the button color caused the difference" in a way you flatly cannot say about ice cream and drowning. A confounder can only bias your result if it's unevenly distributed between the groups you're comparing — and proper randomization is specifically the procedure that makes that extremely unlikely, by construction, rather than something you have to hope for.
+
+11. **Compute a real, verified Simpson's Paradox.** A team runs a new onboarding email ("New") against the old one ("Old"), split across two subscriber segments — but the rollout wasn't evenly balanced across segments, which turns out to matter a lot:
+
+    | Segment | New: opens/sent | New rate | Old: opens/sent | Old rate |
+    |---|---|---|---|---|
+    | Engaged subscribers | 360/800 | 45.0% | 100/200 | 50.0% |
+    | Cold subscribers | 10/200 | 5.0% | 80/800 | 10.0% |
+    | **Combined** | **370/1000** | **37.0%** | **180/1000** | **18.0%** |
+
+    Look at the two segment rows first: New is *worse* than Old among engaged subscribers (45.0% vs 50.0%) and *worse* than Old among cold subscribers (5.0% vs 10.0%) — worse in every single subgroup, no exceptions. Yet the combined row shows New at 37.0% against Old's 18.0% — New looks more than twice as good overall. Both sets of numbers are correct; verify any row yourself with the raw counts in the table. The reversal happens because New was sent mostly to engaged subscribers (800 of its 1,000 sends, people who open almost everything regardless of subject line) while Old was sent mostly to cold subscribers (800 of its 1,000 sends, people who open almost nothing regardless of subject line). The segment mix — not the subject line — is driving the aggregate difference. This is exactly why a real A/B test readout needs to check that the segment composition of each group is actually balanced, not just glance at the topline conversion numbers.
+
+12. **Apply the base-rate fallacy to a Bayesian reasoning problem — building on, not re-deriving, the conditional-probability rule you already have.** You already know `P(A and B) = P(A) × P(B|A)` from the Probability & Statistics module's card-deck work. Bayes' theorem is just that rule rearranged to solve for the conditional probability in the other direction — no new derivation needed, just a direct application.
+
+    A medical-style test has 90% sensitivity (`P(positive | disease) = 0.90`) and 95% specificity (`P(negative | no disease) = 0.95`, so the false-positive rate is `P(positive | no disease) = 0.05`). The disease's real base rate in the population is 1% (`P(disease) = 0.01`). What's `P(disease | positive)`? Using the multiplication rule to get `P(positive and disease)`, and the addition rule over the two ways to test positive (having the disease, or a false positive) to get the total `P(positive)`:
+    ```
+    P(positive) = P(positive|disease)×P(disease) + P(positive|no disease)×P(no disease)
+                = 0.90×0.01 + 0.05×0.99
+                = 0.009 + 0.0495
+                = 0.0585
+
+    P(disease|positive) = [P(positive|disease)×P(disease)] / P(positive)
+                         = 0.009 / 0.0585
+                         ≈ 0.1538  →  about 15.4%
+    ```
+    Even with a test that sounds quite good (90% sensitive, 95% specific), a positive result only means roughly a 15.4% chance of actually having the disease — because the disease is rare enough (1%) that the much larger pool of healthy people, even at a "low" 5% false-positive rate, generates far more false positives in absolute numbers than the small sick population generates true positives. Ignoring the base rate and treating a positive result as "probably means I'm sick" is the base-rate fallacy, and the fix is always the same: you cannot interpret a test's accuracy without also weighing it against how common the thing being tested for actually is.
+
+13. **Recognize survivorship bias, with a classic case and a real numeric one.** The classic example: during World War II, researchers studied bullet-hole locations on planes that returned from missions, and initially recommended reinforcing the areas with the most observed damage. Statistician Abraham Wald pointed out the fatal flaw — the planes they could study were exactly the ones that survived being hit in those spots. The planes hit in the engine or cockpit mostly never came back, so that damage was invisible in the sample. The correct recommendation was the opposite: reinforce the areas showing the *least* damage on survivors, because planes hit there apparently didn't survive to be counted.
+
+    The same bias shows up in ordinary product data. Suppose a team looks only at currently active users (the "survivors") and finds 850 of 1,000 use a particular feature: `850/1000 = 85.0%`, and concludes "this feature drives retention." But if they also check 1,000 users who already churned, 780 of them had used the exact same feature before leaving: `780/1000 = 78.0%`. The gap between 85.0% and 78.0% is small — the feature is just broadly popular, used at nearly the same rate by people who stayed and people who left, and tells you almost nothing about *why* some users stayed. Looking only at survivors, as the team initially did, hid the churned group entirely and made an unremarkable feature look like a retention driver.
+
+## Exercise
+
+Take any small dataset you actually have access to — real numbers from a personal project, a game you track stats for, your own workout log, or even a made-up but internally consistent one if nothing real is handy. Do three things with it: **(a)** compute the mean and the median, decide which one is the more honest summary for a real decision you'd make from this data, and justify the choice the way step 5 did (check whether a small number of extreme values are dragging the mean away from what's typical); **(b)** sketch, on paper or in a text file, what a focused, one-KPI dashboard for this data would show — name the single number, state what decision it would change, and name one vanity-metric version of the same data that would NOT change any decision; **(c)** design a toy A/B test for one concrete change you could make to this thing — state the two variants, a believable sample size for each, and what two conversion counts would make you confident the change actually worked (you don't need to run the test — just design it the way step 6 did, including stating your sample size in advance so you wouldn't be tempted to peek).
+
+**Hint:** if you don't have a real dataset handy, your own git commit history works well for part (a) — pull commit timestamps or diff sizes for a repo you've worked in, and you'll very likely find the same mean-vs-median divergence this lesson's session-duration example did, since a handful of huge refactor commits tend to sit far out in the tail of an otherwise small, steady stream of commits.
+
+## Check on learning
+
+- Using the spreadsheet numbers from steps 1–3, explain why Organic can legitimately be "the channel that's growing" while the business's total signups are still declining — name the specific number (the weighted average) that reconciles those two claims without contradiction.
+- Explain, in your own words, why the activation-rate dashboard from step 4 is a business/product dashboard and not the kind of dashboard DevOps builds for on-call engineers — and why a vanity-metrics dashboard structurally can never trigger the same kind of "go investigate" decision.
+- Without recomputing anything, explain why a randomized A/B test lets you claim causation while the ice cream/drowning correlation does not — name the confounding variable in the ice cream example and explain what randomization specifically does to neutralize a confounder like it.

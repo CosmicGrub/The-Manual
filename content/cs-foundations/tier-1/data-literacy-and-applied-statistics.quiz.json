@@ -1,0 +1,91 @@
+[
+  {
+    "id": "cs-foundations/tier-1/data-literacy-and-applied-statistics/q1",
+    "type": "multiple_choice",
+    "prompt": "In the spreadsheet example, Organic grew 60.0% and Paid shrank 26.67% from week 1 to week 8. A naive unweighted average of those two percentages is +16.67%, suggesting healthy overall growth, but the real combined signups fell 12.22% over the same period. What explains the gap?",
+    "choices": [
+      "The unweighted average contains an arithmetic error; recomputed correctly it also equals -12.22%",
+      "Paid started out with far more signups than Organic (150 vs. 30 in week 1), so its decline should count for much more than Organic's growth when weighted by volume -- exactly what a volume-weighted average does",
+      "Percent changes can never be averaged together under any circumstances",
+      "The -12.22% figure must be a typo, since both calculations should always give the same number"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cs-foundations/tier-1/data-literacy-and-applied-statistics/q2",
+    "type": "multiple_choice",
+    "prompt": "A startup's dashboard currently shows total signups since launch, total page views since launch, and total social-media followers. A teammate proposes replacing it with a single chart: week-over-week activation rate. What's the strongest argument for the change?",
+    "choices": [
+      "The vanity metrics are mathematically incorrect and need to be recalculated",
+      "Cumulative totals almost always climb regardless of whether the business is healthy, so they never prompt a different decision, while a week-over-week rate can actually fall and trigger an investigation -- like the drop from 30.0% to about 20.9% even as signups rose 30%",
+      "Dashboards should never display more than one number, as a general design rule",
+      "This is the same kind of dashboard DevOps teaches for monitoring server uptime and latency, just applied to a product instead of infrastructure"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cs-foundations/tier-1/data-literacy-and-applied-statistics/q3",
+    "type": "short_answer",
+    "prompt": "Using the session-duration dataset (2, 3, 3, 4, 4, 5, 5, 6, 8, 60 minutes), the mean is 10.0 minutes but the median is 4.5 minutes. Which single data point is responsible for pulling the mean so far above the median?",
+    "acceptedAnswers": [
+      "60",
+      "60 minutes",
+      "the 60-minute session",
+      "the outlier session of 60 minutes"
+    ]
+  },
+  {
+    "id": "cs-foundations/tier-1/data-literacy-and-applied-statistics/q4",
+    "type": "multiple_choice",
+    "prompt": "A two-proportion z-test on an A/B test (Blue: 160/2000 = 8%, Green: 200/2000 = 10%) gives z \u2248 2.21. Using the conventional two-tailed threshold of 1.96 for 95% confidence, what should you conclude?",
+    "choices": [
+      "The result is not significant, since 2.21 is only slightly bigger than 1.96",
+      "The result is significant -- 2.21 clears the 1.96 threshold, so the 2-percentage-point gap is unlikely to be due to chance alone at the 95% confidence level",
+      "A z-test cannot be applied to conversion-rate data; only a t-test can",
+      "The test is inconclusive because the two groups don't have the exact same number of conversions"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cs-foundations/tier-1/data-literacy-and-applied-statistics/q5",
+    "type": "multiple_choice",
+    "prompt": "A team runs an A/B test and checks the result every day, stopping the moment the p-value first dips below 0.05, instead of waiting for the pre-planned sample size. Which specific pitfall is this, and why is it a problem?",
+    "choices": [
+      "Survivorship bias -- they're only looking at the users who survived to see the result",
+      "Peeking -- repeatedly checking a test and stopping as soon as it looks significant inflates the real false-positive rate well above the nominal 5%, since chance gets many separate opportunities to cross the threshold",
+      "Multiple comparisons -- they are comparing more than two groups against each other at once",
+      "This isn't actually a problem, since each individual day's p-value is computed correctly on its own"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cs-foundations/tier-1/data-literacy-and-applied-statistics/q6",
+    "type": "multiple_choice",
+    "prompt": "Ice cream sales and drowning incidents are strongly correlated (r \u2248 0.998 in this lesson's worked numbers). What's the correct conclusion?",
+    "choices": [
+      "Eating ice cream causes an increased urge to swim in unsafe conditions",
+      "Both variables are driven by a shared confounding variable -- summer heat -- which independently increases ice cream buying and swimming (and therefore drowning risk); there is no direct causal link between the two",
+      "The correlation must be a statistical fluke, since ice cream and drowning have no plausible connection",
+      "Drowning incidents cause ice cream sales to rise afterward, as a form of comfort spending"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cs-foundations/tier-1/data-literacy-and-applied-statistics/q7",
+    "type": "explain_back",
+    "prompt": "Using this lesson's email subject-line numbers (New: 45.0% vs. Old: 50.0% among engaged subscribers; New: 5.0% vs. Old: 10.0% among cold subscribers; but New: 37.0% vs. Old: 18.0% combined), explain in your own words how New can be worse than Old in both individual segments yet better than Old overall. What is actually driving the reversal?"
+  },
+  {
+    "id": "cs-foundations/tier-1/data-literacy-and-applied-statistics/q8",
+    "type": "short_answer",
+    "prompt": "A medical-style test has 90% sensitivity and 95% specificity, and the disease's real-world base rate is 1%. Using Bayes' theorem (built on the conditional-probability rule), roughly what percent of people who test positive actually have the disease?",
+    "acceptedAnswers": [
+      "15%",
+      "about 15%",
+      "15.4%",
+      "roughly 15 percent",
+      "~15%",
+      "approximately 15%"
+    ]
+  }
+]
