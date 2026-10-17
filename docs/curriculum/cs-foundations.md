@@ -52,7 +52,7 @@ This is the bedrock track of The Manual: computational thinking, discrete math, 
 
 **Goal:** Build real, tightly-scaffolded fluency in one teaching language (Python) — variables, control flow, functions, core data structures, basic I/O and error handling — while starting the parallel math track (algebra refresher, intro probability/statistics) and discrete math (logic, sets) that Big-O and later proofs will depend on.
 
-**Modules** (~68h):
+**Modules** (~69h):
 
 - **Python Core Syntax** — ~10h: variables and types, arithmetic and string operations, input/output, conditionals (if/elif/else), operators and truthiness
 - **Loops & Iteration** — ~8h: for vs while loops, iterating over sequences, break/continue, common off-by-one bugs
@@ -61,7 +61,7 @@ This is the bedrock track of The Manual: computational thinking, discrete math, 
 - **Working with Text & Files** — ~6h: string methods and formatting, reading/writing files, try/except basic error handling
 - **Math Primer: Algebra & Functions Refresher** — ~8h: linear equations, exponents and logarithms, function notation, graphing intuition (foundation for later Big-O graphs)
 - **Discrete Math I: Logic & Sets** — ~10h: propositional logic and truth tables, direct proof and contrapositive intuition, set operations, functions and relations basics
-- **Intro to Probability & Statistics** — ~10h: mean, median, variance, basic probability rules, why this matters for algorithm analysis and later ML, plus an information-theory primer (bits as a measure of uncertainty, entropy, cross-entropy — the same "bits" from Tier 0's number systems now measuring information instead of storage, and the direct prerequisite for AI/ML's loss-function material)
+- **Intro to Probability & Statistics** — ~11h: mean, median, variance, basic probability rules, why this matters for algorithm analysis and later ML, plus an information-theory primer (bits as a measure of uncertainty, entropy, cross-entropy, and KL divergence — the same "bits" from Tier 0's number systems now measuring information instead of storage, and the direct prerequisite for AI/ML's loss-function and distribution-matching material)
 
 **Quizzes / assessment:**
 
@@ -130,7 +130,7 @@ This is the bedrock track of The Manual: computational thinking, discrete math, 
 
 **Goal:** Handle intermediate real-world patterns: divide-and-conquer, dynamic programming, greedy algorithms, and an intro to complexity classes (P vs NP); organize genuine multi-file projects; read other people's codebases; and pick up a second, statically-typed language purely for contrast — plus enough linear algebra/calculus to be ML-ready later.
 
-**Modules** (~84h):
+**Modules** (~86h):
 
 - **Divide & Conquer + Recursion Mastery** — ~10h: master theorem intuition, merge sort and quickselect, recursive tree problems
 - **Dynamic Programming** — ~12h: memoization vs tabulation, classic problems: knapsack, longest common subsequence, edit distance, recognizing DP-shaped problems
@@ -139,7 +139,7 @@ This is the bedrock track of The Manual: computational thinking, discrete math, 
 - **Multi-File Project Architecture** — ~10h: organizing modules and packages, separation of concerns, dependency management (venv/poetry), design patterns where they actually help (strategy, factory)
 - **Reading Real Codebases** — ~8h: navigating a mid-size open-source repo, grep/ctags/IDE code navigation, tracing execution paths, reading commit history and PRs to recover design intent
 - **Second Language for Contrast** — ~12h: a statically-typed language (Go, Java, or Rust) far enough to compare type systems, compiled vs interpreted execution, paradigm contrast with Python
-- **Math Primer II: Linear Algebra & Calculus Basics for ML-Readiness** — ~14h: vectors and matrices, dot product and matrix multiplication, derivative intuition as rate of change, plus convex optimization intuition (why gradient descent provably converges for convex functions, local vs. global minima) and numerical stability basics (floating-point error accumulation, why a mathematically-equivalent formula can be numerically unstable) — this is the complete math foundation AI/ML's Tier 1 builds on directly, not a preview of it
+- **Math Primer II: Linear Algebra & Calculus Basics for ML-Readiness** — ~16h: vectors and matrices, dot product and matrix multiplication, derivative intuition as rate of change, plus convex optimization intuition (why gradient descent provably converges for convex functions, local vs. global minima), numerical stability basics (floating-point error accumulation, why a mathematically-equivalent formula can be numerically unstable), and the chain rule extended to vector-valued compositions via the Jacobian (hand-derived on a minimal 2-layer example and verified numerically — the complete mathematical content of backpropagation, which AI/ML Tier 3's Deep Learning Foundations module applies to a real network rather than re-deriving) — this is the complete math foundation AI/ML's Tier 1 and Tier 3 build on directly, not a preview of it
 
 **Quizzes / assessment:**
 

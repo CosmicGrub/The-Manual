@@ -3,7 +3,7 @@ trackId: cs-foundations
 tier: 1
 title: Intro to Probability & Statistics
 order: 8
-estimatedHours: 10
+estimatedHours: 11
 slug: probability-and-statistics
 ---
 
@@ -16,6 +16,7 @@ Every time you say a die roll is "about even odds," or notice that one function 
 - The core probability rules — complement, addition (for both mutually exclusive and overlapping events), and multiplication/conditional probability for independent vs. dependent events — well enough to work a new probability problem from scratch
 - Why "average-case" algorithm analysis and things like hash-table collisions are just expected value and probability wearing a computer-science costume
 - What a "bit" of information actually measures, how to compute the entropy of a simple distribution, and why minimizing cross-entropy is the exact same idea as "make your model less surprised by the right answer"
+- What KL divergence measures that cross-entropy alone doesn't, how to compute it by hand, and why `KL(p‖q)` and `KL(q‖p)` are, in general, two different numbers — not a typo, a real asymmetry with real consequences
 
 ## Do this
 
@@ -119,8 +120,29 @@ Every time you say a die roll is "about even odds," or notice that one function 
 
    Lay those three numbers side by side: `0.0145 < 1 < 3.322`. Cross-entropy shrinks toward `0` exactly as the model gets more confident *and* correct, and it punishes confident wrongness far harder than honest uncertainty — being unsure costs you 1 bit, but being confidently wrong costs you over 3. This is not a metaphor for what "cross-entropy loss" does in machine learning training — it is literally this same formula, applied every time a model sees a labeled example, with gradient descent nudging the model's weights to push `q` closer to `p` and drive this exact number down. You now know, from arithmetic you did by hand, the actual quantity the AI/ML track will tell you to "minimize" later — it will not be a new idea, just a familiar one applied at scale.
 
+8. **Go one step further: KL divergence, and why it's not symmetric.** Step 7's cross-entropy answered "how surprised am I by the truth, if I believe `q`?" It never asked how much of that surprise was already unavoidable — some distributions are just inherently uncertain (remember the biased coin's `H ≈ 0.469` bits from step 6, versus the fair coin's unavoidable `1` bit). **KL divergence** isolates exactly the *avoidable* part — the extra bits `q` costs you on top of what `p`'s own entropy already demands:
+   ```
+   KL(p‖q) = H(p, q) - H(p)
+   ```
+   Work it on a pair where neither distribution is degenerate, so you can see both terms doing real work — a fair coin `p = [0.5, 0.5]` as the "true" distribution, approximated by a biased model `q = [0.9, 0.1]`:
+   ```
+   H(p) = -(0.5*log2(0.5) + 0.5*log2(0.5)) = 1.0 bit
+   H(p, q) = -(0.5*log2(0.9) + 0.5*log2(0.1)) ≈ 1.737 bits
+   KL(p‖q) = 1.737 - 1.0 ≈ 0.737 bits
+   ```
+   That `0.737` is the real cost of modeling a fair coin as a 90%-biased one — on top of the coin's own unavoidable 1 bit of uncertainty, believing `q` instead of `p` costs you another 0.737 bits, every single flip. KL divergence is always `≥ 0` (you can never do *better* than the truth's own entropy by believing something else), and it's `0` exactly when `p = q`.
+
+   Now swap the roles — compute `KL(q‖p)`, "how many extra bits does believing `p` cost you if `q` is actually true":
+   ```
+   KL(q‖p) = -(0.9*log2(0.9/0.5) + 0.1*log2(0.1/0.5)) ≈ 0.531 bits
+   ```
+   `0.737 ≠ 0.531`. That's not a rounding artifact — **KL divergence is asymmetric by construction**, because it's always weighted by the *first* distribution's probabilities: `KL(p‖q)` spends most of its weight on outcomes `p` thinks are likely, so it specifically punishes `q` for being wrong about those; `KL(q‖p)` spends its weight on outcomes `q` thinks are likely instead. This asymmetry is not a footnote — it's *why* a variational autoencoder's loss, a model-distillation objective, and an RLHF policy-divergence penalty each have to say explicitly which direction of KL they mean, and picking the wrong direction changes what the trained model actually optimizes for, not just the number you compute.
+
+   Last, reconcile this with step 7: go back to the degenerate cat/dog example, `p = [1, 0]`, `q = [0.99, 0.01]`. A true distribution with zero uncertainty has `H(p) = 0` (there's nothing left to be surprised about), so the formula collapses to `KL(p‖q) = H(p, q) - 0 = H(p, q)` — exactly the `0.0145` bits you already computed. **This is why cross-entropy loss works as a training objective at all**: whenever the true label is a hard one-hot target (as it almost always is in classification), minimizing cross-entropy and minimizing KL divergence are the literal same optimization, because `H(p)` is a fixed zero that contributes nothing to the gradient. The two ideas only visibly diverge — pun intended — once `p` itself carries real uncertainty, which is exactly the case step 7 couldn't show you and this step just did.
+
 ## Check on learning
 
 - Using the second dataset from step 1 (`1, 2, 2, 3, 3, 3, 40`), explain out loud why the mean and median disagree so much, and why a reporter writing about typical incomes would reach for the median instead of the mean.
 - Explain why `P(A or B) = P(A) + P(B)` only works when `A` and `B` are mutually exclusive, and what you have to do differently when they can overlap — use the king/heart card example to justify your answer without looking it back up.
 - Teach back, in your own words, what a "bit" of information measures using the 90%-biased coin from step 6, then explain why a machine learning model's cross-entropy loss keeps dropping as its predictions get both more confident and more correct.
+- Without recomputing anything, explain why `KL(p‖q)` and `KL(q‖p)` came out to different numbers in step 8 — what is each one specifically measuring surprise *about* — and why that asymmetry is exactly why real systems (VAEs, distillation, RLHF) have to specify which direction of KL they're using.

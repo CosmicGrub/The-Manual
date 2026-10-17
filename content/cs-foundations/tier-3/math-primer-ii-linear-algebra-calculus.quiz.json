@@ -48,5 +48,27 @@
     "id": "cs-foundations/tier-3/math-primer-ii-linear-algebra-calculus/q5",
     "type": "explain_back",
     "prompt": "Explain in your own words why a convex loss function guarantees gradient descent converges to the single global minimum, while a non-convex loss function (like the double-well function h(x) = x^4/4 - x^3/3 - 3x^2 from this lesson) can trap gradient descent in a local minimum depending on where it starts. Connect this to why real neural network training uses techniques like random weight initialization, momentum, or learning-rate schedules."
+  },
+  {
+    "id": "cs-foundations/tier-3/math-primer-ii-linear-algebra-calculus/q6",
+    "type": "multiple_choice",
+    "prompt": "In step 12's 2-layer composition (h = W1 @ x + b1, then y = dot(w2, h) + b2, then L = (y - target)^2), what does the chain rule multiply together to get dL/dW1?",
+    "choices": [
+      "It adds dL/dy and dh/dW1 together",
+      "It multiplies the local derivative of each stage in the composition -- dL/dh (which itself used dL/dy and dy/dh) by dh/dW1",
+      "It only needs dy/dh, since W1 is the first layer and doesn't affect the loss directly",
+      "It recomputes the loss from scratch for every entry of W1 using calculus rules, with no multiplication involved"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cs-foundations/tier-3/math-primer-ii-linear-algebra-calculus/q7",
+    "type": "short_answer",
+    "prompt": "What is the name for the matrix (or row/column vector, when the output is 1-dimensional) of all the partial derivatives of a vector-valued function -- the generalization of a gradient to functions that don't output a single scalar?",
+    "acceptedAnswers": [
+      "Jacobian",
+      "the Jacobian",
+      "Jacobian matrix"
+    ]
   }
 ]

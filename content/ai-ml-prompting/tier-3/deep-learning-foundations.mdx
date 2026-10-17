@@ -9,7 +9,7 @@ slug: deep-learning-foundations
 
 ## Backpropagation, fully derived
 
-Tier 2 gave you the intuition: gradients flow backward through the network, each layer passing blame to the one before it. That's true but it's not an algorithm. Here's the actual algorithm, derived with the chain rule on a real network with real numbers, so you can check every step by hand and then against `autograd`.
+Tier 2 gave you the intuition: gradients flow backward through the network, each layer passing blame to the one before it. That's true but it's not an algorithm. If the chain rule and the Jacobian (the vector/matrix generalization of a derivative to a composition of vector-valued functions) aren't already solid, CS Foundations Tier 3's Math Primer II derives both from scratch on a minimal 2-layer linear toy — this module assumes that's done and goes straight to the real thing: the actual algorithm, derived with the chain rule on a real network with real numbers, so you can check every step by hand and then against `autograd`.
 
 **The network.** Two inputs, two hidden units (sigmoid), one output unit (sigmoid), trained with mean squared error.
 

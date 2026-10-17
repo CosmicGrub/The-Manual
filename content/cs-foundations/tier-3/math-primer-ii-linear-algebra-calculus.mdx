@@ -3,7 +3,7 @@ trackId: cs-foundations
 tier: 3
 title: "Math Primer II: Linear Algebra & Calculus Basics for ML-Readiness"
 order: 8
-estimatedHours: 14
+estimatedHours: 16
 slug: math-primer-ii-linear-algebra-calculus
 ---
 
@@ -18,6 +18,7 @@ This is also, deliberately, the last stop before this math gets load-bearing. AI
 - How to compute a derivative and a multivariable gradient two independent ways — symbolically and via numerical finite differences — and why the gradient points in the direction of steepest ascent
 - A rigorous, hand-verifiable argument for why gradient descent provably converges to the global minimum on a convex function, plus a concrete demonstration of it getting trapped on a non-convex one
 - How floating-point rounding works, why two mathematically equivalent formulas can produce meaningfully different numerical answers, and how to rewrite an unstable formula into a stable one
+- How the chain rule extends from a single composition (`f(g(x))`) to a composition of vector-valued functions via the **Jacobian** — and how to hand-derive the gradient of a loss with respect to a *far-away* parameter through an intermediate layer, which is the entire mathematical content of "backpropagation"
 
 ## Do this
 
@@ -366,8 +367,69 @@ This is also, deliberately, the last stop before this math gets load-bearing. AI
 
     Both routes land on `w ≈ 2`, `b ≈ 1` — the exact line the data was generated from. This one function is doing everything from this entire lesson at once: `w * x` is a dot product (step 1–2), the loss surface `mse(w, b)` is a convex bowl in `(w, b)`-space so gradient descent is guaranteed to find its one true minimum (step 8), `dw` and `db` are the two partial derivatives of that surface (step 6), and the update loop is exactly the convergence process you derived and proved by hand in step 7. This is, in miniature, what every training loop you'll write from AI/ML's Tier 1 onward actually does.
 
+12. **Go one layer deeper: the chain rule through a composition, and the Jacobian.** Step 11's model computed its loss's gradient directly, in one shot, because there was only one layer between the weights and the loss. Real networks stack layers — a weight several layers back from the loss needs its gradient *routed through* every layer in between, and the tool that routes it is the chain rule. You already know the single-variable version: if `L = f(g(x))`, then `dL/dx = f'(g(x)) * g'(x)` — multiply the derivatives of each stage together. Check it on something you can verify by hand: `g(x) = x^2`, `f(u) = 3u + 1`, so `L(x) = 3x^2 + 1` and directly, `L'(x) = 6x`. Via the chain rule instead: `f'(u) = 3`, `g'(x) = 2x`, so `dL/dx = f'(g(x)) * g'(x) = 3 * 2x = 6x`. Same answer, two routes — exactly the same "derive it two ways, confirm they match" habit from step 5.
+
+    The vector-valued version of "the derivative of one stage" is the **Jacobian**: where step 6's gradient was "the vector of all partial derivatives of a *scalar*-valued function," the Jacobian is "the matrix (or, when the output is 1-dimensional, the row vector) of all partial derivatives of a *vector*-valued function." Build a minimal 2-layer composition that actually needs it — a first layer `h = W1 @ x + b1` (a vector), feeding a second layer `y = dot(w2, h) + b2` (a scalar), scored by `L = (y - target)^2`:
+
+    ```python
+    import numpy as np
+
+    x = np.array([1.0, 2.0])
+    W1 = np.array([[1.0, 0.0],
+                   [0.0, 1.0]])
+    b1 = np.array([0.0, 0.0])
+    w2 = np.array([3.0, 4.0])
+    b2 = 0.0
+    target = 10.0
+
+    def forward(W1):
+        h = W1 @ x + b1
+        y = np.dot(w2, h) + b2
+        L = (y - target) ** 2
+        return h, y, L
+
+    h, y, L = forward(W1)
+    print(h, y, L)   # [1. 2.] 11.0 1.0
+    ```
+
+    Now route the gradient of `L` back to `W1`, one stage at a time, exactly the way the chain rule says to:
+
+    ```python
+    dL_dy = 2 * (y - target)          # dL/dy = 2.0
+    dy_dh = w2                        # the Jacobian of y wrt h -- a row vector, since y is scalar
+    dL_dh = dL_dy * dy_dh             # chain rule, stage 1: [6. 8.]
+    print(dL_dy, dy_dh, dL_dh)        # 2.0 [3. 4.] [6. 8.]
+
+    # stage 2: h_i = sum_j W1[i,j]*x[j] + b1[i], so dh_i/dW1[i,j] = x[j].
+    # dL/dW1[i,j] = dL/dh[i] * dh_i/dW1[i,j] = dL/dh[i] * x[j] -- an outer product.
+    dL_dW1 = np.outer(dL_dh, x)
+    print(dL_dW1)
+    # [[ 6. 12.]
+    #  [ 8. 16.]]
+    ```
+
+    Verify it the same way step 6 taught you to trust any gradient — numerically, by finite differences, perturbing `W1` directly and re-running the *entire* forward pass:
+
+    ```python
+    def numerical_grad_W1(W1, eps=1e-5):
+        grad = np.zeros_like(W1)
+        for i in range(W1.shape[0]):
+            for j in range(W1.shape[1]):
+                Wp = W1.copy(); Wp[i, j] += eps
+                Wm = W1.copy(); Wm[i, j] -= eps
+                grad[i, j] = (forward(Wp)[2] - forward(Wm)[2]) / (2 * eps)
+        return grad
+
+    print(numerical_grad_W1(W1))
+    # [[ 6. 12.]
+    #  [ 8. 16.]]
+    ```
+
+    It matches the chain-rule answer exactly — not just "close," because `L` here is a quadratic function of each `W1` entry (linear forward pass, squared at the end), and central difference has zero truncation error on any quadratic, a fact you can confirm by rederiving step 5's error-order argument with `f` itself quadratic instead of generic. `W1` is two layers removed from the loss, and the chain rule got its gradient exactly right by composing two local derivatives (`dL/dh` and `dh/dW1`) instead of needing to see the whole computation at once. **This is the entire mathematical content of backpropagation.** A real network has more layers and nonlinear activations in between, which makes the bookkeeping longer, but every one of those extra layers is just one more Jacobian multiplied into the same chain you just built by hand. When AI/ML's own lessons say a framework "backpropagates the gradient," this — stage-by-stage chain rule, each stage's local Jacobian multiplied into the running total — is the entire mechanism; nothing else is happening underneath the name.
+
 ## Check on learning
 
 - State, from memory and without looking back, the two-line proof that a critical point of a convex function is a global minimum — then explain precisely which step of that argument breaks down for the non-convex `h(x)` from step 8.
 - Without using the word "rounding," explain why the naive quadratic formula and the Vieta's-formula version can return different answers for the exact same mathematical roots, and why the gap gets worse the larger `b` is relative to the roots.
 - From memory, write out the partial derivative of the linear-regression MSE loss with respect to `w` from step 11, and explain in plain language what each piece of that formula represents and why subtracting `lr * dw` from `w` makes the loss go down.
+- From memory, name the two "stages" the chain rule composed in step 12 to get `dL/dW1`, and explain in plain language why a numerical finite-difference check on `W1` (perturbing the weight directly and re-running the whole forward pass) is a valid way to catch a bug in that chain-rule derivation.

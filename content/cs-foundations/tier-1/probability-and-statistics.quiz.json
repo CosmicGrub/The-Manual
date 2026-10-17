@@ -49,5 +49,28 @@
     "id": "cs-foundations/tier-1/probability-and-statistics/q5",
     "type": "explain_back",
     "prompt": "Explain, in your own words, what entropy measures using the fair-coin (1 bit) vs. 90%-biased-coin (about 0.469 bits) example from this lesson. Then explain what cross-entropy adds on top of that, and why a machine learning model's cross-entropy loss keeps getting smaller as its predictions get more confident AND more correct (use the cat/dog example: q = [0.99, 0.01] vs. q = [0.5, 0.5] vs. q = [0.1, 0.9])."
+  },
+  {
+    "id": "cs-foundations/tier-1/probability-and-statistics/q6",
+    "type": "multiple_choice",
+    "prompt": "For p = [0.5, 0.5] and q = [0.9, 0.1], KL(p‖q) ≈ 0.737 bits and KL(q‖p) ≈ 0.531 bits. Why aren't these the same number?",
+    "choices": [
+      "They should be the same; the difference is just floating-point rounding error",
+      "KL divergence is always weighted by the FIRST distribution's probabilities, so KL(p‖q) and KL(q‖p) measure surprise about two different distributions' likely outcomes",
+      "KL(q‖p) is wrong because KL divergence can only be computed with the true distribution listed first",
+      "The two numbers differ only because q is biased and p is not"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "cs-foundations/tier-1/probability-and-statistics/q7",
+    "type": "short_answer",
+    "prompt": "For a true distribution p that is a hard one-hot target (e.g. p = [1, 0]), H(p) = 0. Given KL(p‖q) = H(p,q) - H(p), what does KL(p‖q) simplify to in that case?",
+    "acceptedAnswers": [
+      "H(p,q)",
+      "the cross-entropy",
+      "cross-entropy H(p,q)",
+      "just H(p,q)"
+    ]
   }
 ]
