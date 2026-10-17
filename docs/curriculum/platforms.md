@@ -157,9 +157,9 @@ This track takes a learner from "what is a terminal" to shipping and architectin
 
 ## Tier 4: Advanced / Specialist
 
-**Goal:** Think like an architect, not just a builder: profile and fix real performance problems with data, reason about cross-platform architecture tradeoffs at scale, adopt production cloud-native patterns, and specialize deeply enough in at least one platform to debug it at the systems level.
+**Goal:** Think like an architect, not just a builder: profile and fix real performance problems with data, reason about cross-platform architecture tradeoffs at scale, adopt production cloud-native patterns, specialize deeply enough in at least one platform to debug it at the systems level, and build for the newest mainstream platform surface — spatial computing — using the same free, write-once-run-anywhere tooling ethos this track applies everywhere else.
 
-**Modules** (~140h):
+**Modules** (~156h):
 
 - **Performance Engineering Across Platforms** — ~20h: Chrome DevTools Performance tab, Xcode Instruments, Android Studio Profiler, memory leaks and retain cycles, render/frame-rate bottlenecks, bundle size optimization and code splitting
 - **Architecture Patterns at Scale** — ~20h: MVVM / MVI / Clean Architecture, modular monorepos (Nx/Turborepo), micro-frontends, dependency injection, deciding native vs. cross-platform per feature based on real constraints
@@ -167,12 +167,14 @@ This track takes a learner from "what is a terminal" to shipping and architectin
 - **Advanced Game Development** — ~30h: a real engine (Unity/C# or Godot/GDScript), scene graphs, physics engines, shaders 101, multi-platform build pipelines from one engine
 - **Deep Platform Specialization (choose one path)** — ~25h: iOS: Swift concurrency (async/await, actors), Metal basics, OR Android: Kotlin coroutines/Flow, custom Compose rendering, OR Web: WebAssembly, Web Workers, Service Workers/PWA offline patterns
 - **Contributing to Larger Systems** — ~15h: navigating a large monorepo, understanding build systems (Bazel/Gradle/Xcode build settings), writing integration/E2E tests that matter (Playwright/Detox), landing a substantial upstream contribution
+- **Spatial Computing: AR/VR/XR with WebXR** — ~16h: AR/VR/MR/XR terminology and 3DoF vs. 6DoF tracking, the WebXR session lifecycle and render loop, reference spaces, a minimal real 3D scene via Three.js's WebXR integration, controller/hand input, and the real comfort/accessibility problem of locomotion-induced motion sickness — contrasted against this tier's own 60fps/16.6ms performance baseline with VR's genuinely stricter ~90fps/~11ms requirement, and closing by connecting standalone headsets' Android-based OS back to this track's own native-vs-cross-platform tension, just applied to a newer surface
 
 **Quizzes / assessment:**
 
 - *Micro-quiz (diagnose the bottleneck)* — Given a real profiler screenshot or flame graph, identify the likely root cause from a set of plausible options.
 - *Bug hunt with real tooling* — A production-realistic multi-file app with a planted memory leak, race condition, or N+1 query — must be found using actual profiling/monitoring tools, not just code reading.
 - *CTF-style performance challenge* — A 'performance CTF' scoring points for shaving milliseconds off a deliberately slow app using real profiling data and before/after benchmarks.
+- *Build it, test it in a real headset (or emulator)* — Build the minimal WebXR scene from the Spatial Computing module and verify it actually runs via the free WebXR API Emulator browser extension or a real headset browser, not just by reading the code.
 
 **Checkpoint project:** Take a Tier 3 app to production-grade: add CI/CD with automated tests and staged deploys, containerize the backend and deploy to Kubernetes or a serverless platform with real observability (logs/metrics/alerts), profile and fix at least 3 real performance issues with documented before/after measurements, and write an Architecture Decision Record (ADR) justifying every platform/framework choice made.
 
@@ -181,6 +183,7 @@ This track takes a learner from "what is a terminal" to shipping and architectin
 - Build-then-break at scale: load-test the deployed backend (k6 or Locust) until it breaks, fix the bottleneck, and re-test to confirm
 - Writing and defending an ADR is itself a structured 'explain it back' exercise — present it to a peer or mentor and withstand pushback
 - Prompting drill: use an AI to propose a scaling/architecture change, then red-team its proposal against real constraints (cost, team size, latency budget) before accepting or rejecting it
+- Build-then-break on comfort: pick a smooth-locomotion VR scene design, argue the case for teleportation locomotion instead out loud (or in writing) before building either, so the comfort tradeoff is reasoned about before it's coded
 
 **Curated resources:**
 
@@ -189,6 +192,8 @@ This track takes a learner from "what is a terminal" to shipping and architectin
 - [Kubernetes — 'Learn Kubernetes Basics' official tutorial](https://kubernetes.io/docs/tutorials/kubernetes-basics/) — Official, free, interactive.
 - [Unity Learn — 'Junior Programmer' pathway (or Godot official 'Getting Started' docs)](https://learn.unity.com/pathway/junior-programmer) — Official, free; pick Unity or Godot (docs.godotengine.org) based on preference.
 - [web.dev — Core Web Vitals & performance guides (Google)](https://web.dev/explore/fast) — Official vendor docs on real-world web performance.
+- [MDN — WebXR Device API](https://developer.mozilla.org/en-US/docs/Web/API/WebXR_Device_API) — Official, free, current reference for the WebXR Device API this module is built on.
+- [Three.js — WebXR manual pages](https://threejs.org/manual/#en/webxr) — Official, free, current guide to Three.js's WebXR integration (renderer.xr, controllers, the render loop).
 
 ---
 
