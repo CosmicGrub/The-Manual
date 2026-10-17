@@ -192,9 +192,9 @@ This is the synthesis track — it teaches no language and no single domain, it 
 
 ## Tier 5: Expert / Innovator
 
-**Goal:** Converge everything into a self-designed, novel 'magnum opus' capstone at the intersection of two specializations; take on real upstream responsibility in open source; publish and defend the work publicly; complete the track's signature move — a teach-others-to-learn capstone that turns the learner into a teacher, closing the loop on the entire curriculum — and close with the professional soft skills (behavioral interviewing, negotiation, running a freelance engagement, remote-collaboration norms) that operate once Career Launch Sprint's job search actually produces an interview, an offer, or a client.
+**Goal:** Converge everything into a self-designed, novel 'magnum opus' capstone at the intersection of two specializations; take on real upstream responsibility in open source; publish and defend the work publicly; complete the track's signature move — a teach-others-to-learn capstone that turns the learner into a teacher, closing the loop on the entire curriculum — close with the professional soft skills (behavioral interviewing, negotiation, running a freelance engagement, remote-collaboration norms) that operate once Career Launch Sprint's job search actually produces an interview, an offer, or a client — and finish with the legal/IP literacy a working engineer actually needs once real code, real contracts, and real employers are involved.
 
-**Modules** (~107h):
+**Modules** (~117h):
 
 - **The Magnum Opus Capstone** — ~40h: an original project of your own design, not a tutorial clone, deliberately positioned at the intersection of 2+ specializations (e.g., ML + security = adversarial ML, or robotics + systems = real-time embedded control), genuine novelty in angle or approach, even at small scale, rigorous benchmarking/evaluation of your own claims
 - **Upstream Maintainership** — ~20h: become a maintainer or trusted core contributor on a real open-source project, triaging issues and reviewing others' PRs, participating in real architectural decisions, not just implementation
@@ -202,6 +202,7 @@ This is the synthesis track — it teaches no language and no single domain, it 
 - **Teach-Others-to-Learn Capstone** — ~15h: design a mini-curriculum (3-5 lessons) teaching one specific skill to a real learner, borrow this curriculum's own tier/pedagogy-toolkit structure deliberately, run it with a real person (friend, junior dev, or online cohort), collect feedback and iterate on the lessons based on what actually worked
 - **Career Launch Sprint** — ~10h: refine resume, LinkedIn, and portfolio site v2 around the Magnum Opus and case studies, a mock onsite loop with a real practitioner if at all possible, apply for and land at least one real interview loop, freelance client, or open-source fellowship/grant
 - **Career & Professional Soft Skills** — ~12h: the direct sequel to Career Launch Sprint, for once it produces a real interview, offer, or client — behavioral interviewing via the STAR method (the "Behavioral" round Career Launch Sprint's own mock-loop table already names but never teaches), salary/offer negotiation with real numbers and real language, running a freelance engagement once a prospect says yes (statement of work, contract essentials, invoicing — not how to find the client, which Career Launch Sprint already covers), and remote-collaboration norms (written-by-default communication, timezone-fair scheduling, async status updates) explicitly distinct from DevOps's own team-process-focused Agile and Collaboration Norms module
+- **Legal & IP Literacy** — ~10h: the depth sequel to Tier 0's "pick a license and justify it" baseline — license compatibility (why you generally can't pull GPL code into an MIT project without the whole thing becoming GPL), dual licensing, and what signing a CLA actually commits you to; default IP ownership and work-for-hire (why an employee's code is automatically the employer's but a contractor's generally isn't, unless the contract says so); patents and trademarks scoped honestly (most application code isn't patentable post-*Alice v. CLS Bank*; a basic trademark search before committing to a project name); the real, unsettled IP-ownership question around AI-generated code and the practical rule that follows regardless (check your employer's or client's AI-code-assistance policy before shipping); NDAs and non-competes (enforceability varies sharply by jurisdiction — California statutorily voids most employee non-competes, most other US states don't); reading the IP-assignment clause in a real employment offer; and GDPR/CCPA/HIPAA compliance obligations from the legal-duty angle, distinct from DevOps's infra-compliance tooling
 
 **Quizzes / assessment:**
 
@@ -209,6 +210,7 @@ This is the synthesis track — it teaches no language and no single domain, it 
 - *Peer/mentee-graded rubric* — The real learner from your Teach-Others-to-Learn capstone completes a short assessment you wrote for them; their actual results — not just their satisfaction — count as your grade on this module.
 - *Research-competition or war-game entry* — Submit to a real external, outside-validated challenge aligned with your Magnum Opus: a live CTF, a Kaggle competition, or an OSS bug bounty.
 - *Mock behavioral round + negotiation role-play* — Have a real person (peer, mentor, or practitioner) run one behavioral question cold and grade your answer against the STAR structure; separately, role-play one negotiation counter-offer out loud before you'd ever send it for real.
+- *Real-document audit* — Check one of your own real dependencies' licenses for compatibility with your own project's license, and find and read one real NDA, offer letter, or contributor-agreement clause you can actually access, flagging anything you'd push back on before signing.
 
 **Checkpoint project:** The Magnum Opus shipped, benchmarked, and published/presented publicly; at least one architecturally significant upstream-merged open-source contribution; and a completed Teach-Others-to-Learn cycle with documented, honest learner feedback. This is the final gate of the entire 9-track curriculum.
 
@@ -218,6 +220,7 @@ This is the synthesis track — it teaches no language and no single domain, it 
 - Build-then-break at research level — peers or an AI red-team your Magnum Opus's specific claims and benchmark numbers before you publish.
 - Prompting drill as co-author/co-reviewer — an AI may help phrase or tighten your publication, but you must be able to defend every claim it touched to a human reviewer, unaided.
 - Build-then-break on your own negotiation draft — write your counter-offer, then have a peer or mentor argue the employer's/client's side against it out loud, so you've already heard the pushback before it happens for real.
+- Red-team your own project's license choice — have a peer argue, out loud, the strongest case for a *different* license than the one you picked for a real dependency or your own repo, before you commit to it.
 
 **Curated resources:**
 
@@ -229,5 +232,7 @@ This is the synthesis track — it teaches no language and no single domain, it 
 - [Class Central — free graduate-level course search](https://www.classcentral.com) — Find one advanced free course matching your Magnum Opus's specific field for deeper grounding.
 - [Tech Interview Handbook — Behavioral Interview Questions](https://www.techinterviewhandbook.org/behavioral-interview/) — Free; real STAR-method guidance and a practice question bank for the behavioral-interviewing section.
 - [Salary Negotiation: Make More Money, Be More Valued (Patrick McKenzie)](https://www.kalzumeus.com/2012/01/23/salary-negotiation/) — Free; the canonical, widely-cited tech-industry negotiation guide this module's negotiation section draws on.
+- [choosealicense.com — "Licensing a Repository"](https://choosealicense.com) — Free, GitHub-maintained; the Legal & IP Literacy module's license-compatibility and dual-licensing sections build on this past Tier 0's basic pick-one-and-justify level.
+- [USPTO Trademark Basics](https://www.uspto.gov/trademarks/basics) — Free, official; the practical first stop before committing to a project or product name.
 
 ---
