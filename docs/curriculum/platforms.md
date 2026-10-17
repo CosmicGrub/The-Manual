@@ -120,9 +120,9 @@ This track takes a learner from "what is a terminal" to shipping and architectin
 
 ## Tier 3: Practitioner
 
-**Goal:** Work in real multi-file, multi-component codebases; go genuinely native on at least one mobile OS; feel cross-platform tradeoffs from direct experience rather than theory; read and modify other people's code; get a real app into an app store's testing track and a real backend into the cloud.
+**Goal:** Work in real multi-file, multi-component codebases; go genuinely native on at least one mobile OS; feel cross-platform tradeoffs from direct experience rather than theory; read and modify other people's code; get a real app into an app store's testing track and a real backend into the cloud; and make what you've already built actually usable by someone navigating it with a screen reader instead of eyes, completing the accessibility picture Tier 1's web module started.
 
-**Modules** (~170h):
+**Modules** (~186h):
 
 - **Native iOS with Swift & SwiftUI** — ~40h: Swift language essentials (optionals, structs, enums, protocols), SwiftUI views and state (@State/@Binding/@ObservedObject), navigation and lists, basic UIKit interop, TestFlight submission process
 - **Native Android with Kotlin & Jetpack Compose** — ~40h: Kotlin essentials (null safety, data classes, corocoutines intro), Jetpack Compose UI, ViewModel and state hoisting, Activity/lifecycle basics, Android permissions model, Play Console internal testing track
@@ -130,12 +130,14 @@ This track takes a learner from "what is a terminal" to shipping and architectin
 - **Desktop Beyond Electron: .NET MAUI or Qt** — ~25h: choosing a native-ish desktop toolkit, the MVVM pattern, packaging and distribution for Windows/macOS/Linux
 - **Reading & Contributing to Real Codebases** — ~15h: cloning a real mid-size open-source React Native or Flutter app, tracing a feature end-to-end through the codebase, finding and fixing a 'good first issue', opening and iterating on a pull request
 - **Cloud Basics for App Backends** — ~15h: containers and Docker fundamentals, deploying a backend to a free-tier host (Render/Fly.io/Railway), environment variables and secrets, basic CI with GitHub Actions
+- **Accessibility & Inclusive Design: Native Mobile and Desktop** — ~16h: the depth sequel to Tier 1's web accessibility coverage (alt text, landmarks, WCAG contrast math) — the accessibility-tree concept; retrofitting the iOS module's own "Favorites" app with VoiceOver labels/values and Dynamic Type; retrofitting the Android module's own "Workout Log" app with TalkBack content descriptions and the free Accessibility Scanner tool; retrofitting Tier 2's Electron notes app with real keyboard focus order and ARIA roles (genuinely new ground vs. Tier 1's alt-text/contrast focus); and the testing discipline of actually using VoiceOver, TalkBack, or Narrator rather than just reading accessibility code
 
 **Quizzes / assessment:**
 
 - *Micro-quiz (comparative)* — SwiftUI vs. Jetpack Compose state-management comparison quiz — matches concept (e.g. @State) to its equivalent (remember { mutableStateOf(...) }).
 - *Explain it back* — Explain, on video or to a peer, why React Native's bridge/JSI layer matters for performance compared to a fully native view — must use a concrete example, not just definitions.
 - *Prompting drill* — Prompt an AI to port a SwiftUI screen's logic to Jetpack Compose (or vice versa), then grade its output against real platform idioms you've now learned firsthand.
+- *Screen-reader-only navigation* — Turn on VoiceOver, TalkBack, or Narrator and navigate one of your own retrofitted apps using only the screen reader, no looking at the screen — document anywhere the spoken experience didn't match what the code claimed to provide.
 
 **Checkpoint project:** Ship one real app to two platforms for real users: publish a native iOS or Android app to TestFlight/Play Console internal testing, AND ship its cross-platform sibling (React Native or Flutter) with a backend deployed to the cloud (Docker container, CI pipeline, real database) — plus land one merged PR on an existing open-source mobile or web project.
 
@@ -143,6 +145,7 @@ This track takes a learner from "what is a terminal" to shipping and architectin
 
 - Code-review kata: review a peer's (or provided) multi-file PR for platform-specific bugs — iOS safe-area issues, Android back-button handling — and leave real, specific review comments
 - Build-then-break across platforms: try to crash the same feature on iOS, Android, and web, then compare and document the different failure modes
+- Accessibility audit as a graded artifact: run the real Android Accessibility Scanner against your own app and treat its suggestions as a real bug list to fix, not just advice to read
 
 **Curated resources:**
 
@@ -152,6 +155,8 @@ This track takes a learner from "what is a terminal" to shipping and architectin
 - [Flutter — Official Codelabs](https://docs.flutter.dev/codelabs) — Official, free, hands-on.
 - [Microsoft Learn — .NET MAUI learning path](https://learn.microsoft.com/en-us/training/paths/build-apps-with-dotnet-maui/) — Official, free.
 - [Docker — 'Get Started' official docs](https://docs.docker.com/get-started/) — Official, free.
+- [Apple — Accessibility for SwiftUI (official)](https://developer.apple.com/accessibility/) — Official, free; VoiceOver, Dynamic Type, and the Accessibility Inspector.
+- [Android Developers — Accessibility (official)](https://developer.android.com/guide/topics/ui/accessibility) — Official, free; TalkBack, Compose semantics, and the Accessibility Scanner.
 
 ---
 
