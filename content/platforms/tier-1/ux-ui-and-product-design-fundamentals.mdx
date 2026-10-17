@@ -1,0 +1,158 @@
+---
+trackId: platforms
+tier: 1
+title: "UX/UI & Product Design Fundamentals"
+order: 5
+estimatedHours: 12
+slug: ux-ui-and-product-design-fundamentals
+---
+
+You can now write semantic HTML, style it with CSS, make it interactive with JavaScript, and read Python well enough to follow a program written in it. Every one of those is a "how do I build this" skill. None of them is a "what should I build, and why should it look this way" skill — and that second kind of skill is exactly what decides whether the Tier 1 checkpoint turns into a portfolio site a hiring manager actually remembers, or one more three-page site with a navbar, a hero image, and no reason anyone would trust the person who built it. This module is that missing layer: visual design, typography, color, and quick validation, taught as something you decide *before* you touch CSS, not something you hope happens by accident while you're busy getting flexbox to cooperate.
+
+That is also exactly why this module sits here and not earlier. You needed working HTML/CSS/JS before "design judgment" would have anywhere to land — a design decision with no way to implement it is just an opinion. Now the order flips: every principle below is something you will apply directly, this week, to the real site you are about to build for the checkpoint. Treat this as the planning phase of that project. By the time you open your editor to start the checkpoint for real, you should already know what your homepage says first, what your five type sizes are, what your five colors are, and what a stranger seeing your draft for five seconds would report back.
+
+## What you'll leave this lesson knowing
+
+- How visual hierarchy uses size, weight, color, and spacing *together* to control what a viewer reads first, second, and last — and how to build one for a real hero section instead of letting every element compete at the same volume
+- How contrast works as a design tool even with color held constant — using size, weight, and isolation (whitespace) alone to make one element stand out
+- A concrete before/after of cramped versus breathing-room spacing on identical content, and the actual pixel values that separate the two
+- What a compositional grid is — aligned edges and consistent gutters — and why that is a different concept from the CSS `grid` property you already know how to write
+- What a type scale is, how a fixed ratio like 1.25 generates a full set of heading sizes, and why that reads as more intentional than sizes picked by feel
+- A real, working font pairing (a serif display face with a sans-serif body face) and the actual reasoning for why that pairing holds together instead of looking accidental
+- The specific numbers behind readable body text: roughly 45 to 75 characters per line, and line-height around 1.4 to 1.6 times the font size
+- How to build a small, cohesive five-color palette — one primary, one accent, and neutrals — using a real color-wheel relationship, and how to cross-check it against the WCAG contrast thresholds you already learned, without re-deriving that math
+- How to run a 5-second test, a short usability-test script, and a heuristic-evaluation checklist against a design — on paper, before any code exists, and again against your own checkpoint site before you call it done
+
+## Do this
+
+1. **Build one hero section with zero hierarchy, then fix it.** Take four pieces of real content — a label, a headline, a subtext line, and a button — and render them identically: same 16px size, same 400 weight, same `#333333` color, stacked with no spacing logic.
+
+   ```
+   NEW PRODUCT LAUNCH
+   Introducing Nova: the fastest way to track your habits
+   Nova syncs across every device and costs nothing to start.
+   Get Started
+   ```
+
+   Every line is competing for attention at the exact same volume, so there is no instruction anywhere in the design for which one to read first. Now apply hierarchy using four levers at once — size, weight, color, and spacing — and nothing else:
+
+   | Element | Size | Weight | Color | Notes |
+   |---|---|---|---|---|
+   | Label | 14px | 600, uppercase, letter-spacing 0.05em | `#595959` | small and quiet — context, not the message |
+   | Headline | 40px | 700 | `#1A1A1A` | biggest, boldest, darkest — read first |
+   | Subtext | 18px | 400 | `#595959` | bigger than label, lighter weight than headline |
+   | Button | 16px | 600 | white on `#2563EB`, 12px/24px padding | isolated by color *and* shape, not just text |
+
+   Nothing about the words changed. The eye's path is now: big bold dark headline first, because size and weight and darkest color all point at it simultaneously; small quiet label second, for context; lighter body copy third, for detail; and the button last, pulled out by its own isolated color block. That is visual hierarchy — not a vibe, a stack of deliberate, additive signals.
+
+2. **Prove contrast works without touching color.** A "Download the report" link sitting inline inside a paragraph, same 16px/400 text, same color as the sentence around it, gets missed by readers scanning the page — their eyes slide right past it because nothing distinguishes it from any other word. Isolate it using only size, weight, and whitespace: bump it to 18px, weight 600, wrap it in a bounded box with 12px/24px padding, and give it 32px of margin above and below to separate it from the surrounding paragraph. The color can stay exactly the same dark neutral as the body text. It now reads as a button — a distinct, clickable *thing* — purely because of contrast in size, weight, and isolation, with hue doing none of the work. This is the same lever you'll reach for constantly: when one element in a layout needs to stand out and changing its color would clash with your palette, change its size, its weight, or the amount of empty space fencing it off instead.
+
+3. **Run one real before/after on whitespace.** Take a short "About" block — one heading, one paragraph, three bulleted facts — and lay it out twice, changing nothing but spacing values.
+
+   Before (cramped):
+   ```css
+   .about { padding: 4px; }
+   .about h2 { margin-bottom: 2px; }
+   .about p { line-height: 1.1; margin-bottom: 2px; }
+   .about li { margin-bottom: 0px; }
+   ```
+
+   After (breathing room):
+   ```css
+   .about { padding: 48px 24px; }
+   .about h2 { margin-bottom: 16px; }
+   .about p { line-height: 1.6; margin-bottom: 24px; }
+   .about li { margin-bottom: 8px; }
+   ```
+
+   Same HTML, same words, zero new elements — only the numbers around and between things changed. The "before" version reads as a dense, stressful block where the heading, paragraph, and list visually fuse into one undifferentiated mass. The "after" version lets each piece breathe enough that your eye perceives them as three distinct, individually readable units instead of one wall of text. Whitespace is not empty space you forgot to fill — it is a design decision with its own pixel values, exactly like color or font size.
+
+4. **Align everything to one invisible structure — and don't confuse this with the CSS `grid` property.** Open your current draft and check the left edge of every major block: logo, nav links, headline, body copy, footer text. A page where those edges sit at 24px, 32px, 18px, and 40px respectively looks subtly "off" even to someone who couldn't say why — it reads as sloppy or unfinished. Snap every one of those edges to the exact same left margin (say, 32px) and the same page instantly reads as clean and intentional, with no other change made. Do the same check on gutters: three cards in a row with gaps of 24px, 16px, and 30px between them look uneven; a single consistent 24px gap everywhere looks composed. This underlying structure — a shared set of edges and consistent gutters everything snaps to — is what designers mean by "grid" as a *compositional* concept, and it is a different thing from the CSS `grid` property HTML & CSS Fundamentals already taught you to write. You can build a page that follows a strict 12-column compositional grid using Flexbox, floats, or CSS Grid — the compositional grid is the decision about where edges and gutters go; CSS Grid is just one tool (among several) for making the code match that decision.
+
+5. **Build a type scale instead of picking sizes by feel.** Start from a 16px body-text base and apply a fixed ratio — 1.25 is a common, pleasant one — repeatedly: each step is the previous size multiplied by 1.25.
+
+   | Step | Calculation | Size | Typical use |
+   |---|---|---|---|
+   | Base | 16 | 16px | body text |
+   | 1 | 16 × 1.25 | 20px | h4 / small heading |
+   | 2 | 20 × 1.25 | 25px | h3 |
+   | 3 | 25 × 1.25 | 31px | h2 |
+   | 4 | 31 × 1.25 | 39px | h1 |
+   | 5 | 39 × 1.25 | 49px | display / hero headline |
+
+   Now compare that to five sizes a beginner might choose by eye alone: 16, 19, 24, 30, 42. Nothing is "wrong" with any single number in that second list — the problem is the *relationships between them*: the jumps are 3, 5, 6, then 12, with no consistent logic tying one to the next. Every step in the ratio-based scale is the exact same proportional jump as every other step, so the whole set reads as one coherent system instead of five separate decisions a visitor can unconsciously sense were made independently. (1.333, the "perfect fourth," is the other common choice — same idea, slightly more dramatic jumps: 16, 21, 28, 38, 51.) Pick one ratio for your checkpoint site and generate every heading size from it; don't hand-pick a single one.
+
+6. **Pair a display face with a body face, for real, with real font names.** Use Playfair Display (a serif display typeface with high contrast between its thick and thin strokes, built for large, dramatic headlines) for every heading, and Source Sans Pro (a humanist sans-serif designed to stay clean and legible at small sizes) for every line of body text. Compare that to a pairing that looks like a mistake: Arial for headings, Helvetica for body text. Arial and Helvetica are so close in shape that a viewer can't tell if the font actually changed or if it's just a rendering inconsistency — the pairing reads as an accident, not a choice. Playfair Display and Source Sans Pro, by contrast, are different enough in classification (serif display vs. sans-serif body) that switching between them is obviously deliberate, while both still share an open, modern letter construction that keeps them from clashing. The underlying rule: when you pair two fonts, make sure the *difference* between them is large enough to look intentional, and give each one only the job it's actually built for — Playfair Display's dramatic stroke contrast is wasted (and gets harder to read) at 16px body-text size; Source Sans Pro's clean neutrality is wasted as a 49px hero headline. Split the roles, don't make one font do both jobs.
+
+7. **Set one paragraph two ways and feel the difference.** First, set a paragraph at 16px, line-height 1.0, inside a container 1100px wide with no `max-width` constraint — lines run well past 150 characters each.
+
+   ```css
+   .article p {
+     font-size: 16px;
+     line-height: 1.0;
+     max-width: none;
+   }
+   ```
+
+   Read it. Your eye has to travel a long horizontal distance and then hunt for where the next line starts, because the tight line spacing gives almost no visual separation between rows. Now constrain the "measure" (the typography term for line length) to roughly 65 characters using the `ch` unit (one `ch` is about the width of one character in the current font), and loosen the line-height to sit inside the readable range:
+
+   ```css
+   .article p {
+     font-size: 16px;
+     line-height: 1.5;
+     max-width: 65ch;
+   }
+   ```
+
+   16px times 1.5 is 24px of total line height — comfortably inside the 1.4 to 1.6 times range that body text reads best at. The readable measure for body copy is roughly 45 to 75 characters per line; much narrower and your eye bounces down the page too often, much wider and it loses its place finding the start of the next line. `max-width: 65ch` combined with `line-height: 1.5` is the single highest-leverage two-line fix for "my paragraph is technically readable but exhausting."
+
+8. **Build a real five-color palette using one color-wheel relationship.** Pick a primary — Primary Blue, `#2563EB` — and find its complement by looking roughly opposite it on the color wheel: Accent Amber, `#F59E0B`. Checked in HSL, blue sits at a hue of about 221° and amber sits at about 38°; the two are roughly 183° apart, close enough to a true 180° to count as a working complementary pair. Round that out with three neutrals: white (`#FFFFFF`) as the base canvas, a very light gray (`#F5F5F5`) for card and section backgrounds, and a dark gray (`#595959`) for body text.
+
+   | Role | Hex | Relationship |
+   |---|---|---|
+   | Primary | `#2563EB` | anchor hue, hue ≈ 221° |
+   | Accent | `#F59E0B` | complementary to primary, hue ≈ 38° |
+   | Neutral — canvas | `#FFFFFF` | — |
+   | Neutral — surface | `#F5F5F5` | — |
+   | Neutral — text | `#595959` | — |
+
+   A complementary pair reads as cohesive specifically *because* the two hues sit opposite each other on the wheel by construction, not by coincidence — the viewer can sense the two colors were chosen together as a deliberate pair, the same way the type scale's fixed ratio reads as a system rather than five independent guesses. Use the accent sparingly (links, one button style, a badge) against a primary- and neutral-dominated page — two complementary hues used in equal amounts fight each other; used at roughly 90/10, the accent reads as a highlight instead of a clash.
+
+   Now check the pairings, and this is the one place in this lesson where you do *not* re-derive anything: **the Accessibility section of HTML & CSS Fundamentals already gave you the exact WCAG contrast math — this section builds the rest of a palette around colors that already pass it, it does not re-derive contrast ratios.** You already know `#595959` on white measures around 7:1 (AAA) and `#767676` on white measures 4.54:1 (AA) from that section — so this palette's body text, set in `#595959`, is already a known-good pairing with zero new checking required. The two pairs you haven't already verified do need a run through the same WebAIM-style checker (not a re-explanation of the formula): Primary Blue on white measures 5.17:1, clearing the 4.5:1 AA bar comfortably — safe for link text and headings. Accent Amber on white measures only about 2.15:1, which fails AA outright despite looking plenty vivid — a reminder that saturation and contrast are not the same thing. That's why the accent above is used as a *fill* (button backgrounds, badges), with dark text on top of it (`#1A1A1A` on `#F59E0B` measures about 8.10:1, passing AAA) rather than as text directly on a light background, and never as white text on top (white on amber is the same failing 2.15:1 ratio run the other direction).
+
+9. **Run a 5-second test on paper, before any code exists.** Sketch a homepage as boxes and labels — logo, four nav items, a hero image, a small gray headline tucked in a corner that says "Welcome to our site," two unrelated badges, and a newsletter box, all roughly the same visual weight. Show the sketch to five people for five seconds each, then ask only one question: "what does this company do, and what would you click next?" A realistic result: four of the five say some version of "not sure" or "something about a newsletter?" — the design failed to communicate anything in the window of attention a real visitor actually gives a homepage. Now redo the sketch applying Step 1's hierarchy directly: one large, bold, dark headline that states the actual value ("Track every habit, in one app"), everything else demoted in size and color, one clearly isolated button. Run the same five-second test on five new people. A realistic result this time: all five correctly say "an app for tracking habits" and point at the button as what they'd click. The jump from roughly 1-in-5 correct to 5-in-5 correct is the whole argument for hierarchy in one number — it is not decoration, it is whether a stranger understands your page at all.
+
+10. **Script a usability test and run a heuristic checklist against your own checkpoint draft.** Both of these work best done as "low-fi wireframing on paper before you write any code" — sketch the pages, or screenshot your current rough draft, and run both checks against that instead of waiting for a finished build.
+
+    First, write five concrete tasks and hand them to a real person who has never seen the site, one at a time, watching (without helping) what they do:
+
+    | Task | Pass looks like | Confusion looks like |
+    |---|---|---|
+    | "Find the pricing page." | Clicks a visible nav link within about 10 seconds, no hesitation | Scrolls past the nav repeatedly, or asks "is there even a pricing page?" |
+    | "Sign up for the newsletter." | Finds the field/button unprompted, finishes in under 20 seconds | Tries clicking the logo, searches the footer twice, gives up |
+    | "Find out who built this and how to contact them." | Finds an About or Contact link via nav or footer | Mistakes a social icon for a contact link, or can't find any contact info at all |
+    | "Without clicking anything, say what this site is for." | States the core purpose accurately within a few seconds | Guesses wrong, or says "no idea" |
+    | "Go back to the homepage from two pages deep." | Clicks the logo or a visible home link | Repeatedly hits the browser's back button because there's no on-page way home |
+
+    Then run this checklist — six of Nielsen's ten usability heuristics, condensed into something you can actually check against your own portfolio site in a few minutes:
+
+    - **Visibility of system status** — does every link and button visibly react on hover or click (color shift, underline, cursor change), so a visitor knows the thing they touched actually responded?
+    - **Consistency and standards** — is the nav in the same place, same style, on every page? Do all your headings and buttons look the same everywhere they appear?
+    - **User control and freedom** — can a visitor always get back to the homepage or out of any section without repeatedly mashing the browser's back button?
+    - **Recognition rather than recall** — can a visitor find your projects page from *any* page's nav, or only from the homepage, forcing them to remember and backtrack?
+    - **Aesthetic and minimalist design** — does every badge, icon, and line of copy on the page earn its place for a visitor trying to evaluate your work, or is some of it decoration competing with the content that actually matters?
+    - **Error prevention** — if your contact form exists, does it catch an empty required field or an invalid email before submission, instead of silently failing or losing the visitor's typed message?
+
+    Run both the task script (on one real person) and the checklist (on your own eyes) against your actual portfolio draft before you consider the Tier 1 checkpoint finished — this is the cheapest bug-finding you will do on the entire project, because every issue it surfaces costs you minutes to sketch around now and hours to rebuild later.
+
+## Exercise
+
+Using your in-progress Tier 1 checkpoint (the portfolio site) as the subject: pick a type-scale ratio (1.25 or 1.333) and write out the five sizes it generates for your actual headings; pick a font pairing with real font names and say in one sentence why the two fonts don't clash; build your five-color palette (one primary, one accent related to it by a complementary or analogous rule, and three neutrals) with real hex values, and check each text/background pairing against the WCAG thresholds the way Step 8 did; then run the Step 10 heuristic checklist against your current homepage draft yourself, and get one real person — someone who has never seen the site — to attempt the five-task usability script against it. Fix at least one thing the heuristic checklist or the usability test actually surfaced before you call the checkpoint done.
+
+**Hint:** if you don't have a stranger handy to run the usability script on, a roommate, classmate, or family member who has genuinely never seen your site works fine — the only hard requirement is that they haven't seen it before. Testing on yourself doesn't work, because you already know where every link is; that knowledge is exactly what the test is trying to catch the *absence* of in a real visitor.
+
+## Check on learning
+
+- Using the actual numbers from this lesson's 1.25 type scale, explain why 16, 20, 25, 31, 39 reads as more intentional than 16, 19, 24, 30, 42 — be specific about what's different between the two lists, since no single number in either is "wrong" on its own.
+- Pick two colors from a site or app you use often, guess whether they're closer to a complementary or an analogous relationship on the color wheel, and name the one thing you'd still need to check before trusting that pairing for body text — without re-deriving the contrast formula, just name the threshold and where you already learned it.
+- Look at your own current portfolio draft and name one place where whitespace, alignment, or hierarchy is currently doing its job only by accident, versus one place where you chose it on purpose.

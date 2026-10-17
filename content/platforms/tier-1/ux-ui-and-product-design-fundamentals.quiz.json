@@ -1,0 +1,75 @@
+[
+  {
+    "id": "platforms/tier-1/ux-ui-and-product-design-fundamentals/q1",
+    "type": "multiple_choice",
+    "prompt": "A hero section's label, headline, subtext, and button all render at the same 16px size, same weight, and same color. What problem does this create?",
+    "choices": [
+      "The HTML is invalid because headings require a larger font-size than body text",
+      "The browser will refuse to render repeated identical font sizes on one page",
+      "There is no visual hierarchy, so the viewer has no signal for what to read first",
+      "The page will automatically fail a color-contrast accessibility check"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "platforms/tier-1/ux-ui-and-product-design-fundamentals/q2",
+    "type": "multiple_choice",
+    "prompt": "You're building a type scale from a 16px base using a ratio of 1.25, which generates 16, 20, 25, 31... What size comes right after 20px in this scale?",
+    "choices": [
+      "22px",
+      "24px",
+      "25px",
+      "28px"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "platforms/tier-1/ux-ui-and-product-design-fundamentals/q3",
+    "type": "multiple_choice",
+    "prompt": "Why does pairing Playfair Display (a serif display face) with Source Sans Pro (a sans-serif body face) read as a more deliberate choice than pairing Arial headings with Helvetica body text?",
+    "choices": [
+      "Arial and Helvetica are so visually similar that the switch looks accidental, while Playfair Display and Source Sans Pro contrast clearly enough to read as a decision",
+      "Serif fonts always render faster in the browser than sans-serif fonts",
+      "Source Sans Pro is not licensed for use in page headings",
+      "Playfair Display and Source Sans Pro are the only two fonts installed on every operating system by default"
+    ],
+    "correctIndex": 0
+  },
+  {
+    "id": "platforms/tier-1/ux-ui-and-product-design-fundamentals/q4",
+    "type": "multiple_choice",
+    "prompt": "A palette pairs Primary Blue (#2563EB, hue about 221\u00b0) with Accent Amber (#F59E0B, hue about 38\u00b0) \u2014 roughly opposite each other on the color wheel. What relationship is this an example of?",
+    "choices": [
+      "Analogous",
+      "Monochromatic",
+      "Complementary",
+      "Triadic"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "platforms/tier-1/ux-ui-and-product-design-fundamentals/q5",
+    "type": "short_answer",
+    "prompt": "Per the Accessibility section of HTML & CSS Fundamentals, what is the minimum WCAG 2.1 AA contrast ratio that normal-size body text must meet against its background?",
+    "acceptedAnswers": [
+      "4.5:1",
+      "4.5 to 1",
+      "at least 4.5:1"
+    ]
+  },
+  {
+    "id": "platforms/tier-1/ux-ui-and-product-design-fundamentals/q6",
+    "type": "short_answer",
+    "prompt": "What is the name of the lightweight usability technique where you show someone a design for about five seconds, then ask what they remember or understood from it?",
+    "acceptedAnswers": [
+      "5-second test",
+      "five-second test",
+      "the 5 second test"
+    ]
+  },
+  {
+    "id": "platforms/tier-1/ux-ui-and-product-design-fundamentals/q7",
+    "type": "explain_back",
+    "prompt": "In your own words, explain why a fixed type scale (like a 1.25 ratio), generous whitespace, and a clear visual hierarchy all read as more 'intentional' to a viewer than sizes, spacing, and emphasis chosen ad hoc. Use at least one concrete number from this lesson \u2014 a type-scale step, a whitespace value, or similar \u2014 to make your explanation specific rather than abstract."
+  }
+]
