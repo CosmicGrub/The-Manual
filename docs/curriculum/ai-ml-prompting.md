@@ -169,9 +169,9 @@ _For the math spine itself (linear algebra, probability, calculus, information t
 
 ## Tier 4: Advanced / Specialist
 
-**Goal:** Specialize toward production-grade AI engineering: fine-tune models efficiently (LoRA/QLoRA), build real evaluation and red-teaming harnesses instead of trusting vibes, understand inference-time performance (quantization, KV-cache, serving frameworks) well enough to make architecture-level tradeoffs, and run lightweight MLOps like a professional. Deep hardware internals (GPU microarchitecture, memory hierarchies) are treated LIGHTLY here on purpose — that is the Hardware & Computer Systems track's job; this tier goes only as deep into hardware as needed to reason about inference cost and deployment tradeoffs.
+**Goal:** Specialize toward production-grade AI engineering: fine-tune models efficiently (LoRA/QLoRA), build real evaluation and red-teaming harnesses instead of trusting vibes, understand inference-time performance (quantization, KV-cache, serving frameworks) well enough to make architecture-level tradeoffs, run lightweight MLOps like a professional, and close the agentic-development loop — using coding agents responsibly means writing specs precise enough to implement correctly and reviewing what they produce at scale, not just orchestrating them. Deep hardware internals (GPU microarchitecture, memory hierarchies) are treated LIGHTLY here on purpose — that is the Hardware & Computer Systems track's job; this tier goes only as deep into hardware as needed to reason about inference cost and deployment tradeoffs.
 
-**Modules** (~78h):
+**Modules** (~92h):
 
 - **Fine-Tuning & Parameter-Efficient Methods** — ~16h: Full fine-tuning vs. LoRA/QLoRA, Instruction tuning, RLHF and DPO, conceptually, Curating a fine-tuning dataset
 - **Model Evaluation, Red-Teaming & Safety** — ~14h: Building eval harnesses and benchmarks, Measuring hallucination rate, Adversarial prompting / jailbreak testing, Bias and fairness evaluation, Responsible AI frameworks (NIST AI RMF, Constitutional AI)
@@ -179,6 +179,7 @@ _For the math spine itself (linear algebra, probability, calculus, information t
 - **Lightweight MLOps** — ~12h: Experiment tracking (MLflow / Weights & Biases), Data and model versioning (DVC), CI for ML pipelines, Monitoring model/data drift in production
 - **Architecture for AI-Powered Systems** — ~12h: Designing a production LLM application: caching, fallback models, prompt versioning, guardrails, observability, Cost/latency budgeting across cloud, desktop, and mobile deployment targets
 - **Advanced Prompt Engineering & Agentic Systems** — ~12h: Multi-agent orchestration, Tool-use reliability patterns, Long-context strategies and prompt compression, Structured planning (ReAct, Reflexion, Tree-of-Thought)
+- **Agentic AI-Assisted Development: Specs, Context Engineering, and Reviewing AI-Generated Code at Scale** — ~14h: the direct continuation of this tier's own agentic-systems module — context engineering named and synthesized as its own discipline (retroactively naming decisions the track has already been making piecemeal, plus genuinely new ground: how much of a file to put in a coding agent's context, and the real cost of too much); spec-driven development (acceptance criteria, explicit non-goals, file/interface boundaries, contrasted with vague prompting); reviewing AI-generated diffs at scale (triage strategy, why a weakened or deleted test is the single highest-signal red flag, verifying claims instead of reading every line) — explicitly distinct from Reading Real Code's quiz-only coverage of disclosing *your own* agent use; a worked spec-to-review cycle; and why a critic agent (from this tier's own four-agent pipeline example) mitigates but doesn't replace human review at scale
 
 **Quizzes / assessment:**
 
@@ -186,6 +187,7 @@ _For the math spine itself (linear algebra, probability, calculus, information t
 - *CTF-style red-team challenge* — Attempt to extract a sandboxed toy assistant's hidden system prompt, or make it violate a stated content policy, using only prompting (no external jailbreak libraries); write up the successful technique and the guardrail fix.
 - *Code-review kata* — Review a real (sanitized) inference-serving pull request containing a KV-cache/batching bug and flag the defect before checking the actual fix.
 - *Feynman teach-back* — Explain LoRA/QLoRA to someone who already understands full fine-tuning but has never used a parameter-efficient method.
+- *Spec-then-review cycle* — Write a real spec with acceptance criteria and explicit non-goals for a small feature, run it through a real coding agent, and review the resulting diff using a real triage checklist rather than reading every line with equal attention.
 
 **Checkpoint project:** Fine-tune (LoRA/QLoRA) a small open-weight model for a specific task; build a proper evaluation harness comparing base vs. fine-tuned model (quantitative metrics plus qualitative red-teaming); quantize and serve it locally (e.g., via vLLM or llama.cpp); and write a full system-design doc for deploying this model across a web app and a resource-constrained mobile/edge client, including fallback strategy, cost budget, and safety guardrails.
 
@@ -195,6 +197,7 @@ _For the math spine itself (linear algebra, probability, calculus, information t
 - Build-then-break on a guardrail/safety-filter system you build yourself, attacked by a peer or another AI.
 - Portfolio artifact: a real LoRA-fine-tuned small open model with a full quantitative + qualitative evaluation report.
 - Feynman teach-backs aimed at a simulated 'engineer who knows the adjacent concept but not this one' audience.
+- Build-then-break on your own spec: write a feature spec, then have a peer (or another AI) try to find the ambiguity or missing non-goal that would let an agent implement it in an unintended way.
 
 **Curated resources:**
 
@@ -204,6 +207,8 @@ _For the math spine itself (linear algebra, probability, calculus, information t
 - [vLLM — Official Documentation](https://docs.vllm.ai/) — Official docs for the high-throughput serving framework used in the inference module.
 - [NIST AI Risk Management Framework](https://www.nist.gov/itl/ai-risk-management-framework) — Official U.S. government framework for the responsible-AI section of the safety module.
 - [Made With ML](https://madewithml.com/) — Free, practical MLOps course covering experiment tracking, versioning, and CI for ML.
+- [Anthropic — Claude Code: Best Practices for Agentic Coding](https://www.anthropic.com/engineering/claude-code-best-practices) — Official, free engineering write-up on spec-driven workflows and reviewing agent-produced code, directly relevant to this module's newest module.
+- [Simon Willison's Weblog — AI-assisted programming](https://simonwillison.net/tags/ai-assisted-programming/) — Free, widely-cited, practitioner-level writing on working with and reviewing coding-agent output.
 
 ---
 
