@@ -1,0 +1,33 @@
+[
+  {
+    "id": "devops-tooling/tier-2/infrastructure-as-code-first-pass-terraform/s1",
+    "title": "Idempotence: An 1870 Algebra Term Describes Terraform's Core Promise",
+    "domain": "math",
+    "explainer": "In 1870, mathematician Benjamin Peirce circulated 'Linear Associative Algebra' (initially a small lithographed edition for colleagues; it wasn't formally published in a journal until 1881), coining the term 'idempotent' for an algebraic expression that gives the same result no matter how many times it's applied - formally, A squared equals A. Terraform's central value proposition - that running 'terraform apply' repeatedly against an unchanged configuration converges to, and then stays at, the same infrastructure state - is this exact algebraic property applied to infrastructure. Recognizing idempotence as a precise, 19th-century mathematical idea (rather than just an IaC buzzword) clarifies why a well-written configuration is safe to re-run, while one with side effects, like a provisioner that always appends a line to a file, is not.",
+    "resources": [
+      {
+        "title": "Idempotence",
+        "url": "https://en.wikipedia.org/wiki/Idempotent",
+        "source": "Wikipedia"
+      }
+    ]
+  },
+  {
+    "id": "devops-tooling/tier-2/infrastructure-as-code-first-pass-terraform/s2",
+    "title": "CFEngine (1993): The Original 'Describe the State You Want' Tool",
+    "domain": "history",
+    "explainer": "In 1993, Mark Burgess, then at the University of Oslo, wrote CFEngine to replace brittle, host-specific shell and Perl scripts with a single declarative file describing what a fleet of Unix machines should look like; re-running it converged any machine toward that described state rather than re-executing a fixed sequence of commands. This 'declare the desired state and let the tool reconcile it' philosophy - which CFEngine pioneered roughly a decade before Puppet and Chef, both founded by former CFEngine users - is the same philosophy Terraform applies to cloud infrastructure instead of individual servers.",
+    "resources": [
+      {
+        "title": "CFEngine",
+        "url": "https://en.wikipedia.org/wiki/Cfengine",
+        "source": "Wikipedia"
+      },
+      {
+        "title": "Cfengine V2.0 (original 1993 paper)",
+        "url": "http://markburgess.org/papers/cfengine_history.pdf",
+        "source": "markburgess.org (Mark Burgess, CFEngine's creator)"
+      }
+    ]
+  }
+]

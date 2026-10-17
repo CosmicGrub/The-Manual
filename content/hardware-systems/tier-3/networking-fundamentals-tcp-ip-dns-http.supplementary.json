@@ -1,0 +1,28 @@
+[
+  {
+    "id": "hardware-systems/tier-3/networking-fundamentals-tcp-ip-dns-http/s1",
+    "title": "Cerf, Kahn, and the 1974 TCP Paper",
+    "domain": "history",
+    "explainer": "Robert Kahn's 'internetting' problem at DARPA - how to connect already-different packet networks without forcing them all onto one hardware standard - led him to bring in Vint Cerf, and their May 1974 paper 'A Protocol for Packet Network Intercommunication' laid out the gateway-based design that TCP/IP still follows. That single protocol was later split into a transport layer (TCP) and an internetworking layer (IP), the separation this lesson's stack is built around.",
+    "resources": [
+      {
+        "title": "Milestones: Transmission Control Protocol (TCP) Enables the Internet, 1974",
+        "url": "https://ethw.org/Milestones:Transmission_Control_Protocol_(TCP)_Enables_the_Internet,_1974",
+        "source": "IEEE Engineering and Technology History Wiki"
+      }
+    ]
+  },
+  {
+    "id": "hardware-systems/tier-3/networking-fundamentals-tcp-ip-dns-http/s2",
+    "title": "Paul Mockapetris and the Design of DNS (1983)",
+    "domain": "history",
+    "explainer": "Before DNS, every computer on the early internet looked up hostnames in one shared, manually maintained hosts.txt file, which was straining under the network's growth by the early 1980s. Mockapetris, working at USC's Information Sciences Institute, replaced it with a distributed, hierarchical naming system that let each domain's owner manage its own records locally while lookups still resolved from anywhere - the architecture this lesson's DNS section depends on.",
+    "resources": [
+      {
+        "title": "Paul Mockapetris",
+        "url": "https://en.wikipedia.org/wiki/Paul_Mockapetris",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

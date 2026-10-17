@@ -1,0 +1,28 @@
+[
+  {
+    "id": "ai-ml-prompting/tier-4/advanced-prompt-engineering-and-agentic-systems/s1",
+    "title": "STRIPS and the Birth of Automated AI Planning (1971)",
+    "domain": "history",
+    "explainer": "Long before 'agent' meant an LLM that calls tools and plans multi-step tasks, Richard Fikes and Nils Nilsson at Stanford Research Institute published STRIPS in December 1971, a formal way to represent goals, preconditions, and actions so a program could plan a sequence of steps toward a goal. The plan-execute-replan loop at the heart of most agentic frameworks is a direct descendant of this classical-planning tradition, not a new invention. Seeing where 'planning' came from helps separate what's genuinely new in LLM agents (using a language model to generate the plan) from what's over fifty years old (the loop itself).",
+    "resources": [
+      {
+        "title": "STRIPS",
+        "url": "https://en.wikipedia.org/wiki/STRIPS",
+        "source": "Wikipedia"
+      }
+    ]
+  },
+  {
+    "id": "ai-ml-prompting/tier-4/advanced-prompt-engineering-and-agentic-systems/s2",
+    "title": "Claude Shannon's Type A vs. Type B Search (1950)",
+    "domain": "history",
+    "explainer": "In his 1950 paper on programming a computer to play chess, Claude Shannon distinguished 'Type A' brute-force search (evaluate every line to a fixed depth) from 'Type B' selective search (use judgment to explore only the most promising branches and prune the rest) - years before any working chess program existed. That same tradeoff, exhaustive search versus guided and pruned exploration, is exactly the design choice an agentic system faces when deciding whether to try every possible tool call or let a learned policy steer which branches of a task to pursue. Shannon's terms describe a tension that still shapes how planning and agent systems are built.",
+    "resources": [
+      {
+        "title": "Computer chess",
+        "url": "https://en.wikipedia.org/wiki/Computer_chess",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

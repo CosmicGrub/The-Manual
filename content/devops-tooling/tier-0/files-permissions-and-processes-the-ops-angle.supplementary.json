@@ -1,0 +1,20 @@
+[
+  {
+    "id": "devops-tooling/tier-0/files-permissions-and-processes-the-ops-angle/s1",
+    "title": "Saltzer, Schroeder, and the Principle of Least Privilege (1975)",
+    "domain": "history",
+    "explainer": "In their 1975 paper 'The Protection of Information in Computer Systems,' Jerome Saltzer and Michael Schroeder laid out design principles for secure systems, including least privilege: every program and every user should operate with only the access it needs to do its job, and no more. That principle is the theoretical backbone behind why ops teams run services under dedicated non-root users, chmod files restrictively by default, and treat a stray `chmod 777` or an unnecessary `sudo` as a real security smell rather than a harmless shortcut.",
+    "resources": [
+      {
+        "title": "Saltzer and Schroeder's design principles",
+        "url": "https://en.wikipedia.org/wiki/Saltzer_and_Schroeder%27s_design_principles",
+        "source": "Wikipedia"
+      },
+      {
+        "title": "Basic Principles of Information Protection",
+        "url": "https://web.mit.edu/Saltzer/www/publications/protection/Basic.html",
+        "source": "MIT (Saltzer)"
+      }
+    ]
+  }
+]

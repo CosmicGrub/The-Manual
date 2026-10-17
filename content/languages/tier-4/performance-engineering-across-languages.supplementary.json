@@ -1,0 +1,33 @@
+[
+  {
+    "id": "languages/tier-4/performance-engineering-across-languages/s1",
+    "title": "Amdahl's Law and the Ceiling on Any Speedup",
+    "domain": "math",
+    "explainer": "In 1967, Gene Amdahl formalized a limit that still governs performance engineering today: if a fixed fraction of a program must run serially, no amount of added parallelism or hardware can push the overall speedup past a ceiling set by that serial fraction. A program that is 90% parallelizable can never run more than 10x faster, no matter how many cores are added. That is why performance work across languages usually starts by finding and shrinking the serial bottleneck rather than reflexively parallelizing everything.",
+    "resources": [
+      {
+        "title": "Amdahl's law",
+        "url": "https://en.wikipedia.org/wiki/Amdahl%27s_law",
+        "source": "Wikipedia"
+      }
+    ]
+  },
+  {
+    "id": "languages/tier-4/performance-engineering-across-languages/s2",
+    "title": "Knuth's 'Premature Optimization' Line, in Its Original Context",
+    "domain": "history",
+    "explainer": "The famous warning that 'premature optimization is the root of all evil' comes from Donald Knuth's 1974 paper 'Structured Programming with go to Statements,' but the sentence everyone quotes is usually cut short - Knuth immediately adds that programmers should not pass up opportunities in the critical few percent of code that actually dominates runtime. His actual argument was to profile first and optimize the measured hot path, not to avoid thinking about performance at all, which is exactly the discipline cross-language performance engineering still teaches.",
+    "resources": [
+      {
+        "title": "Program optimization",
+        "url": "https://en.wikipedia.org/wiki/Program_optimization",
+        "source": "Wikipedia"
+      },
+      {
+        "title": "Donald Knuth",
+        "url": "https://en.wikipedia.org/wiki/Donald_Knuth",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

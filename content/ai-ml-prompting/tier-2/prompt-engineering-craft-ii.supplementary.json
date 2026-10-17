@@ -1,0 +1,28 @@
+[
+  {
+    "id": "ai-ml-prompting/tier-2/prompt-engineering-craft-ii/s1",
+    "title": "GPT-3 and the 2020 Discovery of Few-Shot In-Context Learning",
+    "domain": "history",
+    "explainer": "The core premise of prompt engineering - that a frozen model can perform a new task from a few examples placed in the prompt, with no retraining at all - was demonstrated at scale in the 2020 paper 'Language Models are Few-Shot Learners,' which introduced GPT-3 and showed this in-context learning ability sharpening as model size grew. Before this result, the standard way to adapt a language model to a new task was to retrain its weights (fine-tuning), which is why prompting was initially treated as a curiosity rather than the primary interface it has become.",
+    "resources": [
+      {
+        "title": "Language Models are Few-Shot Learners",
+        "url": "https://arxiv.org/abs/2005.14165",
+        "source": "arXiv"
+      }
+    ]
+  },
+  {
+    "id": "ai-ml-prompting/tier-2/prompt-engineering-craft-ii/s2",
+    "title": "Chain-of-Thought Prompting and the 2022 Paper That Named It",
+    "domain": "history",
+    "explainer": "Asking a model to reason step by step before answering, a staple technique in advanced prompting, was formally studied and named in a 2022 paper, 'Chain-of-Thought Prompting Elicits Reasoning in Large Language Models,' which found the technique helped mainly on large models and barely at all on small ones. That emergence-with-scale pattern is a useful caution: a prompting trick validated on one model size can quietly fail when you swap to a smaller or older model.",
+    "resources": [
+      {
+        "title": "Chain-of-Thought Prompting Elicits Reasoning in Large Language Models",
+        "url": "https://arxiv.org/abs/2201.11903",
+        "source": "arXiv"
+      }
+    ]
+  }
+]

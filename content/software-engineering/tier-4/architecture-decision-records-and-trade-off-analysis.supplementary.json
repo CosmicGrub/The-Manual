@@ -1,0 +1,33 @@
+[
+  {
+    "id": "software-engineering/tier-4/architecture-decision-records-and-trade-off-analysis/s1",
+    "title": "Michael Nygard and the Origin of the Architecture Decision Record (2011)",
+    "domain": "history",
+    "explainer": "In November 2011, software architect Michael Nygard published a short post on the Cognitect blog proposing that teams record each architecturally significant decision as its own small, numbered document capturing the context, the decision itself, and its consequences. The format spread industry-wide because, unlike a single sprawling design document, an individual ADR stays easy to write, read, and keep accurate as a system evolves. Knowing this origin clarifies why ADRs are deliberately short and append-only rather than one living master document that gets edited and loses its history.",
+    "resources": [
+      {
+        "title": "Documenting Architecture Decisions",
+        "url": "https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions",
+        "source": "Cognitect (Michael Nygard's original post)"
+      },
+      {
+        "title": "Architecture Decision Record",
+        "url": "https://martinfowler.com/bliki/ArchitectureDecisionRecord.html",
+        "source": "martinfowler.com"
+      }
+    ]
+  },
+  {
+    "id": "software-engineering/tier-4/architecture-decision-records-and-trade-off-analysis/s2",
+    "title": "Herbert Simon and the Idea of 'Good Enough' Decisions",
+    "domain": "science",
+    "explainer": "Economist and cognitive scientist Herbert Simon argued in the mid-1950s that real decision-makers cannot exhaustively evaluate every option and its consequences, so they practice 'satisficing' - accepting the first option that clears an acceptable bar rather than searching for a provably optimal one. Trade-off analysis in architecture decisions works the same way: a team weighs a handful of real, documented constraints and picks a workable option rather than modeling every conceivable design. Simon's work, which later earned him a Nobel Memorial Prize in Economic Sciences, is the reason a good ADR documents reasoning for a defensible choice instead of claiming to have found the mathematically best one.",
+    "resources": [
+      {
+        "title": "Bounded rationality",
+        "url": "https://en.wikipedia.org/wiki/Bounded_rationality",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

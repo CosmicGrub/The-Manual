@@ -1,0 +1,28 @@
+[
+  {
+    "id": "languages/tier-5/programming-language-design-and-implementation/s1",
+    "title": "Chomsky's Grammar Hierarchy and Why Parsers Work the Way They Do (1956)",
+    "domain": "math",
+    "explainer": "Linguist Noam Chomsky classified grammars into four nested levels of expressive power in 1956, work aimed at describing natural language, not computers. It turned out that the second-most-restrictive level, context-free grammars, is exactly expressive enough to describe the syntax of most programming languages while staying efficient to parse, which is why BNF-style grammars and tools like parser generators are built on it. When you design a language's grammar, you're choosing a point on a hierarchy a linguist drew up for an entirely different purpose.",
+    "resources": [
+      {
+        "title": "Chomsky hierarchy",
+        "url": "https://en.wikipedia.org/wiki/Chomsky_hierarchy",
+        "source": "Wikipedia"
+      }
+    ]
+  },
+  {
+    "id": "languages/tier-5/programming-language-design-and-implementation/s2",
+    "title": "John Backus and FORTRAN, the First Widely-Used High-Level Language (1957)",
+    "domain": "history",
+    "explainer": "John Backus proposed to IBM management in 1953 that programmers could write in math-like notation and have a machine translate it into efficient code, an idea many colleagues doubted was possible without losing performance. His team's FORTRAN compiler, shipped in 1957, proved a high-level language could compile to code nearly as fast as hand-written assembly, the argument every language implementer has had to win ever since. The lesson's concerns about compilation strategy and performance trade-offs begin with the problem Backus's team solved first.",
+    "resources": [
+      {
+        "title": "John Backus",
+        "url": "https://www.ibm.com/history/john-backus",
+        "source": "IBM"
+      }
+    ]
+  }
+]

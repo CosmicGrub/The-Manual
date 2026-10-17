@@ -1,0 +1,33 @@
+[
+  {
+    "id": "cybersecurity-ethical-hacking/tier-4/appsec-specialist-threat-modeling-and-secure-sdlc/s1",
+    "title": "STRIDE and the Birth of Formal Threat Modeling (1999)",
+    "domain": "history",
+    "explainer": "In 1999, Microsoft engineers Loren Kohnfelder and Praerit Garg circulated an internal paper, \"The Threats to Our Products,\" that organized attacker goals into six categories - Spoofing, Tampering, Repudiation, Information disclosure, Denial of service, and Elevation of privilege - giving threat modeling its first repeatable structure. STRIDE became the backbone of Microsoft's Security Development Lifecycle and is still the most widely taught way to walk a data-flow diagram and ask what can go wrong. Knowing it began as an internal memo rather than an academic theory underscores that threat modeling is a practical engineering habit, not a specialist's black art.",
+    "resources": [
+      {
+        "title": "STRIDE model",
+        "url": "https://en.wikipedia.org/wiki/STRIDE_model",
+        "source": "Wikipedia"
+      },
+      {
+        "title": "Integrating threat modeling with DevOps",
+        "url": "https://learn.microsoft.com/en-us/security/engineering/threat-modeling-with-dev-ops",
+        "source": "Microsoft Learn"
+      }
+    ]
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-4/appsec-specialist-threat-modeling-and-secure-sdlc/s2",
+    "title": "Saltzer and Schroeder's 1975 Design Principles for Secure Systems",
+    "domain": "history",
+    "explainer": "Jerome Saltzer and Michael Schroeder's paper \"The Protection of Information in Computer Systems\" distilled decades of operating-system experience into principles such as least privilege, fail-safe defaults, and complete mediation - the same checklist a secure-SDLC design review still applies today. The paper predates STRIDE by over twenty years, showing that most threat-modeling vocabulary accumulated gradually from hard-won lessons about how systems actually fail, rather than springing from one framework. Reading its plain-language list of eight principles clarifies why \"secure by design\" reviews ask the questions they ask.",
+    "resources": [
+      {
+        "title": "Basic Principles of Information Protection",
+        "url": "https://web.mit.edu/Saltzer/www/publications/protection/Basic.html",
+        "source": "MIT (Saltzer)"
+      }
+    ]
+  }
+]

@@ -1,0 +1,28 @@
+[
+  {
+    "id": "languages/tier-1/functions-modules-and-basic-oop/s1",
+    "title": "Why Python's self Is Explicit, Not Hidden (Borrowed From Modula-3)",
+    "domain": "history",
+    "explainer": "Having to write `self` as an ordinary first parameter, rather than having it hidden the way C++'s and JavaScript's `this` are, was a deliberate design choice Python borrowed from the Modula-3 language. Python's own FAQ gives the rationale: it keeps instance attributes and methods visually distinguishable from local variables, and it makes calling an overridden base-class method (`BaseClass.method(self, ...)`) straightforward with no special operator needed. It's the reason the mutable-class-attribute bug in this lesson and the JS `this`-rebinding bug elsewhere in this track look so different — Python's object model just exposes plumbing other languages hide.",
+    "resources": [
+      {
+        "title": "Design and History FAQ",
+        "url": "https://docs.python.org/3/faq/design.html",
+        "source": "Python documentation (python.org)"
+      }
+    ]
+  },
+  {
+    "id": "languages/tier-1/functions-modules-and-basic-oop/s2",
+    "title": "PEP 318 and the Arrival of @decorator Syntax (Python 2.4, 2004)",
+    "domain": "history",
+    "explainer": "The `@trace` syntax shown in this lesson is younger than decorators themselves — `classmethod` and `staticmethod` already existed in Python 2.2, but applying them meant a clunky assignment written after the whole function body. PEP 318, debated on and off from 2002 through 2004, added the `@` syntax (deliberately styled after Java's annotations) that shipped in Python 2.4, turning the manual `add = trace(add)` rebinding into the one-line form used throughout this module.",
+    "resources": [
+      {
+        "title": "PEP 318 – Decorators for Functions and Methods",
+        "url": "https://peps.python.org/pep-0318/",
+        "source": "Python Enhancement Proposals (python.org)"
+      }
+    ]
+  }
+]

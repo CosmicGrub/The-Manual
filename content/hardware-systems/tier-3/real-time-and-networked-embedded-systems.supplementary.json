@@ -1,0 +1,33 @@
+[
+  {
+    "id": "hardware-systems/tier-3/real-time-and-networked-embedded-systems/s1",
+    "title": "The Intel 4004 and the Birth of the Microprocessor (1971)",
+    "domain": "history",
+    "explainer": "Embedded systems became possible as a mass-market category once an entire CPU could fit on one chip. The Intel 4004, released in November 1971 and originally designed for a Busicom calculator, is generally credited as the first commercially produced microprocessor, built by a team including Federico Faggin, Ted Hoff, and Stan Mazor. That single-chip design is the direct ancestor of the microcontrollers this lesson's real-time code targets.",
+    "resources": [
+      {
+        "title": "Intel Marks 50th Anniversary of the 4004 Microprocessor",
+        "url": "https://intel.com/content/www/us/en/newsroom/news/intel-marks-50th-anniversary-4004.html",
+        "source": "Intel Newsroom"
+      },
+      {
+        "title": "Intel 4004",
+        "url": "https://en.wikipedia.org/wiki/Intel_4004",
+        "source": "Wikipedia"
+      }
+    ]
+  },
+  {
+    "id": "hardware-systems/tier-3/real-time-and-networked-embedded-systems/s2",
+    "title": "Liu and Layland's Rate-Monotonic Scheduling Theorem (1973)",
+    "domain": "math",
+    "explainer": "Real-time systems need a provable guarantee that every periodic task meets its deadline, not just good average performance. Liu and Layland's 1973 paper supplied the first such guarantee: giving fixed priority to whichever task repeats most often (rate-monotonic scheduling) is provably optimal among fixed-priority schemes, and a task set is guaranteed schedulable if its total CPU utilization stays under a computable bound (about 0.83 for two tasks, falling toward ln 2, roughly 0.69, as the task count grows). This is why real-time operating systems can mathematically certify that deadlines will never be missed, rather than just hoping.",
+    "resources": [
+      {
+        "title": "Rate-monotonic scheduling",
+        "url": "https://en.wikipedia.org/wiki/Rate-monotonic_scheduling",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

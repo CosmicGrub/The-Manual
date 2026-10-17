@@ -1,0 +1,33 @@
+[
+  {
+    "id": "ai-ml-prompting/tier-4/inference-optimization-and-serving/s1",
+    "title": "Agner Erlang and the Birth of Queueing Theory (1917)",
+    "domain": "math",
+    "explainer": "In 1917, Danish engineer Agner Krarup Erlang published a mathematical analysis of the Copenhagen Telephone Exchange, founding what became queueing theory, the math of how waiting requests, limited servers, and arrival rates interact. That same math (traffic intensity, waiting-time distributions) governs decisions made when serving an LLM in production: how many requests to batch together, how much capacity to provision, and how latency grows as load increases. The 'erlang' unit of traffic that bears his name is still used to size real-time systems today.",
+    "resources": [
+      {
+        "title": "Erlang (unit)",
+        "url": "https://en.wikipedia.org/wiki/Erlang_(unit)",
+        "source": "Wikipedia"
+      },
+      {
+        "title": "Queueing theory",
+        "url": "https://en.wikipedia.org/wiki/Queueing_theory",
+        "source": "Wikipedia"
+      }
+    ]
+  },
+  {
+    "id": "ai-ml-prompting/tier-4/inference-optimization-and-serving/s2",
+    "title": "Amdahl's Law and the Limits of Parallel Speedup (1967)",
+    "domain": "math",
+    "explainer": "Gene Amdahl showed in a 1967 paper that the speedup available from parallelizing a computation is capped by the fraction of the work that cannot be parallelized at all; adding more processors past that point yields rapidly diminishing returns. This bears directly on inference optimization: batching and multi-GPU parallelism speed up only the parallelizable portion of generating a response, so identifying and shrinking the serial bottleneck, such as sequential token-by-token decoding, matters more than simply adding hardware.",
+    "resources": [
+      {
+        "title": "Amdahl's law",
+        "url": "https://en.wikipedia.org/wiki/Amdahl%27s_law",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

@@ -1,0 +1,28 @@
+[
+  {
+    "id": "platforms/tier-5/systems-level-platform-understanding/s1",
+    "title": "Android's Linux Kernel Underneath a Mobile OS",
+    "domain": "history",
+    "explainer": "Android began as a startup, Android Inc., founded by Andy Rubin and colleagues in October 2003, before Google acquired it in July 2005 and built the platform on top of the existing Linux kernel rather than writing an operating system from scratch. Every app's systems-level behavior, process scheduling, permissions, file access, ultimately rests on that decades-old kernel, which is why Linux fundamentals pay off even for people who only ever write Android apps.",
+    "resources": [
+      {
+        "title": "Android (operating system)",
+        "url": "https://en.wikipedia.org/wiki/Android_(operating_system)",
+        "source": "Wikipedia"
+      }
+    ]
+  },
+  {
+    "id": "platforms/tier-5/systems-level-platform-understanding/s2",
+    "title": "iOS Shares a Kernel Lineage With 1980s NeXTSTEP",
+    "domain": "history",
+    "explainer": "iOS's kernel (XNU) and the Darwin layer beneath it trace back to NeXTSTEP, the operating system NeXT built in the late 1980s, which Apple acquired along with Steve Jobs in 1996; the Mach microkernel and BSD subsystems from that lineage still underpin iPhones today. This history explains why iOS and macOS share so much low-level behavior, file-system semantics, process model, many system calls, despite looking like separate platforms on the surface.",
+    "resources": [
+      {
+        "title": "Darwin (operating system)",
+        "url": "https://en.wikipedia.org/wiki/Darwin_(operating_system)",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

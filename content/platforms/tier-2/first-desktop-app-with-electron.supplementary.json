@@ -1,0 +1,28 @@
+[
+  {
+    "id": "platforms/tier-2/first-desktop-app-with-electron/s1",
+    "title": "From Atom Shell to Electron: GitHub's Desktop Runtime (2013)",
+    "domain": "history",
+    "explainer": "Electron began life inside GitHub as 'Atom Shell,' built so the company could ship its Atom text editor as a desktop application written in HTML, CSS, and JavaScript instead of a traditional native toolkit. GitHub open-sourced it (still as Atom Shell) alongside the Atom editor's 2014 public release, then renamed it Electron in 2015 as it grew into a general-purpose framework beyond just Atom, and the same approach now underlies apps like Visual Studio Code and Slack. The rename marked its shift from one editor's internal tool into a general-purpose framework for cross-platform desktop apps.",
+    "resources": [
+      {
+        "title": "Electron (software framework)",
+        "url": "https://en.wikipedia.org/wiki/Electron_(software_framework)",
+        "source": "Wikipedia"
+      }
+    ]
+  },
+  {
+    "id": "platforms/tier-2/first-desktop-app-with-electron/s2",
+    "title": "Node.js and the Event Loop Electron Runs On (2009)",
+    "domain": "history",
+    "explainer": "Electron works by pairing Chromium's rendering engine with Node.js so web code can reach the file system and OS the way a native app would. Node.js itself was created by Ryan Dahl and first demonstrated at a JavaScript conference in 2009, built around a single-threaded, non-blocking event loop adapted from the browser's own JavaScript engine. That event-loop model is why Electron apps can stay responsive while still doing file I/O and other OS-level work in the background.",
+    "resources": [
+      {
+        "title": "Node.js",
+        "url": "https://en.wikipedia.org/wiki/Node.js",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

@@ -1,0 +1,33 @@
+[
+  {
+    "id": "devops-tooling/tier-5/designing-novel-developer-tooling/s1",
+    "title": "Doug McIlroy and the Unix Philosophy (1978)",
+    "domain": "history",
+    "explainer": "In 1978, Bell Labs' Doug McIlroy, inventor of the Unix pipe, wrote down the design principles that had already emerged among early Unix developers: make each program do one thing well, and build programs to work together by passing plain text streams between them. For someone designing new developer tooling, this is a concrete design argument, not just shell trivia: small, composable tools with a stable, simple interface tend to outlive large monolithic ones, which is exactly the tradeoff a tooling designer has to weigh when deciding how much a new tool should try to do.",
+    "resources": [
+      {
+        "title": "Unix philosophy",
+        "url": "https://en.wikipedia.org/wiki/Unix_philosophy",
+        "source": "Wikipedia"
+      }
+    ]
+  },
+  {
+    "id": "devops-tooling/tier-5/designing-novel-developer-tooling/s2",
+    "title": "Conway's Law (1967)",
+    "domain": "history",
+    "explainer": "In his 1967 essay 'How Do Committees Invent?', Melvin Conway observed that any organization that designs a system will produce a design that mirrors its own communication structure. For a developer-tooling designer, this is a direct warning: a tool built by one team in isolation tends to encode that team's own boundaries and assumptions, quietly forcing every other team that uses it to work around a structure they had no say in, so tooling decisions are organizational decisions whether or not anyone admits it.",
+    "resources": [
+      {
+        "title": "Conway's law",
+        "url": "https://en.wikipedia.org/wiki/Conway%27s_law",
+        "source": "Wikipedia"
+      },
+      {
+        "title": "Conway's Law (original author's page)",
+        "url": "https://melconway.com/Home/Conways_Law.html",
+        "source": "melconway.com"
+      }
+    ]
+  }
+]

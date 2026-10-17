@@ -1,0 +1,33 @@
+[
+  {
+    "id": "software-engineering/tier-4/system-design-fundamentals-at-scale/s1",
+    "title": "Roy Fielding's Dissertation and the Origin of REST (2000)",
+    "domain": "history",
+    "explainer": "Roy Fielding's 2000 doctoral dissertation at UC Irvine formalized the architectural style behind the World Wide Web and named it Representational State Transfer (REST), written to explain and guide the web's existing design rather than to invent something new. The dissertation's emphasis on statelessness, uniform interfaces, and cacheable responses is precisely what makes RESTful services easy to scale horizontally - any server can handle any request because no session state is pinned to it. Large-scale system design borrows these constraints directly from a document that originally just set out to describe why the web worked.",
+    "resources": [
+      {
+        "title": "Architectural Styles and the Design of Network-based Software Architectures",
+        "url": "https://www.ics.uci.edu/~fielding/pubs/dissertation/top.htm",
+        "source": "UC Irvine (Roy Fielding's dissertation)"
+      },
+      {
+        "title": "Representational state transfer",
+        "url": "https://en.wikipedia.org/wiki/Representational_state_transfer",
+        "source": "Wikipedia"
+      }
+    ]
+  },
+  {
+    "id": "software-engineering/tier-4/system-design-fundamentals-at-scale/s2",
+    "title": "Amdahl's Law and the Mathematics of Scaling Limits (1967)",
+    "domain": "math",
+    "explainer": "In 1967, Gene Amdahl pointed out that the speedup gained from adding more processors or servers to a task is capped by the fraction of the work that cannot be parallelized at all - if even 10% of a job is strictly sequential, no amount of added hardware can make the whole job more than 10x faster. This is the mathematical reason 'just add more servers' has diminishing returns, and why system designers hunt specifically for sequential bottlenecks, such as a single database writer or a shared lock, rather than assuming horizontal scaling fixes everything uniformly. It gives a hard quantitative ceiling to any scaling plan.",
+    "resources": [
+      {
+        "title": "Amdahl's law",
+        "url": "https://en.wikipedia.org/wiki/Amdahl%27s_law",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

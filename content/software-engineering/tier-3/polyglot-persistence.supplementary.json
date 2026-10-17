@@ -1,0 +1,33 @@
+[
+  {
+    "id": "software-engineering/tier-3/polyglot-persistence/s1",
+    "title": "Edgar Codd and the Relational Model (1970)",
+    "domain": "history",
+    "explainer": "In a 1970 paper written at IBM, Edgar Codd proposed representing data as simple tables of rows and columns, manipulated through operations grounded in predicate logic, specifically so applications would never need to know how data was physically stored. That \"data independence\" argument is the direct ancestor of the relational stores that most polyglot-persistence architectures still rely on for their most structured, consistency-critical data, even as other stores in the same stack deliberately trade Codd's table model away for different guarantees.",
+    "resources": [
+      {
+        "title": "Relational model",
+        "url": "https://en.wikipedia.org/wiki/Relational_model",
+        "source": "Wikipedia"
+      },
+      {
+        "title": "The relational database",
+        "url": "https://www.ibm.com/history/relational-database",
+        "source": "IBM"
+      }
+    ]
+  },
+  {
+    "id": "software-engineering/tier-3/polyglot-persistence/s2",
+    "title": "Eric Brewer's CAP Theorem (2000)",
+    "domain": "history",
+    "explainer": "In a 2000 keynote drawing on his experience building early web infrastructure, Eric Brewer argued that a distributed data store cannot simultaneously guarantee full consistency, full availability, and tolerance of network partitions — at most two of the three at once, a conjecture Seth Gilbert and Nancy Lynch later formalized and proved. That trade-off is exactly why a polyglot-persistence stack often pairs a strongly consistent relational database with an eventually-consistent NoSQL store side by side: each piece is deliberately choosing a different point on the same triangle.",
+    "resources": [
+      {
+        "title": "CAP theorem",
+        "url": "https://en.wikipedia.org/wiki/CAP_theorem",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

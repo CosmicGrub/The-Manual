@@ -1,0 +1,33 @@
+[
+  {
+    "id": "ai-ml-prompting/tier-2/building-with-llm-apis/s1",
+    "title": "Byte Pair Encoding: From Text Compression to LLM Tokens",
+    "domain": "history",
+    "explainer": "Byte Pair Encoding was described by Philip Gage in 1994 as a plain data-compression trick: repeatedly replace the most frequent pair of adjacent bytes with an unused byte. In the mid-2010s, researchers (notably Sennrich, Haddow, and Birch in 2015) repurposed the same merge-frequent-pairs idea to build subword vocabularies for neural language models, which is why the 'tokens' an LLM API counts, bills, and limits you by are often odd word fragments rather than whole words.",
+    "resources": [
+      {
+        "title": "Byte pair encoding",
+        "url": "https://en.wikipedia.org/wiki/Byte_pair_encoding",
+        "source": "Wikipedia"
+      },
+      {
+        "title": "Neural Machine Translation of Rare Words with Subword Units",
+        "url": "https://arxiv.org/abs/1508.07909",
+        "source": "arXiv"
+      }
+    ]
+  },
+  {
+    "id": "ai-ml-prompting/tier-2/building-with-llm-apis/s2",
+    "title": "Roy Fielding and the Definition of REST (2000)",
+    "domain": "history",
+    "explainer": "The REST conventions most LLM provider APIs follow (resource-based URLs, stateless requests, standard HTTP verbs) were formally articulated by Roy Fielding in his 2000 PhD dissertation, as an argument for what made the web itself scale. Knowing this origin clarifies that 'RESTful' design is a deliberate architectural argument, not an arbitrary industry habit, which helps when an API deviates from it for good reasons (e.g., long-running or streaming completions).",
+    "resources": [
+      {
+        "title": "Representational state transfer",
+        "url": "https://en.wikipedia.org/wiki/Representational_state_transfer",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

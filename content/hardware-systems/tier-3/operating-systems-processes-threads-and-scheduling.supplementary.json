@@ -1,0 +1,33 @@
+[
+  {
+    "id": "hardware-systems/tier-3/operating-systems-processes-threads-and-scheduling/s1",
+    "title": "CTSS and the Birth of Time-Sharing (1961)",
+    "domain": "history",
+    "explainer": "The idea that a scheduler should interleave many users' work on one machine, giving each the illusion of a personal computer, began with Fernando Corbato's Compatible Time-Sharing System at MIT, first demonstrated in 1961 on a modified IBM 709. CTSS's success in showing that interactive, multi-user scheduling was practical led directly to Project MAC and Multics - the system whose complexity Unix itself was later a reaction against.",
+    "resources": [
+      {
+        "title": "Compatible Time-Sharing System",
+        "url": "https://en.wikipedia.org/wiki/Compatible_Time-Sharing_System",
+        "source": "Wikipedia"
+      }
+    ]
+  },
+  {
+    "id": "hardware-systems/tier-3/operating-systems-processes-threads-and-scheduling/s2",
+    "title": "Erlang and the Mathematics of Queueing (1909)",
+    "domain": "math",
+    "explainer": "Every scheduler is, underneath, managing a queue, and the mathematics for reasoning about waiting lines - how long tasks wait, how utilization relates to delay - originated with Agner Krarup Erlang's 1909 analysis of telephone traffic at the Copenhagen Telephone Company, where he showed random call arrivals follow a Poisson process. The queueing theory he founded still underlies how scheduler and network throughput and latency are analyzed today.",
+    "resources": [
+      {
+        "title": "Agner Krarup Erlang",
+        "url": "https://en.wikipedia.org/wiki/Agner_Krarup_Erlang",
+        "source": "Wikipedia"
+      },
+      {
+        "title": "Agner Krarup Erlang",
+        "url": "https://mathshistory.st-andrews.ac.uk/Biographies/Erlang/",
+        "source": "MacTutor History of Mathematics Archive (University of St Andrews)"
+      }
+    ]
+  }
+]

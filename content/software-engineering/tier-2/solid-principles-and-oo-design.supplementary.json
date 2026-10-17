@@ -1,0 +1,33 @@
+[
+  {
+    "id": "software-engineering/tier-2/solid-principles-and-oo-design/s1",
+    "title": "Barbara Liskov and the Substitution Principle (1987)",
+    "domain": "history",
+    "explainer": "The 'L' in SOLID traces to a specific moment: computer scientist Barbara Liskov's 1987 OOPSLA keynote, 'Data Abstraction and Hierarchy,' where she first articulated the idea that a subtype should be usable anywhere its supertype is expected without breaking the caller's assumptions. The precise, formal version of that requirement was worked out later, with Jeannette Wing, in a 1994 paper - so the principle used today is really the product of two passes, a conceptual one and a formal one, years apart. Liskov had already co-invented foundational ideas in data abstraction and distributed computing by the time of that keynote, work that later won her the 2008 ACM Turing Award.",
+    "resources": [
+      {
+        "title": "Liskov substitution principle",
+        "url": "https://en.wikipedia.org/wiki/Liskov_substitution_principle",
+        "source": "Wikipedia"
+      }
+    ]
+  },
+  {
+    "id": "software-engineering/tier-2/solid-principles-and-oo-design/s2",
+    "title": "Bertrand Meyer, Eiffel, and 'Open for Extension, Closed for Modification' (1988)",
+    "domain": "history",
+    "explainer": "The 'O' in SOLID - open for extension, closed for modification - was coined by Bertrand Meyer in his 1988 book 'Object-Oriented Software Construction,' where it described a module stable enough that other code could depend on it (closed) while still allowing new behavior to be added (open). Meyer's own language, Eiffel, backed this with design-by-contract: preconditions, postconditions, and invariants checked whenever a class is used. Robert C. Martin later reframed the principle in 1996 around depending on abstractions rather than modifying concrete modules - the version usually taught today - and it was Michael Feathers, not Martin, who actually coined the 'SOLID' acronym bundling it with the other four principles.",
+    "resources": [
+      {
+        "title": "Open–closed principle",
+        "url": "https://en.wikipedia.org/wiki/Open%E2%80%93closed_principle",
+        "source": "Wikipedia"
+      },
+      {
+        "title": "SOLID",
+        "url": "https://en.wikipedia.org/wiki/SOLID",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

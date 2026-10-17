@@ -1,0 +1,38 @@
+[
+  {
+    "id": "hardware-systems/tier-4/cpu-microarchitecture-pipelining-to-out-of-order-execution/s1",
+    "title": "IBM Stretch and the First Pipelined Computer (1961)",
+    "domain": "history",
+    "explainer": "The IBM 7030 \"Stretch,\" delivered in 1961, pioneered instruction pipelining, operand prefetch, and even speculative execution with branch-misprediction recovery — techniques usually associated with 1990s superscalar CPUs — decades before they became mainstream. It was considered a commercial failure at the time (it fell well short of its 100x-speedup goal), but nearly every aggressive pipelining idea in this lesson has a lineage traceable back to Stretch's design team, several of whom later architected the IBM System/360.",
+    "resources": [
+      {
+        "title": "IBM 7030 Stretch",
+        "url": "https://en.wikipedia.org/wiki/IBM_7030_Stretch",
+        "source": "Wikipedia"
+      },
+      {
+        "title": "The IBM 7030, aka Stretch",
+        "url": "https://www.ibm.com/history/stretch",
+        "source": "IBM (official corporate history)"
+      }
+    ]
+  },
+  {
+    "id": "hardware-systems/tier-4/cpu-microarchitecture-pipelining-to-out-of-order-execution/s2",
+    "title": "Tomasulo's Algorithm and the IBM System/360 Model 91 (1967)",
+    "domain": "history",
+    "explainer": "Robert Tomasulo's 1967 paper, \"An Efficient Algorithm for Exploiting Multiple Arithmetic Units,\" introduced register renaming, reservation stations, and a common data bus to let the IBM System/360 Model 91 execute floating-point instructions out of order while still producing correct, in-order-looking results. The algorithm sat largely unused for over twenty years before reappearing, essentially unchanged in spirit, as the backbone of 1990s superscalar out-of-order processors — and it still carries its inventor's name today.",
+    "resources": [
+      {
+        "title": "Tomasulo's algorithm",
+        "url": "https://en.wikipedia.org/wiki/Tomasulo's_algorithm",
+        "source": "Wikipedia"
+      },
+      {
+        "title": "The HASE Tomasulo's Algorithm Project",
+        "url": "https://www.icsa.inf.ed.ac.uk/research/groups/hase/models/tomasulo/tomasulo.html",
+        "source": "University of Edinburgh, School of Informatics"
+      }
+    ]
+  }
+]

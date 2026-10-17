@@ -1,0 +1,28 @@
+[
+  {
+    "id": "ai-ml-prompting/tier-4/architecture-for-ai-powered-systems/s1",
+    "title": "Conway's Law and Why Architecture Mirrors Org Structure (1967)",
+    "domain": "history",
+    "explainer": "Melvin Conway argued in his 1967/68 article 'How Do Committees Invent?' that any organization designing a system tends to produce a design that mirrors its own communication structure. For AI-powered systems, where a single user-facing feature often hides separate teams for data pipelines, model serving, retrieval, and safety guardrails, this is a genuine warning: the seams in your architecture, and many of your integration bugs, often trace back to team boundaries rather than technical necessity. It's a real lens for deciding where to draw service boundaries when architecting an AI system end to end.",
+    "resources": [
+      {
+        "title": "Conway's law",
+        "url": "https://en.wikipedia.org/wiki/Conway%27s_law",
+        "source": "Wikipedia"
+      }
+    ]
+  },
+  {
+    "id": "ai-ml-prompting/tier-4/architecture-for-ai-powered-systems/s2",
+    "title": "Brewer's CAP Theorem and the Limits of Distributed Architecture (2000)",
+    "domain": "math",
+    "explainer": "Eric Brewer conjectured in 2000, and Seth Gilbert and Nancy Lynch formally proved in 2002, that a distributed system cannot simultaneously guarantee Consistency, Availability, and Partition tolerance - at most two of the three hold at once during a network partition. AI-powered systems that spread model serving, vector databases, and feature stores across multiple nodes inherit this constraint directly: choosing a vector store or a caching layer is really choosing which of C, A, or P you're willing to sacrifice. It turns an architecture 'tradeoff' into a named, provable limit rather than a vague engineering intuition.",
+    "resources": [
+      {
+        "title": "CAP theorem",
+        "url": "https://en.wikipedia.org/wiki/CAP_theorem",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

@@ -1,0 +1,38 @@
+[
+  {
+    "id": "ai-ml-prompting/tier-3/deep-learning-foundations/s1",
+    "title": "Seppo Linnainmaa and the Hidden Origin of Backpropagation (1970)",
+    "domain": "math",
+    "explainer": "The algorithm that trains virtually every deep network — propagate the error backward through the layers using the chain rule — was not invented by an AI researcher. Finnish mathematician Seppo Linnainmaa described it in his 1970 master's thesis as a way to track rounding error through a long calculation, with no reference to neural networks at all. It took until Paul Werbos (1974) and then David Rumelhart, Geoffrey Hinton, and Ronald Williams (1986) applied that same reverse-mode chain-rule trick to network weights for 'backpropagation' to become deep learning's central training algorithm.",
+    "resources": [
+      {
+        "title": "Seppo Linnainmaa",
+        "url": "https://en.wikipedia.org/wiki/Seppo_Linnainmaa",
+        "source": "Wikipedia"
+      },
+      {
+        "title": "Automatic Differentiation in Machine Learning: a Survey",
+        "url": "https://jmlr.org/papers/volume18/17-468/17-468.pdf",
+        "source": "Journal of Machine Learning Research (JMLR)"
+      }
+    ]
+  },
+  {
+    "id": "ai-ml-prompting/tier-3/deep-learning-foundations/s2",
+    "title": "The Universal Approximation Theorem (1989)",
+    "domain": "math",
+    "explainer": "In 1989, George Cybenko and, independently, Kurt Hornik, Maxwell Stinchcombe, and Halbert White proved that a feedforward network with just one hidden layer can approximate any continuous function to arbitrary accuracy, given enough hidden units. This is the mathematical justification for why deep learning works in principle — but it is only an existence proof: it says nothing about how many units are needed or how to find the right weights, which is exactly the gap gradient descent and backpropagation fill in practice.",
+    "resources": [
+      {
+        "title": "Universal approximation theorem",
+        "url": "https://en.wikipedia.org/wiki/Universal_approximation_theorem",
+        "source": "Wikipedia"
+      },
+      {
+        "title": "Approximation by Superpositions of a Sigmoidal Function",
+        "url": "https://papers.baulab.info/papers/Cybenko-1989.pdf",
+        "source": "George Cybenko, 1989 (hosted reprint)"
+      }
+    ]
+  }
+]

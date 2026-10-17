@@ -1,0 +1,28 @@
+[
+  {
+    "id": "platforms/tier-3/desktop-beyond-electron/s1",
+    "title": "Electron's Origins as GitHub's 'Atom Shell' (2013)",
+    "domain": "history",
+    "explainer": "GitHub built the framework now called Electron in 2013 to power its own Atom text editor, originally naming it 'Atom Shell' because it existed only to let that one application run as a desktop program using web technology; it wasn't renamed Electron and spun out as a general-purpose cross-platform tool until 2015. Knowing Electron began as a single app's bundled web runtime, not a ground-up native toolkit, is useful context for why this lesson's alternatives were built around the opposite priority: smaller footprints and more native behavior rather than one shared browser engine.",
+    "resources": [
+      {
+        "title": "Electron (software framework)",
+        "url": "https://en.wikipedia.org/wiki/Electron_(software_framework)",
+        "source": "Wikipedia"
+      }
+    ]
+  },
+  {
+    "id": "platforms/tier-3/desktop-beyond-electron/s2",
+    "title": "Qt and Trolltech, the Older Cross-Platform GUI Toolkit (1995)",
+    "domain": "history",
+    "explainer": "Nearly two decades before Electron existed, Norwegian developers Haavard Nord and Eirik Chambe-Eng began building what became Qt in 1991 to share one GUI codebase between Unix and Windows for a medical ultrasound application, with their company Trolltech publicly releasing it in 1995. Qt's approach - compiling to native, directly-drawn widgets rather than wrapping a web browser - is the much older model that today's 'beyond Electron' native-toolkit alternatives are, in effect, reviving.",
+    "resources": [
+      {
+        "title": "Qt (software)",
+        "url": "https://en.wikipedia.org/wiki/Qt_(software)",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

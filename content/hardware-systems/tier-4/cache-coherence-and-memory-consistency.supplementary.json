@@ -1,0 +1,20 @@
+[
+  {
+    "id": "hardware-systems/tier-4/cache-coherence-and-memory-consistency/s1",
+    "title": "Leslie Lamport and the Definition of Sequential Consistency (1979)",
+    "domain": "math",
+    "explainer": "In a 1979 paper, Leslie Lamport formally defined \"sequential consistency\": a multiprocessor is sequentially consistent if the result of any execution looks as though all processors' operations were interleaved into one global order that respects each processor's own program order. That definition is the formal ancestor of the weaker memory-consistency models real hardware actually implements, and of the correctness argument cache-coherence protocols have to satisfy.",
+    "resources": [
+      {
+        "title": "How to Make a Multiprocessor Computer That Correctly Executes Multiprocess Programs (original paper)",
+        "url": "https://lamport.org/pubs/multi.pdf",
+        "source": "lamport.org (Leslie Lamport's personal archive)"
+      },
+      {
+        "title": "Sequential consistency",
+        "url": "https://en.wikipedia.org/wiki/Sequential_consistency",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

@@ -1,0 +1,38 @@
+[
+  {
+    "id": "devops-tooling/tier-5/large-scale-system-design-case-studies/s1",
+    "title": "Kubernetes' Lineage from Google's Borg",
+    "domain": "history",
+    "explainer": "Kubernetes wasn't designed from a blank page: it's the third of three internal Google cluster-management systems, following Borg and then Omega, and several of its core design patterns, such as the reconciliation-controller loop that continuously compares observed state to desired state, were carried over directly from more than a decade of running Borg at Google scale before Kubernetes was open-sourced in 2014. Treating Kubernetes as a case study is, in effect, studying a public re-implementation of lessons Google had already learned the hard way internally.",
+    "resources": [
+      {
+        "title": "Borg: The Predecessor to Kubernetes",
+        "url": "https://kubernetes.io/blog/2015/04/borg-predecessor-to-kubernetes/",
+        "source": "Kubernetes Blog"
+      },
+      {
+        "title": "Kubernetes",
+        "url": "https://en.wikipedia.org/wiki/Kubernetes",
+        "source": "Wikipedia"
+      }
+    ]
+  },
+  {
+    "id": "devops-tooling/tier-5/large-scale-system-design-case-studies/s2",
+    "title": "The Decades-Long Lineage Behind the 'Container' (chroot to Docker)",
+    "domain": "history",
+    "explainer": "Docker's widely-cited 2013 debut was really the latest step in a decades-long chain of operating-system features: Unix's chroot (1979) first let a process see only a restricted slice of the filesystem, Google engineers added what they called 'process containers' in 2006-2007 (later renamed cgroups) for resource limiting, and the LXC project (2008) was the first tool to wire cgroups and kernel namespaces together into something usable. Docker's own contribution was mainly the workflow layer on top, a daemon, an image format, and a registry, which is a useful case-study lesson in how adoption and invention in infrastructure are often separated by decades.",
+    "resources": [
+      {
+        "title": "LXC",
+        "url": "https://en.wikipedia.org/wiki/LXC",
+        "source": "Wikipedia"
+      },
+      {
+        "title": "Docker (software)",
+        "url": "https://en.wikipedia.org/wiki/Docker_(software)",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

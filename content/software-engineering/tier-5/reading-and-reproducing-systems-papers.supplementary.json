@@ -1,0 +1,38 @@
+[
+  {
+    "id": "software-engineering/tier-5/reading-and-reproducing-systems-papers/s1",
+    "title": "From Conjecture to Proof: Brewer's CAP Talk and the Gilbert-Lynch Paper (2000-2002)",
+    "domain": "history",
+    "explainer": "Eric Brewer presented the CAP tradeoff (consistency, availability, partition tolerance) as an informal conjecture in a 2000 PODC keynote; it only became a citable, provable theorem when Seth Gilbert and Nancy Lynch formalized the definitions and proved it in a 2002 paper. That gap between an influential talk and a rigorous, reproducible written proof is itself a useful case study for a lesson on reading and reproducing systems papers - including why the formal versions of 'consistency' and 'availability' in the proof are narrower than the everyday systems-engineering meanings people often assume.",
+    "resources": [
+      {
+        "title": "CAP theorem",
+        "url": "https://en.wikipedia.org/wiki/CAP_theorem",
+        "source": "Wikipedia"
+      },
+      {
+        "title": "Brewer's Conjecture and the Feasibility of Consistent, Available, Partition-Tolerant Web Services",
+        "url": "https://groups.csail.mit.edu/tds/papers/Gilbert/Brewer2.pdf",
+        "source": "MIT CSAIL (Gilbert & Lynch, 2002)"
+      }
+    ]
+  },
+  {
+    "id": "software-engineering/tier-5/reading-and-reproducing-systems-papers/s2",
+    "title": "The End-to-End Argument: A Design Paper Every Systems Course Still Assigns (1984)",
+    "domain": "history",
+    "explainer": "Saltzer, Reed, and Clark's 1984 paper argued that functions like reliability or security should usually live at the endpoints of a system rather than be duplicated in every intermediate layer, since only the endpoints can implement them completely and correctly. Decades later it remains one of the most reproduced and re-argued papers in systems design, making it a good concrete example of how a short, carefully reasoned systems paper gets read, re-derived, and debated long after publication.",
+    "resources": [
+      {
+        "title": "End-to-End Arguments in System Design (full text)",
+        "url": "https://web.mit.edu/Saltzer/www/publications/endtoend/endtoend.txt",
+        "source": "MIT (Saltzer, Reed & Clark, 1984)"
+      },
+      {
+        "title": "End-to-end principle",
+        "url": "https://en.wikipedia.org/wiki/End-to-end_principle",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

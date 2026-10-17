@@ -1,0 +1,38 @@
+[
+  {
+    "id": "platforms/tier-4/advanced-game-development/s1",
+    "title": "William Rowan Hamilton and the Invention of Quaternions (1843)",
+    "domain": "math",
+    "explainer": "Hamilton discovered the quaternion number system in 1843 while walking along a Dublin canal, carving the formula i²=j²=k²=ijk=−1 into a bridge stone on the spot. Modern game engines use unit quaternions instead of raw Euler angles to represent 3D rotations because they interpolate smoothly and avoid gimbal lock, the orientation-math glitch that plagues naive camera rigs and skeletal animation. Knowing where this four-dimensional algebra came from makes the 'why quaternions, not just matrices' design choice in engines like Unity and Unreal feel less like arbitrary magic.",
+    "resources": [
+      {
+        "title": "Quaternion",
+        "url": "https://en.wikipedia.org/wiki/Quaternion",
+        "source": "Wikipedia"
+      },
+      {
+        "title": "Visualizing quaternions, an explorable video series",
+        "url": "https://eater.net/quaternions",
+        "source": "3Blue1Brown & Ben Eater"
+      }
+    ]
+  },
+  {
+    "id": "platforms/tier-4/advanced-game-development/s2",
+    "title": "Binary Space Partitioning and the Making of Doom (1993)",
+    "domain": "history",
+    "explainer": "Binary space partitioning trees were developed by researchers including Bruce Naylor in the early 1980s as a general way to order surfaces for rendering, but John Carmack adopted the technique for id Software's Doom to solve a very specific problem: keeping frame rates playable on 1993-era PCs by precomputing which walls could hide others. That choice let Doom, and later Quake, skip huge amounts of redundant rendering work at runtime, and BSP-style spatial partitioning is still a direct ancestor of the visibility and culling systems in modern game engines. It's a clear case of academic graphics research crossing over into an industry it wasn't originally built for.",
+    "resources": [
+      {
+        "title": "The Video Game Software Wizardry of Id",
+        "url": "https://spectrum.ieee.org/the-video-game-software-wizardry-of-id",
+        "source": "IEEE Spectrum"
+      },
+      {
+        "title": "Binary space partitioning",
+        "url": "https://en.wikipedia.org/wiki/Binary_space_partitioning",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

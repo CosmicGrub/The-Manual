@@ -1,0 +1,38 @@
+[
+  {
+    "id": "hardware-systems/tier-4/systems-performance-engineering/s1",
+    "title": "Amdahl's Law and the Limits of Parallel Speedup (1967)",
+    "domain": "math",
+    "explainer": "Gene Amdahl's 1967 paper argued that the speedup available from parallelizing a program is capped by whatever fraction of the work must still run sequentially — if 10% of a task cannot be parallelized, no number of added processors can ever make the whole job more than 10x faster. It remains the first back-of-envelope check a performance engineer should run before investing effort in parallelizing a hot path.",
+    "resources": [
+      {
+        "title": "Amdahl's law",
+        "url": "https://en.wikipedia.org/wiki/Amdahls_law",
+        "source": "Wikipedia"
+      },
+      {
+        "title": "Validity of the Single Processor Approach to Achieving Large Scale Computing Capabilities (original 1967 paper)",
+        "url": "https://www.cs.cmu.edu/~18742/papers/Amdahl1967.pdf",
+        "source": "Carnegie Mellon University (course archive)"
+      }
+    ]
+  },
+  {
+    "id": "hardware-systems/tier-4/systems-performance-engineering/s2",
+    "title": "The End of Dennard Scaling and the Multicore Turn (mid-2000s)",
+    "domain": "science",
+    "explainer": "Robert Dennard's 1974 scaling rule predicted that as transistors shrank, power density could stay roughly constant, so clock speeds could keep climbing for free as chips moved to smaller process nodes. By the mid-2000s that stopped holding in practice — leakage current and voltage floors broke the formula — which is why chipmakers stopped chasing higher clock frequency around 2004-2005 and pivoted to adding more cores instead, forcing performance engineering to take concurrency seriously rather than just sequential optimization.",
+    "resources": [
+      {
+        "title": "Spending Moore's Dividend",
+        "url": "https://www.microsoft.com/en-us/research/wp-content/uploads/2008/05/tr-2008-69.pdf",
+        "source": "Microsoft Research"
+      },
+      {
+        "title": "Dennard scaling",
+        "url": "https://en.wikipedia.org/wiki/Dennard_scaling",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

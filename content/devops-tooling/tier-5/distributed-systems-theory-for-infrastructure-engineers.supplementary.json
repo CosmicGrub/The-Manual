@@ -1,0 +1,33 @@
+[
+  {
+    "id": "devops-tooling/tier-5/distributed-systems-theory-for-infrastructure-engineers/s1",
+    "title": "Brewer's Conjecture and the CAP Theorem (2000-2002)",
+    "domain": "history",
+    "explainer": "Eric Brewer first proposed the tradeoff between Consistency, Availability, and Partition tolerance as a conjecture in an invited talk at the 2000 ACM Symposium on Principles of Distributed Computing. It stayed an informal conjecture until 2002, when MIT researchers Seth Gilbert and Nancy Lynch published a formal proof in the asynchronous network model, turning it into the CAP theorem. Knowing this origin matters practically, since the theorem is routinely overstated in vendor marketing and blog posts; what Gilbert and Lynch actually proved is a narrower impossibility result, and tracing it back to the original proof helps an infrastructure engineer apply it correctly instead of as a slogan.",
+    "resources": [
+      {
+        "title": "CAP theorem",
+        "url": "https://en.wikipedia.org/wiki/CAP_theorem",
+        "source": "Wikipedia"
+      }
+    ]
+  },
+  {
+    "id": "devops-tooling/tier-5/distributed-systems-theory-for-infrastructure-engineers/s2",
+    "title": "The Byzantine Generals Problem (1982)",
+    "domain": "history",
+    "explainer": "Leslie Lamport, Robert Shostak, and Marshall Pease's 1982 paper formalized the hardest class of distributed-system failure: nodes that don't simply crash, but actively send conflicting, contradictory information to different parts of the system. Their result, that loyal nodes can only reach agreement if fewer than one-third of all participants are faulty, underlies the fault-tolerance thresholds used in modern consensus protocols and blockchain systems alike, and the paper's own history (it was almost called the 'Albanian Generals Problem') is a reminder that even foundational theory gets its final form through some trial and error.",
+    "resources": [
+      {
+        "title": "Byzantine fault",
+        "url": "https://en.wikipedia.org/wiki/Byzantine_fault",
+        "source": "Wikipedia"
+      },
+      {
+        "title": "The Byzantine Generals Problem (original paper, PDF)",
+        "url": "https://lamport.org/pubs/byz.pdf",
+        "source": "Leslie Lamport's personal site"
+      }
+    ]
+  }
+]

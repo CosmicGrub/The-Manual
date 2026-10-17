@@ -1,0 +1,38 @@
+[
+  {
+    "id": "hardware-systems/tier-4/advanced-networking-beyond-the-basics/s1",
+    "title": "Cerf, Kahn, and the 1974 TCP/IP Paper",
+    "domain": "history",
+    "explainer": "In May 1974, Vinton Cerf and Robert Kahn published \"A Protocol for Packet Network Intercommunication\" in IEEE Transactions on Communications, describing a gateway-based scheme that let dissimilar packet-switched networks interconnect — the direct ancestor of TCP/IP. The paper already wrestles with fragmentation across networks, windowed flow control, and end-to-end error recovery, the same tradeoffs that run through advanced routing and transport-layer topics today.",
+    "resources": [
+      {
+        "title": "A Protocol for Packet Network Intercommunication (original 1974 paper)",
+        "url": "https://www.cs.princeton.edu/courses/archive/fall06/cos561/papers/cerf74.pdf",
+        "source": "Princeton University (course archive)"
+      },
+      {
+        "title": "Transmission Control Protocol",
+        "url": "https://en.wikipedia.org/wiki/Transmission_Control_Protocol",
+        "source": "Wikipedia"
+      }
+    ]
+  },
+  {
+    "id": "hardware-systems/tier-4/advanced-networking-beyond-the-basics/s2",
+    "title": "The End-to-End Argument in System Design (1984)",
+    "domain": "history",
+    "explainer": "In 1984, Jerome Saltzer, David Reed, and David Clark formalized the \"end-to-end argument\": functions like reliable delivery, encryption, or duplicate suppression can only be implemented correctly with the full knowledge of the communicating endpoints, so building them deep into the network is often redundant or incomplete. This principle explains recurring design tensions in advanced networking — why TCP, not routers, handles retransmission, and why pushing too much \"smartness\" into middleboxes tends to break layering.",
+    "resources": [
+      {
+        "title": "End-to-End Arguments in System Design (original paper)",
+        "url": "https://web.mit.edu/Saltzer/www/publications/endtoend/endtoend.pdf",
+        "source": "MIT (J.H. Saltzer's publications page)"
+      },
+      {
+        "title": "End-to-end arguments in system design",
+        "url": "https://dl.acm.org/doi/10.1145/357401.357402",
+        "source": "ACM Transactions on Computer Systems"
+      }
+    ]
+  }
+]

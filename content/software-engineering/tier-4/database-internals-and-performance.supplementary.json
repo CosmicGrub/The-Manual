@@ -1,0 +1,33 @@
+[
+  {
+    "id": "software-engineering/tier-4/database-internals-and-performance/s1",
+    "title": "Edgar Codd and the Relational Model (1970)",
+    "domain": "history",
+    "explainer": "In 1970, IBM researcher Edgar F. Codd published 'A Relational Model of Data for Large Shared Data Banks,' proposing that data be organized as simple tables related by shared columns instead of the hierarchical and network structures common at the time. His central argument was data independence: applications should not need to know how data is physically stored, which is exactly the separation that lets a modern database engine rewrite storage layouts and execution plans for performance without any application code changing. Nearly every relational database's internals, including the one examined in this lesson, exist to make good on Codd's original promise.",
+    "resources": [
+      {
+        "title": "Relational model",
+        "url": "https://en.wikipedia.org/wiki/Relational_model",
+        "source": "Wikipedia"
+      },
+      {
+        "title": "Edgar F. Codd",
+        "url": "https://www.ibm.com/history/edgar-codd",
+        "source": "IBM"
+      }
+    ]
+  },
+  {
+    "id": "software-engineering/tier-4/database-internals-and-performance/s2",
+    "title": "Relational Algebra: the Math Behind Query Optimization",
+    "domain": "math",
+    "explainer": "Codd's relational model came paired with relational algebra, which defines operations like selection, projection, and join as set operations with provable equivalences. A query optimizer leans directly on this math: it rewrites a query into a cheaper but equivalent plan - for example pushing a filter below a join - because relational algebra guarantees the rewritten expression returns identical rows. Recognizing that execution plans are algebraic rewrites rather than ad hoc tricks explains why performance tuning follows reliable rules instead of guesswork.",
+    "resources": [
+      {
+        "title": "Relational algebra",
+        "url": "https://en.wikipedia.org/wiki/Relational_algebra",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

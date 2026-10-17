@@ -1,0 +1,28 @@
+[
+  {
+    "id": "cybersecurity-ethical-hacking/tier-3/advanced-web-and-api-security/s1",
+    "title": "SQL Injection's First Public Write-Up (Late 1990s)",
+    "domain": "history",
+    "explainer": "SQL injection is as old as dynamic database-backed web apps themselves, but it was laid out in detail for a wide audience in the hacker e-zine Phrack in the late 1990s, in an article written under a pseudonym rather than in any vendor security bulletin. The piece showed how unsanitized input passed into a database query could change that query's logic entirely. That a vulnerability this fundamental was first documented in the underground press, years before it became a standard line item on security checklists, is a reminder that offensive research has often driven defensive practice rather than the other way around.",
+    "resources": [
+      {
+        "title": "SQL injection",
+        "url": "https://en.wikipedia.org/wiki/SQL_injection",
+        "source": "Wikipedia"
+      }
+    ]
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-3/advanced-web-and-api-security/s2",
+    "title": "The Same-Origin Policy: A Mid-1990s Patch That Still Shapes API Security",
+    "domain": "history",
+    "explainer": "When Netscape added JavaScript to its browser in the mid-1990s, it quickly became apparent that a script from one site could otherwise read or manipulate data from any other site open in the same browser. Netscape's fix, the same-origin policy, restricted scripts to interacting only with pages sharing the same scheme, host, and port — a rule that is still the baseline every CORS header, API gateway rule, and cross-origin exception has to work around today. Modern arguments about CORS misconfiguration are really arguments about how much to relax a decades-old browser default.",
+    "resources": [
+      {
+        "title": "Same-origin policy",
+        "url": "https://en.wikipedia.org/wiki/Same-origin_policy",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

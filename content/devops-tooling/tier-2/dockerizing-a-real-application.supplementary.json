@@ -1,0 +1,28 @@
+[
+  {
+    "id": "devops-tooling/tier-2/dockerizing-a-real-application/s1",
+    "title": "chroot (1979) and the Idea of a Walled-Off Filesystem",
+    "domain": "history",
+    "explainer": "The chroot system call, added during the development of Version 7 Unix in 1979, let a process see only a restricted subtree of the filesystem, as if that subtree were the entire disk - the first mainstream mechanism for making a program believe it has its own self-contained environment. Decades later, that same idea, layered with process and resource isolation, became the filesystem-isolation piece of what a container is. Building a Docker image uses a direct conceptual descendant of a 1979 Unix feature that was originally meant for build-and-test isolation, not for shipping whole applications.",
+    "resources": [
+      {
+        "title": "chroot",
+        "url": "https://en.wikipedia.org/wiki/Chroot",
+        "source": "Wikipedia"
+      }
+    ]
+  },
+  {
+    "id": "devops-tooling/tier-2/dockerizing-a-real-application/s2",
+    "title": "From Google's cgroups to Docker: The Real Lineage of Containers (2006-2013)",
+    "domain": "history",
+    "explainer": "In 2006, Google engineers contributed 'process containers' to the Linux kernel - soon renamed control groups (cgroups) - to limit and account for CPU, memory, and I/O per group of processes. Combined with Linux namespaces, cgroups became the foundation of LXC (2008), a userspace toolkit for running full Linux environments; Docker, launched in 2013, originally built directly on LXC before replacing it with its own runtime. Docker's real innovation wasn't inventing process isolation - it was packaging years of existing kernel-level primitives into an easy image format and workflow that developers actually wanted to use.",
+    "resources": [
+      {
+        "title": "The History of Containers",
+        "url": "https://www.redhat.com/en/blog/history-containers",
+        "source": "Red Hat Blog"
+      }
+    ]
+  }
+]

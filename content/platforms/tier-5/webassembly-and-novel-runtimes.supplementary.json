@@ -1,0 +1,28 @@
+[
+  {
+    "id": "platforms/tier-5/webassembly-and-novel-runtimes/s1",
+    "title": "asm.js: The Stepping Stone to WebAssembly",
+    "domain": "history",
+    "explainer": "Before WebAssembly existed, Mozilla's asm.js showed that a strict, typed subset of ordinary JavaScript could be compiled ahead of time and run at near-native speed in existing browsers, with no new runtime format at all. WebAssembly's initial design deliberately reused asm.js's feature set as a starting point, so understanding why asm.js worked explains several of Wasm's early design choices.",
+    "resources": [
+      {
+        "title": "WebAssembly",
+        "url": "https://en.wikipedia.org/wiki/WebAssembly",
+        "source": "Wikipedia"
+      }
+    ]
+  },
+  {
+    "id": "platforms/tier-5/webassembly-and-novel-runtimes/s2",
+    "title": "Native Client: The Sandboxed-Native-Code Experiment Wasm Replaced",
+    "domain": "history",
+    "explainer": "Years before WebAssembly, Google's Native Client, announced in 2008 and generally available in Chrome by 2011, and its portable successor PNaCl let web pages run sandboxed C/C++ code at near-native speed, but only in Chrome. In May 2017 Google announced it would deprecate PNaCl in favor of WebAssembly, which solved the same problem, near-native speed in the browser, as an open, cross-vendor standard instead of a single-browser extension.",
+    "resources": [
+      {
+        "title": "Google Native Client",
+        "url": "https://en.wikipedia.org/wiki/Google_Native_Client",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

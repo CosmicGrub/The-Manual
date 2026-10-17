@@ -1,0 +1,15 @@
+[
+  {
+    "id": "languages/tier-2/test-runner-mechanics/s1",
+    "title": "Kent Beck's SUnit and the xUnit Lineage Behind pytest and Jest",
+    "domain": "history",
+    "explainer": "The fixture/assert vocabulary this lesson teaches traces back to SUnit, a testing framework Kent Beck described for Smalltalk in a 1989 paper. Beck later ported the design to Java with Erich Gamma as JUnit, and the isolated-test-case, setup/teardown-around-each-test pattern spread from there into what's now informally called the \"xUnit\" family - Jest's beforeEach/afterEach genuinely descends from it (via Jasmine, which is explicitly xUnit-style). Pytest is the interesting exception: its fixture system was a deliberate departure from xUnit-style setUp/tearDown, built instead around dependency-injected functions - proof that even a widely-copied design pattern isn't the only way to solve the same problem.",
+    "resources": [
+      {
+        "title": "SUnit",
+        "url": "https://en.wikipedia.org/wiki/SUnit",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

@@ -1,0 +1,33 @@
+[
+  {
+    "id": "languages/tier-1/python-syntax-and-core-semantics/s1",
+    "title": "Guido van Rossum and the December 1989 Origins of Python",
+    "domain": "history",
+    "explainer": "Guido van Rossum started Python as a side project over the Christmas holidays of 1989 at CWI, a research institute in Amsterdam, intending it as a successor to the teaching language ABC, and he posted the first public release to Usenet in February 1991. He named it after Monty Python's Flying Circus, the BBC comedy whose scripts he happened to be reading at the time — the snake came later, as a logo choice, not the inspiration.",
+    "resources": [
+      {
+        "title": "General Python FAQ",
+        "url": "https://docs.python.org/3/faq/general.html",
+        "source": "Python documentation (python.org)"
+      },
+      {
+        "title": "Python (programming language)",
+        "url": "https://en.wikipedia.org/wiki/Python_(programming_language)",
+        "source": "Wikipedia"
+      }
+    ]
+  },
+  {
+    "id": "languages/tier-1/python-syntax-and-core-semantics/s2",
+    "title": "PEP 3104 and the Late Arrival of nonlocal (Python 3.0, 2008)",
+    "domain": "history",
+    "explainer": "For Python's first couple of decades there was no clean way to rebind a name in an enclosing, non-global scope from inside a nested function — exactly the gap this lesson's `nonlocal` section covers, where leaving the keyword out raises `UnboundLocalError`. PEP 3104, written in 2006, proposed the `nonlocal` statement to close that gap, and it shipped as one of Python 3.0's new keywords in 2008 — decades after `global` had already existed for the simpler case.",
+    "resources": [
+      {
+        "title": "PEP 3104 – Access to Names in Outer Scopes",
+        "url": "https://peps.python.org/pep-3104/",
+        "source": "Python Enhancement Proposals (python.org)"
+      }
+    ]
+  }
+]

@@ -1,0 +1,20 @@
+[
+  {
+    "id": "ai-ml-prompting/tier-1/gradient-descent-mechanics/s1",
+    "title": "Widrow, Hoff, and the First Machine That Learned by Gradient Descent (1960)",
+    "domain": "history",
+    "explainer": "In 1960, Bernard Widrow and his student Ted Hoff built ADALINE, an early trainable artificial neuron, and discovered the LMS (least-mean-squares) rule by differentiating a squared-error expression on a blackboard — in effect inventing a working, practical form of stochastic gradient descent for a real learning system, independent of and well before the term was common in machine learning. Unlike the perceptron's hard-threshold update rule, ADALINE's LMS rule adjusted weights using a continuous error signal, the same core mechanism (an estimated gradient, updated one example at a time) behind the stochastic gradient descent used to train today's networks. It's a useful corrective to thinking of gradient descent as a purely abstract tool: it was discovered by engineers wiring up analog hardware to get a machine to learn simple pattern classification.",
+    "resources": [
+      {
+        "title": "ADALINE",
+        "url": "https://en.wikipedia.org/wiki/ADALINE",
+        "source": "Wikipedia"
+      },
+      {
+        "title": "Thinking About Thinking: The Discovery of the LMS Algorithm",
+        "url": "https://www-isl.stanford.edu/people/widrow/papers/j2005thinkingabout.pdf",
+        "source": "Bernard Widrow, IEEE Signal Processing Magazine (hosted by Stanford University)"
+      }
+    ]
+  }
+]

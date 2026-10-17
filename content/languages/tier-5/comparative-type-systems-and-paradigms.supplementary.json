@@ -1,0 +1,38 @@
+[
+  {
+    "id": "languages/tier-5/comparative-type-systems-and-paradigms/s1",
+    "title": "Russell's Paradox and the Birth of Type Theory (1901-1908)",
+    "domain": "math",
+    "explainer": "In 1901 Bertrand Russell found that an unrestricted notion of 'the set of all sets that do not contain themselves' makes formal logic contradict itself. To block the paradox he developed a theory of types, sketched in 1903 and given mature form in his 1908 paper, which stratifies objects into levels so a thing can never be a member of itself. Every statically typed language you compare in this lesson, from Java's class hierarchy to Haskell's kinds, descends from this fix: a type system is, at bottom, a discipline for keeping a program from asking a self-referential question it cannot answer.",
+    "resources": [
+      {
+        "title": "Russell's Paradox",
+        "url": "https://plato.stanford.edu/entries/russell-paradox/",
+        "source": "Stanford Encyclopedia of Philosophy"
+      },
+      {
+        "title": "Type theory",
+        "url": "https://en.wikipedia.org/wiki/Type_theory",
+        "source": "Wikipedia"
+      }
+    ]
+  },
+  {
+    "id": "languages/tier-5/comparative-type-systems-and-paradigms/s2",
+    "title": "Robin Milner, Algorithm W, and the Origin of Type Inference (1978)",
+    "domain": "math",
+    "explainer": "Robin Milner's 1978 paper 'A Theory of Type Polymorphism in Programming' introduced Algorithm W, a method that infers a program's most general type with no annotations at all, and proved that a well-typed program under it 'cannot go wrong.' He built it for the ML language, and the same mechanism, now called Hindley-Milner after J. Roger Hindley's related 1969 proof, still drives type inference in OCaml, Haskell, F#, Rust, and Swift. When you compare how much type annotation each language demands versus infers, you're really comparing how much of Algorithm W's power each one inherited.",
+    "resources": [
+      {
+        "title": "Hindley–Milner type system",
+        "url": "https://en.wikipedia.org/wiki/Hindley%E2%80%93Milner_type_system",
+        "source": "Wikipedia"
+      },
+      {
+        "title": "Robin Milner",
+        "url": "https://en.wikipedia.org/wiki/Robin_Milner",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

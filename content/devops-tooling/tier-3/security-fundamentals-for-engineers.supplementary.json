@@ -1,0 +1,33 @@
+[
+  {
+    "id": "devops-tooling/tier-3/security-fundamentals-for-engineers/s1",
+    "title": "Saltzer and Schroeder's 1975 Rules for Protecting Systems",
+    "domain": "history",
+    "explainer": "In their 1975 paper 'The Protection of Information in Computer Systems,' Jerome Saltzer and Michael Schroeder laid out design principles - including least privilege (every program and user should operate with the minimum access needed to do its job) and fail-safe defaults (deny by default, grant explicitly) - that are still the backbone of how engineers reason about scoping IAM roles, service accounts, and secrets access today, fifty years later.",
+    "resources": [
+      {
+        "title": "The Protection of Information in Computer Systems",
+        "url": "https://en.wikipedia.org/wiki/The_Protection_of_Information_in_Computer_Systems",
+        "source": "Wikipedia"
+      },
+      {
+        "title": "Basic Principles of Information Protection (original text excerpt)",
+        "url": "https://web.mit.edu/Saltzer/www/publications/protection/Basic.html",
+        "source": "MIT"
+      }
+    ]
+  },
+  {
+    "id": "devops-tooling/tier-3/security-fundamentals-for-engineers/s2",
+    "title": "The Morris Worm (1988) and the Birth of Incident Response",
+    "domain": "history",
+    "explainer": "On November 2, 1988, a self-replicating program released from MIT by Cornell graduate student Robert Tappan Morris spread to an estimated 6,000 of the roughly 60,000 computers then connected to the internet, grinding many of them to a halt. The incident was severe enough that DARPA funded the creation of the first Computer Emergency Response Team (CERT) at Carnegie Mellon - the direct ancestor of the vulnerability-disclosure and incident-response processes engineering teams rely on today.",
+    "resources": [
+      {
+        "title": "Morris worm",
+        "url": "https://en.wikipedia.org/wiki/Morris_worm",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

@@ -1,0 +1,20 @@
+[
+  {
+    "id": "software-engineering/tier-1/git-deep-dive-branching-merging-and-collaboration/s1",
+    "title": "The Hunt-McIlroy Algorithm Behind Diff and Merge (1976)",
+    "domain": "math",
+    "explainer": "When Git computes a diff or performs a three-way merge, it is solving a longest-common-subsequence problem: finding the largest set of lines two versions still share so everything else can be marked added or removed. This approach was formalized in a 1976 Bell Labs report by James Hunt and M. Douglas McIlroy, 'An Algorithm for Differential File Comparison,' which underlies the Unix diff utility that Git's own diff and merge machinery descends from. Seeing the underlying combinatorial problem explains why merges sometimes group changed lines in ways that look odd to a human reader - the algorithm is optimizing for shared subsequence length, not intuitive grouping.",
+    "resources": [
+      {
+        "title": "Diff",
+        "url": "https://en.wikipedia.org/wiki/Diff",
+        "source": "Wikipedia"
+      },
+      {
+        "title": "An Algorithm for Differential File Comparison (Hunt & McIlroy, 1976)",
+        "url": "https://www.cs.dartmouth.edu/doug/diff.pdf",
+        "source": "Dartmouth College"
+      }
+    ]
+  }
+]

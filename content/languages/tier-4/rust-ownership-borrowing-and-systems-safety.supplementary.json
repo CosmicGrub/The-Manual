@@ -1,0 +1,33 @@
+[
+  {
+    "id": "languages/tier-4/rust-ownership-borrowing-and-systems-safety/s1",
+    "title": "Graydon Hoare, Mozilla, and the 2006 Origins of Rust's Safety Goal",
+    "domain": "history",
+    "explainer": "Rust began in 2006 as Graydon Hoare's personal project, growing out of frustration with how often C++ memory bugs caused crashes in large codebases like Firefox; Mozilla started sponsoring the language in 2009 and announced it publicly in 2010. Among Rust's acknowledged influences is Cyclone, an earlier research dialect of C designed to add region-based memory safety without a garbage collector - the same goal the borrow checker was later built to achieve. That history is why Rust reads as a systems language built specifically to answer C++'s safety failures, not as a general-purpose language that added safety as an afterthought.",
+    "resources": [
+      {
+        "title": "Rust (programming language)",
+        "url": "https://en.wikipedia.org/wiki/Rust_(programming_language)",
+        "source": "Wikipedia"
+      }
+    ]
+  },
+  {
+    "id": "languages/tier-4/rust-ownership-borrowing-and-systems-safety/s2",
+    "title": "Linear Logic and the Math Behind 'Use It Once'",
+    "domain": "math",
+    "explainer": "Rust's ownership rules have a real mathematical ancestor: Jean-Yves Girard's 1987 linear logic, which treats every resource as something that must be consumed exactly once rather than freely copied or discarded. Programming-language researchers later relaxed that into 'affine' types - usable at most once, with disowning allowed - which is precisely the discipline Rust's ownership and move semantics enforce when a value is moved and its old binding becomes invalid. Seeing the borrow checker as an affine type system, rather than an arbitrary compiler rule, makes its error messages far more predictable.",
+    "resources": [
+      {
+        "title": "Linear logic",
+        "url": "https://en.wikipedia.org/wiki/Linear_logic",
+        "source": "Wikipedia"
+      },
+      {
+        "title": "Substructural type system",
+        "url": "https://en.wikipedia.org/wiki/Substructural_type_system",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

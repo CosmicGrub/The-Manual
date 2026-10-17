@@ -1,0 +1,28 @@
+[
+  {
+    "id": "ai-ml-prompting/tier-4/fine-tuning-and-parameter-efficient-methods/s1",
+    "title": "The Eckart-Young Theorem and Why Low-Rank Fine-Tuning Works (1936)",
+    "domain": "math",
+    "explainer": "Parameter-efficient methods like LoRA update a weight matrix through only a small low-rank correction, and this works because of a much older result: the Eckart-Young(-Mirsky) theorem, published in 1936, which proves that the best lower-rank approximation of a matrix in a least-squares sense is given by truncating its singular value decomposition. Fine-tuning methods that assume a task's necessary weight update has low 'intrinsic rank' are leaning on this nearly 90-year-old linear-algebra result, not a brand-new machine-learning insight. It's why a small number of trainable parameters can still capture most of a task's adaptation.",
+    "resources": [
+      {
+        "title": "Low-rank approximation",
+        "url": "https://en.wikipedia.org/wiki/Low-rank_approximation",
+        "source": "Wikipedia"
+      }
+    ]
+  },
+  {
+    "id": "ai-ml-prompting/tier-4/fine-tuning-and-parameter-efficient-methods/s2",
+    "title": "Catastrophic Forgetting and Why Full Fine-Tuning Is Risky (1989)",
+    "domain": "science",
+    "explainer": "In 1989, psychologists Michael McCloskey and Neal Cohen coined 'catastrophic forgetting' after showing that a neural network trained sequentially on new facts abruptly lost its ability to recall older ones, because the same weights represent both. This is precisely the failure mode that full fine-tuning of a large pretrained model risks, and it's a major reason parameter-efficient methods, which freeze most of the original weights, have become the default: they adapt a model to a new task while leaving the bulk of its original knowledge physically undisturbed.",
+    "resources": [
+      {
+        "title": "Catastrophic interference",
+        "url": "https://en.wikipedia.org/wiki/Catastrophic_interference",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

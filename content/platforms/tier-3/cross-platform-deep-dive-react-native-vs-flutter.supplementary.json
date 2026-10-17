@@ -1,0 +1,28 @@
+[
+  {
+    "id": "platforms/tier-3/cross-platform-deep-dive-react-native-vs-flutter/s1",
+    "title": "Java and the 'Write Once, Run Anywhere' Dream (1995)",
+    "domain": "history",
+    "explainer": "When Sun Microsystems introduced Java in 1995, it marketed the language with the slogan 'write once, run anywhere,' promising that code compiled once to Java bytecode could run unmodified on any machine with a compatible virtual machine. React Native and Flutter are the latest attempts at that same decades-old goal of one codebase reaching many platforms, and seeing how differently Java's VM, React Native's bridge, and Flutter's native-compiled engine each pay for that promise explains much of their performance and tooling differences.",
+    "resources": [
+      {
+        "title": "Write once, run anywhere",
+        "url": "https://en.wikipedia.org/wiki/Write_once,_run_anywhere",
+        "source": "Wikipedia"
+      }
+    ]
+  },
+  {
+    "id": "platforms/tier-3/cross-platform-deep-dive-react-native-vs-flutter/s2",
+    "title": "Dart's Rocky Start as a Browser Language (2011)",
+    "domain": "history",
+    "explainer": "Google unveiled Dart in October 2011 with plans to ship its own virtual machine inside Chrome and have it eventually replace JavaScript for web apps; that plan drew heavy criticism over fragmenting the web and was dropped around 2015. Dart only found its lasting home years later as the language Flutter compiles directly to native ARM and x86 code, which is worth knowing when you ask why Flutter reaches for a comparatively obscure language instead of JavaScript, Kotlin, or Swift.",
+    "resources": [
+      {
+        "title": "Dart (programming language)",
+        "url": "https://en.wikipedia.org/wiki/Dart_(programming_language)",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

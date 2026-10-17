@@ -1,0 +1,15 @@
+[
+  {
+    "id": "devops-tooling/tier-4/multi-cloud-and-hybrid-architecture-design/s1",
+    "title": "The CAP Theorem and the Limits of Distributed Consistency",
+    "domain": "math",
+    "explainer": "Any multi-cloud or hybrid architecture that replicates data across regions or providers runs into the trade-off formalized as the CAP theorem: a distributed system cannot simultaneously guarantee full consistency, availability, and tolerance of network partitions. Eric Brewer proposed this as a conjecture around 2000, and Seth Gilbert and Nancy Lynch gave it a formal proof in 2002. Understanding CAP explains why real multi-cloud systems explicitly choose which guarantee to relax rather than promising all three at once.",
+    "resources": [
+      {
+        "title": "CAP theorem",
+        "url": "https://en.wikipedia.org/wiki/CAP_theorem",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

@@ -1,0 +1,20 @@
+[
+  {
+    "id": "ai-ml-prompting/tier-1/python-for-data/s1",
+    "title": "Why Arrays, Not Loops: APL and the Lineage Behind NumPy",
+    "domain": "history",
+    "explainer": "Kenneth Iverson began developing an array-oriented mathematical notation in 1957, published as the book 'A Programming Language' in 1962, built on the idea of treating a whole array as a single value that functions operate on all at once, instead of looping over elements one by one. That notation became the APL programming language, and it directly shaped NumPy's own design: the Python package Numeric (NumPy's direct ancestor, built in the mid-1990s) was explicitly informed by APL-style array thinking. The now-standard advice to 'vectorize instead of loop' when working with NumPy or pandas is a direct descendant of a decades-old mathematical notation, not an arbitrary performance trick, which is why vectorized code isn't just faster but reflects a genuinely different way of expressing a computation.",
+    "resources": [
+      {
+        "title": "History of NumPy",
+        "url": "https://numpy.org/history/",
+        "source": "NumPy project"
+      },
+      {
+        "title": "Array programming with NumPy",
+        "url": "https://www.nature.com/articles/s41586-020-2649-2",
+        "source": "Harris et al., Nature (2020), open access"
+      }
+    ]
+  }
+]

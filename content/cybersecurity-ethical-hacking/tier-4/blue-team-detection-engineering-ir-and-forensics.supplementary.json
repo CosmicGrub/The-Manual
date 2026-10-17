@@ -1,0 +1,38 @@
+[
+  {
+    "id": "cybersecurity-ethical-hacking/tier-4/blue-team-detection-engineering-ir-and-forensics/s1",
+    "title": "The 1988 Morris Worm and the Founding of CERT",
+    "domain": "history",
+    "explainer": "When a Cornell graduate student's self-replicating program knocked a large fraction of the early Internet offline in November 1988, there was no established process for coordinating a response; researchers at different sites traded fixes informally while the worm kept spreading. Within days, DARPA directed Carnegie Mellon's Software Engineering Institute to stand up the CERT Coordination Center, the first formal computer emergency response team, giving incident response its first institutional home. The incident is also why intrusion detection and forensic tooling became a serious, funded research area rather than an afterthought.",
+    "resources": [
+      {
+        "title": "Fostering Growth in Professional Cyber Incident Management",
+        "url": "https://www.sei.cmu.edu/history-of-innovation/fostering-growth-in-professional-cyber-incident-management/",
+        "source": "Carnegie Mellon Software Engineering Institute"
+      },
+      {
+        "title": "Morris Worm",
+        "url": "https://www.fbi.gov/history/cases-and-criminals/morris-worm",
+        "source": "FBI"
+      }
+    ]
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-4/blue-team-detection-engineering-ir-and-forensics/s2",
+    "title": "The Base-Rate Fallacy and Why Detection Engineering Fights Alert Fatigue",
+    "domain": "math",
+    "explainer": "In a 1999 paper, researcher Stefan Axelsson showed mathematically that even a highly accurate detector will swamp analysts with false positives whenever the thing it hunts for is rare, because the probability an alert is a true intrusion is dominated by the sheer volume of benign events, not by the detector's accuracy alone. This is base-rate reasoning applied specifically to intrusion detection, and it explains why a SOC drowning in alerts isn't necessarily running bad detections - it may be running statistically unavoidable ones. Understanding the base-rate fallacy is what separates detection engineers who tune for precision from those who just pile on more rules.",
+    "resources": [
+      {
+        "title": "The Base-Rate Fallacy and its Implications for the Difficulty of Intrusion Detection (full paper, PDF)",
+        "url": "https://www.andrew.cmu.edu/course/18-330/2025s/reading/Axelsson_1999_The%20base-rate%20fallacy%20and%20its%20implications%20for%20the%20difficulty%20of%20intrusion%20detection.pdf",
+        "source": "Stefan Axelsson, via Carnegie Mellon course site"
+      },
+      {
+        "title": "Base rate fallacy",
+        "url": "https://en.wikipedia.org/wiki/Base_rate_fallacy",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

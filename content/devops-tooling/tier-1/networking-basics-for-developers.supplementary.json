@@ -1,0 +1,28 @@
+[
+  {
+    "id": "devops-tooling/tier-1/networking-basics-for-developers/s1",
+    "title": "Cerf, Kahn, and the 1974 Paper That Defined TCP/IP",
+    "domain": "history",
+    "explainer": "In 1974, Vint Cerf and Bob Kahn published 'A Protocol for Packet Network Intercommunication,' laying out the core ideas behind what became TCP/IP, the protocol suite that almost every network you configure as a developer still runs on. Their choice to push reliability logic into the endpoints rather than into the network itself is a key reason the internet could grow by linking independent networks instead of requiring one centrally managed one.",
+    "resources": [
+      {
+        "title": "Transmission Control Protocol",
+        "url": "https://en.wikipedia.org/wiki/Transmission_Control_Protocol",
+        "source": "Wikipedia"
+      }
+    ]
+  },
+  {
+    "id": "devops-tooling/tier-1/networking-basics-for-developers/s2",
+    "title": "Paul Mockapetris and the Invention of DNS (1983)",
+    "domain": "history",
+    "explainer": "Before 1983, computers on the early internet relied on a single, manually updated hosts file to map names to addresses, an approach that could not scale as the network grew. Paul Mockapetris designed the Domain Name System that year as a distributed, hierarchical replacement, and the basic design of resolvers, zones, and delegation is still what you depend on every time an application looks up a hostname today.",
+    "resources": [
+      {
+        "title": "Domain Name System",
+        "url": "https://en.wikipedia.org/wiki/Domain_Name_System",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

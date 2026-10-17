@@ -1,0 +1,28 @@
+[
+  {
+    "id": "cybersecurity-ethical-hacking/tier-3/detection-engineering-and-logging-basics-for-ad/s1",
+    "title": "Syslog Started as a Side Effect of Email Software",
+    "domain": "history",
+    "explainer": "The syslog protocol that still carries most log messages across networks today wasn't designed as a formal standard — it was built in the 1980s as a logging mechanism for the Sendmail mail program and was then informally adopted by other Unix tools simply because it already existed and was simple to use. It was only formalized as an official standard roughly two decades after it was already in wide, inconsistent use in the field. That history explains syslog's famously loose message format, which is exactly the problem modern log-parsing and detection pipelines still have to normalize around.",
+    "resources": [
+      {
+        "title": "Syslog",
+        "url": "https://en.wikipedia.org/wiki/Syslog",
+        "source": "Wikipedia"
+      }
+    ]
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-3/detection-engineering-and-logging-basics-for-ad/s2",
+    "title": "The 1988 Morris Worm and the Birth of Incident Response",
+    "domain": "history",
+    "explainer": "The Morris Worm, released onto the early internet in November 1988, was among the first self-replicating programs to spread across networked computers at real scale, and it disrupted a meaningful fraction of the internet as it then existed. The response to that incident led to the creation of the CERT Coordination Center at Carnegie Mellon, the first organization dedicated to coordinated computer security incident response — a direct ancestor of every modern SOC and detection-engineering function. It's a concrete illustration of why 'detect and respond' became its own discipline rather than an afterthought to prevention.",
+    "resources": [
+      {
+        "title": "Morris worm",
+        "url": "https://en.wikipedia.org/wiki/Morris_worm",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

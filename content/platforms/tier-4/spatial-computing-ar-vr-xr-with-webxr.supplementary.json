@@ -1,0 +1,33 @@
+[
+  {
+    "id": "platforms/tier-4/spatial-computing-ar-vr-xr-with-webxr/s1",
+    "title": "Ivan Sutherland's \"Sword of Damocles\" (1968)",
+    "domain": "history",
+    "explainer": "In 1968, Ivan Sutherland and his students built the first head-mounted display capable of rendering a stereoscopic, head-tracked 3D scene — a device so heavy it had to hang from the ceiling, earning it the nickname \"Sword of Damocles.\" Nearly every core WebXR concept, from tracked head pose to a view that updates as the user moves to per-eye stereo rendering, is a direct descendant of the custom tracking and clipping hardware Sutherland had to build from scratch because no general-purpose computer of the era was fast enough. It's a reminder that \"put on a headset and look around\" was a research-grade engineering triumph only a few decades ago.",
+    "resources": [
+      {
+        "title": "The Sword of Damocles (virtual reality)",
+        "url": "https://en.wikipedia.org/wiki/The_Sword_of_Damocles_(virtual_reality)",
+        "source": "Wikipedia"
+      },
+      {
+        "title": "VR @ 50: Celebrating Ivan Sutherland's 1968 Head-Mounted 3D Display System",
+        "url": "https://history.siggraph.org/learning/vr-50-celebrating-ivan-sutherlands-1968-head-mounted-3d-display-system/",
+        "source": "ACM SIGGRAPH History Archives"
+      }
+    ]
+  },
+  {
+    "id": "platforms/tier-4/spatial-computing-ar-vr-xr-with-webxr/s2",
+    "title": "Sensory Conflict Theory and Why VR Makes People Sick",
+    "domain": "science",
+    "explainer": "The leading explanation for VR and XR motion sickness is sensory conflict theory: the eyes report convincing visual motion through a virtual scene while the inner ear's vestibular system reports that the head and body are sitting still, and the brain's struggle to resolve that mismatch produces nausea. This is a genuine physiological constraint, not a software bug, which is why WebXR comfort guidance around frame rate, field of view, teleportation instead of smooth locomotion, and fixed visual reference points all trace back to reducing that one sensory mismatch. Understanding the mechanism explains why some comfort techniques work well and others, like simply lowering resolution, barely help at all.",
+    "resources": [
+      {
+        "title": "Virtual reality sickness",
+        "url": "https://en.wikipedia.org/wiki/Virtual_reality_sickness",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

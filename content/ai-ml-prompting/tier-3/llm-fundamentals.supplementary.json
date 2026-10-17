@@ -1,0 +1,38 @@
+[
+  {
+    "id": "ai-ml-prompting/tier-3/llm-fundamentals/s1",
+    "title": "Claude Shannon Predicts the Next Letter (1951)",
+    "domain": "history",
+    "explainer": "A few years after founding information theory, Claude Shannon ran a strikingly simple experiment: have a person guess the next letter of an English passage, one letter at a time, to measure how predictable — and therefore how redundant — the language really is. His 1951 paper 'Prediction and Entropy of Printed English' is the direct conceptual ancestor of the next-token-prediction objective that trains every modern LLM, decades before anyone imagined running it on a neural network.",
+    "resources": [
+      {
+        "title": "BSTJ 30:1, January 1951: Prediction and Entropy of Printed English (Shannon, C.E.)",
+        "url": "https://archive.org/details/bstj30-1-50",
+        "source": "Internet Archive"
+      },
+      {
+        "title": "Prediction and Entropy of Printed English (full text PDF)",
+        "url": "https://www.princeton.edu/~wbialek/rome/refs/shannon_51.pdf",
+        "source": "Bell System Technical Journal, hosted by Princeton University"
+      }
+    ]
+  },
+  {
+    "id": "ai-ml-prompting/tier-3/llm-fundamentals/s2",
+    "title": "Zipf's Law and the Long Tail of Language (1949)",
+    "domain": "math",
+    "explainer": "Linguist George Kingsley Zipf formalized, in his 1949 book 'Human Behavior and the Principle of Least Effort,' an empirical pattern already noticed by earlier researchers: in any natural-language corpus, a word's frequency is roughly inversely proportional to its rank, so a handful of words dominate while most words are rare. This skewed distribution is exactly why LLMs use subword tokenization rather than whole-word vocabularies — without it, the long tail of rare words would either blow up the vocabulary or leave the model with almost no training signal for most of it.",
+    "resources": [
+      {
+        "title": "Zipf's law",
+        "url": "https://en.wikipedia.org/wiki/Zipf%27s_law",
+        "source": "Wikipedia"
+      },
+      {
+        "title": "Zipf's word frequency law in natural language: A critical review and future directions",
+        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC4176592/",
+        "source": "PubMed Central (Piantadosi, Psychonomic Bulletin & Review)"
+      }
+    ]
+  }
+]

@@ -1,0 +1,33 @@
+[
+  {
+    "id": "devops-tooling/tier-1/first-contact-with-containers/s1",
+    "title": "chroot and the Birth of Filesystem Isolation (1979)",
+    "domain": "history",
+    "explainer": "The chroot system call, added to Unix in 1979, let a process be given a different directory as its apparent filesystem root, the earliest practical step toward restricting what a running program can see and touch. It is a direct ancestor of the filesystem isolation that containers rely on today, decades before the word 'container' was used this way.",
+    "resources": [
+      {
+        "title": "Chroot",
+        "url": "https://en.wikipedia.org/wiki/Chroot",
+        "source": "Wikipedia"
+      }
+    ]
+  },
+  {
+    "id": "devops-tooling/tier-1/first-contact-with-containers/s2",
+    "title": "From cgroups to Docker: Containers Are Recycled Kernel Features",
+    "domain": "history",
+    "explainer": "In 2006, Google engineers added 'process containers' (soon renamed cgroups) to the Linux kernel so that CPU, memory, and I/O use could be limited and accounted for per group of processes. Combined with existing Linux namespace isolation, this became the foundation for LXC and then, in 2013, Docker, which wrapped these same kernel primitives in a much friendlier interface. Containers were not a new virtualization technology when Docker appeared; they were a repackaging of Linux kernel features that had existed for years.",
+    "resources": [
+      {
+        "title": "Cgroups",
+        "url": "https://en.wikipedia.org/wiki/Cgroups",
+        "source": "Wikipedia"
+      },
+      {
+        "title": "Docker (software)",
+        "url": "https://en.wikipedia.org/wiki/Docker_(software)",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

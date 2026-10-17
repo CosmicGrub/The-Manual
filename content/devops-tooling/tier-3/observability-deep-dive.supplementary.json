@@ -1,0 +1,20 @@
+[
+  {
+    "id": "devops-tooling/tier-3/observability-deep-dive/s1",
+    "title": "'Observability' Was Coined for Control Systems, Not Software",
+    "domain": "math",
+    "explainer": "The term observability didn't start in software at all: engineer Rudolf Kalman introduced it in a 1960 control-theory paper to describe whether a system's internal state can be fully reconstructed just from watching its external outputs, formalized with a linear-algebra rank condition on what's now called the observability matrix. Modern software observability borrows that exact idea - logs, metrics, and traces are the 'external outputs' engineers use to infer the internal state of a distributed system they cannot directly inspect, decades after Kalman defined the underlying mathematics for very different machines.",
+    "resources": [
+      {
+        "title": "Observability",
+        "url": "https://en.wikipedia.org/wiki/Observability",
+        "source": "Wikipedia"
+      },
+      {
+        "title": "From Kalman to Kubernetes: A History of Observability in IT",
+        "url": "https://academy.broadcom.com/blog/aiops/from-kalman-to-kubernetes-a-history-of-observability-in-it",
+        "source": "Broadcom Academy"
+      }
+    ]
+  }
+]

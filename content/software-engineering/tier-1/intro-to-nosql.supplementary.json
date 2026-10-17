@@ -1,0 +1,33 @@
+[
+  {
+    "id": "software-engineering/tier-1/intro-to-nosql/s1",
+    "title": "The CAP Theorem (Brewer, 2000)",
+    "domain": "math",
+    "explainer": "In a 2000 conference keynote, computer scientist Eric Brewer conjectured that a distributed data store cannot simultaneously guarantee full Consistency, Availability, and Partition tolerance - at best it can fully satisfy two during a network partition. Seth Gilbert and Nancy Lynch gave a formal proof of this in 2002. Many of NoSQL's signature trade-offs, like eventual consistency and tunable consistency levels, are direct, practical responses to this theorem, which is why NoSQL systems ask you to explicitly choose which guarantee to relax.",
+    "resources": [
+      {
+        "title": "CAP theorem",
+        "url": "https://en.wikipedia.org/wiki/CAP_theorem",
+        "source": "Wikipedia"
+      }
+    ]
+  },
+  {
+    "id": "software-engineering/tier-1/intro-to-nosql/s2",
+    "title": "The Dynamo and Bigtable Papers and the Rise of NoSQL (2006-2007)",
+    "domain": "history",
+    "explainer": "Google's 2006 Bigtable paper and Amazon's 2007 Dynamo paper, each describing internal systems built to get past the scaling limits the companies hit with traditional relational databases, are widely credited with catalyzing the modern NoSQL movement. Both showed that giving up strict relational guarantees and full SQL querying could buy massive horizontal scalability - the central trade-off this lesson introduces. Dynamo's design later became the public basis for Amazon DynamoDB, and both papers directly inspired later systems like Cassandra and MongoDB.",
+    "resources": [
+      {
+        "title": "NoSQL",
+        "url": "https://en.wikipedia.org/wiki/NoSQL",
+        "source": "Wikipedia"
+      },
+      {
+        "title": "Bigtable",
+        "url": "https://en.wikipedia.org/wiki/Bigtable",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

@@ -1,0 +1,28 @@
+[
+  {
+    "id": "software-engineering/tier-4/security-aware-software-engineering/s1",
+    "title": "Kerckhoffs's Principle: Security Shouldn't Depend on Secrecy of Design (1883)",
+    "domain": "history",
+    "explainer": "In an 1883 paper on military cryptography, Auguste Kerckhoffs argued that a cryptographic system should stay secure even if everything about it except the secret key is known to an adversary. The same principle is why modern secure software is built on open, publicly scrutinized algorithms and protocols with only keys or credentials kept secret, rather than relying on hiding how the system works - 'security through obscurity' is not a substitute for a design that is actually hard to break. It is one of the oldest and most durable rules in all of security engineering.",
+    "resources": [
+      {
+        "title": "Kerckhoffs's principle",
+        "url": "https://en.wikipedia.org/wiki/Kerckhoffs%27s_principle",
+        "source": "Wikipedia"
+      }
+    ]
+  },
+  {
+    "id": "software-engineering/tier-4/security-aware-software-engineering/s2",
+    "title": "The Morris Worm and the Birth of Computer Security as a Discipline (1988)",
+    "domain": "history",
+    "explainer": "In November 1988, a self-replicating program released from a university network exploited known weaknesses in common Unix utilities, including sendmail and a trusted-host mechanism, and a bug in its own replication logic let it overwhelm thousands of the roughly 60,000 computers then connected to the internet. The incident directly led to the creation of the CERT Coordination Center and is widely treated as the moment computer security went from a niche concern to an operational necessity for anyone running networked software. The vulnerability classes it exploited - unchecked input and excessive trust between systems - are the same ones security-aware engineering practices guard against today.",
+    "resources": [
+      {
+        "title": "Morris worm",
+        "url": "https://en.wikipedia.org/wiki/Morris_worm",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

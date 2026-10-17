@@ -1,0 +1,38 @@
+[
+  {
+    "id": "platforms/tier-4/cloud-native-patterns/s1",
+    "title": "From chroot to Docker: Decades of Process Isolation",
+    "domain": "history",
+    "explainer": "The idea behind cloud-native containers starts with the chroot system call added to Unix in 1979, which let a process see only a restricted part of the filesystem. Linux added resource-limiting cgroups around 2006–2008 alongside namespace isolation, and in 2013 Docker combined those existing kernel features with an image format and tooling that finally made containers easy to use at scale. Cloud-native patterns like immutable images and sidecars make more sense once you see containers as a packaging layer built on decades-old OS primitives, not a brand-new invention.",
+    "resources": [
+      {
+        "title": "The Story of Containers",
+        "url": "https://blogs.vmware.com/opensource/2018/02/27/the-story-of-containers/",
+        "source": "VMware Open Source Blog"
+      },
+      {
+        "title": "Docker (software)",
+        "url": "https://en.wikipedia.org/wiki/Docker_(software)",
+        "source": "Wikipedia"
+      }
+    ]
+  },
+  {
+    "id": "platforms/tier-4/cloud-native-patterns/s2",
+    "title": "Kubernetes' Name and Its Debt to Google's Borg",
+    "domain": "history",
+    "explainer": "Kubernetes takes its name from the Greek word for \"helmsman\" or \"pilot,\" and its seven-sided logo nods to the project's internal codename, \"Project Seven\" - itself a reference to Star Trek's Seven of Nine, since the project descended from Google's internal \"Borg\" system. It was designed by former engineers of Google's internal cluster manager Borg, which had run containerized workloads inside Google for over a decade before Kubernetes was open-sourced in 2014, so many of its scheduling and self-healing ideas are battle-tested rather than new. Seeing cloud-native orchestration as an externalized version of an older internal tool reframes a lot of its design choices.",
+    "resources": [
+      {
+        "title": "Borg: The Predecessor to Kubernetes",
+        "url": "https://kubernetes.io/blog/2015/04/borg-predecessor-to-kubernetes/",
+        "source": "Kubernetes.io"
+      },
+      {
+        "title": "How Kubernetes came to be: A co-founder shares the story",
+        "url": "https://cloud.google.com/blog/products/containers-kubernetes/from-google-to-the-world-the-kubernetes-origin-story",
+        "source": "Google Cloud Blog"
+      }
+    ]
+  }
+]

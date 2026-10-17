@@ -1,0 +1,33 @@
+[
+  {
+    "id": "languages/tier-3/go-fundamentals/s1",
+    "title": "Why Google Built Go (2007-2009)",
+    "domain": "history",
+    "explainer": "Go was designed at Google starting around 2007 by Robert Griesemer, Rob Pike, and Ken Thompson, reportedly while Pike was waiting on a slow C++ build and complained to Griesemer, with Thompson joining the conversation from the next office. The language was a deliberate reaction to the problems of building and maintaining huge codebases in C++ at Google's scale: slow compilation, dependency complexity, and verbose concurrency. That origin explains Go's design priorities - fast builds, a small feature set, and built-in concurrency - which read less like abstract taste and more like a direct response to a specific, lived engineering pain point.",
+    "resources": [
+      {
+        "title": "Go (programming language)",
+        "url": "https://en.wikipedia.org/wiki/Go_(programming_language)",
+        "source": "Wikipedia"
+      }
+    ]
+  },
+  {
+    "id": "languages/tier-3/go-fundamentals/s2",
+    "title": "Tony Hoare's Communicating Sequential Processes (1978)",
+    "domain": "math",
+    "explainer": "Go's goroutines and channels aren't an original invention - they're a direct application of Communicating Sequential Processes (CSP), a formal model of concurrency that Tony Hoare published in 1978, describing concurrent computation as independent sequential processes that synchronize purely through message passing rather than shared memory. Go's designers explicitly adopted this model instead of thread-and-lock concurrency, which is why 'share memory by communicating' is treated as idiomatic Go rather than just a style preference. Seeing channels as CSP in syntax form clarifies why they compose cleanly in ways ad hoc locking often doesn't.",
+    "resources": [
+      {
+        "title": "Communicating sequential processes",
+        "url": "https://en.wikipedia.org/wiki/Communicating_sequential_processes",
+        "source": "Wikipedia"
+      },
+      {
+        "title": "Communicating Sequential Processes (original 1978 paper)",
+        "url": "https://research.cs.queensu.ca/home/cordy/cisc860/Biblio/hurd/misc/hoare78.pdf",
+        "source": "Queen's University (hosted scan of Hoare's CACM paper)"
+      }
+    ]
+  }
+]

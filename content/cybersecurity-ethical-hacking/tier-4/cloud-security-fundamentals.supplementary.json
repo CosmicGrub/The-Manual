@@ -1,0 +1,20 @@
+[
+  {
+    "id": "cybersecurity-ethical-hacking/tier-4/cloud-security-fundamentals/s1",
+    "title": "IBM's VM/370 (1972) and the Deep History of Multi-Tenancy",
+    "domain": "history",
+    "explainer": "The isolation problem at the heart of cloud security - keeping one tenant's workload from seeing or disrupting another's on shared hardware - did not start with AWS or Azure. IBM's VM/370, announced in 1972, let a single mainframe run many separate \"virtual machines\" that each behaved as if it owned the whole computer, explicitly so that one user's job could not compromise another's. The same abstraction, refined over fifty years, is what makes today's shared-responsibility model and hypervisor-level isolation possible.",
+    "resources": [
+      {
+        "title": "What Is a Virtual Machine (VM)?",
+        "url": "https://www.ibm.com/think/topics/virtual-machines",
+        "source": "IBM"
+      },
+      {
+        "title": "The Origin of the VM/370 Time-Sharing System",
+        "url": "https://www.ibm.com/support/pages/zvm/history/50th/vm370ori.pdf",
+        "source": "IBM"
+      }
+    ]
+  }
+]

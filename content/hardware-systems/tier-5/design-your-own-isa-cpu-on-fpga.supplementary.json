@@ -1,0 +1,38 @@
+[
+  {
+    "id": "hardware-systems/tier-5/design-your-own-isa-cpu-on-fpga/s1",
+    "title": "The Invention of the Transistor at Bell Labs (1947)",
+    "domain": "history",
+    "explainer": "Every gate on the FPGA fabric you program, and every gate you could instead etch into a custom chip, traces back to one physical breakthrough: on December 16, 1947, Bell Labs researchers John Bardeen and Walter Brattain built the first working point-contact transistor, with William Shockley's group supplying the theory behind it. Before that, the only practical way to build a logic gate was a bulky, power-hungry vacuum tube, which made anything resembling a modern CPU physically impractical. Designing your own ISA on an FPGA is, quite literally, standing on that December 1947 experiment — the LUTs and flip-flops you wire together are still transistors switching, just arranged differently.",
+    "resources": [
+      {
+        "title": "History of the transistor",
+        "url": "https://en.wikipedia.org/wiki/History_of_the_transistor",
+        "source": "Wikipedia"
+      },
+      {
+        "title": "1947: Invention of the Point-Contact Transistor",
+        "url": "https://www.computerhistory.org/siliconengine/invention-of-the-point-contact-transistor/",
+        "source": "Computer History Museum — The Silicon Engine"
+      }
+    ]
+  },
+  {
+    "id": "hardware-systems/tier-5/design-your-own-isa-cpu-on-fpga/s2",
+    "title": "The RISC vs CISC Debate (1980)",
+    "domain": "history",
+    "explainer": "Deciding how simple or complex to make your ISA's instructions re-runs a real argument from 1980: David Patterson and David Ditzel's paper 'The Case for the Reduced Instruction Set Computer' argued that simple, uniform instructions decoded directly in hardware would outperform the growing microcode complexity of designs like DEC's VAX. The resulting Berkeley RISC project and the rebuttals it provoked from minicomputer designers became known as the RISC-CISC debate, and it shaped essentially every ISA choice made since, including the ARM and RISC-V cores that FPGA CPU projects commonly imitate.",
+    "resources": [
+      {
+        "title": "Reduced instruction set computer",
+        "url": "https://en.wikipedia.org/wiki/Reduced_instruction_set_computer",
+        "source": "Wikipedia"
+      },
+      {
+        "title": "RISCy History",
+        "url": "https://www.sigarch.org/riscy-history/",
+        "source": "ACM SIGARCH"
+      }
+    ]
+  }
+]

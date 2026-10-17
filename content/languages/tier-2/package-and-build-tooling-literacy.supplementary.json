@@ -1,0 +1,33 @@
+[
+  {
+    "id": "languages/tier-2/package-and-build-tooling-literacy/s1",
+    "title": "Tom Preston-Werner and the Semantic Versioning Spec",
+    "domain": "history",
+    "explainer": "The MAJOR.MINOR.PATCH convention this lesson covers, and the whole idea that a version number is a promise other tools can rely on, was formalized as a written specification by GitHub cofounder Tom Preston-Werner in the late 2000s. He wrote it because, without a shared convention, every package maintainer was making up their own rules for what counted as a \"breaking\" release — npm, Cargo, and most modern package managers now build their automatic-upgrade behavior directly on top of his spec.",
+    "resources": [
+      {
+        "title": "Semantic Versioning 2.0.0",
+        "url": "https://semver.org/",
+        "source": "semver.org"
+      }
+    ]
+  },
+  {
+    "id": "languages/tier-2/package-and-build-tooling-literacy/s2",
+    "title": "Stuart Feldman and the Invention of Make (1976)",
+    "domain": "history",
+    "explainer": "Make — and the tab-indented recipe syntax this lesson warns you about — was written by Stuart Feldman at Bell Labs in the spring of 1976, by his own account after a colleague lost a morning's work to a stale, un-rebuilt executable. Feldman's core idea, comparing file modification timestamps to rebuild only what's out of date, is exactly the dependency-graph behavior this lesson demonstrates, and it earned him the ACM Software System Award in 2003 for a tool still shipped on every Unix-like system half a century later.",
+    "resources": [
+      {
+        "title": "Make (software)",
+        "url": "https://en.wikipedia.org/wiki/Make_(software)",
+        "source": "Wikipedia"
+      },
+      {
+        "title": "Stuart Feldman",
+        "url": "https://en.wikipedia.org/wiki/Stuart_Feldman",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

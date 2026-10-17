@@ -1,0 +1,28 @@
+[
+  {
+    "id": "platforms/tier-2/intro-game-dev-with-a-2d-framework/s1",
+    "title": "Pong and the 1972 Start of the Commercial Video Game Industry",
+    "domain": "history",
+    "explainer": "Atari's Pong, built by engineer Allan Alcorn in 1972, is widely credited with launching the commercial video game industry and proving the arcade cabinet as a viable business. Its simplicity - two paddles, a ball, a score - is a useful reminder that a 2D game framework's core ideas (a render loop, input handling, simple collision checks) were already present in the very first commercially successful video game. Modern 2D frameworks simply automate what Pong's designers had to wire together directly in hardware.",
+    "resources": [
+      {
+        "title": "Pong",
+        "url": "https://en.wikipedia.org/wiki/Pong",
+        "source": "Wikipedia"
+      }
+    ]
+  },
+  {
+    "id": "platforms/tier-2/intro-game-dev-with-a-2d-framework/s2",
+    "title": "The Flicker Fusion Threshold and Why Frame Rate Matters",
+    "domain": "science",
+    "explainer": "A sequence of still images only looks like smooth motion because of how human vision processes rapidly changing light: above a certain frequency, called the flicker fusion threshold, the eye and brain stop perceiving distinct flickers and perceive continuous motion instead. This is a real perceptual limit, not an arbitrary convention, and it's a core reason 2D game frameworks default to running their loop at 30, 60, or more frames per second. Choosing a target frame rate for a game is really a choice about staying comfortably above that perceptual threshold.",
+    "resources": [
+      {
+        "title": "Flicker fusion threshold",
+        "url": "https://en.wikipedia.org/wiki/Flicker_fusion_threshold",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

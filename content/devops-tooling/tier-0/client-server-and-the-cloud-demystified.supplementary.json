@@ -1,0 +1,33 @@
+[
+  {
+    "id": "devops-tooling/tier-0/client-server-and-the-cloud-demystified/s1",
+    "title": "The CAP Theorem and the Limits of Distributed Systems (2000-2002)",
+    "domain": "math",
+    "explainer": "In 2000, Eric Brewer conjectured that a distributed data store cannot simultaneously guarantee consistency, availability, and partition tolerance; in 2002, Seth Gilbert and Nancy Lynch gave a formal proof, turning the conjecture into a theorem. It explains, in precise terms, why 'the server' stops being one simple thing once a service is spread across many machines and data centers: every real cloud database or API has quietly chosen which two of those three guarantees it keeps, and which it sacrifices when the network breaks.",
+    "resources": [
+      {
+        "title": "CAP theorem",
+        "url": "https://en.wikipedia.org/wiki/CAP_theorem",
+        "source": "Wikipedia"
+      },
+      {
+        "title": "Perspectives on the CAP Theorem",
+        "url": "https://groups.csail.mit.edu/tds/papers/Gilbert/Brewer2.pdf",
+        "source": "MIT CSAIL (Gilbert & Lynch)"
+      }
+    ]
+  },
+  {
+    "id": "devops-tooling/tier-0/client-server-and-the-cloud-demystified/s2",
+    "title": "John McCarthy's 1961 Vision of Computing as a Public Utility",
+    "domain": "history",
+    "explainer": "Speaking at MIT's centennial celebration in 1961, John McCarthy suggested that computing might one day be sold the way electricity or water is, with subscribers paying only for the capacity they actually use. The idea cycled through decades of hype and neglect before cheap virtualization let companies like Amazon actually deliver pay-as-you-go computing at scale in the 2000s, which is what 'the cloud' now is. It is a useful reminder that the cloud is not a new architecture so much as the eventual fulfillment of a sixty-year-old proposal.",
+    "resources": [
+      {
+        "title": "John McCarthy (computer scientist) — Utility computing",
+        "url": "https://en.wikipedia.org/wiki/John_McCarthy_(computer_scientist)",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

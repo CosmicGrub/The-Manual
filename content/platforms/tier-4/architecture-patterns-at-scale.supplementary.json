@@ -1,0 +1,38 @@
+[
+  {
+    "id": "platforms/tier-4/architecture-patterns-at-scale/s1",
+    "title": "Melvin Conway and \"How Do Committees Invent?\" (1968)",
+    "domain": "history",
+    "explainer": "In a 1968 Datamation article, computer scientist Melvin Conway argued that any organization designing a system will inevitably produce a design that mirrors its own communication structure. At scale, this explains why microservice boundaries, module ownership, and API seams so often trace an org chart rather than some theoretically ideal decomposition, and why reorganizing a team can be the only real way to fix a stubborn architecture. It's a reminder that architecture at scale is a people problem as much as a technical one.",
+    "resources": [
+      {
+        "title": "Conway's law",
+        "url": "https://en.wikipedia.org/wiki/Conway%27s_law",
+        "source": "Wikipedia"
+      },
+      {
+        "title": "How Do Committees Invent? (original 1968 paper)",
+        "url": "https://www.melconway.com/Home/Committees_Paper.html",
+        "source": "melconway.com"
+      }
+    ]
+  },
+  {
+    "id": "platforms/tier-4/architecture-patterns-at-scale/s2",
+    "title": "Trygve Reenskaug and the Invention of MVC (1978–79)",
+    "domain": "history",
+    "explainer": "While a visiting scientist at Xerox PARC in 1978–79, Norwegian computer scientist Trygve Reenskaug wrote the original technical notes defining Model, View, and Controller as a way to let a user inspect and edit a complex data set from multiple perspectives. Nearly every layered architecture pattern used across platforms today — MVC, MVVM, MVP, and their many variants in iOS, Android, and web frameworks — descends from that one internal memo. Knowing the pattern began as a solution to one specific UI problem, not a universal law of software, helps explain why it keeps getting reinvented and renamed.",
+    "resources": [
+      {
+        "title": "MVC: Xerox PARC 1978-79 (Reenskaug's own history page)",
+        "url": "https://folk.universitetetioslo.no/trygver/themes/mvc/mvc-index.html",
+        "source": "University of Oslo (Trygve Reenskaug)"
+      },
+      {
+        "title": "Model–view–controller",
+        "url": "https://en.wikipedia.org/wiki/Model%E2%80%93view%E2%80%93controller",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

@@ -1,0 +1,28 @@
+[
+  {
+    "id": "software-engineering/tier-4/distributed-systems-foundations/s1",
+    "title": "Brewer's Conjecture and the CAP Theorem (2000-2002)",
+    "domain": "history",
+    "explainer": "At a 2000 symposium, Eric Brewer proposed that a distributed data store can guarantee at most two of three properties at once - consistency, availability, and partition tolerance - and in 2002 Seth Gilbert and Nancy Lynch published a formal proof turning the conjecture into a theorem. The result forces an explicit design choice whenever a network can partition, which is why distributed databases describe themselves as roughly 'AP' or 'CP' systems rather than claiming to satisfy everything at once. It remains the most-cited reason distributed systems can't just be 'correct' the way a single-machine program can.",
+    "resources": [
+      {
+        "title": "CAP theorem",
+        "url": "https://en.wikipedia.org/wiki/CAP_theorem",
+        "source": "Wikipedia"
+      }
+    ]
+  },
+  {
+    "id": "software-engineering/tier-4/distributed-systems-foundations/s2",
+    "title": "Lamport Clocks and Ordering Events Without a Shared Clock (1978)",
+    "domain": "history",
+    "explainer": "In 1978, Leslie Lamport showed that processes without synchronized physical clocks can still agree on a consistent ordering of events, by having each process keep a counter that advances on every event and travels along with every message it sends. This 'happened-before' partial ordering underlies how distributed systems determine which of two concurrent updates came first and underlies the vector clocks and version-tracking schemes used in many modern distributed databases. The lesson's treatment of ordering and consistency across nodes traces directly back to this one paper.",
+    "resources": [
+      {
+        "title": "Lamport timestamp",
+        "url": "https://en.wikipedia.org/wiki/Lamport_timestamp",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

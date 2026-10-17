@@ -1,0 +1,20 @@
+[
+  {
+    "id": "languages/tier-2/calling-sql-from-your-language/s1",
+    "title": "Edgar Codd and the Relational Model (1970)",
+    "domain": "math",
+    "explainer": "The table-and-row shape that sqlite3, pg, SQLAlchemy, and Prisma all hand you back isn't an arbitrary convention — it comes from a 1970 paper by IBM researcher Edgar F. Codd, \"A Relational Model of Data for Large Shared Data Banks,\" which proposed representing data as simple tables manipulated with operations borrowed from mathematical set theory, replacing the rigid hierarchical formats databases used until then. Software Engineering's SQL modules cover the relational model and query design in real depth; here it's just worth knowing that the row objects every driver and ORM in this lesson returns trace back to that one mathematical proposal.",
+    "resources": [
+      {
+        "title": "Edgar F. Codd",
+        "url": "https://en.wikipedia.org/wiki/Edgar_F._Codd",
+        "source": "Wikipedia"
+      },
+      {
+        "title": "The relational database",
+        "url": "https://www.ibm.com/history/relational-database",
+        "source": "IBM"
+      }
+    ]
+  }
+]

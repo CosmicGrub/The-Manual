@@ -1,0 +1,33 @@
+[
+  {
+    "id": "ai-ml-prompting/tier-1/prompt-engineering-craft-i/s1",
+    "title": "Grice's Cooperative Principle and the Maxims of Conversation (1975)",
+    "domain": "science",
+    "explainer": "Philosopher Paul Grice's 1975 'Logic and Conversation' proposed that successful communication rests on an assumed Cooperative Principle, broken into maxims of quantity (say enough, not too much), quality (be truthful and have evidence), relation (be relevant), and manner (be clear and orderly). These maxims describe, almost point for point, what makes a prompt succeed or fail: a vague, bloated, or disorganized prompt violates exactly the maxims Grice identified, and naming them gives a vocabulary for diagnosing why a prompt is being misread. This isn't an AI-specific insight; it's the same pragmatics that governs ordinary human conversation, which prompt writing borrows from (and sometimes has to deliberately override).",
+    "resources": [
+      {
+        "title": "Paul Grice",
+        "url": "https://plato.stanford.edu/entries/grice/",
+        "source": "Stanford Encyclopedia of Philosophy"
+      },
+      {
+        "title": "Pragmatics: Crash Course Linguistics #6",
+        "url": "https://thecrashcourse.com/courses/pragmatics-crash-course-linguistics-6/",
+        "source": "Crash Course (PBS)"
+      }
+    ]
+  },
+  {
+    "id": "ai-ml-prompting/tier-1/prompt-engineering-craft-i/s2",
+    "title": "ELIZA and the Illusion of Understanding (1966)",
+    "domain": "history",
+    "explainer": "Joseph Weizenbaum's 1966 ELIZA program held convincing conversations using nothing but keyword-spotting and canned sentence templates, with no semantic understanding of what was said, and many users (including some who knew exactly how it worked) still felt understood by it. ELIZA is an early, direct warning about a risk prompt writers still have to manage: a system can produce responses that look coherent and responsive largely because of surface pattern-matching on the prompt's wording, not because of deep understanding of intent. It's a useful check against over-trusting fluent-sounding output just because it's well formed.",
+    "resources": [
+      {
+        "title": "ELIZA",
+        "url": "https://en.wikipedia.org/wiki/ELIZA",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

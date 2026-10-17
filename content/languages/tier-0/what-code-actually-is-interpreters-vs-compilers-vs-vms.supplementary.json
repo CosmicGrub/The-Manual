@@ -1,0 +1,33 @@
+[
+  {
+    "id": "languages/tier-0/what-code-actually-is-interpreters-vs-compilers-vs-vms/s1",
+    "title": "The 1957 FORTRAN Compiler and the Original Bet on Compiling",
+    "domain": "history",
+    "explainer": "When John Backus's IBM team delivered the first FORTRAN compiler in April 1957, many programmers doubted that compiled code could ever run as efficiently as hand-written assembly - 'compiling,' the idea this lesson introduces as a given, was a real gamble at the time. FORTRAN's compiler had to prove itself by generating machine code good enough that programmers would trust it over assembly by hand, which is part of why it's remembered as one of the first seriously optimizing compilers rather than just a translator.",
+    "resources": [
+      {
+        "title": "Fortran",
+        "url": "https://en.wikipedia.org/wiki/Fortran",
+        "source": "Wikipedia"
+      }
+    ]
+  },
+  {
+    "id": "languages/tier-0/what-code-actually-is-interpreters-vs-compilers-vs-vms/s2",
+    "title": "The UCSD p-System: Bytecode and Portable VMs Before Java (1978)",
+    "domain": "history",
+    "explainer": "The 'compile to bytecode, then run that bytecode on a VM' middle path this lesson describes wasn't invented for Java. Kenneth Bowles's team at UC San Diego built the p-System in the late 1970s, compiling Pascal into a portable 'p-code' that an interpreter then ran on whatever CPU was available, from the 6502 to the PDP-11. James Gosling later named this Pascal p-code system as a direct influence on the design of the Java Virtual Machine, so the bytecode/VM model you're learning here already had roughly two decades of history before Java made it famous.",
+    "resources": [
+      {
+        "title": "P-code machine",
+        "url": "https://en.wikipedia.org/wiki/P-code_machine",
+        "source": "Wikipedia"
+      },
+      {
+        "title": "UCSD Pascal",
+        "url": "https://en.wikipedia.org/wiki/UCSD_Pascal",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

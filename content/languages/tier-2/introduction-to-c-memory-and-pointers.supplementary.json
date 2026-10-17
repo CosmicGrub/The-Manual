@@ -1,0 +1,33 @@
+[
+  {
+    "id": "languages/tier-2/introduction-to-c-memory-and-pointers/s1",
+    "title": "Dennis Ritchie and the Creation of C at Bell Labs (1972)",
+    "domain": "history",
+    "explainer": "C exists because Dennis Ritchie, working at Bell Labs, needed a language to rewrite the Unix operating system in — he built it in 1972 by extending an earlier, typeless language called B (itself derived from BCPL) with real data types and structures. That Unix-rewriting origin explains why C gives you direct, unmediated access to memory addresses through pointers rather than hiding them behind a safer abstraction: the language was designed for systems programmers who needed that control, not for application programmers who'd rather not think about it.",
+    "resources": [
+      {
+        "title": "C (programming language)",
+        "url": "https://en.wikipedia.org/wiki/C_(programming_language)",
+        "source": "Wikipedia"
+      },
+      {
+        "title": "Dennis Ritchie",
+        "url": "https://en.wikipedia.org/wiki/Dennis_Ritchie",
+        "source": "Wikipedia"
+      }
+    ]
+  },
+  {
+    "id": "languages/tier-2/introduction-to-c-memory-and-pointers/s2",
+    "title": "The Morris Worm and the First Internet-Scale Buffer Overflow (1988)",
+    "domain": "history",
+    "explainer": "The pointer bugs this lesson warns about aren't just a classroom hazard: in November 1988, the Morris worm spread across a large share of the early internet partly by exploiting a stack buffer overflow in a Unix program called fingerd, which used an unbounded C function to copy input into a fixed-size buffer. It's considered one of the first buffer-overflow exploits used in the wild, and the incident is a direct, real-world instance of the exact failure mode this module's uninitialized-pointer and array-bounds warnings exist to prevent.",
+    "resources": [
+      {
+        "title": "Morris worm",
+        "url": "https://en.wikipedia.org/wiki/Morris_worm",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

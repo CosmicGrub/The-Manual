@@ -1,0 +1,20 @@
+[
+  {
+    "id": "devops-tooling/tier-0/terminal-fluency-for-ops/s1",
+    "title": "Doug McIlroy's Garden-Hose Memo and the Invention of the Unix Pipe (1964-1973)",
+    "domain": "history",
+    "explainer": "In an internal 1964 Bell Labs memo, Doug McIlroy proposed that programs should 'connect like a garden hose,' with the output of one screwed directly into the input of the next; Ken Thompson implemented the `|` pipe operator in Unix in 1973, instantly turning a set of small single-purpose tools into a combinable toolkit. That is exactly the move you make every time you pipe `grep` into `awk` into `sort` at an ops terminal, and the 'small composable tools joined by pipes' philosophy it kicked off still shapes how command-line and devops tooling is designed today.",
+    "resources": [
+      {
+        "title": "Pipeline (Unix)",
+        "url": "https://en.wikipedia.org/wiki/Pipeline_(Unix)",
+        "source": "Wikipedia"
+      },
+      {
+        "title": "Prophetic Petroglyphs (Advice from Doug McIlroy)",
+        "url": "https://www.nokia.com/bell-labs/about/dennis-m-ritchie/mdmpipe.html",
+        "source": "Nokia Bell Labs (Dennis Ritchie)"
+      }
+    ]
+  }
+]

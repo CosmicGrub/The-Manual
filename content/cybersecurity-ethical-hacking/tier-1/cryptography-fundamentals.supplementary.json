@@ -1,0 +1,51 @@
+[
+  {
+    "id": "cybersecurity-ethical-hacking/tier-1/cryptography-fundamentals/s1",
+    "title": "From Caesar's Shift to Bletchley Park: Codebreaking Before Computers",
+    "domain": "history",
+    "explainer": "For over two thousand years, cryptography mostly meant simple substitution: Julius Caesar reportedly shifted each letter in his messages by three places, a technique now called the Caesar cipher. By the 1930s-40s, Polish cryptanalysts led by Marian Rejewski first broke the German military's rotor-based Enigma machine, and British codebreakers at Bletchley Park - including Alan Turing's work on the Bombe - industrialized that break during World War II. Seeing cryptography travel from a three-letter shift to an electromechanical cipher machine clarifies why modern systems are built to resist far more than simple pattern-guessing.",
+    "resources": [
+      {
+        "title": "Caesar cipher",
+        "url": "https://en.wikipedia.org/wiki/Caesar_cipher",
+        "source": "Wikipedia"
+      },
+      {
+        "title": "Enigma machine",
+        "url": "https://en.wikipedia.org/wiki/Enigma_machine",
+        "source": "Wikipedia"
+      }
+    ]
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-1/cryptography-fundamentals/s2",
+    "title": "Diffie, Hellman, and RSA: The Invention of Public-Key Cryptography (1976-77)",
+    "domain": "history",
+    "explainer": "Until the mid-1970s, every practical cipher required both parties to share the same secret key in advance. In 1976, Whitfield Diffie and Martin Hellman published 'New Directions in Cryptography,' showing how two people could establish a shared secret over an open channel without ever meeting; Ron Rivest, Adi Shamir, and Leonard Adleman followed in 1977 with RSA, a full public-key encryption and signature scheme built on the same idea. This breakthrough is why a browser can set up a secure connection with a server it has never 'met' before - the backbone of HTTPS, SSH, and most of the practical cryptography this lesson covers.",
+    "resources": [
+      {
+        "title": "Diffie–Hellman key exchange",
+        "url": "https://en.wikipedia.org/wiki/Diffie%E2%80%93Hellman_key_exchange",
+        "source": "Wikipedia"
+      },
+      {
+        "title": "RSA (cryptosystem)",
+        "url": "https://en.wikipedia.org/wiki/RSA_(cryptosystem)",
+        "source": "Wikipedia"
+      }
+    ]
+  },
+  {
+    "id": "cybersecurity-ethical-hacking/tier-1/cryptography-fundamentals/s3",
+    "title": "Modular Arithmetic: The Math Engine Inside RSA and Diffie-Hellman",
+    "domain": "math",
+    "explainer": "Both RSA and Diffie-Hellman depend on modular arithmetic - arithmetic that 'wraps around' after reaching a fixed value, the same idea behind a 12-hour clock. Raising numbers to large powers and reducing modulo some number is easy to compute in one direction but, chosen carefully, extremely hard to reverse, which is exactly the one-way difficulty these cryptosystems exploit. Seeing modular arithmetic as ordinary clock math, rather than abstract symbol-pushing, makes it far less intimidating when it reappears inside key exchange and encryption.",
+    "resources": [
+      {
+        "title": "Modular arithmetic",
+        "url": "https://en.wikipedia.org/wiki/Modular_arithmetic",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

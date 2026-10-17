@@ -1,0 +1,38 @@
+[
+  {
+    "id": "platforms/tier-4/performance-engineering-across-platforms/s1",
+    "title": "Gene Amdahl and the Law That Limits Parallel Speedup (1967)",
+    "domain": "math",
+    "explainer": "In a 1967 paper, IBM's Gene Amdahl showed mathematically that the speedup from parallelizing a program is capped by the fraction of the program that must still run sequentially, no matter how many cores are thrown at the parallel part. This is why performance engineers across mobile, desktop, web, and game platforms chase the sequential bottleneck first: adding threads to code that's already mostly parallel gives far smaller returns than the same effort spent on the serial portion. Amdahl's Law turns \"just parallelize it\" from an instinct into a number you can actually compute.",
+    "resources": [
+      {
+        "title": "Amdahl's law",
+        "url": "https://en.wikipedia.org/wiki/Amdahl%27s_law",
+        "source": "Wikipedia"
+      },
+      {
+        "title": "Validity of the single processor approach to achieving large scale computing capabilities (1967 original paper)",
+        "url": "https://www.cs.cmu.edu/~18742/papers/Amdahl1967.pdf",
+        "source": "Carnegie Mellon University (hosted reprint)"
+      }
+    ]
+  },
+  {
+    "id": "platforms/tier-4/performance-engineering-across-platforms/s2",
+    "title": "V8 and the 2008 JavaScript Performance Race",
+    "domain": "history",
+    "explainer": "Google hired Lars Bak in 2006 to build a JavaScript engine that compiled straight to native machine code instead of interpreting it, and V8 shipped alongside Chrome's 2008 launch using techniques like hidden classes and inline caches drawn from object-oriented VM research. That same open-sourced engine now also powers Node.js, which is why \"JavaScript performance\" on the web and on a server are often the same performance-engineering problem. It's a useful reminder that a platform's performance ceiling is frequently set by one specific piece of engine history, not by the language itself.",
+    "resources": [
+      {
+        "title": "Celebrating 10 years of V8",
+        "url": "https://v8.dev/blog/10-years",
+        "source": "V8 (Google's official project blog)"
+      },
+      {
+        "title": "V8 (JavaScript engine)",
+        "url": "https://en.wikipedia.org/wiki/V8_(JavaScript_engine)",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

@@ -1,0 +1,15 @@
+[
+  {
+    "id": "devops-tooling/tier-4/performance-and-cost-engineering-at-scale/s1",
+    "title": "Amdahl's Law and the Ceiling on Parallel Speedup",
+    "domain": "math",
+    "explainer": "Performance and cost engineering at scale runs into a limit Gene Amdahl formalized in 1967: the speedup available from parallelizing a workload is capped by whatever fraction of the work must still run sequentially, no matter how many processors or nodes are added. This is why adding more compute to a bottlenecked pipeline often yields diminishing cost-per-throughput returns, and why shrinking the serial portion of a system matters more than raw horizontal scaling. It gives a concrete mathematical basis for the engineering intuition that scaling out has limits.",
+    "resources": [
+      {
+        "title": "Amdahl's law",
+        "url": "https://en.wikipedia.org/wiki/Amdahl%27s_law",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

@@ -1,0 +1,28 @@
+[
+  {
+    "id": "software-engineering/tier-3/end-to-end-and-contract-testing/s1",
+    "title": "Mike Cohn's Test Pyramid (2009)",
+    "domain": "history",
+    "explainer": "In his 2009 book Succeeding with Agile, Mike Cohn described a simple shape for test strategy: a wide base of fast unit tests, a narrower middle layer of service-level tests, and a thin, expensive top layer of UI-driven tests. The choices this lesson covers are a direct descendant of that shape: end-to-end tests sit at the costly, brittle top of the pyramid, which is exactly why teams try to push as much verification as possible down into cheaper, faster contract and service-level tests instead.",
+    "resources": [
+      {
+        "title": "TestPyramid",
+        "url": "https://martinfowler.com/bliki/TestPyramid.html",
+        "source": "martinfowler.com"
+      }
+    ]
+  },
+  {
+    "id": "software-engineering/tier-3/end-to-end-and-contract-testing/s2",
+    "title": "Consumer-Driven Contracts (Ian Robinson, 2006)",
+    "domain": "history",
+    "explainer": "ThoughtWorks consultant Ian Robinson coined \"consumer-driven contracts\" to invert the usual direction of an API contract: instead of a provider publishing one rigid interface that every consumer must track, each consumer states only the parts of a response it actually uses, and those statements are combined into the contract the provider must satisfy. This consumer-first idea is the direct ancestor of today's contract-testing tools, which automate that negotiation instead of relying on slow, shared end-to-end environments to catch integration breaks.",
+    "resources": [
+      {
+        "title": "Consumer-Driven Contract Testing (CDC)",
+        "url": "https://microsoft.github.io/code-with-engineering-playbook/automated-testing/cdc-testing/",
+        "source": "Microsoft (Code With Engineering Playbook)"
+      }
+    ]
+  }
+]

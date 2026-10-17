@@ -1,0 +1,38 @@
+[
+  {
+    "id": "languages/tier-5/functional-programming-deep-dive/s1",
+    "title": "John McCarthy and the Creation of Lisp (1958)",
+    "domain": "history",
+    "explainer": "John McCarthy designed Lisp in 1958 at MIT because FORTRAN, the only high-level language then available, had no support for recursion or conditional expressions, the tools he needed for his AI research. The result was a language built around functions as the primary unit of computation, including functions that take and return other functions. Nearly every idea this lesson covers, from first-class functions to recursion as a default, traces back to choices McCarthy made to solve a specific research problem, not to an abstract theory of programming handed down in advance.",
+    "resources": [
+      {
+        "title": "John McCarthy (computer scientist)",
+        "url": "https://en.wikipedia.org/wiki/John_McCarthy_(computer_scientist)",
+        "source": "Wikipedia"
+      },
+      {
+        "title": "Professor John McCarthy (In Memoriam)",
+        "url": "https://legacy.cs.stanford.edu/memoriam/professor-john-mccarthy",
+        "source": "Stanford University"
+      }
+    ]
+  },
+  {
+    "id": "languages/tier-5/functional-programming-deep-dive/s2",
+    "title": "Currying: Schönfinkel's Logic Trick Renamed After Curry",
+    "domain": "math",
+    "explainer": "The idea that a multi-argument function can be rewritten as a chain of one-argument functions was first worked out by Moses Schönfinkel in a 1920 talk at Göttingen, as a way to simplify combinatory logic; Haskell Curry independently expanded the technique later, and later writers attached Curry's name to it rather than Schönfinkel's. Every time you partially apply a function in a functional language, you're using a maneuver invented decades before compilers existed, to make formal logic simpler. It's a reminder that much of functional programming's toolkit is repurposed 1920s mathematical logic, not a recent invention.",
+    "resources": [
+      {
+        "title": "Moses Schönfinkel",
+        "url": "https://en.wikipedia.org/wiki/Moses_Sch%C3%B6nfinkel",
+        "source": "Wikipedia"
+      },
+      {
+        "title": "Currying",
+        "url": "https://en.wikipedia.org/wiki/Currying",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

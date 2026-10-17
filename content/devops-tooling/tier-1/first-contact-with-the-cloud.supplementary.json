@@ -1,0 +1,28 @@
+[
+  {
+    "id": "devops-tooling/tier-1/first-contact-with-the-cloud/s1",
+    "title": "The CAP Theorem and the Tradeoffs Behind Every Cloud Service",
+    "domain": "math",
+    "explainer": "In 2000, Eric Brewer conjectured that a distributed system cannot simultaneously guarantee Consistency, Availability, and Partition tolerance; Seth Gilbert and Nancy Lynch gave the idea a formal proof in 2002. Every managed cloud database or storage service you use has made an explicit, unavoidable tradeoff among these three properties, which is why terms like 'eventually consistent' and 'strongly consistent' describe real mathematical constraints, not just marketing language.",
+    "resources": [
+      {
+        "title": "CAP theorem",
+        "url": "https://en.wikipedia.org/wiki/CAP_theorem",
+        "source": "Wikipedia"
+      }
+    ]
+  },
+  {
+    "id": "devops-tooling/tier-1/first-contact-with-the-cloud/s2",
+    "title": "IBM's VM/370 and the 1970s Roots of 'Virtual' Machines",
+    "domain": "history",
+    "explainer": "Long before 'the cloud' existed as a term, IBM researchers built the CP-40 and later VM/370 systems in the late 1960s and early 1970s so that a single mainframe could run many isolated virtual machines, each one behaving as if it owned the hardware outright. Modern cloud providers sell the same illusion of a dedicated machine carved out of shared physical hardware, just at a vastly larger scale and with different underlying tech.",
+    "resources": [
+      {
+        "title": "VM (operating system)",
+        "url": "https://en.wikipedia.org/wiki/VM_(operating_system)",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

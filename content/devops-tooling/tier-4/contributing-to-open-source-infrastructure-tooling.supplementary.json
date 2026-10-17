@@ -1,0 +1,28 @@
+[
+  {
+    "id": "devops-tooling/tier-4/contributing-to-open-source-infrastructure-tooling/s1",
+    "title": "The Unix Philosophy and the Design of Composable Tools",
+    "domain": "history",
+    "explainer": "The convention of building infrastructure tools as small, composable programs with well-defined interfaces, rather than monolithic do-everything binaries, descends from the Unix philosophy articulated at Bell Labs: write programs that do one thing well and that work together with others. This design ethos - not just shared code - is what most open-source infrastructure tooling, and its norm of small, focused contributions, actually inherited from Unix. It explains why good pull requests to tools like Terraform providers or kubectl plugins favor narrow, well-scoped changes over sprawling ones.",
+    "resources": [
+      {
+        "title": "Unix philosophy",
+        "url": "https://en.wikipedia.org/wiki/Unix_philosophy",
+        "source": "Wikipedia"
+      }
+    ]
+  },
+  {
+    "id": "devops-tooling/tier-4/contributing-to-open-source-infrastructure-tooling/s2",
+    "title": "The GNU Project and the Legal Foundations of Open-Source Collaboration",
+    "domain": "history",
+    "explainer": "Contributing to open-source infrastructure tooling depends on a licensing structure that didn't exist before Richard Stallman launched the GNU Project in 1983 to build a free, collaboratively-maintained operating system. Copyleft licensing was designed to guarantee that community contributions stayed open rather than being absorbed into a closed product, which is what makes long-term collaborative maintenance of shared infrastructure tools viable at all. Most license choices a new contributor encounters today (GPL, MIT, Apache 2.0) trace their underlying logic back to debates the GNU Project started.",
+    "resources": [
+      {
+        "title": "GNU Project",
+        "url": "https://en.wikipedia.org/wiki/GNU_Project",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

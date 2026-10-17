@@ -1,0 +1,15 @@
+[
+  {
+    "id": "devops-tooling/tier-3/advanced-infrastructure-as-code/s1",
+    "title": "Idempotence: The Algebra Behind 'Safe to Re-run'",
+    "domain": "math",
+    "explainer": "Idempotence is a formal property from abstract algebra: an operation f is idempotent if applying it twice gives the same result as applying it once, f(f(x)) = f(x). Infrastructure-as-code tools (Terraform, Ansible, Puppet) are built around this exact property on purpose - a well-written manifest or plan can be applied repeatedly against the same infrastructure and converge to the same state rather than compounding changes, which is precisely what makes re-running a failed apply safe instead of dangerous.",
+    "resources": [
+      {
+        "title": "Idempotence",
+        "url": "https://en.wikipedia.org/wiki/Idempotence",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

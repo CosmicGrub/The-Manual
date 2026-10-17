@@ -1,0 +1,38 @@
+[
+  {
+    "id": "hardware-systems/tier-2/memory-hierarchy-and-cache-behavior-empirically/s1",
+    "title": "Maurice Wilkes and the First Cache Memory Paper (1965)",
+    "domain": "history",
+    "explainer": "In April 1965, Maurice Wilkes - who had earlier helped build EDSAC, one of the first stored-program computers - published \"Slave Memories and Dynamic Storage Allocation,\" the first paper describing what we now call a cache: a small, fast memory that transparently holds copies of recently used data from a larger, slower main memory. Wilkes called it a \"slave memory\"; the name we use now, cache, comes from the French word for \"to hide,\" describing a hidden layer that makes slow memory look fast. It is the direct ancestor of the L1/L2/L3 hierarchy you are measuring empirically in this lesson.",
+    "resources": [
+      {
+        "title": "Maurice Wilkes Introduces Memory Caching, Giving it a Name No Longer Politically Correct",
+        "url": "https://www.historyofinformation.com/detail.php?id=834",
+        "source": "History of Information"
+      },
+      {
+        "title": "Maurice Wilkes",
+        "url": "https://en.wikipedia.org/wiki/Maurice_Wilkes",
+        "source": "Wikipedia"
+      }
+    ]
+  },
+  {
+    "id": "hardware-systems/tier-2/memory-hierarchy-and-cache-behavior-empirically/s2",
+    "title": "Denning's Working Set Model and the Principle of Locality",
+    "domain": "science",
+    "explainer": "While studying thrashing in MIT's Multics time-sharing system in the 1960s, Peter Denning formalized \"locality of reference\" - the empirical observation that a running program tends to repeatedly touch a small, slowly-shifting subset of its memory rather than accessing it uniformly - into the working set model, described in his 1967 paper and 1968 thesis. That principle is the entire reason a small, fast cache can speed up access to a much larger memory at all: if real programs touched memory uniformly at random, no cache hierarchy would help. When you empirically measure cache hit rates in this lesson, you are directly measuring how strongly a program's real access pattern exhibits the locality Denning described.",
+    "resources": [
+      {
+        "title": "Peter J. Denning",
+        "url": "https://en.wikipedia.org/wiki/Peter_J._Denning",
+        "source": "Wikipedia"
+      },
+      {
+        "title": "The Working Set Model for Program Behavior (1967 paper)",
+        "url": "https://cs.uwaterloo.ca/~brecht/courses/epfl/Possible-Readings/vm-and-gc/working-set-model-denning-sosp-1967.pdf",
+        "source": "Peter J. Denning, hosted by University of Waterloo"
+      }
+    ]
+  }
+]

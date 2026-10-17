@@ -1,0 +1,28 @@
+[
+  {
+    "id": "languages/tier-1/javascript-foundations-in-parallel/s1",
+    "title": "Brendan Eich and the Rushed Birth of JavaScript (1995)",
+    "domain": "history",
+    "explainer": "Netscape hired Brendan Eich in 1995 expecting he'd embed the Scheme language in its browser, but management insisted the new scripting language merely look like Java — ruling out Scheme, Perl, and Python as models for its surface syntax. Eich built a working prototype in an intensely short stretch that spring, shipped first under the name LiveScript in a Navigator beta, and it was renamed JavaScript that December in a joint announcement with Sun Microsystems — a marketing move, since the language has essentially no technical relationship to Java.",
+    "resources": [
+      {
+        "title": "JavaScript",
+        "url": "https://en.wikipedia.org/wiki/JavaScript",
+        "source": "Wikipedia"
+      }
+    ]
+  },
+  {
+    "id": "languages/tier-1/javascript-foundations-in-parallel/s2",
+    "title": "Scheme and Self: the Languages Actually Behind this and Closures",
+    "domain": "history",
+    "explainer": "Even though JavaScript's syntax was forced to look like Java, Eich has said directly that he modeled its closures on Scheme's first-class functions and its object system on the Self language's prototypes. That mixed ancestry is part of why JS's `this` behaves so unlike Python's explicit `self` covered elsewhere in this track — prototype-based objects were never built around a parameter-passing convention, so `this` gets assigned based on how a function is called rather than how it's defined.",
+    "resources": [
+      {
+        "title": "Popularity",
+        "url": "https://brendaneich.com/2008/04/popularity/",
+        "source": "Brendan Eich's blog"
+      }
+    ]
+  }
+]

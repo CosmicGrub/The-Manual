@@ -1,0 +1,38 @@
+[
+  {
+    "id": "ai-ml-prompting/tier-1/probability-and-information-theory-applied-to-ml/s1",
+    "title": "Quinlan's ID3 and Entropy as a Splitting Rule (1986)",
+    "domain": "history",
+    "explainer": "Ross Quinlan's 1986 ID3 algorithm was one of the first widely used machine learning methods to put Shannon's information-theoretic entropy to direct, practical use: at each step it picks the attribute whose split yields the greatest 'information gain,' the largest reduction in entropy about the target class. It's a clean illustration of information theory leaving the domain of communication engineering (where Shannon built it) and becoming an everyday ingredient of ML algorithms, well before entropy and KL divergence became standard training losses for neural networks. Every 'pick the highest information-gain feature' decision-tree-splitting rule taught today traces back to this specific 1986 paper.",
+    "resources": [
+      {
+        "title": "ID3 algorithm",
+        "url": "https://en.wikipedia.org/wiki/ID3_algorithm",
+        "source": "Wikipedia"
+      },
+      {
+        "title": "Information gain (decision tree)",
+        "url": "https://en.wikipedia.org/wiki/Information_gain_(decision_tree)",
+        "source": "Wikipedia"
+      }
+    ]
+  },
+  {
+    "id": "ai-ml-prompting/tier-1/probability-and-information-theory-applied-to-ml/s2",
+    "title": "Naive Bayes Spam Filters and the Popularization of Bayesian ML (1998-2002)",
+    "domain": "history",
+    "explainer": "One of the first places ordinary computer users ran into a Bayesian learning system directly was their email inbox: Sahami, Dumais, Heckerman, and Horvitz's 1998 paper applied a naive Bayes classifier to junk-mail filtering, and Paul Graham's widely read 2002 essay 'A Plan for Spam' popularized the same idea among programmers, showing that a simple per-word probability model built from Bayes' rule could outperform hand-written keyword rules. The episode is a concrete case of a probabilistic model, not a neural network, quietly becoming one of the most-used pieces of applied machine learning in the world, and a good illustration of why the 'naive' conditional-independence assumption, treating each word's presence as independent evidence, can work surprisingly well in practice even though it's technically false.",
+    "resources": [
+      {
+        "title": "A Plan for Spam",
+        "url": "https://paulgraham.com/spam.html",
+        "source": "Paul Graham"
+      },
+      {
+        "title": "A Bayesian Approach to Filtering Junk E-Mail",
+        "url": "http://heckerman.com/david/spam98.pdf",
+        "source": "Sahami, Dumais, Heckerman & Horvitz, AAAI Workshop, 1998"
+      }
+    ]
+  }
+]

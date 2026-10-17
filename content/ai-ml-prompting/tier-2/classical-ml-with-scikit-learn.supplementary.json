@@ -1,0 +1,28 @@
+[
+  {
+    "id": "ai-ml-prompting/tier-2/classical-ml-with-scikit-learn/s1",
+    "title": "Vapnik, Chervonenkis, and the Theory Behind the Support Vector Machine",
+    "domain": "history",
+    "explainer": "The SVM classifier in scikit-learn descends from statistical learning theory developed by Vladimir Vapnik and Alexey Chervonenkis, whose work on when a model generalizes rather than memorizes dates back to the 1960s-70s, with the modern soft-margin SVM formalized by Vapnik and collaborators after he emigrated to the US in the early 1990s. The theory's central question - how much a model can fit before it stops generalizing - is exactly what you're probing every time you compare training and validation accuracy.",
+    "resources": [
+      {
+        "title": "Support vector machine",
+        "url": "https://en.wikipedia.org/wiki/Support_vector_machine",
+        "source": "Wikipedia"
+      }
+    ]
+  },
+  {
+    "id": "ai-ml-prompting/tier-2/classical-ml-with-scikit-learn/s2",
+    "title": "Leo Breiman and the 2001 Random Forests Paper",
+    "domain": "history",
+    "explainer": "The RandomForestClassifier and RandomForestRegressor in scikit-learn implement an algorithm statistician Leo Breiman published in a 2001 paper called simply 'Random Forests,' which combined his own earlier bootstrap-aggregating ('bagging') idea with randomized feature selection to decorrelate individual trees. Breiman came to this corner of machine learning relatively late in a career otherwise spent in classical statistics, which is part of why the method is unusually well-grounded in variance-reduction theory rather than ad hoc tuning.",
+    "resources": [
+      {
+        "title": "Random forest",
+        "url": "https://en.wikipedia.org/wiki/Random_forest",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

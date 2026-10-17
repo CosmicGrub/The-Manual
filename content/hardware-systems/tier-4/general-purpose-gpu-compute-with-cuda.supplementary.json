@@ -1,0 +1,38 @@
+[
+  {
+    "id": "hardware-systems/tier-4/general-purpose-gpu-compute-with-cuda/s1",
+    "title": "Flynn's Taxonomy and Classifying Parallel Hardware (1966)",
+    "domain": "science",
+    "explainer": "In 1966, Michael Flynn proposed classifying computer architectures by how many simultaneous instruction and data streams they operate on: SISD, SIMD, MISD, and MIMD. A CUDA GPU's streaming multiprocessors are the modern descendants of the SIMD branch of that taxonomy (specifically its SIMT variant), which is a useful lens for understanding why warp/thread divergence, not raw core count, is usually what kills GPU performance.",
+    "resources": [
+      {
+        "title": "Flynn's taxonomy",
+        "url": "https://en.wikipedia.org/wiki/Flynn's_taxonomy",
+        "source": "Wikipedia"
+      },
+      {
+        "title": "Taxonomy of Parallel Computers",
+        "url": "https://cvw.cac.cornell.edu/parallel/hpc/taxonomy-parallel-computers",
+        "source": "Cornell Virtual Workshop"
+      }
+    ]
+  },
+  {
+    "id": "hardware-systems/tier-4/general-purpose-gpu-compute-with-cuda/s2",
+    "title": "From Shader Hacking to CUDA: the GPGPU Prehistory",
+    "domain": "history",
+    "explainer": "Before CUDA existed, researchers in the early 2000s disguised general-purpose computations as graphics operations, feeding data in as textures and reading results back out of the framebuffer, because GPUs could only be programmed through the graphics pipeline. Ian Buck's Brook project at Stanford formalized this as a \"streams and kernels\" programming model, and when Buck joined NVIDIA in 2004 and helped turn those ideas into CUDA (launched in 2006), the result finally let programmers think in threads and memory instead of pixels and triangles.",
+    "resources": [
+      {
+        "title": "Stream Computing on Graphics Hardware (PhD thesis)",
+        "url": "https://graphics.stanford.edu/~ianbuck/thesis.pdf",
+        "source": "Stanford University Graphics Lab"
+      },
+      {
+        "title": "Inside the Programming Evolution of GPU Computing",
+        "url": "https://developer.nvidia.com/blog/inside-the-programming-evolution-of-gpu-computing/",
+        "source": "NVIDIA Developer Blog"
+      }
+    ]
+  }
+]

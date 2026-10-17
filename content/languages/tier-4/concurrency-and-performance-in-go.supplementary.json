@@ -1,0 +1,38 @@
+[
+  {
+    "id": "languages/tier-4/concurrency-and-performance-in-go/s1",
+    "title": "Tony Hoare's Communicating Sequential Processes, Decades Before Go",
+    "domain": "math",
+    "explainer": "Go's goroutines and channels descend directly from Communicating Sequential Processes (CSP), a formal model Tony Hoare published in 1978 for describing concurrent systems as independent processes that synchronize only by passing messages over named channels, rather than by sharing memory. Rob Pike had already experimented with CSP-style concurrency in two earlier languages, Newsqueak and Alef, before carrying the idea into Go. That lineage is the real meaning behind Go's own slogan 'share memory by communicating' - it restates Hoare's 1978 design rather than inventing a new one.",
+    "resources": [
+      {
+        "title": "Communicating sequential processes",
+        "url": "https://en.wikipedia.org/wiki/Communicating_sequential_processes",
+        "source": "Wikipedia"
+      },
+      {
+        "title": "Tony Hoare",
+        "url": "https://en.wikipedia.org/wiki/Tony_Hoare",
+        "source": "Wikipedia"
+      }
+    ]
+  },
+  {
+    "id": "languages/tier-4/concurrency-and-performance-in-go/s2",
+    "title": "Three Bell Labs Veterans and the 2007 Whiteboard Session That Became Go",
+    "domain": "history",
+    "explainer": "Go began on September 21, 2007, when Robert Griesemer, Rob Pike, and Ken Thompson started sketching goals for a new language on a whiteboard at Google, frustrated by slow C++ build times and how hard it was to write correct concurrent code at scale. The language was released as open source in November 2009. Their shared background (Thompson co-created Unix; Pike worked on Plan 9 and UTF-8 at Bell Labs) helps explain why Go favors small, composable tools and fast compilation over C++'s feature breadth.",
+    "resources": [
+      {
+        "title": "Frequently Asked Questions (FAQ)",
+        "url": "https://go.dev/doc/faq",
+        "source": "go.dev (official Go documentation)"
+      },
+      {
+        "title": "Go (programming language)",
+        "url": "https://en.wikipedia.org/wiki/Go_(programming_language)",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

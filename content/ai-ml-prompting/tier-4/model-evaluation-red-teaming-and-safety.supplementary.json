@@ -1,0 +1,28 @@
+[
+  {
+    "id": "ai-ml-prompting/tier-4/model-evaluation-red-teaming-and-safety/s1",
+    "title": "Red Teaming's Cold War Origins (1960s)",
+    "domain": "history",
+    "explainer": "The practice of 'red teaming,' having a dedicated group play the adversary to find weaknesses before a real adversary does, originated in Cold War-era US military simulations run partly through the RAND Corporation, where a 'red team' stood in for the Soviet Union against a 'blue team' representing the US. AI safety red-teaming inherited both the name and the logic directly from this tradition: the point is not to grade a system under friendly conditions but to actively search for the inputs that break it, exactly as Cold War planners searched for the strategies that would defeat their own side.",
+    "resources": [
+      {
+        "title": "Red team",
+        "url": "https://en.wikipedia.org/wiki/Red_team",
+        "source": "Wikipedia"
+      }
+    ]
+  },
+  {
+    "id": "ai-ml-prompting/tier-4/model-evaluation-red-teaming-and-safety/s2",
+    "title": "Neyman-Pearson and the Two Kinds of Error (1933)",
+    "domain": "math",
+    "explainer": "In 1933, Jerzy Neyman and Egon Pearson formalized hypothesis testing around two distinct kinds of mistake, a false positive (Type I error) and a false negative (Type II error), and showed there is a principled tradeoff between minimizing one versus the other. Every safety evaluation that reports a false-positive rate (flagging safe content as harmful) against a false-negative rate (missing genuinely harmful content) is applying this ninety-year-old framework, and the same tradeoff explains why making a safety filter stricter necessarily costs something in the other direction.",
+    "resources": [
+      {
+        "title": "Neyman–Pearson lemma",
+        "url": "https://en.wikipedia.org/wiki/Neyman%E2%80%93Pearson_lemma",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

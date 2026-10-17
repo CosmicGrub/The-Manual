@@ -1,0 +1,38 @@
+[
+  {
+    "id": "languages/tier-4/advanced-cpp-templates-move-semantics-and-concurrency/s1",
+    "title": "Bjarne Stroustrup and the Making of C++ (1979-1985)",
+    "domain": "history",
+    "explainer": "In 1979 Bjarne Stroustrup began extending C with Simula-style classes at Bell Labs, aiming for a language 'as elegant as Simula, yet as efficient as C'; he called the result 'C with Classes,' renamed it C++ in 1983, and released it publicly in 1985. Templates were added afterward specifically so that language could express compile-time generic code without giving up C's low-level control. That origin explains why advanced C++ still reads as a fusion of two eras: a C-compatible core with a much later, much richer type and template system layered on top.",
+    "resources": [
+      {
+        "title": "History of C++",
+        "url": "https://cplusplus.com/info/history/",
+        "source": "cplusplus.com"
+      },
+      {
+        "title": "Bjarne Stroustrup",
+        "url": "https://en.wikipedia.org/wiki/Bjarne_Stroustrup",
+        "source": "Wikipedia"
+      }
+    ]
+  },
+  {
+    "id": "languages/tier-4/advanced-cpp-templates-move-semantics-and-concurrency/s2",
+    "title": "Move Semantics' Decade-Long Road to C++11",
+    "domain": "history",
+    "explainer": "Rvalue references and move semantics were not an overnight addition: Howard Hinnant, Dave Abrahams, and Peter Dimov first proposed the '&&' reference type to the C++ standards committee in 2002 (paper N1377), motivated by how utilities like auto_ptr silently transferred ownership when they claimed to copy. The proposal went through several more revisions before rvalue references and move semantics were finally standardized in C++11, nearly a decade later. That history is why move semantics can feel layered on top of a language that already had working copy constructors and destructors - it was.",
+    "resources": [
+      {
+        "title": "N1377: A Proposal to Add Move Semantics Support to the C++ Language",
+        "url": "https://open-std.org/JTC1/SC22/WG21/docs/papers/2002/n1377.htm",
+        "source": "ISO/IEC JTC1/SC22/WG21 (open-std.org)"
+      },
+      {
+        "title": "C++11",
+        "url": "https://en.wikipedia.org/wiki/C%2B%2B11",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

@@ -1,0 +1,38 @@
+[
+  {
+    "id": "hardware-systems/tier-5/os-kernel-subsystem-design/s1",
+    "title": "The Atlas Computer and the Invention of Virtual Memory (1962)",
+    "domain": "history",
+    "explainer": "The memory-management subsystem you design for a kernel rests on an idea first built at the University of Manchester: the Atlas computer, commissioned in December 1962 under Tom Kilburn, was the first machine to automatically page data between a small, fast core store and a larger, slower drum, giving programs the illusion of one large 'one-level store.' That mechanism is what later systems called virtual memory, and the page tables, page faults, and eviction policies you implement in a kernel subsystem are direct descendants of a scheme built specifically to work around real, expensive 1960s hardware.",
+    "resources": [
+      {
+        "title": "Atlas (computer)",
+        "url": "https://en.wikipedia.org/wiki/Atlas_Computer",
+        "source": "Wikipedia"
+      },
+      {
+        "title": "Memories of the Ferranti Atlas computer",
+        "url": "https://curation.cs.manchester.ac.uk/atlas/",
+        "source": "University of Manchester"
+      }
+    ]
+  },
+  {
+    "id": "hardware-systems/tier-5/os-kernel-subsystem-design/s2",
+    "title": "Unix's Kernel Was Born on a Spare, Underpowered PDP-7 (1969)",
+    "domain": "history",
+    "explainer": "Before Unix had a shell or a philosophy, its kernel existed because Ken Thompson, Dennis Ritchie, and Rudd Canaday sketched a file-system design and implemented it in the summer of 1969 on a largely idle PDP-7 that other groups had passed over as too weak. That specific hardware shaped early kernel decisions directly, including the choice to treat I/O devices as files, and the whole system was rewritten again after Bell Labs funded a move to the more capable PDP-11. It's a concrete reminder that a kernel's subsystem boundaries often get negotiated with whatever hardware is actually on hand, not derived purely from first principles.",
+    "resources": [
+      {
+        "title": "History of Unix",
+        "url": "https://en.wikipedia.org/wiki/History_of_Unix",
+        "source": "Wikipedia"
+      },
+      {
+        "title": "PDP-7 Unix",
+        "url": "https://wiki.tuhs.org/doku.php?id=systems%3Apdp7_unix",
+        "source": "The Unix Heritage Society Wiki"
+      }
+    ]
+  }
+]

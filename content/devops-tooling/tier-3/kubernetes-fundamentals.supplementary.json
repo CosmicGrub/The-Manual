@@ -1,0 +1,33 @@
+[
+  {
+    "id": "devops-tooling/tier-3/kubernetes-fundamentals/s1",
+    "title": "Borg: Google's Internal System That Kubernetes Descends From",
+    "domain": "history",
+    "explainer": "For over a decade before Kubernetes existed, Google ran virtually all of its internal workloads on an in-house cluster manager called Borg, which it finally described publicly in a 2015 research paper. When Google open-sourced Kubernetes that same year, it said plainly that Kubernetes 'traces its lineage directly from Borg' and that many Kubernetes developers had previously built Borg itself - concepts like declarative specs, reconciliation loops, and label-based grouping are direct descendants of lessons learned running Borg at scale.",
+    "resources": [
+      {
+        "title": "Borg: The Predecessor to Kubernetes",
+        "url": "https://kubernetes.io/blog/2015/04/borg-predecessor-to-kubernetes/",
+        "source": "Kubernetes.io"
+      },
+      {
+        "title": "Large-scale cluster management at Google with Borg (2015 paper)",
+        "url": "https://research.google/pubs/large-scale-cluster-management-at-google-with-borg/",
+        "source": "Google Research"
+      }
+    ]
+  },
+  {
+    "id": "devops-tooling/tier-3/kubernetes-fundamentals/s2",
+    "title": "Cgroups: The Kernel Feature Kubernetes Pods Are Built On",
+    "domain": "history",
+    "explainer": "The resource-isolation mechanism underneath every container Kubernetes schedules, control groups (cgroups), began as a Google-internal patch called 'process containers' written by engineers Paul Menage and Rohit Seth in 2006, was renamed 'control groups' in 2007, and merged into the mainline Linux kernel in 2008. Combined with Linux namespaces, cgroups are what let a single machine run many isolated workloads at once - the literal foundation that container runtimes, and therefore Kubernetes pods, are built on top of.",
+    "resources": [
+      {
+        "title": "Notes from a container (cgroups history, LWN.net)",
+        "url": "https://lwn.net/Articles/256389/",
+        "source": "LWN.net"
+      }
+    ]
+  }
+]

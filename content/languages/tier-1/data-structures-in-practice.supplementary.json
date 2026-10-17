@@ -1,0 +1,20 @@
+[
+  {
+    "id": "languages/tier-1/data-structures-in-practice/s1",
+    "title": "Set-Builder Notation and the Math Behind Comprehensions",
+    "domain": "math",
+    "explainer": "Python's `[expr for x in seq if cond]` syntax is a direct descendant of mathematical set-builder notation ({x : P(x)}), filtered down through the languages SETL and Haskell, which Python's own developers have cited as comprehensions' ancestors on the python-dev mailing list. Reading `{len(w) for w in words}` as 'the set of len(w) such that w is in words' is exactly how a mathematician reads the braces version — and it explains why the expression comes first and the filtering condition comes last, the reverse of a procedural loop's order.",
+    "resources": [
+      {
+        "title": "Set-builder notation",
+        "url": "https://en.wikipedia.org/wiki/Set-builder_notation",
+        "source": "Wikipedia"
+      },
+      {
+        "title": "PEP 202 – List Comprehensions",
+        "url": "https://peps.python.org/pep-0202/",
+        "source": "Python Enhancement Proposals (python.org)"
+      }
+    ]
+  }
+]

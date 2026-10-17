@@ -1,0 +1,28 @@
+[
+  {
+    "id": "devops-tooling/tier-3/cloud-architecture-patterns/s1",
+    "title": "The CAP Theorem: Brewer's 2000 Conjecture, Proved in 2002",
+    "domain": "math",
+    "explainer": "Eric Brewer presented the idea as a conjecture at the 2000 Symposium on Principles of Distributed Computing: a distributed data store can give at most two of consistency, availability, and partition tolerance at once. In 2002, MIT researchers Seth Gilbert and Nancy Lynch published a formal proof, turning Brewer's conjecture into the CAP theorem. Every cloud architecture decision about multi-region databases, eventual consistency, or failover behavior is, underneath, a choice about which two of those three guarantees to keep during a network partition.",
+    "resources": [
+      {
+        "title": "CAP theorem",
+        "url": "https://en.wikipedia.org/wiki/CAP_Theorem",
+        "source": "Wikipedia"
+      }
+    ]
+  },
+  {
+    "id": "devops-tooling/tier-3/cloud-architecture-patterns/s2",
+    "title": "Little's Law (1961) and Capacity Planning",
+    "domain": "math",
+    "explainer": "In 1961, John Little published a rigorous proof of what is now called Little's Law: in a stable queueing system, the average number of items in the system (L) equals the arrival rate (lambda) multiplied by the average time each item spends in the system (W), or L = lambda * W. This simple relationship underlies cloud capacity planning: it lets engineers reason about how request rate, concurrency limits, and latency targets constrain each other when sizing autoscaling groups or connection pools.",
+    "resources": [
+      {
+        "title": "Little's law",
+        "url": "https://en.wikipedia.org/wiki/Little%27s_law",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

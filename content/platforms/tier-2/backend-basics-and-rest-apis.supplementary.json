@@ -1,0 +1,28 @@
+[
+  {
+    "id": "platforms/tier-2/backend-basics-and-rest-apis/s1",
+    "title": "Roy Fielding's 2000 Dissertation and the Definition of REST",
+    "domain": "history",
+    "explainer": "REST was not invented by a vendor or standards committee - it comes from Roy Fielding's year-2000 PhD dissertation at UC Irvine, where he named and formalized the architectural style that was already implicit in how the web's HTTP and URLs worked. Fielding had co-authored the HTTP specification itself, so REST was his attempt to explain why the web scaled so well, not a brand-new protocol. Knowing this origin clarifies why REST is a set of architectural constraints (statelessness, a uniform interface, resources identified by URLs) rather than a format or a protocol you can download.",
+    "resources": [
+      {
+        "title": "Representational state transfer",
+        "url": "https://en.wikipedia.org/wiki/Representational_state_transfer",
+        "source": "Wikipedia"
+      }
+    ]
+  },
+  {
+    "id": "platforms/tier-2/backend-basics-and-rest-apis/s2",
+    "title": "Idempotence: A 19th-Century Algebra Term Behind REST Verbs",
+    "domain": "math",
+    "explainer": "HTTP methods are classified as idempotent or not: calling PUT or DELETE on the same resource twice has the same net effect as calling it once, while POST may create something new each time. The word 'idempotent' itself comes from 19th-century abstract algebra - coined by mathematician Benjamin Peirce around 1870 for an operation where applying it again changes nothing further (f(f(x)) = f(x)). REST APIs borrow this mathematical property so clients can safely retry a request without worrying about duplicate side effects.",
+    "resources": [
+      {
+        "title": "Idempotence",
+        "url": "https://en.wikipedia.org/wiki/Idempotence",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

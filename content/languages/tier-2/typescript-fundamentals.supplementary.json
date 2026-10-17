@@ -1,0 +1,33 @@
+[
+  {
+    "id": "languages/tier-2/typescript-fundamentals/s1",
+    "title": "Anders Hejlsberg and the Creation of TypeScript (2012)",
+    "domain": "history",
+    "explainer": "TypeScript was designed at Microsoft by Anders Hejlsberg — previously the creator of Turbo Pascal, Delphi, and C# — and publicly released in October 2012, after internal Microsoft teams building large JavaScript applications kept running into the exact class of silently-wrong-output bug this lesson opens with. Hejlsberg's argument was that a type system catching errors before the program runs is worth the extra ceremony once an application gets big enough, precisely the tradeoff this lesson asks you to weigh.",
+    "resources": [
+      {
+        "title": "TypeScript",
+        "url": "https://en.wikipedia.org/wiki/TypeScript",
+        "source": "Wikipedia"
+      },
+      {
+        "title": "Anders Hejlsberg",
+        "url": "https://en.wikipedia.org/wiki/Anders_Hejlsberg",
+        "source": "Wikipedia"
+      }
+    ]
+  },
+  {
+    "id": "languages/tier-2/typescript-fundamentals/s2",
+    "title": "Gradual Typing: the Academic Idea Behind Mixing Static and Dynamic Types",
+    "domain": "science",
+    "explainer": "TypeScript's whole design — letting you add type annotations incrementally to existing JavaScript rather than requiring them everywhere at once — is an application of \"gradual typing,\" a term coined in 2006 by researchers Jeremy Siek and Walid Taha for language designs that let statically- and dynamically-typed code interoperate safely. Types like unknown that force you to narrow before use, and the fact that loosely-typed JS still compiles under permissive settings, are exactly the kind of boundary-checking gradual-typing theory is concerned with getting right.",
+    "resources": [
+      {
+        "title": "Gradual typing",
+        "url": "https://en.wikipedia.org/wiki/Gradual_typing",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

@@ -1,0 +1,33 @@
+[
+  {
+    "id": "ai-ml-prompting/tier-3/the-transformer-architecture/s1",
+    "title": "Bahdanau, Cho, and Bengio's Attention Mechanism (2014)",
+    "domain": "history",
+    "explainer": "Three years before 'Attention Is All You Need' stripped away the recurrence entirely, Dzmitry Bahdanau, KyungHyun Cho, and Yoshua Bengio introduced the attention mechanism itself in neural machine translation: instead of compressing a whole sentence into one fixed-length vector, their decoder learned to 'soft-search' over all of the encoder's hidden states and weight the relevant ones at each step. The Transformer's defining move was to keep this attention mechanism as the sole way information moves through the network and drop the recurrent encoder/decoder it was originally bolted onto.",
+    "resources": [
+      {
+        "title": "Neural Machine Translation by Jointly Learning to Align and Translate",
+        "url": "https://arxiv.org/abs/1409.0473",
+        "source": "arXiv (Bahdanau, Cho & Bengio, 2014)"
+      }
+    ]
+  },
+  {
+    "id": "ai-ml-prompting/tier-3/the-transformer-architecture/s2",
+    "title": "Softmax and the Boltzmann Distribution",
+    "domain": "science",
+    "explainer": "The softmax function that turns every attention head's raw scores into a probability distribution has the identical mathematical form as the Boltzmann (or Gibbs) distribution, which physicist Ludwig Boltzmann introduced in 1868 to describe how likely a physical system is to occupy a given energy state. That shared ancestry is why sampling from a language model is described in terms of 'temperature' — the same knob physicists use to control how sharply peaked or spread out a thermal distribution is.",
+    "resources": [
+      {
+        "title": "Softmax function",
+        "url": "https://en.wikipedia.org/wiki/Softmax_function",
+        "source": "Wikipedia"
+      },
+      {
+        "title": "Boltzmann distribution",
+        "url": "https://en.wikipedia.org/wiki/Boltzmann_distribution",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

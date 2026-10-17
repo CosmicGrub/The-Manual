@@ -1,0 +1,33 @@
+[
+  {
+    "id": "devops-tooling/tier-3/advanced-cicd-patterns/s1",
+    "title": "The Coal-Mine Canary Behind 'Canary Releases'",
+    "domain": "history",
+    "explainer": "The name 'canary release' comes directly from a real historical safety practice: starting around 1913, miners carried caged canaries into coal mines because the birds' fast breathing and small size made them collapse from carbon monoxide long before a human would notice anything wrong, giving an early warning to get out. A canary deployment borrows exactly that logic: route a small slice of real traffic to the new version first, and let it 'die' (fail) in a way that is cheap to detect and cheap to reverse, before the whole fleet is exposed.",
+    "resources": [
+      {
+        "title": "Canary Release",
+        "url": "https://martinfowler.com/bliki/CanaryRelease.html",
+        "source": "martinfowler.com"
+      },
+      {
+        "title": "Canary Release: Deployment Safety and Efficiency (SRE Workbook)",
+        "url": "https://sre.google/workbook/canarying-releases/",
+        "source": "Google SRE"
+      }
+    ]
+  },
+  {
+    "id": "devops-tooling/tier-3/advanced-cicd-patterns/s2",
+    "title": "Why It's Called 'Blue-Green' Deployment (c. 2005)",
+    "domain": "history",
+    "explainer": "The blue-green deployment pattern was named around 2005 by Daniel Terhorst-North and Jez Humble while solving a real client problem: running the old and new versions of a system side by side so a release could be smoke-tested in a production-like environment before traffic was cut over. They deliberately avoided labels like 'A' and 'B', since people instinctively assume A is the 'good' one; colors with no inherent order solved that bias, and 'blue' and 'green' stuck once the pattern was written up in Jez Humble and David Farley's book Continuous Delivery (2010).",
+    "resources": [
+      {
+        "title": "Blue Green Deployment",
+        "url": "https://martinfowler.com/bliki/BlueGreenDeployment.html",
+        "source": "martinfowler.com"
+      }
+    ]
+  }
+]

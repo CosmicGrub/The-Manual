@@ -1,0 +1,33 @@
+[
+  {
+    "id": "platforms/tier-4/contributing-to-larger-systems/s1",
+    "title": "Michael Fagan and the Invention of Formal Code Review (1976)",
+    "domain": "history",
+    "explainer": "Long before contributing to a large codebase meant opening a pull request, IBM engineer Michael Fagan formalized \"inspections\" in a 1976 paper: a structured walkthrough of design and code with defined roles and exit criteria, built specifically to catch defects before they shipped. Fagan's core insight, that a deliberate, process-driven review step catches far more problems than casual read-throughs, is the direct ancestor of the review gates every large open-source and corporate codebase relies on today. It's worth knowing that \"someone else looks at this before it merges\" was once a resisted, novel idea inside a company as process-heavy as IBM.",
+    "resources": [
+      {
+        "title": "Fagan inspection",
+        "url": "https://en.wikipedia.org/wiki/Fagan_inspection",
+        "source": "Wikipedia"
+      }
+    ]
+  },
+  {
+    "id": "platforms/tier-4/contributing-to-larger-systems/s2",
+    "title": "WebKit's Origins: Apple's 2001 Fork of KHTML",
+    "domain": "history",
+    "explainer": "Apple didn't write Safari's rendering engine from scratch: in 2001 its engineers secretly started from KHTML and KJS, the small rendering and JavaScript engines from the KDE project's Konqueror browser, and adapted them into what became WebCore and JavaScriptCore. The fork strained relations with the original KDE developers for a time before Apple open-sourced its changes as WebKit in 2003–2005, and the two codebases later reconciled some of their divergence. It's a concrete case study in what it actually looks like to inherit, diverge from, and eventually reconcile with a large upstream project — exactly the situation anyone contributing to a major browser engine, OS, or framework eventually faces.",
+    "resources": [
+      {
+        "title": "The unforking of KDE's KHTML and Webkit",
+        "url": "https://arstechnica.com/information-technology/2007/07/the-unforking-of-kdes-khtml-and-webkit/",
+        "source": "Ars Technica"
+      },
+      {
+        "title": "WebKit",
+        "url": "https://en.wikipedia.org/wiki/WebKit",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

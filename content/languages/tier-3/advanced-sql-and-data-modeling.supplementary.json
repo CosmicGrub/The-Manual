@@ -1,0 +1,33 @@
+[
+  {
+    "id": "languages/tier-3/advanced-sql-and-data-modeling/s1",
+    "title": "E.F. Codd and the Mathematical Model Behind SQL (1970)",
+    "domain": "math",
+    "explainer": "SQL's joins, selections, and projections aren't arbitrary syntax - they're a direct implementation of relational algebra, a formal system built on set theory that IBM mathematician Edgar F. Codd published in 1970 to replace the rigid hierarchical databases of the era. Codd's insight was that data could be modeled as simple tables (relations) manipulated with set-based operations, letting users query data without caring how it was physically stored. Seeing advanced SQL as applied relational algebra - rather than a grab-bag of keywords - is what makes complex multi-table queries and normalization rules click into place.",
+    "resources": [
+      {
+        "title": "Edgar F. Codd",
+        "url": "https://en.wikipedia.org/wiki/Edgar_F._Codd",
+        "source": "Wikipedia"
+      },
+      {
+        "title": "The relational database",
+        "url": "https://www.ibm.com/history/relational-database",
+        "source": "IBM"
+      }
+    ]
+  },
+  {
+    "id": "languages/tier-3/advanced-sql-and-data-modeling/s2",
+    "title": "Why SQL Is Spelled SQL but Pronounced 'Sequel' (1974)",
+    "domain": "history",
+    "explainer": "IBM researchers Donald Chamberlin and Raymond Boyce built a query language directly on Codd's relational model and called it SEQUEL (Structured English Query Language). The name was later shortened to SQL after a trademark conflict with an existing mark, but the 'sequel' pronunciation stuck around as a trace of that original name. It's a small reminder that the query language you're writing advanced joins in was designed, from the start, as a practical front-end to a mathematical model rather than an organically grown syntax.",
+    "resources": [
+      {
+        "title": "Donald Chamberlin & Raymond Boyce Develop SEQUEL (SQL)",
+        "url": "https://www.historyofinformation.com/detail.php?id=910",
+        "source": "History of Information"
+      }
+    ]
+  }
+]

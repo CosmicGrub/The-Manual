@@ -1,0 +1,33 @@
+[
+  {
+    "id": "ai-ml-prompting/tier-3/sequence-models-and-nlp-fundamentals/s1",
+    "title": "Andrey Markov's 1913 Analysis of Eugene Onegin",
+    "domain": "math",
+    "explainer": "To demonstrate that his theory of chained, dependent probabilities applied to real data, mathematician Andrey Markov took 20,000 letters from the opening of Pushkin's 'Eugene Onegin' and counted how often a vowel followed a vowel versus a consonant — the first empirical application of what we now call a Markov chain. Every n-gram model and the 'Markov assumption,' that a sequence model's next output depends only on a limited window of prior context, traces back to this literary exercise in probability.",
+    "resources": [
+      {
+        "title": "Andrey Markov",
+        "url": "https://en.wikipedia.org/wiki/Andrey_Markov",
+        "source": "Wikipedia"
+      },
+      {
+        "title": "An Example of Statistical Investigation of the Text Eugene Onegin Concerning the Connection of Samples in Chains (English translation)",
+        "url": "https://gwern.net/doc/statistics/probability/2006-markov.pdf",
+        "source": "A. A. Markov, 1913 (translated, hosted by gwern.net)"
+      }
+    ]
+  },
+  {
+    "id": "ai-ml-prompting/tier-3/sequence-models-and-nlp-fundamentals/s2",
+    "title": "Chomsky's 1956 Hierarchy of Formal Grammars",
+    "domain": "math",
+    "explainer": "In 'Three Models for the Description of Language' (1956), Noam Chomsky showed that no finite-state Markov process, however it is tuned, can fully capture the structure of English, and laid out a hierarchy of increasingly powerful grammar classes: regular, context-free, context-sensitive, and unrestricted. That hierarchy is still the standard way to reason about what a sequence model's architecture can and cannot represent, and it is the reason NLP needed more than simple n-gram chains to handle the structure of real sentences.",
+    "resources": [
+      {
+        "title": "Chomsky hierarchy",
+        "url": "https://en.wikipedia.org/wiki/Chomsky_hierarchy",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]

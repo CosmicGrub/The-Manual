@@ -1,0 +1,20 @@
+[
+  {
+    "id": "devops-tooling/tier-2/container-registries-and-image-hygiene/s1",
+    "title": "Ken Thompson's 'Reflections on Trusting Trust' (1984)",
+    "domain": "history",
+    "explainer": "In his 1983 Turing Award lecture, published in 1984, Ken Thompson showed how a compiler could be secretly modified to plant a backdoor in every program it compiles - including a freshly recompiled copy of itself - leaving no trace in any source code you could read. It's the founding argument for software supply-chain distrust: you're trusting not just the code you can see, but every tool and artifact used to build it. Image-hygiene practices like pinning digests, scanning layers, and verifying build provenance exist because a container image is a compiled, opaque artifact whose contents you usually didn't build yourself.",
+    "resources": [
+      {
+        "title": "Reflections on Trusting Trust (annotated)",
+        "url": "https://web.stanford.edu/class/cs343/resources/reflections-trusting-trust-annotated.pdf",
+        "source": "Stanford University (CS343 course resources)"
+      },
+      {
+        "title": "Reflections on Trusting Trust",
+        "url": "https://www.cs.cmu.edu/~rdriley/487/papers/Thompson_1984_ReflectionsonTrustingTrust.pdf",
+        "source": "Carnegie Mellon University (course resources)"
+      }
+    ]
+  }
+]

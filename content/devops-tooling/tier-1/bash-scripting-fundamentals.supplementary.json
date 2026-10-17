@@ -1,0 +1,15 @@
+[
+  {
+    "id": "devops-tooling/tier-1/bash-scripting-fundamentals/s1",
+    "title": "The Unix Philosophy and the Invention of the Pipe",
+    "domain": "history",
+    "explainer": "Doug McIlroy proposed connecting one program's output directly into another's input, and Ken Thompson built it into Unix in the early 1970s as the pipe (the `|` character). That single idea hardened into the 'do one thing well, then compose' philosophy that still governs why shell scripts chain small utilities like grep, sed, and awk together instead of writing one large program. Every pipeline in a Bash script is a direct descendant of that design decision.",
+    "resources": [
+      {
+        "title": "Pipeline (Unix)",
+        "url": "https://en.wikipedia.org/wiki/Pipeline_(Unix)",
+        "source": "Wikipedia"
+      }
+    ]
+  }
+]
