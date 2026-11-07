@@ -18,11 +18,10 @@ export const DEFAULT_RUBRIC_ITEMS = [
 
 // Checkpoint rows are mirrored from the curriculum docs the same way
 // prisma/seed.ts mirrors Module rows from Velite's content index — see that
-// file for the primary seeding path. This defensive upsert exists for the
-// same reason app/src/lib/user.ts's ensureUser() does: a learner's first
-// interaction with a checkpoint can be its statically generated page,
-// submitting before any seed step is guaranteed to have run against the
-// current database file.
+// file for the primary seeding path. This defensive upsert exists because a
+// learner's first interaction with a checkpoint can be its statically
+// generated page, submitting before any seed step is guaranteed to have run
+// against the current database file.
 export async function ensureCheckpoint(checkpointId: string) {
   const brief = getCheckpointBrief(checkpointId)
   if (!brief) return undefined

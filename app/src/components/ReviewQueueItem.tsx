@@ -6,12 +6,15 @@ import type { QuizQuestion } from '@/components/QuizRunner'
 
 const GRADE_LABELS = ['Blackout', 'Wrong, familiar', 'Wrong, close', 'Hard but right', 'Easy', 'Instant']
 
-export function ReviewQueueItem({ userId, itemId, itemType, question }: { userId: string; itemId: string; itemType: string; question?: QuizQuestion }) {
+export function ReviewQueueItem({ itemId, itemType, question }: { itemId: string; itemType: string; question?: QuizQuestion }) {
   const [revealed, setRevealed] = useState(false)
   const [graded, setGraded] = useState<'idle' | 'queued' | 'done'>('idle')
 
   async function grade(score: number) {
-    const { queued } = await postWithOfflineFallback('/api/review-queue', { userId, itemId, itemType, grade: score })
+    // No userId in the body — the server derives it from the session
+    // cookie, which `fetch()` attaches automatically (same-origin), even on
+    // a later offline-queue replay. See api/review-queue/route.ts.
+    const { queued } = await postWithOfflineFallback('/api/review-queue', { itemId, itemType, grade: score })
     setGraded(queued ? 'queued' : 'done')
   }
 

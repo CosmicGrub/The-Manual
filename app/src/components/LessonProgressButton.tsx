@@ -3,12 +3,13 @@
 import { useState } from 'react'
 import { postWithOfflineFallback } from '@/lib/offlineOutbox'
 
-export function LessonProgressButton({ userId, moduleId }: { userId: string; moduleId: string }) {
+export function LessonProgressButton({ moduleId }: { moduleId: string }) {
   const [status, setStatus] = useState<'idle' | 'saving' | 'done' | 'queued'>('idle')
 
   async function markComplete() {
     setStatus('saving')
-    const { queued } = await postWithOfflineFallback('/api/progress', { userId, moduleId, status: 'completed' })
+    // No userId in the body — the server derives it from the session cookie.
+    const { queued } = await postWithOfflineFallback('/api/progress', { moduleId, status: 'completed' })
     setStatus(queued ? 'queued' : 'done')
   }
 

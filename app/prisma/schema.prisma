@@ -27,13 +27,27 @@ model User {
   quizAttempts          QuizAttempt[]
   reviewStates          ReviewState[]
   checkpointSubmissions CheckpointSubmission[]
+  email                 String
+  emailVerified         Boolean                @default(false)
+  image                 String?
+  updatedAt             DateTime               @updatedAt
+  role                  String?
+  banned                Boolean?               @default(false)
+  banReason             String?
+  banExpires            DateTime?
+  sessions              Session[]
+  accounts              Account[]
+
+  @@unique([email])
+  @@map("user")
 }
 
 // One row per content/<trackId>/tier-N-*.mdx module. Populated by `db:seed`
 // from the Velite-built content index — this table is a queryable mirror of
 // the filesystem content, not a second source of truth for lesson text.
+
 model Module {
-  id             String   @id // stable slug, e.g. "cs-foundations/tier-1/big-o-notation"
+  id             String @id // stable slug, e.g. "cs-foundations/tier-1/big-o-notation"
   trackId        String
   tier           Int
   title          String
@@ -51,6 +65,7 @@ model Module {
 // and are read by the client at render time, never through this table.
 // One QuizAttempt row is one submission of a whole module's quiz set; per-question
 // detail (which question ids were missed) lives in `answers` and drives ReviewState below.
+
 model QuizAttempt {
   id        String   @id @default(cuid())
   userId    String
@@ -67,6 +82,7 @@ model QuizAttempt {
 
 // Gate to move from tier N to tier N+1 within a track (soft gate — the app
 // nudges, it doesn't hard-lock, since this is a self-study tool).
+
 model Checkpoint {
   id      String @id // e.g. "cs-foundations/tier-1/checkpoint"
   trackId String
@@ -108,6 +124,7 @@ model Progress {
 
 // SM-2 spaced-repetition scheduling state, generic over any reviewable item
 // (a missed quiz question, a flashcard, a "explain it back" prompt).
+
 model ReviewState {
   id           String   @id @default(cuid())
   userId       String
@@ -122,4 +139,53 @@ model ReviewState {
 
   @@unique([userId, itemId, itemType])
   @@index([userId, dueAt])
+}
+
+model Session {
+  id             String   @id
+  expiresAt      DateTime
+  token          String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  ipAddress      String?
+  userAgent      String?
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  impersonatedBy String?
+
+  @@unique([token])
+  @@index([userId])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
 }

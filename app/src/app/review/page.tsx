@@ -1,8 +1,10 @@
 import Link from 'next/link'
+import { headers } from 'next/headers'
+import { redirect } from 'next/navigation'
 import { db } from '@/lib/db'
+import { auth } from '@/lib/auth'
 import { resolveQuizQuestionItem } from '@/lib/quizzes'
 import { ReviewQueueItem } from '@/components/ReviewQueueItem'
-import { getOrCreateDefaultUser } from '@/lib/user'
 
 // Dynamic by nature (today's due set is per-user, per-moment) — this page is
 // not statically generated. Offline behavior comes from the service worker's
@@ -14,8 +16,9 @@ import { getOrCreateDefaultUser } from '@/lib/user'
 export const dynamic = 'force-dynamic'
 
 export default async function ReviewPage() {
-  const user = await getOrCreateDefaultUser()
-  const due = await db.reviewState.findMany({ where: { userId: user.id, dueAt: { lte: new Date() } }, orderBy: { dueAt: 'asc' } })
+  const session = await auth.api.getSession({ headers: await headers() })
+  if (!session) redirect('/login')
+  const due = await db.reviewState.findMany({ where: { userId: session.user.id, dueAt: { lte: new Date() } }, orderBy: { dueAt: 'asc' } })
 
   return (
     <main className="space-y-6">
@@ -34,7 +37,6 @@ export default async function ReviewPage() {
           {due.map((item) => (
             <ReviewQueueItem
               key={item.id}
-              userId={user.id}
               itemId={item.itemId}
               itemType={item.itemType}
               question={item.itemType === 'quiz_question' ? resolveQuizQuestionItem(item.itemId) : undefined}

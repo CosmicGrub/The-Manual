@@ -3,8 +3,8 @@ import { notFound } from 'next/navigation'
 import { getAllCheckpointBriefs, getCheckpointBrief } from '@/lib/curriculumDocs'
 import { DEFAULT_RUBRIC_ITEMS } from '@/lib/checkpoints'
 import { TIER_LABELS, getTrackName } from '@/lib/tracks'
-import { LOCAL_USER_ID } from '@/lib/user'
 import { CheckpointSubmissionForm } from '@/components/CheckpointSubmissionForm'
+import { RequireSession } from '@/components/RequireSession'
 
 // One statically generated page per checkpoint (54 total: 9 tracks x 6
 // tiers) — same offline-safe pattern as the lesson pages, see
@@ -19,11 +19,6 @@ export default function CheckpointPage({ params }: { params: { id: string[] } })
   const checkpointId = params.id.join('/')
   const checkpoint = getCheckpointBrief(checkpointId)
   if (!checkpoint) notFound()
-
-  // No DB access here on purpose — statically generated, same reasoning as
-  // LessonPage: the fixed local-learner id is guaranteed to exist by the
-  // time any write actually reaches the API (ensureUser upserts it there).
-  const userId = LOCAL_USER_ID
 
   return (
     <main className="space-y-8">
@@ -43,7 +38,9 @@ export default function CheckpointPage({ params }: { params: { id: string[] } })
 
       <section className="space-y-4 border-t border-neutral-200 dark:border-neutral-800 pt-6">
         <h2 className="text-lg font-medium">Submit your checkpoint</h2>
-        <CheckpointSubmissionForm userId={userId} checkpointId={checkpoint.id} rubricItems={DEFAULT_RUBRIC_ITEMS} />
+        <RequireSession>
+          <CheckpointSubmissionForm checkpointId={checkpoint.id} rubricItems={DEFAULT_RUBRIC_ITEMS} />
+        </RequireSession>
       </section>
     </main>
   )

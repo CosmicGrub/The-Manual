@@ -10,7 +10,6 @@ export type QuizQuestion =
 
 type Props = {
   moduleId: string
-  userId: string
   questions: QuizQuestion[]
   onComplete?: (score: number) => void
 }
@@ -22,7 +21,7 @@ type Props = {
  * articulation, not a strict oracle. Submits to /api/quiz-attempts, which is what
  * updates Progress and seeds spaced-repetition review for missed items.
  */
-export function QuizRunner({ moduleId, userId, questions, onComplete }: Props) {
+export function QuizRunner({ moduleId, questions, onComplete }: Props) {
   const [answers, setAnswers] = useState<Record<string, string | number>>({})
   const [submitted, setSubmitted] = useState(false)
   const [score, setScore] = useState<number | null>(null)
@@ -53,9 +52,9 @@ export function QuizRunner({ moduleId, userId, questions, onComplete }: Props) {
     // No network round-trip required to grade or to keep the attempt: it's
     // queued locally (IndexedDB) and replayed automatically once the device
     // — or the PC it talks to over LAN — is reachable again. See
-    // app/src/lib/offlineOutbox.ts and MASTERFILE.md §3.8.
+    // app/src/lib/offlineOutbox.ts and MASTERFILE.md §3.8. No userId in the
+    // body — the server derives it from the session cookie.
     const { queued } = await postWithOfflineFallback('/api/quiz-attempts', {
-      userId,
       moduleId,
       score: finalScore,
       answers,

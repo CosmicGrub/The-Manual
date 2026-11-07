@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { nextReviewState } from '@/lib/srs'
-import { ensureUser } from '@/lib/user'
+import { requireUserId } from '@/lib/session'
 
-// GET /api/review-queue?userId=xxx — items due for spaced-repetition review right now
+// GET /api/review-queue — items due for spaced-repetition review right now
 export async function GET(req: NextRequest) {
-  const userId = req.nextUrl.searchParams.get('userId')
-  if (!userId) return NextResponse.json({ error: 'userId is required' }, { status: 400 })
+  const userId = await requireUserId(req)
+  if (!userId) return NextResponse.json({ error: 'not signed in' }, { status: 401 })
 
   const due = await db.reviewState.findMany({
     where: { userId, dueAt: { lte: new Date() } },
@@ -15,25 +15,26 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ due })
 }
 
-// POST /api/review-queue — { userId, itemId, itemType, grade } — self-reported recall (0-5), reschedules via SM-2
+// POST /api/review-queue — { itemId, itemType, grade } — self-reported recall (0-5), reschedules via SM-2
 export async function POST(req: NextRequest) {
+  const userId = await requireUserId(req)
+  if (!userId) return NextResponse.json({ error: 'not signed in' }, { status: 401 })
+
   const body = await req.json()
-  const { userId, itemId, itemType, grade } = body as {
-    userId?: string
+  const { itemId, itemType, grade } = body as {
     itemId?: string
     itemType?: string
     grade?: number
   }
 
-  if (!userId || !itemId || !itemType || typeof grade !== 'number') {
-    return NextResponse.json({ error: 'userId, itemId, itemType, and grade are required' }, { status: 400 })
+  if (!itemId || !itemType || typeof grade !== 'number') {
+    return NextResponse.json({ error: 'itemId, itemType, and grade are required' }, { status: 400 })
   }
   if (grade < 0 || grade > 5) {
     return NextResponse.json({ error: 'grade must be 0..5' }, { status: 400 })
   }
 
   try {
-    await ensureUser(userId)
     const existing = await db.reviewState.findUnique({
       where: { userId_itemId_itemType: { userId, itemId, itemType } },
     })

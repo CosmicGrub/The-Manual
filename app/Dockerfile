@@ -35,6 +35,14 @@ COPY --from=build /app/public ./public
 COPY --from=build /app/prisma ./prisma
 COPY --from=build /app/package.json ./package.json
 COPY --from=build /app/next.config.mjs ./next.config.mjs
+# src/ + scripts/ + tsconfig.json: not needed to *serve* the already-built
+# .next output, but `npm run create-user` (docker compose exec) runs
+# scripts/create-user.ts via tsx against real TypeScript source, not the
+# compiled app — tsx needs tsconfig.json present to resolve the @/ path
+# alias src/lib/auth.ts itself imports.
+COPY --from=build /app/src ./src
+COPY --from=build /app/scripts ./scripts
+COPY --from=build /app/tsconfig.json ./tsconfig.json
 COPY app/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 

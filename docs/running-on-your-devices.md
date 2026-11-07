@@ -11,11 +11,20 @@ Docker sidesteps "which Linux distro" entirely — whatever the host, the contai
 1. Install Docker:
    - **Windows / macOS:** [Docker Desktop](https://www.docker.com/products/docker-desktop/). On Windows, Docker Desktop uses WSL2 automatically — accept the prompt to enable it if asked.
    - **Linux (any distro):** [Docker Engine](https://docs.docker.com/engine/install/) — the install page has exact commands per distro (Ubuntu/Debian via apt, Fedora via dnf, Arch via pacman, etc.).
-2. From the repo root:
+2. From the repo root, create a `.env` file with a real auth secret (`docker compose` reads this automatically — never reuse the same value across deployments):
+   ```bash
+   echo "BETTER_AUTH_SECRET=$(openssl rand -base64 32)" > .env
+   ```
+3. Start it:
    ```bash
    docker compose up --build
    ```
-3. Open `http://localhost:3000` on the PC. Keep it running — your phone/tablet will connect to this same process (see §2).
+4. Open `http://localhost:3000` on the PC. Keep it running — your phone/tablet will connect to this same process (see §2).
+5. **The app is invite-only — create your first account** (from another terminal, while the container is running):
+   ```bash
+   docker compose exec the-manual npm run create-user -- --email you@example.com --name "Your Name" --role admin
+   ```
+   It'll prompt for a password interactively. Run this again (with `--role admin` or without — `admin` just means "can create other accounts") for everyone else in the household who should have their own tracked progress.
 
 To stop: `docker compose down` (your progress persists in a Docker volume; `docker compose down -v` would erase it).
 
@@ -34,6 +43,9 @@ Then, from `app/`:
 ```bash
 cd app
 cp .env.example .env
+# Replace the BETTER_AUTH_SECRET placeholder .env.example left in .env —
+# never ship the placeholder value:
+sed -i.bak "s#replace-with-a-real-openssl-rand--base64-32-secret#$(openssl rand -base64 32)#" .env && rm .env.bak
 npm install
 npm run build        # compiles content/ via Velite, then builds Next.js
 npx prisma db push
@@ -42,6 +54,14 @@ npm start             # binds 0.0.0.0:3000 — reachable from other devices on y
 ```
 
 (`npm run dev` also binds `0.0.0.0` for the same reason, if you're actively editing content/code rather than running a built copy. Use `npm run dev:local-only` if you specifically want it unreachable from other devices.)
+
+**The app is invite-only — create your first account** before signing in (run from `app/`, while the server above is running or stopped, either works):
+
+```bash
+npm run create-user -- --email you@example.com --name "Your Name" --role admin
+```
+
+It prompts for a password interactively (never pass one on the command line — shell history and `ps` would leak it). Run it again for anyone else in the household who should have their own tracked progress; `--role admin` just means "can also create accounts," not anything higher-privilege within the app itself.
 
 ## 2. Reach it from your Galaxy Z Fold 5 / Galaxy Tab S9 FE
 

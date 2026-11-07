@@ -16,7 +16,7 @@ import { getViewedSupplementaryIds, isSupplementaryModeEnabled, SUPPLEMENTARY_CH
  * hard-lock, since this is a self-study tool") rather than introducing the
  * app's first hard lock.
  */
-export function SupplementaryGate({ userId, moduleId, concepts }: { userId: string; moduleId: string; concepts: SupplementaryConcept[] }) {
+export function SupplementaryGate({ moduleId, concepts }: { moduleId: string; concepts: SupplementaryConcept[] }) {
   const [dismissed, setDismissed] = useState(false)
   const [shouldNudge, setShouldNudge] = useState(false)
 
@@ -46,7 +46,7 @@ export function SupplementaryGate({ userId, moduleId, concepts }: { userId: stri
           </button>
         </div>
       )}
-      <LessonProgressButton userId={userId} moduleId={moduleId} />
+      <LessonProgressButton moduleId={moduleId} />
     </div>
   )
 }

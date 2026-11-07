@@ -12,7 +12,10 @@ services:
       - '3000:3000'
     environment:
       DATABASE_URL: 'file:./dev.db'
-      DEFAULT_USER_NAME: 'Learner'
+      # Signs session cookies for multi-user auth — required, no safe default.
+      # Set it in a repo-root .env (docker compose reads it automatically;
+      # see docs/running-on-your-devices.md): `openssl rand -base64 32`.
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?set BETTER_AUTH_SECRET in a repo-root .env, see docs/running-on-your-devices.md}
     volumes:
       # Named volume so the SQLite file (and your progress) survives
       # `docker compose down` / image rebuilds. First run seeds it from the

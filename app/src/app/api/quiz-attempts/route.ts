@@ -1,23 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { ensureUser } from '@/lib/user'
+import { requireUserId } from '@/lib/session'
 
-// POST /api/quiz-attempts — { userId, moduleId, score, answers, missedQuestionIds }
+// POST /api/quiz-attempts — { moduleId, score, answers, missedQuestionIds }
 // Records one attempt at a module's whole quiz set, rolls it into the module's
 // mastery score, and seeds a ReviewState per missed QUESTION (not per module) so
 // spaced repetition targets exactly what was gotten wrong.
 export async function POST(req: NextRequest) {
+  const userId = await requireUserId(req)
+  if (!userId) return NextResponse.json({ error: 'not signed in' }, { status: 401 })
+
   const body = await req.json()
-  const { userId, moduleId, score, answers, missedQuestionIds } = body as {
-    userId?: string
+  const { moduleId, score, answers, missedQuestionIds } = body as {
     moduleId?: string
     score?: number
     answers?: unknown
     missedQuestionIds?: unknown
   }
 
-  if (typeof userId !== 'string' || !userId || typeof moduleId !== 'string' || !moduleId || typeof score !== 'number') {
-    return NextResponse.json({ error: 'userId, moduleId, and score are required' }, { status: 400 })
+  if (typeof moduleId !== 'string' || !moduleId || typeof score !== 'number') {
+    return NextResponse.json({ error: 'moduleId and score are required' }, { status: 400 })
   }
   if (score < 0 || score > 1) {
     return NextResponse.json({ error: 'score must be 0..1' }, { status: 400 })
@@ -26,7 +28,6 @@ export async function POST(req: NextRequest) {
 
   try {
     const [attempt] = await db.$transaction(async (tx) => {
-      await ensureUser(userId, tx)
       const attempt = await tx.quizAttempt.create({
         data: { userId, moduleId, score, answers: JSON.stringify(answers ?? {}) },
       })

@@ -1,7 +1,9 @@
+import { headers } from 'next/headers'
+import { redirect } from 'next/navigation'
 import { db } from '@/lib/db'
+import { auth } from '@/lib/auth'
 import { TRACKS } from '@/lib/tracks'
 import { SkillTree, type TrackSummary } from '@/components/SkillTree'
-import { getOrCreateDefaultUser } from '@/lib/user'
 import { SupplementaryToggle } from '@/components/SupplementaryToggle'
 
 // Dynamic by nature (per-user progress, read live) — must not be statically
@@ -11,7 +13,9 @@ import { SupplementaryToggle } from '@/components/SupplementaryToggle'
 export const dynamic = 'force-dynamic'
 
 export default async function DashboardPage() {
-  const user = await getOrCreateDefaultUser()
+  const session = await auth.api.getSession({ headers: await headers() })
+  if (!session) redirect('/login')
+  const user = session.user
   const progress = await db.progress.findMany({ where: { userId: user.id } })
 
   const tracks: TrackSummary[] = TRACKS.map((track) => {

@@ -16,7 +16,7 @@ const STATUS_LABEL: Record<string, string> = {
   submitted: 'Submitted',
 }
 
-export function CheckpointSubmissionForm({ userId, checkpointId, rubricItems }: { userId: string; checkpointId: string; rubricItems: readonly string[] }) {
+export function CheckpointSubmissionForm({ checkpointId, rubricItems }: { checkpointId: string; rubricItems: readonly string[] }) {
   const [history, setHistory] = useState<Submission[] | null>(null)
   const [artifactUrl, setArtifactUrl] = useState('')
   const [checked, setChecked] = useState<boolean[]>(rubricItems.map(() => false))
@@ -25,19 +25,19 @@ export function CheckpointSubmissionForm({ userId, checkpointId, rubricItems }: 
 
   // Best-effort: shows past attempts when online, silently skipped offline —
   // the form itself works either way, same offline-first contract as every
-  // other mutating page in the app. See MASTERFILE.md §3.8.
+  // other mutating page in the app. See MASTERFILE.md §3.8. No userId in the
+  // query string — the server derives it from the session cookie.
   useEffect(() => {
-    fetch(`/api/checkpoint-submissions?userId=${encodeURIComponent(userId)}&checkpointId=${encodeURIComponent(checkpointId)}`)
+    fetch(`/api/checkpoint-submissions?checkpointId=${encodeURIComponent(checkpointId)}`)
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => setHistory(data?.submissions ?? []))
       .catch(() => setHistory([]))
-  }, [userId, checkpointId])
+  }, [checkpointId])
 
   async function handleSubmit() {
     if (!artifactUrl.trim()) return
     setState('saving')
     const { queued } = await postWithOfflineFallback('/api/checkpoint-submissions', {
-      userId,
       checkpointId,
       artifactUrl: artifactUrl.trim(),
       selfRubric: checked,

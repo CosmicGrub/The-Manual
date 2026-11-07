@@ -4,10 +4,10 @@ import { getAllLessonParams, getLesson } from '@/lib/content'
 import { getQuizQuestions } from '@/lib/quizzes'
 import { getSupplementaryConcepts } from '@/lib/supplementary'
 import { getTrackName } from '@/lib/tracks'
-import { LOCAL_USER_ID } from '@/lib/user'
 import { QuizRunner } from '@/components/QuizRunner'
 import { SupplementaryPanel } from '@/components/SupplementaryPanel'
 import { SupplementaryGate } from '@/components/SupplementaryGate'
+import { RequireSession } from '@/components/RequireSession'
 
 // One statically generated page per lesson (all content baked in at build
 // time, quiz questions included) — this is what lets a lesson be fully
@@ -24,11 +24,6 @@ export default function LessonPage({ params }: { params: { trackId: string; tier
 
   const questions = getQuizQuestions(params.trackId, tier, params.slug)
   const supplementaryConcepts = getSupplementaryConcepts(params.trackId, tier, params.slug)
-  // No DB access here on purpose — this page is statically generated (offline-safe,
-  // see MASTERFILE.md §3.8), so it uses the fixed local-learner id directly rather
-  // than a server-side lookup. The row is guaranteed to exist by the time any write
-  // actually reaches the API, since getOrCreateDefaultUser() upserts the same id.
-  const userId = LOCAL_USER_ID
 
   return (
     <main className="space-y-8">
@@ -47,13 +42,19 @@ export default function LessonPage({ params }: { params: { trackId: string; tier
         dangerouslySetInnerHTML={{ __html: lesson.body }}
       />
 
-      <SupplementaryGate userId={userId} moduleId={lesson.moduleId} concepts={supplementaryConcepts} />
+      <RequireSession>
+        <SupplementaryGate moduleId={lesson.moduleId} concepts={supplementaryConcepts} />
+      </RequireSession>
 
       {(questions.length > 0 || supplementaryConcepts.length > 0) && (
         <section className="space-y-4 border-t border-neutral-200 dark:border-neutral-800 pt-6">
           <h2 className="text-lg font-medium">Check your understanding</h2>
           <SupplementaryPanel concepts={supplementaryConcepts} />
-          {questions.length > 0 && <QuizRunner moduleId={lesson.moduleId} userId={userId} questions={questions} />}
+          {questions.length > 0 && (
+            <RequireSession>
+              <QuizRunner moduleId={lesson.moduleId} questions={questions} />
+            </RequireSession>
+          )}
         </section>
       )}
     </main>
