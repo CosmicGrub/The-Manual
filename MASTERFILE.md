@@ -51,7 +51,7 @@ Every module draws from this menu for its quizzes and "creative methods" — nev
 
 | Layer | Choice | Why |
 |---|---|---|
-| Frontend | Next.js 14 (App Router) + React + TypeScript + Tailwind | One deployable app, server + client components, no separate backend needed for a single learner. |
+| Frontend | Next.js 16 (App Router, Turbopack) + React 19 + TypeScript + Tailwind | One deployable app, server + client components, no separate backend needed for a single learner. Upgraded from 14 → 16 on 2026-11-07, see §3.6.3. |
 | Content | MDX files in `content/`, compiled by **Velite** into a typed JSON index | Git-versioned, diffable, reviewable curriculum — not locked in a database or CMS. |
 | Data | **Prisma ORM**, SQLite by default | Zero-config, file-based, local-first. Every table is already `userId`-scoped, so switching `provider` to Postgres is the *entire* migration to a hosted/multi-user version. |
 | API | Next.js Route Handlers (`app/api/**/route.ts`), plain REST/JSON | Simple, inspectable, no extra framework. |
@@ -151,8 +151,9 @@ Every mutating endpoint above is called through `app/src/lib/offlineOutbox.ts`'s
 
 - **Multi-user auth** — shipped 2026-11-07 (see §3.6.1 below); no longer deferred.
 - **Postgres migration** — deliberately still deferred: scoped 2026-11-07 and found to need a real data-migration script (the app uses `prisma db push`, not `prisma migrate`, so a provider switch moves schema shape but not rows) — genuinely worth doing once multi-user auth creates real concurrent-write pressure, not before. SQLite in WAL mode handles a single household's concurrent devices fine today.
-- **AI-graded "explain it back"** — still deferred; currently self-graded. The question type and all 69 `explain_back` questions already exist in shipped content — scoped 2026-11-07, open design fork between rubric-free grading (ships immediately) and rubric-authored grading (more consistent, real content-authoring task).
+- **AI-graded "explain it back"** — still deferred; currently self-graded. The question type and all 69 `explain_back` questions already exist in shipped content — scoped 2026-11-07, open design fork between rubric-free grading (ships immediately) and rubric-authored grading (more consistent, real content-authoring task). Explicitly paused again 2026-11-07 ("move away from the AI/LLM stuff momentarily") — not to be resumed without being asked again.
 - **Adaptive sequencing** — the deterministic version shipped 2026-11-07 (see §3.6.2 below); the research-backed, usage-data-tuned version remains deliberately deferred for the reason already scoped (this app has no real multi-session history yet to tune against).
+- **Next.js major-version upgrade** — shipped 2026-11-07 (see §3.6.3 below); no longer deferred.
 
 #### 3.6.1 Multi-user auth (shipped 2026-11-07)
 
@@ -172,6 +173,16 @@ A "Continue learning" section on the dashboard (`app/src/lib/suggestedNext.ts`),
 - **Only shown for tracks the learner has actually touched** (at least one `Progress` row), so a new account doesn't get 9 nudges toward tracks nobody chose to start — matches the app's existing soft-gate philosophy (nudges, never hard-locks).
 - **Content-layer, not DB-layer, for lesson metadata** — reuses `getLessonsByTrack()` from `lib/content.ts` (the same Velite-built index every other page reads), per schema.prisma's own design intent that content stays the source of truth and the DB only holds mutable runtime state. Only `Progress` rows are queried from the DB.
 - **Verified against a live server with 4 real scenarios, not just read through:** a completed-but-weak lesson (0.4) correctly surfaced ahead of untouched later lessons; raising its score to 0.9 correctly advanced the suggestion to the next untouched lesson; an `in_progress` lesson correctly showed as "continue where you left off"; completing all of Tier 0 solidly correctly crossed the suggestion into Tier 1's first lesson. Confirmed visually via a Playwright screenshot of the rendered dashboard.
+
+#### 3.6.3 Next.js 14 → 16 major-version upgrade (shipped 2026-11-07, previously deferred twice at [0.78.0]/[0.79.0])
+
+`next` 14.2.35 → 16.4.5, React 18 → 19.3.1, Turbopack now the default bundler for both `next dev` and `next build`. Scoped first against the app's actual surface (no custom webpack, no `next/image`, no `middleware.ts`, no server-read `searchParams`, no parallel/intercepting routes) to confirm the only real migration was the async Request API — synchronous `params` access is fully removed in Next 16, so the 4 pages reading dynamic route segments (`checkpoints/[...id]`, `tracks/[trackId]`, `tracks/[trackId]/[tier]/[slug]`, `tracks/[trackId]/foundations`) now `await` them.
+
+- **A codemod regression caught before it shipped:** the official `@next/codemod@canary upgrade latest` speculatively added Cache-Components opt-out markers (`export const instant = false`) to 7 files this app never asked for — not mentioned anywhere in the official upgrade guide — which broke the build outright since `next.config.mjs` has never enabled `cacheComponents`. Removed all 7; confirmed `layout.tsx` came back byte-identical to its pre-upgrade state once the block was gone. Lesson: codemod output gets the same scrutiny as any other diff, not an automatic pass.
+- **8 new `minimatch` CVEs** surfaced from `eslint-config-next`'s dev-only lint toolchain on `npm install`; `npm audit`'s suggested fix (downgrade `eslint-config-next` back to 15.x) would have undone half the upgrade. Fixed with a scoped nested `overrides` entry targeting only the vulnerable nested copy — same discipline as the `postcss-selector-parser`/`sharp` overrides from earlier audits. Result: `npm audit` 2 → 0, also closing out the `next`-bundled-dependency pair [0.78.0]/[0.81.0] had been carrying as "no non-breaking fix available" (the version bump removed them outright).
+- **Verified live, not just build-clean:** full Turbopack build (397 static pages, all expected routes present), `tsc --noEmit` clean, 317/317 lesson-slug check unchanged, and a full Playwright regression pass against a throwaway account — sign-in, a real lesson page's article body and quiz block, "mark complete," `/review`, sign-out — all exercised against the live `next dev` server, not just read through.
+- `Dockerfile`'s `node:20-bookworm-slim` base already satisfied the new Node 20.9+ minimum; the build/runtime split (`npm run build` then copy `.next` wholesale for `next start`, no `output: 'standalone'`) is bundler-agnostic, so Turbopack-by-default needed no Dockerfile change. Still unverified against a real Docker daemon, unavailable in this environment — same standing caveat as every prior audit round.
+- `app/AGENTS.md`, a file Next 16 now auto-generates on every `dev`/`build` run (`agentRules` feature), is gitignored alongside `next-env.d.ts` rather than committed — this repo's agent-facing doc is `MASTERFILE.md` itself.
 
 ### 3.7 Multi-device delivery (added 2026-09-28, per explicit request)
 

@@ -17,7 +17,8 @@ export function generateStaticParams() {
     .map((trackId) => ({ trackId }))
 }
 
-export default function FoundationsPage({ params }: { params: { trackId: string } }) {
+export default async function FoundationsPage(props: { params: Promise<{ trackId: string }> }) {
+  const params = await props.params;
   const { trackId } = params
   const groups = getAllSupplementaryForTrack(trackId)
   if (groups.length === 0) notFound()

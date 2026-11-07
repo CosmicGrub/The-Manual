@@ -17,7 +17,10 @@ export function generateStaticParams() {
   return getAllLessonParams()
 }
 
-export default function LessonPage({ params }: { params: { trackId: string; tier: string; slug: string } }) {
+export default async function LessonPage(
+  props: { params: Promise<{ trackId: string; tier: string; slug: string }> }
+) {
+  const params = await props.params;
   const tier = Number(params.tier)
   const lesson = getLesson(params.trackId, tier, params.slug)
   if (!lesson) notFound()

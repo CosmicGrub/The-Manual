@@ -11,7 +11,8 @@ export function generateStaticParams() {
   return TRACKS.map((t) => ({ trackId: t.id }))
 }
 
-export default function TrackPage({ params }: { params: { trackId: string } }) {
+export default async function TrackPage(props: { params: Promise<{ trackId: string }> }) {
+  const params = await props.params;
   const { trackId } = params
   if (!getAllTrackIds().includes(trackId)) notFound()
 

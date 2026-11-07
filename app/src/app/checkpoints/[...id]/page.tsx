@@ -15,7 +15,8 @@ export function generateStaticParams() {
   return getAllCheckpointBriefs().map((c) => ({ id: c.id.split('/') }))
 }
 
-export default function CheckpointPage({ params }: { params: { id: string[] } }) {
+export default async function CheckpointPage(props: { params: Promise<{ id: string[] }> }) {
+  const params = await props.params;
   const checkpointId = params.id.join('/')
   const checkpoint = getCheckpointBrief(checkpointId)
   if (!checkpoint) notFound()
