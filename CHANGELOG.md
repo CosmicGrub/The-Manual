@@ -1102,3 +1102,16 @@ Everything else checked out against real GHC output on the first pass: the curry
 
 **Status:** Of the four Phase 2 items, multi-user auth is now shipped; Postgres migration, AI-graded explain-it-back, and adaptive sequencing remain deliberately deferred per their [0.78.0] scoping. The Next.js 14→16 major-version decision from [0.78.0] remains open, deferred per explicit instruction this round.
 
+## [0.80.0] — 2026-11-07 — Adaptive sequencing: the deterministic version
+
+**Context:** Asked to build the deterministic adaptive-sequencing version scoped in [0.78.0] — the cheap, no-usage-data-needed alternative to the research-backed version that stays deferred.
+
+**Added**
+- `app/src/lib/suggestedNext.ts` — the whole algorithm: per track, walk tiers 0-5; a lesson is "solid" if `completed` AND (no `masteryScore` or `masteryScore >= 0.7`); skip tiers where every lesson is solid; within the first non-solid tier, suggest the first non-solid lesson in content order. A weak-but-completed lesson therefore surfaces before a never-touched later one — "weakest prerequisite first" — with no formal prerequisite graph, since lesson order already encodes it. Reuses `getLessonsByTrack()` from `lib/content.ts` (the Velite-built content index, same source every other page reads) rather than duplicating lesson metadata from the `Module` DB mirror, per schema.prisma's own stated design intent that content stays the source of truth.
+- `app/src/app/page.tsx` — a "Continue learning" section above the dashboard's tier grid, one suggestion per track the learner has actually started (at least one `Progress` row) — tracks nobody's touched yet get no nudge, matching the app's existing soft-gate philosophy. Each suggestion links straight to the lesson and names why it was picked ("continue where you left off" / "weak mastery here — worth another pass before moving on" / unlabeled for a genuinely new lesson).
+- `MASTERFILE.md` §3.6/§3.6.2 — adaptive sequencing's deterministic half moved out of "deferred"; the research-backed, usage-data-tuned half stays deferred for the reason already scoped.
+
+**Verified against a live server with 4 real scenarios, not just read through the code:** seeded a test account's progress directly in the DB and confirmed via the actual rendered dashboard HTML at each step — (1) a completed-but-weak lesson (`masteryScore: 0.4`) correctly surfaced ahead of three untouched later lessons in the same tier; (2) raising that score to 0.9 correctly advanced the suggestion to the next untouched lesson; (3) an `in_progress` lesson correctly showed "continue where you left off"; (4) completing all 6 of Tier 0's lessons solidly correctly crossed the suggestion into Tier 1's first lesson (`python-core-syntax`). Confirmed visually via a Playwright screenshot of the rendered dashboard. Test account deleted afterward.
+
+**Result:** `npm run build` passed clean (400 pages, 317 lessons unchanged). `npx tsc --noEmit` clean.
+

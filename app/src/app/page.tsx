@@ -2,9 +2,10 @@ import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { db } from '@/lib/db'
 import { auth } from '@/lib/auth'
-import { TRACKS } from '@/lib/tracks'
+import { TRACKS, getTrackName } from '@/lib/tracks'
 import { SkillTree, type TrackSummary } from '@/components/SkillTree'
 import { SupplementaryToggle } from '@/components/SupplementaryToggle'
+import { suggestedNextForTrack } from '@/lib/suggestedNext'
 
 // Dynamic by nature (per-user progress, read live) — must not be statically
 // prerendered. Without this, `next build` tries to prerender it at build
@@ -28,12 +29,43 @@ export default async function DashboardPage() {
     return { id: track.id, name: track.name, tierStatus }
   })
 
+  // Deterministic "what's next" per track (see lib/suggestedNext.ts) — only
+  // for tracks the learner has actually touched, so a brand-new account
+  // doesn't get 9 nudges toward tracks they haven't chosen to start yet.
+  const startedTrackIds = new Set(progress.map((p) => p.moduleId.split('/')[0]))
+  const suggestions = TRACKS.filter((t) => startedTrackIds.has(t.id))
+    .map((t) => suggestedNextForTrack(t.id, progress))
+    .filter((s): s is NonNullable<typeof s> => s !== null)
+
   return (
     <main className="space-y-8">
       <header>
         <h1 className="text-2xl font-semibold">The Manual</h1>
         <p className="text-neutral-500">Welcome back, {user.name}. Here's where you stand across all 9 tracks.</p>
       </header>
+
+      {suggestions.length > 0 && (
+        <section>
+          <h2 className="text-lg font-medium mb-2">Continue learning</h2>
+          <ul className="space-y-2">
+            {suggestions.map((s) => (
+              <li key={s.trackId}>
+                <a
+                  href={`/tracks/${s.trackId}/${s.tier}/${s.slug}`}
+                  className="block border rounded-lg p-3 hover:bg-neutral-50 dark:hover:bg-neutral-900"
+                >
+                  <p className="font-medium">{s.title}</p>
+                  <p className="text-sm text-neutral-500">
+                    {getTrackName(s.trackId)} · Tier {s.tier} · ~{s.estimatedHours}h
+                    {s.reason === 'revisit-weak' && ' · weak mastery here — worth another pass before moving on'}
+                    {s.reason === 'continue' && ' · continue where you left off'}
+                  </p>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <SkillTree tracks={tracks} />
 
