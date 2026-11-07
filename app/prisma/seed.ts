@@ -58,6 +58,7 @@ async function main() {
         trackId: checkpoint.trackId,
         tier: checkpoint.tier,
         title: checkpoint.title,
+        rubric: JSON.stringify(DEFAULT_RUBRIC_ITEMS),
       },
     })
   }

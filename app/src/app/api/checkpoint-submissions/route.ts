@@ -38,24 +38,34 @@ export async function POST(req: NextRequest) {
   if (!userId || !checkpointId || !artifactUrl || !Array.isArray(selfRubric)) {
     return NextResponse.json({ error: 'userId, checkpointId, artifactUrl, and selfRubric are required' }, { status: 400 })
   }
-  if (selfRubric.length !== DEFAULT_RUBRIC_ITEMS.length) {
-    return NextResponse.json({ error: `selfRubric must have exactly ${DEFAULT_RUBRIC_ITEMS.length} entries` }, { status: 400 })
+  if (selfRubric.length !== DEFAULT_RUBRIC_ITEMS.length || !selfRubric.every((v) => typeof v === 'boolean')) {
+    return NextResponse.json({ error: `selfRubric must be ${DEFAULT_RUBRIC_ITEMS.length} booleans` }, { status: 400 })
+  }
+  try {
+    new URL(artifactUrl)
+  } catch {
+    return NextResponse.json({ error: 'artifactUrl must be a valid URL' }, { status: 400 })
   }
 
-  await ensureUser(userId)
-  const checkpoint = await ensureCheckpoint(checkpointId)
-  if (!checkpoint) return NextResponse.json({ error: 'unknown checkpointId' }, { status: 404 })
+  try {
+    await ensureUser(userId)
+    const checkpoint = await ensureCheckpoint(checkpointId)
+    if (!checkpoint) return NextResponse.json({ error: 'unknown checkpointId' }, { status: 404 })
 
-  const status = selfRubric.every(Boolean) ? 'passed' : 'needs_revision'
-  const submission = await db.checkpointSubmission.create({
-    data: {
-      userId,
-      checkpointId,
-      artifactUrl,
-      selfRubric: JSON.stringify(selfRubric),
-      status,
-    },
-  })
+    const status = selfRubric.every(Boolean) ? 'passed' : 'needs_revision'
+    const submission = await db.checkpointSubmission.create({
+      data: {
+        userId,
+        checkpointId,
+        artifactUrl,
+        selfRubric: JSON.stringify(selfRubric),
+        status,
+      },
+    })
 
-  return NextResponse.json({ submission })
+    return NextResponse.json({ submission })
+  } catch (err) {
+    console.error('POST /api/checkpoint-submissions failed:', err)
+    return NextResponse.json({ error: 'failed to record submission' }, { status: 500 })
+  }
 }

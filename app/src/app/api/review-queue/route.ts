@@ -25,37 +25,45 @@ export async function POST(req: NextRequest) {
     grade?: number
   }
 
-  if (!userId || !itemId || !itemType || grade === undefined) {
+  if (!userId || !itemId || !itemType || typeof grade !== 'number') {
     return NextResponse.json({ error: 'userId, itemId, itemType, and grade are required' }, { status: 400 })
   }
+  if (grade < 0 || grade > 5) {
+    return NextResponse.json({ error: 'grade must be 0..5' }, { status: 400 })
+  }
 
-  await ensureUser(userId)
-  const existing = await db.reviewState.findUnique({
-    where: { userId_itemId_itemType: { userId, itemId, itemType } },
-  })
-  const prev = existing ?? { easeFactor: 2.5, intervalDays: 0, repetitions: 0 }
+  try {
+    await ensureUser(userId)
+    const existing = await db.reviewState.findUnique({
+      where: { userId_itemId_itemType: { userId, itemId, itemType } },
+    })
+    const prev = existing ?? { easeFactor: 2.5, intervalDays: 0, repetitions: 0 }
 
-  const next = nextReviewState(prev, grade)
-  const dueAt = new Date(Date.now() + next.dueInDays * 24 * 60 * 60 * 1000)
+    const next = nextReviewState(prev, grade)
+    const dueAt = new Date(Date.now() + next.dueInDays * 24 * 60 * 60 * 1000)
 
-  const reviewState = await db.reviewState.upsert({
-    where: { userId_itemId_itemType: { userId, itemId, itemType } },
-    create: {
-      userId,
-      itemId,
-      itemType,
-      easeFactor: next.easeFactor,
-      intervalDays: next.intervalDays,
-      repetitions: next.repetitions,
-      dueAt,
-    },
-    update: {
-      easeFactor: next.easeFactor,
-      intervalDays: next.intervalDays,
-      repetitions: next.repetitions,
-      dueAt,
-    },
-  })
+    const reviewState = await db.reviewState.upsert({
+      where: { userId_itemId_itemType: { userId, itemId, itemType } },
+      create: {
+        userId,
+        itemId,
+        itemType,
+        easeFactor: next.easeFactor,
+        intervalDays: next.intervalDays,
+        repetitions: next.repetitions,
+        dueAt,
+      },
+      update: {
+        easeFactor: next.easeFactor,
+        intervalDays: next.intervalDays,
+        repetitions: next.repetitions,
+        dueAt,
+      },
+    })
 
-  return NextResponse.json({ reviewState })
+    return NextResponse.json({ reviewState })
+  } catch (err) {
+    console.error('POST /api/review-queue failed:', err)
+    return NextResponse.json({ error: 'failed to update review state' }, { status: 500 })
+  }
 }

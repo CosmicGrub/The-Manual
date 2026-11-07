@@ -16,19 +16,24 @@ export async function POST(req: NextRequest) {
   const body = await req.json()
   const { userId, moduleId, status } = body as { userId?: string; moduleId?: string; status?: string }
 
-  if (!userId || !moduleId || !status) {
+  if (typeof userId !== 'string' || !userId || typeof moduleId !== 'string' || !moduleId || typeof status !== 'string') {
     return NextResponse.json({ error: 'userId, moduleId, and status are required' }, { status: 400 })
   }
   if (!['not_started', 'in_progress', 'completed'].includes(status)) {
     return NextResponse.json({ error: 'invalid status' }, { status: 400 })
   }
 
-  await ensureUser(userId)
-  const progress = await db.progress.upsert({
-    where: { userId_moduleId: { userId, moduleId } },
-    create: { userId, moduleId, status },
-    update: { status },
-  })
+  try {
+    await ensureUser(userId)
+    const progress = await db.progress.upsert({
+      where: { userId_moduleId: { userId, moduleId } },
+      create: { userId, moduleId, status },
+      update: { status },
+    })
 
-  return NextResponse.json({ progress })
+    return NextResponse.json({ progress })
+  } catch (err) {
+    console.error('POST /api/progress failed:', err)
+    return NextResponse.json({ error: 'failed to update progress' }, { status: 500 })
+  }
 }

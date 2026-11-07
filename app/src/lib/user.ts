@@ -1,4 +1,7 @@
+import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
+
+type DbClient = typeof db | Prisma.TransactionClient
 
 // Single local learner by default (see .env.example / MASTERFILE.md §3.1).
 // A fixed, well-known id — not Prisma's default cuid() — is deliberate: the
@@ -26,8 +29,8 @@ export async function getOrCreateDefaultUser() {
 // have already called getOrCreateDefaultUser(). Every mutating API route
 // calls this first so the foreign-key target always exists, regardless of
 // which page a learner lands on first.
-export async function ensureUser(userId: string) {
-  await db.user.upsert({
+export async function ensureUser(userId: string, client: DbClient = db) {
+  await client.user.upsert({
     where: { id: userId },
     create: { id: userId, name: userId === LOCAL_USER_ID ? process.env.DEFAULT_USER_NAME ?? 'Learner' : userId },
     update: {},

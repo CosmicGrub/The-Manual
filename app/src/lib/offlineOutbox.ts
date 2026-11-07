@@ -44,8 +44,21 @@ export async function queueRequest(url: string, body: unknown): Promise<void> {
   })
 }
 
-/** Attempt every queued request in order; stop at the first failure so ordering is preserved. */
-export async function flushOutbox(): Promise<{ flushed: number; remaining: number }> {
+// Concurrent calls (app-load AND a same-tick 'online' event, both wired up by
+// OfflineOutboxFlusher) must not both grab the same pre-delete snapshot and
+// double-POST every queued item — share one in-flight run instead.
+let flushPromise: Promise<{ flushed: number; remaining: number }> | null = null
+
+/** Attempt every queued request in order; stop at the first connectivity failure so ordering is preserved. */
+export function flushOutbox(): Promise<{ flushed: number; remaining: number }> {
+  if (flushPromise) return flushPromise
+  flushPromise = doFlush().finally(() => {
+    flushPromise = null
+  })
+  return flushPromise
+}
+
+async function doFlush(): Promise<{ flushed: number; remaining: number }> {
   const db = await openDb()
   const all = await new Promise<QueuedRequest[]>((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readonly')
@@ -54,23 +67,37 @@ export async function flushOutbox(): Promise<{ flushed: number; remaining: numbe
     req.onerror = () => reject(req.error)
   })
 
+  const deleteItem = (id: number) =>
+    new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite')
+      tx.objectStore(STORE_NAME).delete(id)
+      tx.oncomplete = () => resolve()
+      tx.onerror = () => reject(tx.error)
+    })
+
   let flushed = 0
+  let processed = 0
   for (const item of all.sort((a, b) => a.queuedAt - b.queuedAt)) {
     try {
       const res = await fetch(item.url, { method: item.method, headers: { 'Content-Type': 'application/json' }, body: item.body })
-      if (!res.ok) break // server rejected it (not a connectivity failure) — stop and leave it queued for inspection
-      await new Promise<void>((resolve, reject) => {
-        const tx = db.transaction(STORE_NAME, 'readwrite')
-        tx.objectStore(STORE_NAME).delete(item.id)
-        tx.oncomplete = () => resolve()
-        tx.onerror = () => reject(tx.error)
-      })
+      if (!res.ok) {
+        // The server rejected the request itself (bad input, a validation rule
+        // that changed) — not a connectivity problem, and not fixable by
+        // retrying it unchanged. Drop it so it can't permanently block every
+        // later queued write behind it; log it so it's at least inspectable.
+        console.error(`Dropping queued request the server rejected (${res.status}): ${item.method} ${item.url}`)
+        await deleteItem(item.id)
+        processed++
+        continue
+      }
+      await deleteItem(item.id)
       flushed++
+      processed++
     } catch {
       break // still offline — stop, leave the rest queued, try again next time
     }
   }
-  return { flushed, remaining: all.length - flushed }
+  return { flushed, remaining: all.length - processed }
 }
 
 /** POST with an automatic offline fallback: tries the network, queues on failure. Returns whether it was queued. */

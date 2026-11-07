@@ -40,6 +40,7 @@ export async function ensureCheckpoint(checkpointId: string) {
       trackId: brief.trackId,
       tier: brief.tier,
       title: brief.title,
+      rubric: JSON.stringify(DEFAULT_RUBRIC_ITEMS),
     },
   })
 }

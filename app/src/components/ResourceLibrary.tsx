@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { TIER_LABELS } from '@/lib/tracks'
 import type { Resource } from '@/lib/curriculumDocs'
@@ -14,6 +14,16 @@ export function ResourceLibrary({ resources, tracks }: { resources: Resource[]; 
   const [trackId, setTrackId] = useState(searchParams.get('track') ?? 'all')
   const [tier, setTier] = useState(searchParams.get('tier') ?? 'all')
   const [query, setQuery] = useState('')
+
+  // useState's initializer only runs once on mount — App Router reuses this
+  // mounted component instance across same-route client navigations with a
+  // different query string (e.g. two track pages each linking here with a
+  // different ?track=), so without this the filters silently keep whatever
+  // was loaded first. Re-sync whenever the URL's own params actually change.
+  useEffect(() => {
+    setTrackId(searchParams.get('track') ?? 'all')
+    setTier(searchParams.get('tier') ?? 'all')
+  }, [searchParams])
 
   const trackName = useMemo(() => new Map(tracks.map((t) => [t.id, t.name])), [tracks])
 

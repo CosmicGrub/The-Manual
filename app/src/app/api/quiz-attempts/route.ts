@@ -13,31 +13,51 @@ export async function POST(req: NextRequest) {
     moduleId?: string
     score?: number
     answers?: unknown
-    missedQuestionIds?: string[]
+    missedQuestionIds?: unknown
   }
 
-  if (!userId || !moduleId || score === undefined) {
+  if (typeof userId !== 'string' || !userId || typeof moduleId !== 'string' || !moduleId || typeof score !== 'number') {
     return NextResponse.json({ error: 'userId, moduleId, and score are required' }, { status: 400 })
   }
-
-  await ensureUser(userId)
-  const attempt = await db.quizAttempt.create({
-    data: { userId, moduleId, score, answers: JSON.stringify(answers ?? {}) },
-  })
-
-  await db.progress.upsert({
-    where: { userId_moduleId: { userId, moduleId } },
-    create: { userId, moduleId, status: 'in_progress', masteryScore: score },
-    update: { masteryScore: score },
-  })
-
-  for (const questionId of missedQuestionIds ?? []) {
-    await db.reviewState.upsert({
-      where: { userId_itemId_itemType: { userId, itemId: questionId, itemType: 'quiz_question' } },
-      create: { userId, itemId: questionId, itemType: 'quiz_question' },
-      update: { dueAt: new Date() }, // due again immediately — SM-2 grading happens on next review
-    })
+  if (score < 0 || score > 1) {
+    return NextResponse.json({ error: 'score must be 0..1' }, { status: 400 })
   }
+  const missed = Array.isArray(missedQuestionIds) ? missedQuestionIds.filter((id): id is string => typeof id === 'string') : []
 
-  return NextResponse.json({ attempt })
+  try {
+    const [attempt] = await db.$transaction(async (tx) => {
+      await ensureUser(userId, tx)
+      const attempt = await tx.quizAttempt.create({
+        data: { userId, moduleId, score, answers: JSON.stringify(answers ?? {}) },
+      })
+
+      // Real rolling average, not a last-write-wins overwrite: recompute from
+      // every QuizAttempt this learner has made on this module, including the
+      // one just created above.
+      const agg = await tx.quizAttempt.aggregate({
+        where: { userId, moduleId },
+        _avg: { score: true },
+      })
+      await tx.progress.upsert({
+        where: { userId_moduleId: { userId, moduleId } },
+        create: { userId, moduleId, status: 'in_progress', masteryScore: agg._avg.score ?? score },
+        update: { status: 'in_progress', masteryScore: agg._avg.score ?? score },
+      })
+
+      for (const questionId of missed) {
+        await tx.reviewState.upsert({
+          where: { userId_itemId_itemType: { userId, itemId: questionId, itemType: 'quiz_question' } },
+          create: { userId, itemId: questionId, itemType: 'quiz_question' },
+          update: { dueAt: new Date() }, // due again immediately — SM-2 grading happens on next review
+        })
+      }
+
+      return [attempt]
+    })
+
+    return NextResponse.json({ attempt })
+  } catch (err) {
+    console.error('POST /api/quiz-attempts failed:', err)
+    return NextResponse.json({ error: 'failed to record quiz attempt' }, { status: 500 })
+  }
 }
