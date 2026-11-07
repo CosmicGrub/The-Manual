@@ -28,13 +28,54 @@ function parseArgs() {
   return args
 }
 
+/** Masked prompt (prints `*` per keystroke) when stdin is a real terminal; falls back to plain readline — e.g. piped input in CI/tests — where raw mode isn't available anyway. */
 async function promptPassword(): Promise<string> {
-  const rl = createInterface({ input: stdin, output: stdout })
-  // Plain readline has no built-in hidden-input mode; good enough for a
-  // one-time local admin tool run on a machine the operator already controls.
-  const password = await rl.question('Password (min 8 chars, visible while typing): ')
-  rl.close()
-  return password
+  if (!stdin.isTTY) {
+    const rl = createInterface({ input: stdin, output: stdout })
+    const password = await rl.question('Password (min 8 chars): ')
+    rl.close()
+    return password
+  }
+
+  return new Promise((resolve, reject) => {
+    stdout.write('Password (min 8 chars): ')
+    stdin.setRawMode(true)
+    stdin.resume()
+    stdin.setEncoding('utf8')
+
+    let password = ''
+    const onData = (char: string) => {
+      switch (char) {
+        case '\n':
+        case '\r':
+        case '\u0004': // Ctrl+D
+          stdin.setRawMode(false)
+          stdin.pause()
+          stdin.removeListener('data', onData)
+          stdout.write('\n')
+          resolve(password)
+          break
+        case '\u0003': // Ctrl+C
+          stdin.setRawMode(false)
+          stdin.pause()
+          stdin.removeListener('data', onData)
+          stdout.write('\n')
+          reject(new Error('cancelled'))
+          break
+        case '\u007f': // backspace
+        case '\b':
+          if (password.length > 0) {
+            password = password.slice(0, -1)
+            stdout.write('\b \b')
+          }
+          break
+        default:
+          password += char
+          stdout.write('*')
+      }
+    }
+    stdin.on('data', onData)
+  })
 }
 
 async function main() {

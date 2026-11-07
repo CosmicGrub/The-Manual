@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { postWithOfflineFallback } from '@/lib/offlineOutbox'
+import { postWithOfflineFallback, saveFailureMessage } from '@/lib/offlineOutbox'
 
 type Submission = {
   id: string
@@ -20,8 +20,9 @@ export function CheckpointSubmissionForm({ checkpointId, rubricItems }: { checkp
   const [history, setHistory] = useState<Submission[] | null>(null)
   const [artifactUrl, setArtifactUrl] = useState('')
   const [checked, setChecked] = useState<boolean[]>(rubricItems.map(() => false))
-  const [state, setState] = useState<'idle' | 'saving' | 'done' | 'queued'>('idle')
+  const [state, setState] = useState<'idle' | 'saving' | 'done' | 'queued' | 'error'>('idle')
   const [lastStatus, setLastStatus] = useState<string | null>(null)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   // Best-effort: shows past attempts when online, silently skipped offline —
   // the form itself works either way, same offline-first contract as every
@@ -37,13 +38,21 @@ export function CheckpointSubmissionForm({ checkpointId, rubricItems }: { checkp
   async function handleSubmit() {
     if (!artifactUrl.trim()) return
     setState('saving')
-    const { queued } = await postWithOfflineFallback('/api/checkpoint-submissions', {
+    const result = await postWithOfflineFallback('/api/checkpoint-submissions', {
       checkpointId,
       artifactUrl: artifactUrl.trim(),
       selfRubric: checked,
     })
-    setLastStatus(checked.every(Boolean) ? 'passed' : 'needs_revision')
-    setState(queued ? 'queued' : 'done')
+    if (result.ok) {
+      setLastStatus(checked.every(Boolean) ? 'passed' : 'needs_revision')
+      setState('done')
+    } else if (result.queued) {
+      setLastStatus(checked.every(Boolean) ? 'passed' : 'needs_revision')
+      setState('queued')
+    } else {
+      setErrorMessage(saveFailureMessage(result.status))
+      setState('error')
+    }
   }
 
   return (
@@ -64,6 +73,17 @@ export function CheckpointSubmissionForm({ checkpointId, rubricItems }: { checkp
             ))}
           </ul>
         </div>
+      )}
+
+      {state === 'error' && (
+        <p className="text-sm text-red-600">
+          {errorMessage}{' '}
+          {errorMessage?.includes('signed out') && (
+            <a href="/login" className="underline">
+              Sign in
+            </a>
+          )}
+        </p>
       )}
 
       {state === 'done' || state === 'queued' ? (

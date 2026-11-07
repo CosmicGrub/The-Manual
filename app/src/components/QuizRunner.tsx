@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { postWithOfflineFallback } from '@/lib/offlineOutbox'
+import { postWithOfflineFallback, saveFailureMessage } from '@/lib/offlineOutbox'
 
 export type QuizQuestion =
   | { id: string; type: 'multiple_choice'; prompt: string; choices: string[]; correctIndex: number }
@@ -26,6 +26,7 @@ export function QuizRunner({ moduleId, questions, onComplete }: Props) {
   const [submitted, setSubmitted] = useState(false)
   const [score, setScore] = useState<number | null>(null)
   const [savedOffline, setSavedOffline] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   function isCorrect(q: QuizQuestion): boolean {
     const a = answers[q.id]
@@ -54,13 +55,14 @@ export function QuizRunner({ moduleId, questions, onComplete }: Props) {
     // — or the PC it talks to over LAN — is reachable again. See
     // app/src/lib/offlineOutbox.ts and MASTERFILE.md §3.8. No userId in the
     // body — the server derives it from the session cookie.
-    const { queued } = await postWithOfflineFallback('/api/quiz-attempts', {
+    const result = await postWithOfflineFallback('/api/quiz-attempts', {
       moduleId,
       score: finalScore,
       answers,
       missedQuestionIds,
     })
-    setSavedOffline(queued)
+    setSavedOffline(result.queued)
+    if (!result.ok && !result.queued) setSaveError(saveFailureMessage(result.status))
 
     onComplete?.(finalScore)
   }
@@ -116,6 +118,16 @@ export function QuizRunner({ moduleId, questions, onComplete }: Props) {
         <p className="font-medium">
           {score !== null && `Score: ${Math.round(score * 100)}%`} — missed items will resurface for spaced review.
           {savedOffline && ' (Saved offline — will sync automatically once you\'re back online.)'}
+        </p>
+      )}
+      {saveError && (
+        <p className="text-sm text-red-600">
+          {saveError}{' '}
+          {saveError.includes('signed out') && (
+            <a href="/login" className="underline">
+              Sign in
+            </a>
+          )}
         </p>
       )}
     </div>

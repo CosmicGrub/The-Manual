@@ -7,9 +7,11 @@ import { db } from '@/lib/db'
 // Self-hosted, local-first, single-household app (see MASTERFILE.md §3.1,
 // §3.6) — no email infra, no external identity provider, no public signup.
 // `disableSignUp` kills the public /sign-up/email endpoint; new accounts are
-// created only via the admin-only route (src/app/api/admin/users/route.ts),
-// which calls auth.api.createUser() directly from an authenticated admin
-// session — see that file for why this is safe even with disableSignUp on.
+// created only via scripts/create-user.ts, a CLI script with no HTTP
+// boundary at all — it calls auth.api.createUser() directly in-process, so
+// there's no session to check: shell access to the server IS the access
+// control, matching "admin is whoever can run a command on this machine."
+// The `admin` plugin below exists so that script can call createUser().
 export const auth = betterAuth({
   database: prismaAdapter(db, { provider: 'sqlite' }),
   emailAndPassword: {

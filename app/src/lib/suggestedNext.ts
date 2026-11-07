@@ -28,7 +28,7 @@ function isSolid(progress: ProgressRow | undefined): boolean {
 }
 
 function reasonFor(progress: ProgressRow | undefined): SuggestedNext['reason'] {
-  if (!progress) return 'next'
+  if (!progress || progress.status === 'not_started') return 'next'
   if (progress.status === 'in_progress') return 'continue'
   // Only remaining case a non-solid lesson can reach here: completed, but
   // masteryScore dropped below the weak threshold.

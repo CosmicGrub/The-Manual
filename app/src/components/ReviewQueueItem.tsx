@@ -1,21 +1,40 @@
 'use client'
 
 import { useState } from 'react'
-import { postWithOfflineFallback } from '@/lib/offlineOutbox'
+import { postWithOfflineFallback, saveFailureMessage } from '@/lib/offlineOutbox'
 import type { QuizQuestion } from '@/components/QuizRunner'
 
 const GRADE_LABELS = ['Blackout', 'Wrong, familiar', 'Wrong, close', 'Hard but right', 'Easy', 'Instant']
 
 export function ReviewQueueItem({ itemId, itemType, question }: { itemId: string; itemType: string; question?: QuizQuestion }) {
   const [revealed, setRevealed] = useState(false)
-  const [graded, setGraded] = useState<'idle' | 'queued' | 'done'>('idle')
+  const [graded, setGraded] = useState<'idle' | 'queued' | 'done' | 'error'>('idle')
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   async function grade(score: number) {
     // No userId in the body — the server derives it from the session
     // cookie, which `fetch()` attaches automatically (same-origin), even on
     // a later offline-queue replay. See api/review-queue/route.ts.
-    const { queued } = await postWithOfflineFallback('/api/review-queue', { itemId, itemType, grade: score })
-    setGraded(queued ? 'queued' : 'done')
+    const result = await postWithOfflineFallback('/api/review-queue', { itemId, itemType, grade: score })
+    if (result.ok) setGraded('done')
+    else if (result.queued) setGraded('queued')
+    else {
+      setErrorMessage(saveFailureMessage(result.status))
+      setGraded('error')
+    }
+  }
+
+  if (graded === 'error') {
+    return (
+      <li className="border rounded-lg p-4 text-sm text-red-600">
+        {errorMessage}{' '}
+        {errorMessage?.includes('signed out') && (
+          <a href="/login" className="underline">
+            Sign in
+          </a>
+        )}
+      </li>
+    )
   }
 
   if (graded !== 'idle') {

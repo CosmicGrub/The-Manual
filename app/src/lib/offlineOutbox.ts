@@ -100,14 +100,29 @@ async function doFlush(): Promise<{ flushed: number; remaining: number }> {
   return { flushed, remaining: all.length - processed }
 }
 
-/** POST with an automatic offline fallback: tries the network, queues on failure. Returns whether it was queued. */
-export async function postWithOfflineFallback(url: string, body: unknown): Promise<{ queued: boolean }> {
+/**
+ * POST with an automatic offline fallback: tries the network, queues ONLY on
+ * a genuine connectivity failure (fetch itself couldn't complete — the same
+ * line doFlush already draws between "still offline" and "server rejected
+ * it"). A response that comes back `!ok` (expired session, bad input) means
+ * the request reached the server and was refused — queuing that would just
+ * get it silently dropped on the next flush (see doFlush above), so this
+ * surfaces it as a real failure instead of a false "saved offline."
+ */
+export async function postWithOfflineFallback(url: string, body: unknown): Promise<{ queued: boolean; ok: boolean; status?: number }> {
+  let res: Response
   try {
-    const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-    if (!res.ok) throw new Error(`${url} responded ${res.status}`)
-    return { queued: false }
+    res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
   } catch {
     await queueRequest(url, body)
-    return { queued: true }
+    return { queued: true, ok: false }
   }
+  if (res.ok) return { queued: false, ok: true }
+  return { queued: false, ok: false, status: res.status }
+}
+
+/** Shared copy for the "save failed, and it wasn't offline" case every writer component needs. */
+export function saveFailureMessage(status?: number): string {
+  if (status === 401) return "You've been signed out — sign in again to save this."
+  return 'Failed to save — try again.'
 }
