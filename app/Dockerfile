@@ -24,6 +24,10 @@ COPY app/ .
 COPY content/ ../content
 RUN npx prisma generate
 RUN npm run build
+# next start never reads the Turbopack incremental-build cache — it's
+# build-time-only and was measured at ~70MB (42% of .next) on a clean build.
+# Strip it so the runtime image doesn't carry pure dead weight.
+RUN rm -rf .next/cache
 
 FROM node:20-bookworm-slim AS runtime
 WORKDIR /app

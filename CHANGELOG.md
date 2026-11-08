@@ -1156,3 +1156,29 @@ Everything else checked out against real GHC output on the first pass: the curry
 
 **Result:** Next.js is current (16.4.5), React is current (19.3.1), `npm audit` is clean (0 vulnerabilities, down from 2 at the start of this entry), and the full regression suite passes live. The two-release deferral from [0.78.0]/[0.79.0] is closed.
 
+## [0.83.0] — 2026-11-08 — Four-angle parallel audit (functional, performance, content age-fit, UI/UX across ages) — quick/safe findings fixed and verified live
+
+**Context:** Asked for a complete audit of the app covering features/functions/performance, explicitly across "adults, kids, and all appropriate ages in between." Ran 4 independent parallel audits — functional/feature gaps, performance, curriculum content reading-level/age-fit, and UI/UX accessibility across ages — then fixed and live-verified everything scoped as a safe, well-defined fix; bigger design decisions (onboarding, an adult-content signal) were deliberately scoped into a separate design pass rather than built twice. Note for future parallel audit rounds against this app: Next 16 enforces one `next dev` lock per project directory, not per port — concurrent forks can't each hold their own live server.
+
+**Fixed — functional:**
+- `app/src/components/ReviewQueueItem.tsx` — `grade()` had no in-flight guard, unlike every other writer component; a fast double-tap across two grade buttons could fire two `/api/review-queue` POSTs with different grades, SM-2 rescheduling off whichever response resolved last. Added a `submitting` guard matching the pattern already used elsewhere.
+- `app/scripts/gen-precache-manifest.mjs` — `/login` was missing from `staticUrls`, so a learner offline with an expired/cleared session had no cached sign-in page to land on, only the generic offline fallback. Added.
+
+**Fixed — performance:**
+- `app/Dockerfile` — the runtime image was copying `.next` wholesale, including `.next/cache` (Turbopack's incremental-build cache, measured at 70MB — 42% of a clean build's 165MB `.next` directory). `next start` never reads it; pure deploy-time bloat. Added `RUN rm -rf .next/cache` after `npm run build` in the build stage.
+- Everything else performance-side (index coverage, static-generation cost, live route timings all under 200ms) came back clean — no other action needed, see full audit notes in the session record.
+
+**Fixed — accessibility (UI/UX across ages):**
+- `app/src/components/QuizRunner.tsx` — multiple-choice question groups had no `fieldset`/`legend`, so a screen reader landing on the first radio never announced the question; short-answer/explain-back inputs had no `label`/`htmlFor` association at all (announced as "edit text, blank"). Fixed both — verified live via Playwright that the fieldset/legend and label-to-input association are actually present on a real rendered lesson page, not just in source.
+- `app/src/components/ReviewQueueItem.tsx` / `SupplementaryGate.tsx` — the 6 SM-2 grade buttons (~28px tall) and the supplementary-mode dismiss link (bare `text-xs underline`, no padding) were under the ~44px touch-target guideline, a bigger problem for a younger learner's less-precise motor control on the Z Fold 5/Tab S9 FE this app targets (§3.7) than for a mouse-driven adult. Both bumped to a comfortable minimum touch target.
+
+**Fixed — content age-fit (light tone edits, rigor preserved, no content removed):**
+- `content/cybersecurity-ethical-hacking/tier-0/personal-digital-security-and-privacy-fundamentals.mdx` — stakes language skewed entirely toward adult financial accounts (bank logins, a $24M cryptocurrency SIM-swap case as the module's single most vivid anecdote). Broadened the credential-stuffing and SIM-swap explanations to name gaming/Discord/social accounts as equally real targets of the exact same attack mechanisms, alongside — not instead of — the existing bank/crypto examples, so a reader without a bank account yet still sees themselves in the stakes.
+- `content/capstones-career/tier-0/career-literacy-101.mdx` — framing leaned entirely on "hireable"/"a reviewer"/job-hunting language for a skill (showing your decisions, not just your output) that's just as real for a teacher's rubric, a competition judge, or an open-source maintainer reviewing a PR. Broadened the intro and one callout to name those audiences alongside the hiring-manager one, without touching the job-posting/resume sections that are correctly career-specific for this track.
+
+**Deliberately not fixed in this pass, scoped separately instead:**
+- Three Capstones Tier 5 modules (Legal & IP Literacy, Career & Professional Soft Skills, Business & Monetization) were confirmed genuinely adult-only by subject (contracts, salary negotiation, tax) — correctly left as-is; the real gap is that nothing signals this age gradient anywhere in the app or docs. Tracked as its own design item (see MASTERFILE §3.6, "adult-content signal").
+- No onboarding/first-time-user orientation exists anywhere, and `SkillTree.tsx`'s locked-tier state is conveyed only via color + a hover-only `title` tooltip (invisible on touch, this app's primary input). Both are real design decisions, not drive-by fixes — scoped into the premium visual-redesign mockup pass requested in the same conversation rather than built as throwaway interim versions.
+
+**Result:** `npx tsc --noEmit` clean. `npm run build` passed (397 pages, content edits compiled cleanly through Velite). Live-verified via Playwright against a throwaway test account (created, then fully deleted): fieldset/legend and label association actually present on a rendered lesson page, sign-in/review flow unaffected. `.next/cache`'s 70MB confirmed present on a real build, targeted by the Dockerfile fix (not run against a real Docker daemon, unavailable in this environment, same standing caveat as every prior round).
+

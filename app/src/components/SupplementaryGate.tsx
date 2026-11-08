@@ -41,7 +41,7 @@ export function SupplementaryGate({ moduleId, concepts }: { moduleId: string; co
           <p>
             Supplementary Foundations mode is on — this lesson has {concepts.length} related concept{concepts.length === 1 ? '' : 's'} below (in "Check your understanding") worth a look before moving on.
           </p>
-          <button onClick={() => setDismissed(true)} className="mt-2 text-xs underline">
+          <button onClick={() => setDismissed(true)} className="mt-2 min-h-11 -mx-2 px-2 py-2 text-xs underline">
             Got it — mark complete without reviewing
           </button>
         </div>

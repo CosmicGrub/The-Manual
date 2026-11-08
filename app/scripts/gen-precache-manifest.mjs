@@ -17,7 +17,10 @@ const lessons = JSON.parse(readFileSync(lessonsPath, 'utf-8'))
 
 const trackIds = [...new Set(lessons.map((l) => l.trackId))]
 
-const staticUrls = ['/', '/review', '/resources', '/manifest.json', '/offline.html', '/icons/icon.svg', '/icons/icon-maskable.svg']
+// /login is included so a learner whose session has expired/been cleared
+// while offline still has a real, cached sign-in page to land on instead of
+// the generic offline fallback with no path back in.
+const staticUrls = ['/', '/login', '/review', '/resources', '/manifest.json', '/offline.html', '/icons/icon.svg', '/icons/icon-maskable.svg']
 const trackUrls = trackIds.map((id) => `/tracks/${id}`)
 const lessonUrls = lessons.map((l) => `/tracks/${l.trackId}/${l.tier}/${l.slug}`)
 // Supplementary Foundations sidecars (content/**/*.supplementary.json)

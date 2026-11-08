@@ -71,24 +71,31 @@ export function QuizRunner({ moduleId, questions, onComplete }: Props) {
     <div className="space-y-6">
       {questions.map((q) => (
         <div key={q.id} className="border rounded-lg p-4">
-          <p className="font-medium mb-2">{q.prompt}</p>
-
-          {q.type === 'multiple_choice' &&
-            q.choices.map((choice, i) => (
-              <label key={i} className="flex items-center gap-2 py-2">
-                <input
-                  type="radio"
-                  name={q.id}
-                  disabled={submitted}
-                  checked={answers[q.id] === i}
-                  onChange={() => setAnswers((a) => ({ ...a, [q.id]: i }))}
-                />
-                {choice}
-              </label>
-            ))}
+          {q.type === 'multiple_choice' ? (
+            <fieldset>
+              <legend className="font-medium mb-2">{q.prompt}</legend>
+              {q.choices.map((choice, i) => (
+                <label key={i} className="flex items-center gap-2 py-2">
+                  <input
+                    type="radio"
+                    name={q.id}
+                    disabled={submitted}
+                    checked={answers[q.id] === i}
+                    onChange={() => setAnswers((a) => ({ ...a, [q.id]: i }))}
+                  />
+                  {choice}
+                </label>
+              ))}
+            </fieldset>
+          ) : (
+            <label htmlFor={q.id} className="font-medium mb-2 block">
+              {q.prompt}
+            </label>
+          )}
 
           {q.type === 'short_answer' && (
             <input
+              id={q.id}
               type="text"
               disabled={submitted}
               className="border rounded px-2 py-1 w-full"
@@ -99,6 +106,7 @@ export function QuizRunner({ moduleId, questions, onComplete }: Props) {
 
           {q.type === 'explain_back' && (
             <textarea
+              id={q.id}
               disabled={submitted}
               className="border rounded px-2 py-1 w-full"
               rows={4}
