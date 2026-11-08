@@ -1,6 +1,9 @@
 # Build context is the repo root (see docker-compose.yml) — exclude everything
-# the image doesn't need, especially anything under app/ that would otherwise
-# shadow what the Dockerfile installs/builds fresh inside the image.
+# the image doesn't need, especially anything that would otherwise shadow
+# what the Dockerfile installs/builds fresh inside the image. node_modules at
+# the root (not just app/) since the two-fork monorepo rework (MASTERFILE.md
+# §3.6.5) moved the npm-workspaces install there.
+node_modules
 app/node_modules
 app/.next
 app/.velite

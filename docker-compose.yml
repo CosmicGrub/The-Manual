@@ -20,7 +20,10 @@ services:
       # Named volume so the SQLite file (and your progress) survives
       # `docker compose down` / image rebuilds. First run seeds it from the
       # image's prisma/ directory (schema.prisma + a freshly-pushed dev.db).
-      - manual_data:/app/prisma
+      # /repo/app, not /app — the Dockerfile's runtime WORKDIR as of the
+      # two-fork monorepo rework (npm workspaces root at /repo), see
+      # app/Dockerfile and MASTERFILE.md §3.6.5.
+      - manual_data:/repo/app/prisma
     restart: unless-stopped
 
 volumes:

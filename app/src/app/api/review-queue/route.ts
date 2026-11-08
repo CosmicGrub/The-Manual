@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { nextReviewState } from '@/lib/srs'
+import { nextReviewState } from '@the-manual/core'
 import { requireUserId } from '@/lib/profile'
 
 // GET /api/review-queue — items due for spaced-repetition review right now

@@ -1,6 +1,9 @@
 /**
  * SM-2 spaced-repetition scheduling (the classic SuperMemo-2 algorithm).
  * Grade is 0-5 self-reported recall quality: <3 means "forgot", resets the interval.
+ *
+ * Pure, storage-agnostic — shared verbatim by both forks (app/'s Prisma-backed
+ * /api/review-queue route and mobile/'s local-SQLite equivalent).
  */
 
 export type ReviewState = {

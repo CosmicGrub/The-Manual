@@ -2,11 +2,12 @@
 
 import { useState } from 'react'
 import { postWithOfflineFallback, saveFailureMessage } from '@/lib/offlineOutbox'
+import { gradeQuiz, type QuizQuestion } from '@the-manual/core'
 
-export type QuizQuestion =
-  | { id: string; type: 'multiple_choice'; prompt: string; choices: string[]; correctIndex: number }
-  | { id: string; type: 'short_answer'; prompt: string; acceptedAnswers: string[] }
-  | { id: string; type: 'explain_back'; prompt: string }
+// Re-exported for existing call sites (ReviewQueueItem, lib/quizzes.ts) —
+// the type itself now lives in packages/core/src/types.ts, shared with
+// mobile/'s quiz UI.
+export type { QuizQuestion }
 
 type Props = {
   moduleId: string
@@ -28,21 +29,8 @@ export function QuizRunner({ moduleId, questions, onComplete }: Props) {
   const [savedOffline, setSavedOffline] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
-  function isCorrect(q: QuizQuestion): boolean {
-    const a = answers[q.id]
-    if (q.type === 'multiple_choice') return a === q.correctIndex
-    if (q.type === 'short_answer') {
-      const given = String(a ?? '').trim().toLowerCase()
-      return q.acceptedAnswers.some((accepted) => accepted.toLowerCase() === given)
-    }
-    return true // explain_back is self-graded, never counted as "missed"
-  }
-
   function grade(): { score: number; missedQuestionIds: string[] } {
-    const gradable = questions.filter((q) => q.type !== 'explain_back')
-    const missed = gradable.filter((q) => !isCorrect(q))
-    const score = gradable.length === 0 ? 1 : (gradable.length - missed.length) / gradable.length
-    return { score, missedQuestionIds: missed.map((q) => q.id) }
+    return gradeQuiz(questions, answers)
   }
 
   async function handleSubmit() {

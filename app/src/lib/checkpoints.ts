@@ -1,20 +1,11 @@
 import { db } from '@/lib/db'
 import { getCheckpointBrief } from '@/lib/curriculumDocs'
+import { DEFAULT_RUBRIC_ITEMS } from '@the-manual/core'
 
-// The curriculum docs' checkpoint briefs (see curriculumDocs.ts) are free
-// prose, not a structured per-checkpoint grading rubric — the source material
-// doesn't break cleanly into granular pass/fail criteria across all 54 of
-// them (phrasing varies: "Rubric-graded on X, Y, Z", "Gate: ...", or no
-// trailing grading sentence at all). Rather than regex-mangle inconsistent
-// fragments into fake-precise checklist items, every checkpoint gets the
-// same self-rubric, matching exactly what MASTERFILE.md §2 defines a
-// checkpoint as: rubric-graded, artifact-required. The brief itself (shown
-// above this checklist on the page) is the actual grading criteria.
-export const DEFAULT_RUBRIC_ITEMS = [
-  'I produced the real artifact this checkpoint calls for — not a partial attempt — and linked it below.',
-  "It actually works end-to-end — I ran/used it myself before submitting, not just 'it should compile.'",
-  'I could explain and defend every design decision in it to a stranger, out loud, right now.',
-] as const
+// Re-exported for existing call sites (the checkpoint page, the
+// checkpoint-submissions API route) — the rubric itself now lives in
+// packages/core/src/checkpoints.ts, shared with mobile/.
+export { DEFAULT_RUBRIC_ITEMS }
 
 // Checkpoint rows are mirrored from the curriculum docs the same way
 // prisma/seed.ts mirrors Module rows from Velite's content index — see that

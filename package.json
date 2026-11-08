@@ -1,0 +1,9 @@
+{
+  "name": "the-manual",
+  "private": true,
+  "description": "The Manual — monorepo root. Two forks share packages/core/: app/ (Next.js + Prisma, the PC/LAN fork) and mobile/ (Capacitor + local SQLite, the standalone Android fork). See MASTERFILE.md §3.6.5.",
+  "workspaces": [
+    "app",
+    "packages/*"
+  ]
+}

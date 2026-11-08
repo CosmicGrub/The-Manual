@@ -7,7 +7,7 @@
 // separate fetch — see docs/running-on-your-devices.md and MASTERFILE.md §3.8.
 import fs from 'node:fs'
 import path from 'node:path'
-import type { QuizQuestion } from '@/components/QuizRunner'
+import type { QuizQuestion } from '@the-manual/core'
 
 const CONTENT_ROOT = path.join(process.cwd(), '..', 'content')
 
