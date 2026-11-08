@@ -1,0 +1,34 @@
+{
+  "name": "the-manual-mobile",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The Manual — standalone Android fork. No PC, no server, no network at runtime: content and the SM-2/quiz/sequencing logic from @the-manual/core ship inside the app, progress is stored in real on-device SQLite via @capacitor-community/sqlite. See MASTERFILE.md §3.6.5.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "velite build && node scripts/gen-quiz-index.mjs && vite build",
+    "cap:sync": "npx cap sync android",
+    "cap:open": "npx cap open android"
+  },
+  "dependencies": {
+    "@capacitor-community/sqlite": "^8.1.1",
+    "@capacitor/android": "^8.6.0",
+    "@capacitor/core": "^8.6.0",
+    "@the-manual/core": "*",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.6.0",
+    "@tailwindcss/typography": "^0.5.15",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.19",
+    "postcss": "^8.4.38",
+    "tailwindcss": "^3.4.4",
+    "typescript": "^5.5.0",
+    "velite": "^0.4.0",
+    "vite": "^6.0.0"
+  }
+}

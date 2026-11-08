@@ -1,28 +1,3 @@
-// Canonical track list (order = display/dependency order left-to-right on the dashboard).
-// Mirrors the 9 tracks defined in content/ and documented in MASTERFILE.md.
-export const TRACKS = [
-  { id: 'cs-foundations', name: 'CS & Programming Foundations', order: 0 },
-  { id: 'languages', name: 'Language Mastery', order: 1 },
-  { id: 'software-engineering', name: 'Software Engineering & Architecture', order: 2 },
-  { id: 'hardware-systems', name: 'Hardware & Computer Systems', order: 3 },
-  { id: 'ai-ml-prompting', name: 'AI, ML & Prompt Engineering', order: 4 },
-  { id: 'platforms', name: 'Platform & Cross-Platform Dev', order: 5 },
-  { id: 'devops-tooling', name: 'DevOps, Tooling & Practice', order: 6 },
-  { id: 'cybersecurity-ethical-hacking', name: 'Cybersecurity & Ethical Hacking', order: 7 },
-  { id: 'capstones-career', name: 'Capstones & Career Launch', order: 8 },
-] as const
-
-export type TrackId = (typeof TRACKS)[number]['id']
-
-export const TIER_LABELS = [
-  'Orientation & Literacy',
-  'Foundations',
-  'Builder',
-  'Practitioner',
-  'Advanced / Specialist',
-  'Expert / Innovator',
-] as const
-
-export function getTrackName(trackId: string): string {
-  return TRACKS.find((t) => t.id === trackId)?.name ?? trackId
-}
+// Re-exported for existing call sites — the track list and tier labels now
+// live in packages/core/src/tracks.ts, shared with mobile/.
+export { TRACKS, TIER_LABELS, getTrackName, type TrackId } from '@the-manual/core'
