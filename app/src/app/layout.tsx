@@ -3,7 +3,7 @@ import type { Metadata, Viewport } from 'next'
 import type { ReactNode } from 'react'
 import { RegisterServiceWorker } from '@/components/RegisterServiceWorker'
 import { OfflineOutboxFlusher } from '@/components/OfflineOutboxFlusher'
-import { AccountBar } from '@/components/AccountBar'
+import { ProfileBar } from '@/components/ProfileBar'
 
 export const metadata: Metadata = {
   title: 'The Manual',
@@ -36,7 +36,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="en">
       <body className="min-h-screen bg-white text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100">
         <div className="max-w-5xl mx-auto p-4 sm:p-6" style={{ paddingLeft: 'max(1rem, env(safe-area-inset-left))', paddingRight: 'max(1rem, env(safe-area-inset-right))' }}>
-          <AccountBar />
+          <ProfileBar />
           {children}
         </div>
         <RegisterServiceWorker />

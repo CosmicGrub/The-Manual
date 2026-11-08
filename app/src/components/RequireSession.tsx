@@ -1,5 +1,10 @@
 'use client'
 
+// UNUSED as of the offline-profile rework (MASTERFILE.md §3.6.4) —
+// src/components/RequireProfile.tsx replaces this on both pages that used
+// to wrap. Kept in place alongside the rest of the locked-and-hidden Better
+// Auth system.
+
 import { useSession } from '@/lib/auth-client'
 
 /**

@@ -54,7 +54,7 @@ export function QuizRunner({ moduleId, questions, onComplete }: Props) {
     // queued locally (IndexedDB) and replayed automatically once the device
     // — or the PC it talks to over LAN — is reachable again. See
     // app/src/lib/offlineOutbox.ts and MASTERFILE.md §3.8. No userId in the
-    // body — the server derives it from the session cookie.
+    // body — the server derives it from the active-profile cookie.
     const result = await postWithOfflineFallback('/api/quiz-attempts', {
       moduleId,
       score: finalScore,
@@ -131,9 +131,9 @@ export function QuizRunner({ moduleId, questions, onComplete }: Props) {
       {saveError && (
         <p className="text-sm text-red-600">
           {saveError}{' '}
-          {saveError.includes('signed out') && (
-            <a href="/login" className="underline">
-              Sign in
+          {saveError.includes('No active profile') && (
+            <a href="/profiles" className="underline">
+              Pick a profile
             </a>
           )}
         </p>

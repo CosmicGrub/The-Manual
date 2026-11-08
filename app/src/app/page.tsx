@@ -1,7 +1,6 @@
-import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { db } from '@/lib/db'
-import { auth } from '@/lib/auth'
+import { getActiveProfile } from '@/lib/profile'
 import { TRACKS, getTrackName } from '@/lib/tracks'
 import { SkillTree, type TrackSummary } from '@/components/SkillTree'
 import { SupplementaryToggle } from '@/components/SupplementaryToggle'
@@ -14,10 +13,9 @@ import { suggestedNextForTrack } from '@/lib/suggestedNext'
 export const dynamic = 'force-dynamic'
 
 export default async function DashboardPage() {
-  const session = await auth.api.getSession({ headers: await headers() })
-  if (!session) redirect('/login')
-  const user = session.user
-  const progress = await db.progress.findMany({ where: { userId: user.id } })
+  const profile = await getActiveProfile()
+  if (!profile) redirect('/profiles')
+  const progress = await db.progress.findMany({ where: { userId: profile.id } })
 
   const tracks: TrackSummary[] = TRACKS.map((track) => {
     const tierStatus: TrackSummary['tierStatus'] = [0, 1, 2, 3, 4, 5].map((tier) => {
@@ -41,7 +39,7 @@ export default async function DashboardPage() {
     <main className="space-y-8">
       <header>
         <h1 className="text-2xl font-semibold">The Manual</h1>
-        <p className="text-neutral-500">Welcome back, {user.name}. Here's where you stand across all 9 tracks.</p>
+        <p className="text-neutral-500">Welcome back, {profile.name}. Here's where you stand across all 9 tracks.</p>
       </header>
 
       {suggestions.length > 0 && (

@@ -4,6 +4,17 @@ import { admin } from 'better-auth/plugins'
 import { nextCookies } from 'better-auth/next-js'
 import { db } from '@/lib/db'
 
+// LOCKED AND HIDDEN as of the offline-profile rework (MASTERFILE.md §3.6.4,
+// 2026-11-08): nothing in the active app reaches /login or calls
+// auth.api.getSession() anymore — the default identity model is now the
+// local Profile system (src/lib/profile.ts, prisma/schema.prisma's Profile
+// model), no email/password, no network auth round-trip at all. This file,
+// scripts/create-user.ts, and the User/Session/Account/Verification schema
+// models are kept in place, not deleted, in case a future networked/
+// multi-device-sync phase genuinely needs server-validated accounts again —
+// re-link /login and swap src/lib/profile.ts's callers back to
+// auth.api.getSession() to revive it.
+//
 // Self-hosted, local-first, single-household app (see MASTERFILE.md §3.1,
 // §3.6) — no email infra, no external identity provider, no public signup.
 // `disableSignUp` kills the public /sign-up/email endpoint; new accounts are

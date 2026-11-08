@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { requireUserId } from '@/lib/session'
+import { requireUserId } from '@/lib/profile'
 
 // POST /api/quiz-attempts — { moduleId, score, answers, missedQuestionIds }
 // Records one attempt at a module's whole quiz set, rolls it into the module's

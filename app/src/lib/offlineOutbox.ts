@@ -123,6 +123,6 @@ export async function postWithOfflineFallback(url: string, body: unknown): Promi
 
 /** Shared copy for the "save failed, and it wasn't offline" case every writer component needs. */
 export function saveFailureMessage(status?: number): string {
-  if (status === 401) return "You've been signed out — sign in again to save this."
+  if (status === 401) return 'No active profile — pick one again to save this.'
   return 'Failed to save — try again.'
 }

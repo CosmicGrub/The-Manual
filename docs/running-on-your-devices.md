@@ -20,11 +20,7 @@ Docker sidesteps "which Linux distro" entirely — whatever the host, the contai
    docker compose up --build
    ```
 4. Open `http://localhost:3000` on the PC. Keep it running — your phone/tablet will connect to this same process (see §2).
-5. **The app is invite-only — create your first account** (from another terminal, while the container is running):
-   ```bash
-   docker compose exec the-manual npm run create-user -- --email you@example.com --name "Your Name" --role admin
-   ```
-   It'll prompt for a password interactively. Run this again (with `--role admin` or without — `admin` just means "can create other accounts") for everyone else in the household who should have their own tracked progress.
+5. **Pick or create a profile right in the app** — no account, no password. The first visit lands on a profile picker; click "+ Add a profile," give it a name, and you're in. Add one for everyone in the household who should have their own tracked progress — each profile's progress is fully separate, the same as a shared game console's local profiles. (The old admin-provisioned `npm run create-user` email/password flow still exists but is unused by default — see MASTERFILE.md §3.6.4.)
 
 To stop: `docker compose down` (your progress persists in a Docker volume; `docker compose down -v` would erase it).
 
@@ -55,13 +51,7 @@ npm start             # binds 0.0.0.0:3000 — reachable from other devices on y
 
 (`npm run dev` also binds `0.0.0.0` for the same reason, if you're actively editing content/code rather than running a built copy. Use `npm run dev:local-only` if you specifically want it unreachable from other devices.)
 
-**The app is invite-only — create your first account** before signing in (run from `app/`, while the server above is running or stopped, either works):
-
-```bash
-npm run create-user -- --email you@example.com --name "Your Name" --role admin
-```
-
-It prompts for a password interactively (never pass one on the command line — shell history and `ps` would leak it). Run it again for anyone else in the household who should have their own tracked progress; `--role admin` just means "can also create accounts," not anything higher-privilege within the app itself.
+**Pick or create a profile right in the app** — no account, no password. The first visit lands on a profile picker; click "+ Add a profile," give it a name, and you're in. Add one for everyone in the household who should have their own tracked progress — each profile's progress is fully separate, the same as a shared game console's local profiles. (The old admin-provisioned `npm run create-user` email/password flow still exists but is unused by default — see MASTERFILE.md §3.6.4.)
 
 ## 2. Reach it from your Galaxy Z Fold 5 / Galaxy Tab S9 FE
 

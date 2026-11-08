@@ -1,5 +1,9 @@
 'use client'
 
+// UNUSED as of the offline-profile rework (MASTERFILE.md §3.6.4) —
+// src/components/ProfileBar.tsx replaces this in layout.tsx. Kept in place
+// alongside the rest of the locked-and-hidden Better Auth system.
+
 import { useRouter } from 'next/navigation'
 import { signOut, useSession } from '@/lib/auth-client'
 

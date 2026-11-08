@@ -18,25 +18,45 @@ generator client {
   provider = "prisma-client-js"
 }
 
-model User {
+// The app's default, active identity model: a local, offline profile. No
+// email, no password, no network auth round-trip — picking or creating a
+// profile just tells the app "track progress under this name" on this
+// device, the way a shared household device gives each person their own
+// named slot. See src/lib/profile.ts and MASTERFILE.md §3.6.4.
+model Profile {
   id        String   @id @default(cuid())
   name      String
+  avatar    String   @default("blue") // a fixed-palette token, see src/components/ProfilePicker.tsx
   createdAt DateTime @default(now())
 
   progress              Progress[]
   quizAttempts          QuizAttempt[]
   reviewStates          ReviewState[]
   checkpointSubmissions CheckpointSubmission[]
-  email                 String
-  emailVerified         Boolean                @default(false)
-  image                 String?
-  updatedAt             DateTime               @updatedAt
-  role                  String?
-  banned                Boolean?               @default(false)
-  banReason             String?
-  banExpires            DateTime?
-  sessions              Session[]
-  accounts              Account[]
+}
+
+// Better Auth's identity model — email/password accounts, admin-provisioned
+// via scripts/create-user.ts, invite-only. Locked and hidden as of the
+// offline-profile rework (§3.6.4): nothing in the active app links to
+// /login or reads a Better Auth session anymore, and Progress/QuizAttempt/
+// CheckpointSubmission/ReviewState now relate to Profile above, not User.
+// Left in the schema, not deleted, for a possible future networked/
+// multi-device-sync phase — see auth.ts's own comment.
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+
+  email          String
+  emailVerified  Boolean  @default(false)
+  image          String?
+  updatedAt      DateTime @updatedAt
+  role           String?
+  banned         Boolean? @default(false)
+  banReason      String?
+  banExpires     DateTime?
+  sessions       Session[]
+  accounts       Account[]
 
   @@unique([email])
   @@map("user")
@@ -74,8 +94,8 @@ model QuizAttempt {
   answers   String // JSON-encoded { [questionId]: answer }
   createdAt DateTime @default(now())
 
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  module Module @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  profile Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+  module  Module  @relation(fields: [moduleId], references: [id], onDelete: Cascade)
 
   @@index([userId, moduleId])
 }
@@ -102,7 +122,7 @@ model CheckpointSubmission {
   status       String // "submitted" | "passed" | "needs_revision"
   createdAt    DateTime @default(now())
 
-  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profile    Profile    @relation(fields: [userId], references: [id], onDelete: Cascade)
   checkpoint Checkpoint @relation(fields: [checkpointId], references: [id], onDelete: Cascade)
 
   @@index([userId, checkpointId])
@@ -116,8 +136,8 @@ model Progress {
   masteryScore Float? // rolling average of related quiz scores, 0..1
   updatedAt    DateTime @updatedAt
 
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  module Module @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  profile Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+  module  Module  @relation(fields: [moduleId], references: [id], onDelete: Cascade)
 
   @@unique([userId, moduleId])
 }
@@ -135,7 +155,7 @@ model ReviewState {
   repetitions  Int      @default(0)
   dueAt        DateTime @default(now())
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profile Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, itemId, itemType])
   @@index([userId, dueAt])

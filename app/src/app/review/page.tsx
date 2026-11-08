@@ -1,8 +1,7 @@
 import Link from 'next/link'
-import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { db } from '@/lib/db'
-import { auth } from '@/lib/auth'
+import { getActiveProfile } from '@/lib/profile'
 import { resolveQuizQuestionItem } from '@/lib/quizzes'
 import { ReviewQueueItem } from '@/components/ReviewQueueItem'
 
@@ -16,9 +15,9 @@ import { ReviewQueueItem } from '@/components/ReviewQueueItem'
 export const dynamic = 'force-dynamic'
 
 export default async function ReviewPage() {
-  const session = await auth.api.getSession({ headers: await headers() })
-  if (!session) redirect('/login')
-  const due = await db.reviewState.findMany({ where: { userId: session.user.id, dueAt: { lte: new Date() } }, orderBy: { dueAt: 'asc' } })
+  const profile = await getActiveProfile()
+  if (!profile) redirect('/profiles')
+  const due = await db.reviewState.findMany({ where: { userId: profile.id, dueAt: { lte: new Date() } }, orderBy: { dueAt: 'asc' } })
 
   return (
     <main className="space-y-6">

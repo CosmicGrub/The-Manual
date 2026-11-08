@@ -1182,3 +1182,37 @@ Everything else checked out against real GHC output on the first pass: the curry
 
 **Result:** `npx tsc --noEmit` clean. `npm run build` passed (397 pages, content edits compiled cleanly through Velite). Live-verified via Playwright against a throwaway test account (created, then fully deleted): fieldset/legend and label association actually present on a rendered lesson page, sign-in/review flow unaffected. `.next/cache`'s 70MB confirmed present on a real build, targeted by the Dockerfile fix (not run against a real Docker daemon, unavailable in this environment, same standing caveat as every prior round).
 
+## [0.84.0] — 2026-11-08 — Offline-profile rework: Better Auth login locked and hidden, replaced by local no-password profiles
+
+**Context:** Explicit instruction: "this must be an offline app for starters, lock and hide any online components including the login feature. replace it with an offline profile systems." Two decisions clarified first via AskUserQuestion rather than assumed: multiple local profiles on one shared device (not a reset back to a single learner), and implement directly in the real app rather than mock it up first.
+
+**Added**
+- `prisma/schema.prisma` — new `Profile` model (`id`, `name`, `avatar` token, `createdAt`), no email/password. `Progress`, `QuizAttempt`, `CheckpointSubmission`, `ReviewState` now relate to `Profile` instead of `User` — the `userId` scalar column name was deliberately kept unchanged, so the 4 existing API routes and `lib/suggestedNext.ts` needed zero query changes, only what `userId` conceptually points at.
+- `app/src/lib/profile.ts` — server-side replacement for `session.ts`'s `requireUserId`: same name and signature (every API route's import changed by one line), reads a plain non-httpOnly `manual_profile_id` cookie and validates the profile still exists (never trusts the cookie blindly, same IDOR-closing discipline as before — just sourced locally instead of from a Better Auth session). Plus `getActiveProfileId()`/`getActiveProfile()` for server components.
+- `app/src/lib/profileClient.ts` — client-side localStorage mirror (`getStoredProfile`/`setStoredProfile`/`clearStoredProfile`) for instant display without a round trip, try/catch-wrapped throughout.
+- `app/src/lib/profileAvatars.ts` — the fixed 6-token avatar-color palette, shared by server-side validation and client-side swatch rendering.
+- `POST /api/profile` (create, no auth check — this *is* the account-creation flow now) and `POST /api/profile/select` (validates the id, sets the cookie) — both new routes, no password anywhere.
+- `/profiles` page + `ProfilePicker.tsx` — replaces `/login`. Lists every local profile as a clickable avatar card; "+ Add a profile" opens an inline name + avatar-swatch form, no CLI, no admin step.
+- `ProfileBar.tsx` / `RequireProfile.tsx` — replace `AccountBar`/`RequireSession` with the same roles (show who's active in the nav; gate the write-controls on statically-generated lesson/checkpoint pages client-side) against the local profile instead of a Better Auth session.
+
+**Locked and hidden, not deleted** — `app/src/lib/auth.ts`, `session.ts`, `auth-client.ts`, `app/src/app/login/page.tsx`, `AccountBar.tsx`, `RequireSession.tsx`, `scripts/create-user.ts`, and the `User`/`Session`/`Account`/`Verification` schema models all still exist, still compile, and `/login` still returns 200 if someone types the URL directly — but nothing in the active app links to or calls any of it. Every locked file got a header comment pointing at this entry and MASTERFILE.md §3.6.4, in case a future networked/multi-device-sync phase needs server-validated accounts again.
+
+**Fixed — a real bug caught live, not just read through:** the first version of `ProfilePicker` used `router.push('/')` after selecting a profile — a soft client-side transition that doesn't remount the root layout, so `ProfileBar`'s one-time-on-mount localStorage check kept showing the stale pre-selection "Choose a profile" state even though the dashboard itself (reading the cookie server-side) correctly greeted the right name by its own `getActiveProfile()` call. Fixed with a real navigation (`window.location.href = '/'`) so every profile-aware component mounts fresh after a switch.
+
+**Changed**
+- All 4 mutating API routes' `requireUserId` import switched from `@/lib/session` to `@/lib/profile`.
+- `page.tsx` (dashboard) and `review/page.tsx`: Better Auth session check → `getActiveProfile()`, redirect target `/login` → `/profiles`.
+- The lesson page and checkpoint page: `RequireSession` → `RequireProfile`.
+- `offlineOutbox.ts`'s `saveFailureMessage` wording: "You've been signed out — sign in again to save this." → "No active profile — pick one again to save this."; all 4 writer components' error-state link updated from `/login`/"Sign in" to `/profiles`/"Pick a profile".
+- `scripts/gen-precache-manifest.mjs`: `/login` → `/profiles` in the offline-critical `staticUrls` list.
+- `docs/running-on-your-devices.md`: the old "create your first account via CLI" step on both the Docker and native-Node paths replaced with "pick or create a profile in the app."
+
+**Verified live via Playwright, not just build-clean:**
+- Unselected device → `/` correctly redirects to `/profiles`, with zero links to `/login` anywhere on that page.
+- Creating a profile and marking a lesson complete under it, then creating a second profile and confirming that same lesson shows as *not* complete under the new one — true per-profile data isolation, not an accidentally shared global state.
+- `/login` reachable directly by URL (confirmed 200, locked not deleted) but unlinked from the entire active UI.
+- Clearing the profile cookie mid-page (the offline-outbox session-expiry-equivalent scenario from [0.81.0]) shows "No active profile — pick one again to save this." with a working `/profiles` link, not the old `/login` one.
+- All throwaway profiles (9 across the test run) and their rows deleted afterward via a one-off script; no stray dev-server processes left running.
+
+**Result:** `npx tsc --noEmit` clean. `npm run build` passed (399 static pages — `/profiles` and the 2 new API routes added, `/login` still present but orphaned). `prisma db push --accept-data-loss` applied cleanly against the dev SQLite DB (no real data to preserve — every prior test profile/account had already been cleaned up each round this session). Updates MASTERFILE.md §3.1, §3.6, §3.6.1, and new §3.6.4.
+

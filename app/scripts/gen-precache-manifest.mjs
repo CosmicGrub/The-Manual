@@ -17,10 +17,11 @@ const lessons = JSON.parse(readFileSync(lessonsPath, 'utf-8'))
 
 const trackIds = [...new Set(lessons.map((l) => l.trackId))]
 
-// /login is included so a learner whose session has expired/been cleared
-// while offline still has a real, cached sign-in page to land on instead of
-// the generic offline fallback with no path back in.
-const staticUrls = ['/', '/login', '/review', '/resources', '/manifest.json', '/offline.html', '/icons/icon.svg', '/icons/icon-maskable.svg']
+// /profiles is included so a device with no active profile selected (or
+// whose profile cookie got cleared) while offline still has a real, cached
+// picker to land on instead of the generic offline fallback with no path
+// back in — see MASTERFILE.md §3.6.4.
+const staticUrls = ['/', '/profiles', '/review', '/resources', '/manifest.json', '/offline.html', '/icons/icon.svg', '/icons/icon-maskable.svg']
 const trackUrls = trackIds.map((id) => `/tracks/${id}`)
 const lessonUrls = lessons.map((l) => `/tracks/${l.trackId}/${l.tier}/${l.slug}`)
 // Supplementary Foundations sidecars (content/**/*.supplementary.json)

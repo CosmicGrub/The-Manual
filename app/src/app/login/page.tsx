@@ -4,6 +4,11 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { signIn } from '@/lib/auth-client'
 
+// UNLINKED as of the offline-profile rework (MASTERFILE.md §3.6.4) — nothing
+// in the active app points here anymore; /profiles is the real entry point
+// now. Left in place, reachable only by typing the URL directly, alongside
+// the rest of the locked-and-hidden Better Auth system (see src/lib/auth.ts).
+//
 // No signup link on purpose — this is invite-only (see MASTERFILE.md §3.6):
 // accounts are created by whoever has shell access to the server, via
 // `npm run create-user`, not through a public form.

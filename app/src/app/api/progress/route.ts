@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { requireUserId } from '@/lib/session'
+import { requireUserId } from '@/lib/profile'
 
 // GET /api/progress — this learner's status across every module
 export async function GET(req: NextRequest) {

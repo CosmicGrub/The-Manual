@@ -4,7 +4,7 @@ import { getAllCheckpointBriefs, getCheckpointBrief } from '@/lib/curriculumDocs
 import { DEFAULT_RUBRIC_ITEMS } from '@/lib/checkpoints'
 import { TIER_LABELS, getTrackName } from '@/lib/tracks'
 import { CheckpointSubmissionForm } from '@/components/CheckpointSubmissionForm'
-import { RequireSession } from '@/components/RequireSession'
+import { RequireProfile } from '@/components/RequireProfile'
 
 // One statically generated page per checkpoint (54 total: 9 tracks x 6
 // tiers) — same offline-safe pattern as the lesson pages, see
@@ -39,9 +39,9 @@ export default async function CheckpointPage(props: { params: Promise<{ id: stri
 
       <section className="space-y-4 border-t border-neutral-200 dark:border-neutral-800 pt-6">
         <h2 className="text-lg font-medium">Submit your checkpoint</h2>
-        <RequireSession>
+        <RequireProfile>
           <CheckpointSubmissionForm checkpointId={checkpoint.id} rubricItems={DEFAULT_RUBRIC_ITEMS} />
-        </RequireSession>
+        </RequireProfile>
       </section>
     </main>
   )

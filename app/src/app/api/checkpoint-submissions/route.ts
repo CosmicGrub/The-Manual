@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { requireUserId } from '@/lib/session'
+import { requireUserId } from '@/lib/profile'
 import { ensureCheckpoint, DEFAULT_RUBRIC_ITEMS } from '@/lib/checkpoints'
 
 // GET /api/checkpoint-submissions?checkpointId=yyy — this learner's

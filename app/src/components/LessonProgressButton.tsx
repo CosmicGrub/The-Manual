@@ -9,7 +9,7 @@ export function LessonProgressButton({ moduleId }: { moduleId: string }) {
 
   async function markComplete() {
     setStatus('saving')
-    // No userId in the body — the server derives it from the session cookie.
+    // No userId in the body — the server derives it from the active-profile cookie.
     const result = await postWithOfflineFallback('/api/progress', { moduleId, status: 'completed' })
     if (result.ok) setStatus('done')
     else if (result.queued) setStatus('queued')
@@ -25,9 +25,9 @@ export function LessonProgressButton({ moduleId }: { moduleId: string }) {
     return (
       <p className="text-sm text-red-600">
         {errorMessage}{' '}
-        {errorMessage?.includes('signed out') && (
-          <a href="/login" className="underline">
-            Sign in
+        {errorMessage?.includes('No active profile') && (
+          <a href="/profiles" className="underline">
+            Pick a profile
           </a>
         )}
       </p>

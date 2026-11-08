@@ -18,7 +18,7 @@ export function ReviewQueueItem({ itemId, itemType, question }: { itemId: string
   async function grade(score: number) {
     if (submitting) return
     setSubmitting(true)
-    // No userId in the body — the server derives it from the session
+    // No userId in the body — the server derives it from the active-profile
     // cookie, which `fetch()` attaches automatically (same-origin), even on
     // a later offline-queue replay. See api/review-queue/route.ts.
     const result = await postWithOfflineFallback('/api/review-queue', { itemId, itemType, grade: score })
@@ -35,9 +35,9 @@ export function ReviewQueueItem({ itemId, itemType, question }: { itemId: string
     return (
       <li className="border rounded-lg p-4 text-sm text-red-600">
         {errorMessage}{' '}
-        {errorMessage?.includes('signed out') && (
-          <a href="/login" className="underline">
-            Sign in
+        {errorMessage?.includes('No active profile') && (
+          <a href="/profiles" className="underline">
+            Pick a profile
           </a>
         )}
       </li>

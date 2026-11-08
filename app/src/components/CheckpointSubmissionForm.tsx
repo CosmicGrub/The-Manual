@@ -27,7 +27,7 @@ export function CheckpointSubmissionForm({ checkpointId, rubricItems }: { checkp
   // Best-effort: shows past attempts when online, silently skipped offline —
   // the form itself works either way, same offline-first contract as every
   // other mutating page in the app. See MASTERFILE.md §3.8. No userId in the
-  // query string — the server derives it from the session cookie.
+  // query string — the server derives it from the active-profile cookie.
   useEffect(() => {
     fetch(`/api/checkpoint-submissions?checkpointId=${encodeURIComponent(checkpointId)}`)
       .then((res) => (res.ok ? res.json() : null))
@@ -78,9 +78,9 @@ export function CheckpointSubmissionForm({ checkpointId, rubricItems }: { checkp
       {state === 'error' && (
         <p className="text-sm text-red-600">
           {errorMessage}{' '}
-          {errorMessage?.includes('signed out') && (
-            <a href="/login" className="underline">
-              Sign in
+          {errorMessage?.includes('No active profile') && (
+            <a href="/profiles" className="underline">
+              Pick a profile
             </a>
           )}
         </p>

@@ -7,7 +7,7 @@ import { getTrackName } from '@/lib/tracks'
 import { QuizRunner } from '@/components/QuizRunner'
 import { SupplementaryPanel } from '@/components/SupplementaryPanel'
 import { SupplementaryGate } from '@/components/SupplementaryGate'
-import { RequireSession } from '@/components/RequireSession'
+import { RequireProfile } from '@/components/RequireProfile'
 
 // One statically generated page per lesson (all content baked in at build
 // time, quiz questions included) — this is what lets a lesson be fully
@@ -45,18 +45,18 @@ export default async function LessonPage(
         dangerouslySetInnerHTML={{ __html: lesson.body }}
       />
 
-      <RequireSession>
+      <RequireProfile>
         <SupplementaryGate moduleId={lesson.moduleId} concepts={supplementaryConcepts} />
-      </RequireSession>
+      </RequireProfile>
 
       {(questions.length > 0 || supplementaryConcepts.length > 0) && (
         <section className="space-y-4 border-t border-neutral-200 dark:border-neutral-800 pt-6">
           <h2 className="text-lg font-medium">Check your understanding</h2>
           <SupplementaryPanel concepts={supplementaryConcepts} />
           {questions.length > 0 && (
-            <RequireSession>
+            <RequireProfile>
               <QuizRunner moduleId={lesson.moduleId} questions={questions} />
-            </RequireSession>
+            </RequireProfile>
           )}
         </section>
       )}

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { nextReviewState } from '@/lib/srs'
-import { requireUserId } from '@/lib/session'
+import { requireUserId } from '@/lib/profile'
 
 // GET /api/review-queue — items due for spaced-repetition review right now
 export async function GET(req: NextRequest) {
